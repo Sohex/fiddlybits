@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "fiddlybits",
+  "project_id": "63c3c576-1e60-4b85-9991-8c1ad3ea7970"
+}
