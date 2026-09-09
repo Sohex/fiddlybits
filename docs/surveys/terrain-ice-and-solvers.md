@@ -15,9 +15,8 @@ date = 2026-09-09
 +++
 
 This is the group the user asked to be combed through properly, and it repaid the
-attention. Forty-one repositories were read; nine earn a real closer look (seven
-write-ups below, two of them covering a package pair or trio read together) and one
-tree is a name collision that would have wasted a milestone if it went unflagged.
+attention. Forty-one repositories were read; ten earn a real closer look (eight
+write-ups below, two of them covering a package pair or trio read together).
 
 Commit read at, by path (`git -C <path> rev-parse --short HEAD`):
 `JuliaGeodynamics/AdriaArrayGeometryPicker.jl` ef8fedf,
@@ -44,7 +43,7 @@ Commit read at, by path (`git -C <path> rev-parse --short HEAD`):
 `ODINN-SciML/ODINN_notebooks` 993e810, `ODINN-SciML/oggm` 157c44b,
 `ODINN-SciML/Sleipnir.jl` 76a9ed3, `ODINN-SciML/SphereUDE-examples` 6df92df,
 `ODINN-SciML/SphereUDE.jl` 8837206,
-`ODINN-SciML/universal_differential_equations` ebe7787; `fastflow` d476f66a;
+`ODINN-SciML/universal_differential_equations` ebe7787; `fastflow` 67be3c3;
 `whitebox_next_gen` cd24675; `PATHSolver.jl` 704fbfe.
 
 The three findings that matter most:
@@ -75,16 +74,27 @@ The three findings that matter most:
    (explicit `g`, no per-metre constant hiding it) is not a fiddlybits idiosyncrasy;
    it is achievable and already achieved elsewhere, which raises confidence that the
    discipline is realistic to hold.
-3. **`fastflow` at `/home/cfutro/git/fastflow` is not the flow-routing algorithm
-   the reasoning document named.** It is `github.com/fastflow/fastflow`, a C++
-   structured-parallel-programming library from Pisa and Turin (task farms,
-   pipelines, MPMC queues, distributed streaming), unrelated to Jain et al.'s
-   GPU flow-accumulation and depression-hierarchy algorithm referenced in
-   `reference_repos_desc.md` and behind decision 0019's parallel-routing question.
-   The tree earns `not pertinent` on its own content, and the real target is
-   unaddressed: whoever plans the M2 hydrology row needs to locate Jain et al.
-   (2024)'s actual code or reimplement from the paper, because this survey found
-   nothing to read on that specific question.
+3. **`fastflow` at `/home/cfutro/git/fastflow` is now the real tree, and it is exact
+   where it matters, but it solves a smaller problem than B5's.** The clone was
+   replaced; it is Jain et al.'s FastFlow (Computer Graphics Forum 43(7), 2024,
+   `gitlab.inria.fr/landscapes/fastflow`, read at `67be3c3`), a GPU parallelisation
+   of depression routing and flow accumulation for landscape-evolution erosion. Its
+   flow-accumulation primitive (`tree_accum_up.cu`'s rake-and-compress contraction,
+   `tree_accum_down.cu`'s pointer-doubling scan) is an exact parallel reformulation
+   of the Braun and Willett O(n) sequential accumulation 0015 already cites, and its
+   depression-merge order (`lakeflow.cu`'s Boruvka-style basin union) is exact as a
+   graph algorithm, not an approximation - genuinely useful facts, because they mean
+   the GPU technique is provably not a source of invented or lost water on its own
+   terms. But `lakeflow()` unconditionally connects every interior local minimum to
+   the boundary on every call, with no runoff or water-volume field anywhere in the
+   construction: it always fills every depression to its spill, which is precisely
+   the alternative decision 0019 names and rejects, not the water-balance-conditioned
+   fill-spill-merge B5 requires. And its neighbour-finding (`rcv.cu`'s `make_rcv`,
+   `lakeflow.cu`'s `comp_basin_edgez`/`compute_p_b_rcv`) is a hardcoded four-neighbour
+   raster stencil with no connectivity-graph or variable-valence analogue, while the
+   pointer-jumping tree contraction underneath it is structure-agnostic and would
+   carry over to the mesh once fed a mesh-native receiver graph. Full detail in the
+   fastflow closer look below.
 
 ## Repositories
 
@@ -128,11 +138,11 @@ The three findings that matter most:
 | ODINN-SciML/universal_differential_equations | the companion repository to the Rackauckas et al. UDE paper | - | not pertinent: generic SciML methodology, no glacier or terrain content | - |
 | ODINN-SciML/ODINN-JOSS-paper | the JOSS journal-article source for ODINN.jl | - | not pertinent: a paper | - |
 | ODINN-SciML/ODINN_notebooks | demonstration Jupyter notebooks | - | not pertinent | - |
-| fastflow | github.com/fastflow/fastflow: a C++ structured-parallel-programming library (task farms, pipelines, MPMC queues) | - | not pertinent: a name collision; not Jain et al.'s GPU flow-routing algorithm named in the reasoning document. See finding 3 above. | - |
+| fastflow | gitlab.inria.fr/landscapes/fastflow: Jain et al.'s GPU depression routing and flow accumulation for landscape-evolution erosion, PyTorch/CUDA with a TensorFlow port | 0019, REQ-HYD-006, REQ-HYD-007, REQ-HYD-008 | algorithmic reference | M2 |
 | whitebox_next_gen | the Rust rewrite of WhiteboxTools (John Lindsay): least-cost depression breaching, wetness-index and flow-routing tools | 0019, REQ-HYD-004, REQ-HYD-005 | algorithmic reference | M2 |
 | PATHSolver.jl | Julia wrapper for the PATH solver, the standard benchmark for mixed complementarity and LCP problems | 0019, REQ-HYD-004, 0025 | oracle arm | M2 |
 
-Counts: 41 repositories surveyed. 31 not pertinent, 9 algorithmic reference (one of
+Counts: 41 repositories surveyed. 30 not pertinent, 10 algorithmic reference (one of
 those, Muninn.jl, negatively - what to avoid rather than what to borrow), 1 oracle arm,
 0 import review.
 
@@ -286,6 +296,107 @@ motivates REQ-CRY-001's active-set requirement and decision 0020's energy-balanc
 choice, as evidence that the easier, wrong answer is the one a mature adjacent
 ecosystem actually shipped, not a strawman.
 
+### fastflow
+
+Jain et al.'s FastFlow (`gitlab.inria.fr/landscapes/fastflow`, read at `67be3c3`) is a
+PyTorch/CUDA library (with a TensorFlow port in `tensorflow_port/`) built to run
+depression routing and flow accumulation on the GPU, inside a stream-power erosion
+loop (`src/simulation.py`). It answers all three of B5's algorithm questions, and its
+answer to the second is the one worth reading closely.
+
+**What is implemented.** Both flow accumulation and depression routing, chained
+together every simulation iteration, never as a one-shot preprocessing pass:
+`src/cuda/core/rcv.cu`'s `make_rcv`/`make_rcv_rand` assign each cell a single
+receiver (steepest descent, or a slope-weighted stochastic pick used only to average
+toward a multi-direction result across many iterations, not within one);
+`src/cuda/core/lakeflow.cu`'s `lakeflow_cuda` builds and merges the basin graph
+(`comp_basin_edgez` and `compute_p_b_rcv` find each basin's lowest bounding saddle and
+its across-saddle neighbour basin, `set_keep_b`/`set_keep` and the
+`propag_basin_route_*` kernels resolve the merge order by a parallel, Boruvka-style
+reciprocal-lowest-neighbour rule propagated by pointer jumping, and `init_reverse`
+plus `flow_cuda_path_accum_upward_kernel1`/`kernel2`/`final1`/`final2` carve a virtual
+channel through each merged basin by reversing its flow-direction chain from pit to
+spill, in place, with elevation untouched); `src/cuda/core/tree_accum_up.cu`'s
+`flow_cuda_tree_accum_upward_rake_compress` then sums water (or sediment) down the
+resulting tree by rake-and-compress contraction, and `tree_accum_down.cu`/
+`tree_max_down.cu` scan a scalar the other way by pointer doubling (the latter is how
+`simulation.py` recovers a lake mask: the spill elevation propagated downstream past
+every merged pit, compared against the unmodified terrain).
+
+**Exactness (the answer that matters most).** The parallel primitives are exact, not
+approximate, and worth stating plainly. The rake-and-compress accumulation is a
+provably exact parallel reformulation of Braun and Willett's own O(n) sequential
+stack-based tree sum - the same reference 0015 already cites for implicit incision -
+so it does not lose or invent water relative to the sequential algorithm it replaces,
+up to floating-point summation order. The basin-merge order is exact as a graph
+algorithm: the reciprocal-lowest-neighbour test is a parallel Boruvka construction,
+and Boruvka's algorithm agrees with a sequential union-find priority-flood on the same
+merge order wherever saddle elevations are distinct. But exactness of the primitive is
+not exactness against B5's problem. `lakeflow()`'s outer loop runs until zero interior
+local minima remain unconnected to the boundary (`for i in range(logn): p_lm = ...;
+if S == 0: break`, `src/lakeflow.py:33-37`), with no runoff or water-volume field
+anywhere in `lakeflow_cuda`'s construction - every depression is filled to its spill
+unconditionally, every call. That is the alternative decision 0019 names and rejects
+outright ("a routing scheme that fills every depression to its spill... deletes closed
+basins, which are a large share of the land"), not the water-balance-conditioned
+fill-spill-merge REQ-HYD-007/008 need, where a basin below its spill for lack of water
+stays a closed lake rather than being force-connected. FastFlow's own use case explains
+why: it is driving many iterations of stream-power erosion toward a geological-time
+steady state (`erode_deposit.cu`), where assuming every basin eventually overflows is
+a reasonable simplification; it was never built to report an instantaneous lake's
+level, area or overflow against a finite year's water balance, and does not carry a
+runoff field through the basin construction to do so.
+
+**Fill-spill-merge case (question 5).** Topologically, yes: the reciprocal test in
+`set_keep_b` is exactly the "does this basin's overflow land in a neighbour that
+overflows back into it" merge case, and unreciprocated basins correctly chain through
+multiple hops via the `propag_basin_route_*` pointer-jumping propagation (a basin can
+overflow into a neighbour, which overflows into a third, all resolved in the same
+`O(log S)` pass). But because the construction is unconditional on water volume, it
+never produces the partial-fill case decision 0019 needs (a basin below its spill,
+holding less than full capacity) - it only ever produces the fully-connected end state.
+
+**Grid assumptions (question 3).** The neighbour-finding and basin-adjacency kernels
+are D4-raster-bound, not merely raster-bound: `make_rcv`/`make_rcv_rand` in `rcv.cu`
+and `comp_basin_edgez`/`compute_p_b_rcv` in `lakeflow.cu` all use four hardcoded fixed
+offsets (`loc+1`, `loc-1`, `loc+res`, `loc-res`), narrower than even an eight-neighbour
+raster stencil and nothing like the twelve-vertex-neighbour stencil 0005 and 0015
+require; `scatter_argbasin_atomic` in `scatter_min.cu` uses the identical four-offset
+search. The rake-and-compress donor list in `tree_accum_up.cu` bakes in a maximum
+in-degree of four per node (`dnr[n*4]`, an atomic slot counter with no bound check)
+that follows directly from the D4 stencil upstream of it, not an independently chosen
+structure-agnostic bound - reusing the technique on the mesh means resizing that array
+to the mesh's own maximum in-degree (bounded by twelve) as well as replacing the
+neighbour search. By contrast, everything downstream of a computed `rcv` array -
+`tree_accum_down.cu`, `tree_max_down.cu`, and the carve-reversal kernels in
+`lakeflow.cu` - reads and writes only the abstract parent-pointer array, with no
+coordinate arithmetic anywhere in them, so the pointer-jumping technique itself is
+structure-agnostic and would carry over unchanged to a receiver graph built from the
+mesh's connectivity graph. In short: the idea (parallel tree contraction for
+accumulation, parallel Boruvka basin merging) survives; the neighbour-finding and
+basin-adjacency detection do not, and need a full reimplementation against the mesh.
+
+**Licence (question 4).** `LICENSE.md` is Inria's own research licence, not an OSI
+licence: non-exclusive, royalty-free rights to use, reproduce, prepare derivative
+works of, publicly display and distribute the work, restricted to non-commercial
+research and evaluation use, with no right to sublicense, redistribution required
+under the same licence with notices retained, and any unauthorised (commercial) use
+requiring Inria's prior consent. Reading the source for research purposes, which is
+what this survey and any from-paper reimplementation of the idea are, is exactly what
+the licence exists to allow; decision 0012's rule against vendoring or adopting
+anything from a survey tree means no code crosses regardless of what the licence
+would permit.
+
+**The closer look this earns:** before B5's routing kernels are designed, read
+`tree_accum_up.cu`'s rake-and-compress contraction and the `propag_basin_route_*`
+pointer-jumping union in `lakeflow.cu` as a worked, exact GPU parallelisation of a
+tree sum and of a basin-merge order on an abstract graph - the two primitives 0019's
+depression hierarchy and fill-spill-merge will themselves need on the mesh's
+connectivity graph - while treating the neighbour-finding and the always-fills-every-
+basin policy as the parts to leave behind, since the water-volume-conditioned partial
+fill B5 requires has to be built as a separate layer over whatever mesh-native
+receiver graph is built the same way.
+
 ### whitebox_next_gen
 
 `crates/wbtools_oss/src/tools/hydrology/mod.rs` (line 3389, `BreachDepressionsLeastCostTool`)
@@ -350,15 +461,43 @@ or milestone gate, not just the per-commit tier-1 suite.
   checks, and separately confirm whether the C4 mutation-run scale needs the licensed
   tier.** Serves: oracle arm, per decision 0025. Timed to M2, before the water-table
   solver's oracle registry entries are written.
-- **Locate the actual Jain et al. (2024) GPU flow-routing and depression-hierarchy
-  code (not `/home/cfutro/git/fastflow`, which is a name collision) or budget a
-  from-paper reimplementation, and separately read whitebox_next_gen's least-cost
-  breaching as a bounded, non-inventing conditioning reference.** Serves: closing the
-  gap finding 3 leaves open, and an algorithmic reference for whitebox_next_gen.
-  Timed to M2, before decision 0019's routing implementation begins.
+- **Read fastflow's rake-and-compress accumulation and Boruvka-style basin-merge
+  order (`tree_accum_up.cu`, `lakeflow.cu`) as a worked, exact GPU parallelisation of
+  Braun and Willett's tree sum and of a depression-merge order on an abstract graph,
+  before B5's routing kernels are designed, and separately read whitebox_next_gen's
+  least-cost breaching as a bounded, non-inventing conditioning reference.** Neither
+  supplies the water-balance-conditioned fill-spill-merge itself: fastflow's routing
+  always fills every depression to its spill regardless of available water, and both
+  are written against a raster's fixed neighbour offsets, not the mesh's twelve-
+  neighbour connectivity graph. Serves: algorithmic reference for both. Timed to M2,
+  before decision 0019's routing implementation begins.
 - **Read GeophysicalModelGenerator.jl's `LithosphericTemp` transient geotherm solver
   and WorldBuilder.jl's per-feature half-space-cooling model as a cross-check on
   decision 0015's closed-form thermal subsidence, and note GeoParams.jl's
   gravity-as-struct-field pattern as confirmation the discipline REQ-CRY-002 and
   REQ-TER-018 ask for is already achieved elsewhere.** Serves: algorithmic reference.
   Timed to M1, before the terrain snapshot's lithosphere/geotherm code is written.
+
+## Amendments
+
+- 2026-09-09: the user replaced the tree cloned as `fastflow`, which the original
+  survey had found to be a C++ structured-parallel-programming library unrelated to
+  Jain et al. (2024), with a real clone of `gitlab.inria.fr/landscapes/fastflow` at
+  commit `67be3c3`. Re-surveyed against decision 0019, REQ-HYD-006, REQ-HYD-007 and
+  REQ-HYD-008 (the questions basin-fate-is-a-process, depressions-are-nodes and
+  water-balance-decides-basin-fate turn on): the table row, finding 3, the repository
+  count, and the recommended-rows entry are corrected, and a `### fastflow` closer
+  look is added. Verdict changes from `not pertinent` (name collision) to
+  `algorithmic reference`, timed to M2. Summary of what the real tree turned out to
+  be: its flow-accumulation (rake-and-compress tree contraction) and depression-merge
+  order (a parallel Boruvka construction) are exact parallel reformulations of known
+  sequential algorithms, not approximations, so the GPU technique itself invents or
+  loses no water on its own terms; but its routing always fills every depression to
+  its spill unconditionally on available water, which is the alternative decision
+  0019 names and rejects, not the water-balance-conditioned fill-spill-merge B5
+  requires; its neighbour-finding and basin-adjacency kernels are hardcoded to a
+  four-neighbour raster stencil with no connectivity-graph analogue, while the
+  pointer-jumping tree contraction underneath them is structure-agnostic and would
+  carry over to the mesh; and its licence (Inria's own research licence) permits
+  reading and a from-paper reimplementation of the idea without qualification, moot
+  in any case since nothing is vendored from a survey tree.
