@@ -20,7 +20,8 @@ WORK="$ROOT/references/work"; mkdir -p "$WORK"
 # the default temporary directory turns a large book into gigabytes of resident memory and the machine
 # swaps: throughput fell to a third of its rate with the card still reading 100 percent busy.
 export TMPDIR="$WORK/tmp"; mkdir -p "$TMPDIR"
-CORES=${OCR_CORES:-20}; MEM=${OCR_MEM:-20G}
+export OMP_THREAD_LIMIT=1   # one thread per tesseract; the pool size is the parallelism
+CORES=${OCR_CORES:-12}; MEM=${OCR_MEM:-20G}
 say() { echo "=== $(date +%H:%M:%S) $*"; }
 
 say "waiting for the Chandra server on 127.0.0.1:8000"

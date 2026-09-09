@@ -24,6 +24,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]; PDF = ROOT / 'references' / 
 # temporary directory would hold a whole book in RAM and the machine would swap. Render to disk unless
 # the caller has already chosen somewhere.
 os.environ.setdefault('TMPDIR', str(ROOT / 'references' / 'work' / 'tmp'))
+# One thread per tesseract. It spawns one OpenMP thread per visible CPU by default, so a pool of them
+# oversubscribes every core and each process gets a fraction of one: the pool size is the parallelism.
+os.environ.setdefault('OMP_THREAD_LIMIT', '1')
 pathlib.Path(os.environ['TMPDIR']).mkdir(parents=True, exist_ok=True)
 tempfile.tempdir = os.environ['TMPDIR']
 MODEL = '/home/cfutro/models/chandra-ocr-2'

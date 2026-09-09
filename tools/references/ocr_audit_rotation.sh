@@ -14,7 +14,8 @@ WORK="$ROOT/references/work"; mkdir -p "$WORK"
 # the default temporary directory turns a large book into gigabytes of resident memory and the machine
 # swaps: throughput fell to a third of its rate with the card still reading 100 percent busy.
 export TMPDIR="$WORK/tmp"; mkdir -p "$TMPDIR"
-CORES=${AUDIT_CORES:-8}
+export OMP_THREAD_LIMIT=1   # one thread per tesseract; the pool size is the parallelism
+CORES=${AUDIT_CORES:-16}
 rm -f "$WORK/audit_done"
 qrun -p light -m 12G -c "$CORES" -t 8:00:00 -- "$PY" tools/references/audit_orientation.py \
   "$WORK/repair_list.txt" --workers "$CORES" 2>&1 | grep -iE 'sideways|were read before|done|Traceback|Error'
