@@ -76,6 +76,11 @@ class 9, and is never cited.
   at call time. The second reach; it spends model calls. The local model is quantized to fit
   the card; `tools/references/calib/` builds its calibration set from this archive
   and PaperQA2's own prompts, which suits it to the job better than a general corpus.
+  Retrieval can pull a broader set and hand it to a cross-encoder that keeps the best
+  `evidence_k` (`rerank.py`, configured in `paperqa.toml`): a bi-encoder scores a page
+  against a vector built without the query, which is weak at separating a page that
+  states a result from one that cites it. The stage is off until `rerank_ab.py` says
+  which reranker, since only 0.6B at fp16 and 4B at int8 fit beside the generator.
 - **One document per held PDF, everywhere.** The page-text corpus is one directory
   per PDF and the index manifest is one row per PDF, so a work cannot enter either
   instrument twice; a work held in two versions is two rows on purpose and says so

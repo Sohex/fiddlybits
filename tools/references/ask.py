@@ -117,7 +117,9 @@ async def ask(q, evidence_only):
     from paperqa import Docs
     from paperqa.agents.search import get_directory_index
     s = settings(evidence_only); idx = await get_directory_index(settings=s, build=False)
-    docs = Docs()
+    import rerank
+    rr = rerank.from_config()
+    docs = rerank.reranked_docs_class(rr, CFG.get('rerank_fetch_k', 50))() if rr else Docs()
     # gather across the whole index rather than an agent loop: deterministic, cheaper, and every source is page-cited
     from paperqa.agents.main import agent_query
     from paperqa.agents.models import QueryRequest

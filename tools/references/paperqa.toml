@@ -17,7 +17,22 @@ query_instruction = "Given a question about a physical law, numerical scheme, da
 max_seq = 2048
 paper_directory = "references/pdf"
 index_directory = "references/index"
-evidence_k = 12
+evidence_k = 12                       # chunks summarised per question; what the rerank stage returns
 answer_max_sources = 6
+
+# Cross-encoder rerank stage (tools/references/rerank.py). Retrieval pulls rerank_fetch_k
+# and the reranker keeps the best evidence_k of them, so recall comes from the broad pull
+# and precision from the cross-encoder, which reads query and page together instead of
+# comparing two vectors built apart. Set rerank_path empty to turn the stage off; it is
+# empty until the A/B in notes/findings picks a reranker, because 0.6B fp16 and 4B at
+# int8 are the two that fit beside the served generator and they have not been compared.
+# rerank_quant is bitsandbytes: none | int8 | nf4. rerank_vram_gib is the free VRAM below
+# which the stage runs on CPU instead, which a shortlist is small enough to survive.
+rerank_path = ""
+rerank_kind = "qwen3"
+rerank_quant = "none"
+rerank_fetch_k = 50
+rerank_vram_gib = 3.0
+rerank_instruction = "Given a question about a physical law, numerical scheme, dataset or constant, judge whether the page of a scientific paper or book states it"
 chunk_chars = 4000
 overlap = 200
