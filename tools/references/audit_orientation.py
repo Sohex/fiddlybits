@@ -9,7 +9,7 @@ otherwise upright paper is exactly the case a sample would miss (notes/findings/
 import argparse, json, pathlib, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from chandra_pages import page_turn, MAN, PDF   # also sets the temporary directory off the tmpfs; see that file
+from chandra_pages import page_turn, render_pages, MAN, PDF   # also sets the temporary directory off the tmpfs; see that file
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('out'); ap.add_argument('--workers', type=int, default=8); ap.add_argument('--only', default=''); a = ap.parse_args()
     done = {}
@@ -27,8 +27,7 @@ def main():
         p = PDF / fn
         if not p.exists(): print('missing', fn, flush=True); continue
         with tempfile.TemporaryDirectory() as td:
-            subprocess.run(['pdftoppm', '-scale-to', '3300', '-png', str(p), f'{td}/p'], check=True)
-            imgs = sorted(pathlib.Path(td).glob('p-*.png'), key=lambda x: int(x.stem.split('-')[-1]))
+            imgs = render_pages(p, td, 3300, a.workers)
             with ThreadPoolExecutor(max_workers=a.workers) as ex: verdicts = list(ex.map(page_turn, [str(x) for x in imgs]))
         turned = [int(x.stem.split('-')[-1]) for x, d in zip(imgs, verdicts) if d]
         n_pages += len(imgs); n_turned += len(turned)

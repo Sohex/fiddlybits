@@ -27,6 +27,8 @@ os.environ.setdefault('TMPDIR', str(ROOT / 'references' / 'work' / 'tmp'))
 # One thread per tesseract. It spawns one OpenMP thread per visible CPU by default, so a pool of them
 # oversubscribes every core and each process gets a fraction of one: the pool size is the parallelism.
 os.environ.setdefault('OMP_THREAD_LIMIT', '1')
+
+def cores(): return max(4, int(os.environ.get('SLURM_CPUS_PER_TASK', '4')))
 pathlib.Path(os.environ['TMPDIR']).mkdir(parents=True, exist_ok=True)
 tempfile.tempdir = os.environ['TMPDIR']
 MODEL = '/home/cfutro/models/chandra-ocr-2'
@@ -92,6 +94,22 @@ def turn_upright(imgs, workers, snap_scores=False):
         if d: Image.open(f).rotate(-d, expand=True).save(f); n += 1
     return n, best
 
+def render_pages(pdf, outdir, long_side, workers, chunk=8):
+    """Render a whole document to `outdir` across the job's cores. pdftoppm is one process on one page at a time,
+    so a long book rendered by a single call leaves every other core and the card idle for minutes; page ranges
+    split cleanly and poppler numbers the files by page, so the chunks reassemble by name."""
+    n = pages_of(pdf)
+    ranges = [(a, min(a + chunk - 1, n)) for a in range(1, n + 1, chunk)]
+    def one(r):
+        subprocess.run(['pdftoppm', '-f', str(r[0]), '-l', str(r[1]), '-scale-to', str(long_side), '-png',
+                        str(pdf), f'{outdir}/p'], check=True)
+    with ThreadPoolExecutor(max_workers=workers) as ex: list(ex.map(one, ranges))
+    return sorted(pathlib.Path(outdir).glob('p-*.png'), key=lambda x: int(x.stem.split('-')[-1]))
+
+def pages_of(pdf):
+    info = subprocess.run(['pdfinfo', str(pdf)], capture_output=True, text=True).stdout
+    return int(next((l.split()[1] for l in info.splitlines() if l.startswith('Pages:')), '0') or 0)
+
 def sha(p):
     h = hashlib.sha256()
     with open(p, 'rb') as f:
@@ -110,7 +128,7 @@ def repair(a, ocr, done):
             for pg in pages:
                 subprocess.run(['pdftoppm', '-f', str(pg), '-l', str(pg), '-scale-to', str(a.long_side), '-png', '-singlefile', str(p), f'{td}/{pg:05d}'], check=True)
                 imgs.append(f'{td}/{pg:05d}.png')
-            turned, _ = turn_upright(imgs, max(4, int(os.environ.get('SLURM_CPUS_PER_TASK', '4'))))
+            turned, _ = turn_upright(imgs, cores())
             texts = {}
             for i in range(0, len(imgs), a.batch):
                 chunk = imgs[i:i + a.batch]
@@ -156,11 +174,11 @@ def main():
     for fn in files:
         p = PDF / fn; t0 = time.time()
         with tempfile.TemporaryDirectory() as td:
-            subprocess.run(['pdftoppm', '-scale-to', str(a.long_side), '-png', str(p), f'{td}/p'], check=True)   # bounded long side: a page's declared size no longer decides the raster
-            imgs = sorted(pathlib.Path(td).glob('p-*.png'), key=lambda x: int(x.stem.split('-')[-1]))
+            # bounded long side: a page's declared size no longer decides the raster
+            imgs = render_pages(p, td, a.long_side, cores())
             turned = 0
             if not a.no_orient:
-                turned, _ = turn_upright([str(x) for x in imgs], max(4, int(os.environ.get('SLURM_CPUS_PER_TASK', '4'))))
+                turned, _ = turn_upright([str(x) for x in imgs], cores())
             texts = {}
             for i in range(0, len(imgs), a.batch):
                 chunk = imgs[i:i + a.batch]
