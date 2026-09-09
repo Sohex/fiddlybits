@@ -1,0 +1,53 @@
+# Calibration set for the exllamav3 quant of the PaperQA2 generator. See README.md.
+#
+# Chunk size, evidence_k and answer_max_sources are not here on purpose: they come
+# from tools/references/paperqa.toml, so this cannot describe a service configured
+# differently.
+
+[model]
+# Sampled from and packed with. Must be the model being quantized.
+dir = "/home/cfutro/git/Qwen3.8-27B"
+
+[trace]
+# Slack over the pack's token budget. The question count is derived from that budget,
+# not set here; generating past it only makes the heavy stage longer.
+margin = 1.35
+# PaperQA2 serves at temperature 0, but a purely greedy trace covers fewer tokens.
+temperature = 0.7
+top_p = 0.9
+max_new_summary = 320
+max_new_answer = 700
+max_new_question = 64
+seed = 0
+
+# This model reasons by default at effort xhigh. Match the server, or the calibration
+# describes a distribution nothing sends. Off for the summary call, which is
+# extractive and runs evidence_k times per question; on for the answer call, which is
+# where reasoning helps. PaperQA2 has separate llm and summary_llm, so the split is
+# expressible in paperqa.toml.
+[thinking.summary]
+enable = false
+effort = "low"
+
+[thinking.answer]
+enable = true
+effort = "medium"
+
+[thinking.question]
+enable = false
+effort = "low"
+
+[pack]
+# exllamav3's conversion default is 250 x 2048.
+rows = 250
+cols = 2048
+# Blend weights. Everything but trace mirrors exllamav3's bundled mix
+# (exllamav3/conversion/calibration_data.py); random covers the vocabulary the
+# archive never touches.
+trace = 65
+wiki = 10
+c4 = 5
+code = 4
+technical = 4
+multilingual = 2
+random = 10

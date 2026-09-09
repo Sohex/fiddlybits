@@ -73,7 +73,9 @@ class 9, and is never cited.
   `notes/findings/2026-09-08-embedding-model-ab.md`) and a local model served by
   `serve_llm.sh` under `qrun`
   on one GPU share, or an Anthropic model with the key read from `~/.anthropic_key`
-  at call time. The second reach; it spends model calls.
+  at call time. The second reach; it spends model calls. The local model is quantized to fit
+  the card; `tools/references/calib/` builds its calibration set from this archive
+  and PaperQA2's own prompts, which suits it to the job better than a general corpus.
 - **One document per held PDF, everywhere.** The page-text corpus is one directory
   per PDF and the index manifest is one row per PDF, so a work cannot enter either
   instrument twice; a work held in two versions is two rows on purpose and says so

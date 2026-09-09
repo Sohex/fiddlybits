@@ -1,0 +1,9 @@
+# Derived, and large. build_chunks.py rebuilds chunks.jsonl from references/text in
+# seconds; seeds, trace and the packed rows fall out of the stages after it. None of
+# it is evidence of anything once the corpus beneath it changes, which is the same
+# rule references/README.md states for the index.
+chunks.jsonl
+seeds.jsonl
+trace.jsonl
+cal.safetensors
+__pycache__/

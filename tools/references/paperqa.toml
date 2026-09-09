@@ -2,6 +2,11 @@
 # llm: any LiteLLM model string. Default is the local llama-server (tools/references/serve_llm.sh) speaking the
 # OpenAI protocol. To use Anthropic instead, set llm = "anthropic/claude-sonnet-5" and put the key in ~/.anthropic_key
 # (read at call time by ask.py, never written anywhere).
+# Once the quantized local model is in use, these two split: summary_llm serves the
+# evidence call with thinking off, llm serves the answer call with thinking on. That
+# is how the model was calibrated (tools/references/calib/calib.toml), and serving it
+# the other way wastes the calibration. exllamav3 has no OpenAI server of its own, so
+# an exl3 quant needs a different server behind api_base than serve_llm.sh runs now.
 llm = "openai/local"
 summary_llm = "openai/local"
 api_base = "http://127.0.0.1:8080/v1"

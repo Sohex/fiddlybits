@@ -1,0 +1,190 @@
+# Seed questions for the calibration set: the sort of thing actually put to
+# ask.py, so the calibration prompts look like the served ones.
+#
+# This bank covers the default token budget on its own. If you raise pack.rows in
+# calib.toml, gen_trace.py makes up the shortfall by deriving further questions
+# from the corpus.
+#
+# area matches the requirement-record areas under docs/requirements/; kind is one of
+# the four named in paperqa.toml's retrieval instruction. Both ride along into the
+# trace in case a later pass wants to weight by them.
+
+[[question]]
+area = "ter"
+kind = "scheme"
+text = "How does the shaved-cell method represent topography in a height-coordinate ocean model, and what does it do to the cell volume and face areas?"
+
+[[question]]
+area = "ocn"
+kind = "scheme"
+text = "What is a rescaled height coordinate and what problem with a fixed z-coordinate free surface does it solve?"
+
+[[question]]
+area = "atm"
+kind = "scheme"
+text = "What form does the divergence damping term take in a hydrostatic dynamical core, and how is its coefficient set relative to the time step?"
+
+[[question]]
+area = "atm"
+kind = "law"
+text = "How is the number of activated cloud droplets related to the aerosol size distribution and the updraft velocity in a multiple-aerosol-type activation parameterization?"
+
+[[question]]
+area = "atm"
+kind = "constant"
+text = "What value of the water vapour continuum absorption coefficient is used in shortwave atmospheric absorption parameterizations, and over what spectral range?"
+
+[[question]]
+area = "atm"
+kind = "dataset"
+text = "What is the spatial and temporal resolution of the GPCP global precipitation product, and what is its stated uncertainty over ocean?"
+
+[[question]]
+area = "ter"
+kind = "law"
+text = "What functional relationship between denudation rate and local relief has been reported, and over what range of relief does it hold?"
+
+[[question]]
+area = "ter"
+kind = "law"
+text = "How does Airy isostasy relate the depth of a crustal root to the elevation of a mountain range, and what density contrast does it assume?"
+
+[[question]]
+area = "ter"
+kind = "scheme"
+text = "What is the stream power law for fluvial incision, what are the exponents on drainage area and slope, and how is sediment deposition added to it?"
+
+[[question]]
+area = "ter"
+kind = "constant"
+text = "What erodibility values are assigned to different rock types in a global lithological erodibility index?"
+
+[[question]]
+area = "ped"
+kind = "law"
+text = "How does the rate of chemical weathering of silicate rock depend on temperature and runoff, and what activation energy is used?"
+
+[[question]]
+area = "ped"
+kind = "dataset"
+text = "What lithological classes does a global lithology map distinguish, and what fraction of continental area does each cover?"
+
+[[question]]
+area = "ped"
+kind = "scheme"
+text = "What closed-form equation predicts the hydraulic conductivity of unsaturated soil from the water retention curve, and what parameters does it need?"
+
+[[question]]
+area = "bio"
+kind = "law"
+text = "How does the Farquhar biochemical model compute net CO2 assimilation, and what limits the rate in the light-limited and Rubisco-limited regimes?"
+
+[[question]]
+area = "bio"
+kind = "scheme"
+text = "How is rate of spread computed in a physical wildfire spread model, and what fuel properties enter it?"
+
+[[question]]
+area = "bio"
+kind = "dataset"
+text = "How does rooting depth vary between terrestrial biomes in a global compilation of root distributions?"
+
+[[question]]
+area = "cry"
+kind = "scheme"
+text = "How is snow albedo parameterized as a function of grain size and solar zenith angle, and how does soot contamination change it?"
+
+[[question]]
+area = "cry"
+kind = "law"
+text = "What are the momentum and thermodynamic equations of a dynamic-thermodynamic sea ice model, and what rheology is assumed?"
+
+[[question]]
+area = "ocn"
+kind = "dataset"
+text = "What horizontal and vertical grid does the World Ocean Atlas 2023 temperature climatology use, and how are its objectively analyzed fields produced?"
+
+[[question]]
+area = "ocn"
+kind = "constant"
+text = "What value is used for the albedo of the ocean surface as a function of solar zenith angle?"
+
+[[question]]
+area = "hyd"
+kind = "scheme"
+text = "How is wetland extent and peat accumulation computed in a dynamic model over the Holocene?"
+
+[[question]]
+area = "num"
+kind = "scheme"
+text = "What is the linear complementarity problem, and what conditions on the matrix guarantee a solution exists?"
+
+[[question]]
+area = "num"
+kind = "scheme"
+text = "How does an ensemble-based consistency test decide whether a modified model run is statistically distinguishable from a control ensemble?"
+
+[[question]]
+area = "sys"
+kind = "law"
+text = "How is the relation between the solar day and the sidereal day derived for a planet with a given orbital and rotational period?"
+
+[[question]]
+area = "sys"
+kind = "constant"
+text = "What values does the IAU recommend for the rotational elements and reference surface of the planets, and at what epoch?"
+
+[[question]]
+area = "sys"
+kind = "dataset"
+text = "What rotation periods were measured for main sequence stars from Kepler light curves, and by what method were they detected?"
+
+[[question]]
+area = "atm"
+kind = "law"
+text = "What sets the threshold friction velocity for saltation of sand grains, and how does it depend on grain diameter?"
+
+[[question]]
+area = "atm"
+kind = "scheme"
+text = "How is the vertical dust flux related to the horizontal saltation flux in a dust emission scheme?"
+
+[[question]]
+area = "atm"
+kind = "law"
+text = "What controls outgassing rate on a stagnant-lid terrestrial planet, and how does it scale with planet mass?"
+
+[[question]]
+area = "atm"
+kind = "scheme"
+text = "How is turbulent orographic form drag parameterized from subgrid topography statistics?"
+
+[[question]]
+area = "ter"
+kind = "dataset"
+text = "How does hyperspectral soil albedo differ from a broadband soil albedo, and what does the difference do to modelled surface energy balance?"
+
+[[question]]
+area = "sys"
+kind = "dataset"
+text = "What atmosphere models are used for very low mass stars and brown dwarfs, and over what effective temperature range are they valid?"
+
+[[question]]
+area = "num"
+kind = "constant"
+text = "What time step and filter coefficient are used for the Robert-Asselin filter in a leapfrog dynamical core, and what does the filter do to the amplitude of the physical mode?"
+
+[[question]]
+area = "proc"
+kind = "scheme"
+text = "How is a multi-resolution unstructured mesh generated for global ocean modelling, and what controls the local resolution?"
+
+[[question]]
+area = "bio"
+kind = "law"
+text = "What hydraulic traits best predict cross-species drought mortality, and how strong is the relationship?"
+
+[[question]]
+area = "ped"
+kind = "law"
+text = "How does the carbonate-silicate cycle stabilize surface temperature over geological time, and what is the feedback strength?"
