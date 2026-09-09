@@ -54,7 +54,13 @@ class 9, and is never cited.
 
 - **Full text, page-cited.** `tools/references/extract_text.py` writes every page of
   every held PDF to `references/text/<stem>/<page>.txt` (untracked, manifested by
-  sha256, incremental). `tools/references/search.py "words"` prints
+  sha256 and extraction mode, incremental). Text comes out in reading order, never in
+  page layout: laying text out by position puts both columns of a two-column paper on
+  one line, so a sentence is interrupted mid-clause by an unrelated one, which the
+  page-cited grep survives and the embedding and evidence instruments do not
+  (`notes/findings/2026-09-09-text-extraction-layout.md`). A paper whose tables carry
+  the values is read by `chandra_pages.py` instead, which returns table markup rather
+  than aligned whitespace, and a paper read that way is never re-extracted here. `tools/references/search.py "words"` prints
   `file | p.N | line` hits. This is the first reach; it costs nothing.
 - **PaperQA2, evidence with page citations.** `tools/references/ask.py --build`
   indexes the PDFs into `references/index/` (untracked) with a manifest generated
