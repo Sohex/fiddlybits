@@ -8,17 +8,66 @@ of a file is submitted as one batch and the client fans out up to 16 concurrent 
 For each PDF: render every page, OCR it, write references/text/<stem>/<page>.txt, and append
 {file, engine: chandra-ocr-2, method, pages, sha256} to references/text/manifest.jsonl so extract_text.py leaves the
 file alone. A file is written only when all its pages are done; --resume skips files already recorded as chandra.
+
+Pages are turned upright before they are read. Chandra does read sideways text, but on a rotated wide table it
+drops columns and rows silently: on one JANAF page the sideways read lost the enthalpy column of every row and
+one row entirely, while the same page turned upright matched the printed table (measured 2026-09-09,
+notes/findings/2026-09-09-chandra-page-orientation.md). Orientation comes from tesseract's own detector, applied
+from the quarter turn tesseract reads most confidently, snapped to the file's own majority where a page is
+undecided, and --no-orient skips the step.
 """
-import argparse, hashlib, json, pathlib, subprocess, time, tempfile
+import argparse, os, hashlib, json, pathlib, subprocess, time, tempfile
+from concurrent.futures import ThreadPoolExecutor
 ROOT = pathlib.Path(__file__).resolve().parents[2]; PDF = ROOT / 'references' / 'pdf'; TXT = ROOT / 'references' / 'text'; MAN = TXT / 'manifest.jsonl'
 MODEL = '/home/cfutro/models/chandra-ocr-2'
+def _conf_mass(img):
+    """Total word confidence tesseract reports for one image: high when the text is the right way up."""
+    with tempfile.TemporaryDirectory() as td:
+        f = f'{td}/c.png'; img.save(f)
+        subprocess.run(['tesseract', f, f'{td}/o', 'tsv'], capture_output=True, text=True)
+        try: rows = open(f'{td}/o.tsv').read().splitlines()[1:]
+        except FileNotFoundError: return 0.0
+    total = 0.0
+    for l in rows:
+        c = l.split('\t')
+        if len(c) > 11 and c[10] not in ('conf', '-1') and c[11].strip():
+            try: total += float(c[10])
+            except ValueError: pass
+    return total
+
+def page_scores(png, side=900):
+    """Confidence mass at each quarter turn, on a downscaled centre crop. The crop drops running heads, which on a
+    rotated table page point the other way from the body and are not what the reader wants upright."""
+    from PIL import Image
+    im = Image.open(png); im.thumbnail((side, side))
+    w, h = im.size; crop = im.crop((int(w * .12), int(h * .12), int(w * .88), int(h * .88)))
+    return {d: _conf_mass(crop.rotate(-d, expand=True)) for d in (0, 90, 180, 270)}
+
+def turn_upright(imgs, workers, snap=1.5):
+    """Turn every page of one file upright. Per page the best quarter turn is the one tesseract reads most
+    confidently; that test is right about the axis and can still mistake a quarter turn for its opposite, so a page
+    that does not prefer its own direction by `snap` is snapped to the direction the rest of the file turned.
+    Returns (pages turned, the applied turn per page)."""
+    from PIL import Image
+    with ThreadPoolExecutor(max_workers=workers) as ex: scores = list(ex.map(page_scores, imgs))
+    best = [max(sc, key=sc.get) for sc in scores]
+    turned_dirs = [d for d in best if d]
+    if turned_dirs:
+        major = max(set(turned_dirs), key=turned_dirs.count)
+        for i, (d, sc) in enumerate(zip(best, scores)):
+            if d and d != major and sc[d] < snap * sc[major]: best[i] = major
+    n = 0
+    for f, d in zip(imgs, best):
+        if d: Image.open(f).rotate(-d, expand=True).save(f); n += 1
+    return n, best
+
 def sha(p):
     h = hashlib.sha256()
     with open(p, 'rb') as f:
         for c in iter(lambda: f.read(1 << 22), b''): h.update(c)
     return h.hexdigest()
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('list'); ap.add_argument('--method', default='vllm'); ap.add_argument('--batch', type=int, default=16); ap.add_argument('--long-side', type=int, default=3300); ap.add_argument('--resume', action='store_true'); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('list'); ap.add_argument('--method', default='vllm'); ap.add_argument('--batch', type=int, default=16); ap.add_argument('--long-side', type=int, default=3300); ap.add_argument('--resume', action='store_true'); ap.add_argument('--no-orient', action='store_true'); a = ap.parse_args()
     from chandra.model.schema import BatchInputItem
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = None   # our own rendered pages, not untrusted uploads
@@ -48,6 +97,9 @@ def main():
         with tempfile.TemporaryDirectory() as td:
             subprocess.run(['pdftoppm', '-scale-to', str(a.long_side), '-png', str(p), f'{td}/p'], check=True)   # bounded long side: a page's declared size no longer decides the raster
             imgs = sorted(pathlib.Path(td).glob('p-*.png'), key=lambda x: int(x.stem.split('-')[-1]))
+            turned = 0
+            if not a.no_orient:
+                turned, _ = turn_upright([str(x) for x in imgs], int(os.environ.get('SLURM_CPUS_PER_TASK', '2')) * 2)
             texts = {}
             for i in range(0, len(imgs), a.batch):
                 chunk = imgs[i:i + a.batch]
@@ -56,7 +108,7 @@ def main():
         for f in d.glob('*.txt'): f.unlink()
         d.mkdir(exist_ok=True)
         for n, t in texts.items(): (d / f'{n:04d}.txt').write_text(t)
-        out.write(json.dumps({'file': fn, 'sha256': sha(p), 'pages': len(texts), 'chars': sum(len(t) for t in texts.values()), 'engine': 'chandra-ocr-2', 'method': a.method, 'long_side_px': a.long_side, 'extracted': time.strftime('%Y-%m-%dT%H:%M:%S')}) + '\n'); out.flush()
-        total += len(texts); print(f'{fn}: {len(texts)} pages in {time.time()-t0:.0f}s ({total} pages, {total/(time.time()-t_all):.2f} p/s)', flush=True)
+        out.write(json.dumps({'file': fn, 'sha256': sha(p), 'pages': len(texts), 'chars': sum(len(t) for t in texts.values()), 'engine': 'chandra-ocr-2', 'method': a.method, 'long_side_px': a.long_side, 'pages_turned_upright': turned, 'extracted': time.strftime('%Y-%m-%dT%H:%M:%S')}) + '\n'); out.flush()
+        total += len(texts); print(f'{fn}: {len(texts)} pages ({turned} turned) in {time.time()-t0:.0f}s ({total} pages, {total/(time.time()-t_all):.2f} p/s)', flush=True)
     print('done')
 if __name__ == '__main__': main()
