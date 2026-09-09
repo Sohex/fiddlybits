@@ -4,3 +4,12 @@
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Untracked payload: papers, external source trees, run stores
+references/pdf/
+references/trees/
+store/
+oracles/data/
+references/text/
+references/index/
+inputs/data/
