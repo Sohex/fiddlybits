@@ -13,7 +13,7 @@ The register is revised when a tripwire fires or a milestone gate is passed.
 
 | risk | mitigation | tripwire |
 |---|---|---|
-| dynamical core written from scratch | shallow water first; the published test suite as acceptance; the independent reference arm; the fallback ladder in decision 0011 (Z-grid on triangles, then cubed sphere, never spectral) | the baroclinic steady state not at its designed order, or the idealised-forcing climatology outside the published band, after the bounded effort declared at M3's start |
+| dynamical core written from scratch | shallow water first; the published test suite as acceptance; the independent reference arm; the fallback ladder in decision 0013 (Z-grid on triangles, then cubed sphere, never spectral) | the baroclinic steady state not at its designed order, or the idealised-forcing climatology outside the published band, after the bounded effort declared at M3's start |
 | GPU debugging | CPU first through portable kernels; the bitwise debug mode; the ulp-ensemble envelope; small-planet cases that run in seconds | any kernel outside its envelope blocks merge |
 | FP32 on consumer hardware | mixed precision by declaration; FP64 accumulators for ledgers and reservoirs; per-kernel certification | an uncertified FP32 kernel in a production profile; a reservoir drifting under FP32 |
 | Earth-fitted schemes with no non-Earth form | prefer dimensionally explicit schemes; every constant has a disposition; every bracket and closure swept | growth in the `Irreducible` count reviewed at every milestone |
@@ -28,6 +28,8 @@ The register is revised when a tripwire fires or a milestone gate is passed.
 | a loop that never converges | every exit declared before the loop runs, with an instrument that can evaluate it; antitone loops return brackets, never convergence | a `NotEvaluable` exit at M8 |
 | wave reflection at refinement boundaries | graded transition rings with divergence damping for the fluids (decision 0031) | reflected-wave growth in the M3 refinement case |
 | grid-scaled closures treated as universal constants | the `Closure` disposition with a scaling law and a convergence-with-level oracle (decision 0006) | a closure coefficient that does not converge across two mesh levels |
+| free-boundary solvers on an unpaved road | the water table and the ice margin are both obstacle problems, and the reference-tree survey found that the adjacent codebases clip rather than solve them, which they can afford because they close no ledger and this project cannot; fallback ladders and tripwires now stated in decisions 0019 and 0020, an open device-capable complementarity solver and a bounded direct solver identified as arms (docs/surveys/terrain-ice-and-solvers.md, docs/surveys/sciml.md) | the registered residual bar unmet within the declared pass count on the production operator at two mesh levels, or a ledger residual whose time signature classifies as a leak while the closed-form margin still matches |
+| a limiter that hides its own cost | REQ-HYD-004 and REQ-CRY-001 make water or ice invented by any limiter a refusal rather than a rebooked balance term, and the ledgers of REQ-HYD-012 and the ice-volume identity are what enforce it; whether a limiter that reports its residual and refuses above a registered tolerance is admissible in the fast profile, while the free-boundary solver is being earned, is an open consideration to settle at implementation and not a licence to clip | any limiter reaching a production profile without a ledger entry, or a fast-profile result quoted without the residual its limiter reported |
 
 ## Alternatives considered
 
@@ -47,3 +49,11 @@ The register is revised when a tripwire fires or a milestone gate is passed.
 - Decisions 0011, 0012, 0025, 0026, 0029, 0031, 0034.
 - Predecessor failure classes on late discovery and on instruments too blunt to
   produce a number: `/home/cfutro/docs/world/docs/src/practice/failure-modes.md`.
+
+## Amendments
+
+- 2026-09-09: two rows added, for free-boundary solvers on an unpaved road and for a
+  limiter that hides its own cost, after the reference-tree survey showed that the
+  adjacent codebases clip where this project's requirements refuse to. The open
+  consideration about a reporting limiter in the fast profile is recorded here and in
+  decisions 0019 and 0020, to be settled when those solvers are built, never before.

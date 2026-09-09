@@ -76,6 +76,44 @@ tile runoff, recharge and open-water evaporation (land column), solute productio
 lake area and level and shallow-table fraction (land column), river water and solute
 (ocean), wetness (vegetation), brine inputs (pedology).
 
+### The fallback ladder for the water table
+
+The complementarity solve is the go/no-go of the groundwater component. A survey of the
+adjacent literature and codebases (docs/surveys/terrain-ice-and-solvers.md) found that
+the mature reference implementations do not solve this as a free boundary at all: they
+clip the head and carry on. That is available to them because they close no water
+ledger; it is not available here, because REQ-HYD-012's ledger would refuse the invented
+water. The road is therefore unpaved, and a decision that commits to an unpaved road
+carries its ladder in the open the way decision 0013 does.
+
+If the solve fails to converge to the registered residual bar within the bounded effort
+declared at the start of the milestone that builds it, the fallbacks in order are:
+
+1. A projected relaxation (projected successive over-relaxation or projected
+   Gauss-Seidel) as the smoother inside the same hierarchy, in place of a monotone
+   multigrid. Slower to converge, same answer, and it is what the open complementarity
+   solver named in the survey implements on the device.
+2. A single-level projected iteration on the terrain level with no hierarchy, accepting
+   the iteration count, until the hierarchy version is earned.
+3. The active set solved on the host by a direct complementarity solver for
+   configurations small enough to admit it, with the device path declared absent for
+   the rest.
+
+Never a clip that does not appear in the ledger. A limiter whose invented or destroyed
+water is reported and refused above a registered tolerance is a different thing from a
+silent clamp, and whether the reported form is admissible in the fast profile while the
+free-boundary solver is being earned is left open here and settled at implementation
+(REQ-HYD-004, and the note in decision 0035).
+
+### The tripwire
+
+The bar is the residual, never the head step (REQ-HYD-004). The trigger to descend the
+ladder is the residual failing to reach its registered tolerance within the declared
+pass count on the production operator at production size, measured on two mesh levels so
+a failure of the hierarchy is distinguishable from a failure of the formulation. An
+iteration that meets the residual bar but whose active set has not settled between two
+trajectories is the same failure and descends the same ladder.
+
 ## Alternatives considered
 
 - *Priority-flood drainage with a separate closed-form lake solver and an external
@@ -114,3 +152,9 @@ lake area and level and shallow-table fraction (land column), river water and so
 - 2026-09-08: conductivity written as `K = k rho_w g / mu` with `rho_w` and `mu` from the water-property door of 0017 at the column's soil temperature (row 16), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: fast-routing delay derived from a Darcy-Weisbach velocity with `g` explicit, Manning refused by dimension (row 18); lake evaporation pointed to REQ-HYD-007 for roughness and air properties (row 20), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: cross-area review: `rho_w` and `mu` read from the water-property door of 0017 (pure-water limb); lake evaporation's roughness pointed at 0016's one definition, from notes/findings/2026-09-08-implicit-earth-audit.md
+
+- 2026-09-09: added the fallback ladder and the tripwire for the water-table
+  complementarity solve, after the reference-tree survey found that the adjacent
+  codebases clip rather than solve the free boundary, which makes this an unpaved road
+  and asks for the same discipline decision 0013 carries. From
+  docs/surveys/terrain-ice-and-solvers.md and docs/surveys/sciml.md.

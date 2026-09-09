@@ -61,6 +61,46 @@ sub-grid ice stores).** Reads: surface mass balance (land column), bed and load
 response (terrain). Writes: terrain (erosion, load), land column (tile areas),
 hydrology (meltwater).
 
+### The fallback ladder for the margin
+
+The free boundary at `H >= 0` is the go/no-go of the ice-flow component. REQ-CRY-001
+requires it solved as an active set or complementarity problem and forbids a clip,
+because a clip invents ice and the volume ledger this component closes at every step
+would refuse it. The reference-tree survey (docs/surveys/terrain-ice-and-solvers.md)
+found that the mature ice-flow codes do exactly what that requirement forbids, clipping
+thickness with a plain conditional, which they can afford because they close no such
+ledger. So this is an unpaved road, and it carries its ladder in the open the way
+decision 0013 does.
+
+If the active-set solve fails to converge to the registered residual bar within the
+bounded effort declared at the start of the milestone that builds it, the fallbacks in
+order are:
+
+1. A projected relaxation inside the same explicit substepping: the free boundary is
+   enforced by projection at each substep rather than by an outer active-set loop. The
+   ledger still closes and the margin still moves; the cost is the substep count.
+2. A margin held on a fixed active set over a slow-tier step, re-solved at the tier
+   boundary. The ice sheet's interior is then exact and the margin's motion is
+   quantised to the slow step, which is reported beside every margin result.
+3. The margin problem solved on the host by a direct complementarity solver for the
+   glaciated set alone, with the device path declared absent, on the argument that the
+   glaciated set is a small fraction of the mesh.
+
+Never a clip that does not appear in the ledger. Whether a limiter whose invented or
+destroyed ice is reported and refused above a registered tolerance is admissible in the
+fast profile, while the free-boundary solver is being earned, is left open here and
+settled at implementation (REQ-CRY-001, and the note in decision 0035).
+
+### The tripwire
+
+The bar is the nonlinear residual within a bounded pass count, never the thickness step
+(REQ-CRY-001). The trigger to descend the ladder is that bar unmet on the Halfar dome at
+two mesh levels, or a volume ledger residual above its floating-point-derived tolerance
+with a time signature that classifies as a leak rather than roundoff. A margin radius
+that matches Halfar's closed form while the ledger leaks is the same failure and
+descends the same ladder, because the closed form is satisfied by construction on a
+clipped margin.
+
 ## Alternatives considered
 
 - *No ice flow; vertical growth only* (the predecessor's climate model). Rejected:
@@ -94,3 +134,8 @@ hydrology (meltwater).
 - 2026-09-08: feedback to terrain names the effective pressure and the two-limb erosion law, and the consequence says the velocity limb alone cannot carry the gravity dependence (row 3), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: permafrost column's basal heat flux read from the terrain's geotherm, one definition (row 22); sliding-coefficient ends re-read under the overburden convention and firn accumulation terms converted by dimension (rows 31 and 34), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: cross-area review: the glacial-erosion pressure exponent renamed `r` so `p` stays the sliding exponent, from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-09: added the fallback ladder and the tripwire for the margin's free
+  boundary, after the reference-tree survey found that the adjacent ice-flow codes
+  clip the thickness that REQ-CRY-001 forbids clipping, which makes this an unpaved
+  road and asks for the same discipline decision 0013 carries. From
+  docs/surveys/terrain-ice-and-solvers.md.
