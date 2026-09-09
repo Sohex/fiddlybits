@@ -24,6 +24,25 @@ coverage check would catch; it produces a smaller correct-looking table.
 
 ## The detector
 
+Tesseract ships an orientation detector, and it is the first stage. Judged at the resolution
+the page was rendered, on twenty-one pages whose orientation was established by eye, it places
+eighteen correctly and takes about half a second a page. Every one of its errors is a false
+turn on an upright figure page, and it misses none of the eight true rotations. Downscaling it
+first is what makes it look unreliable, which is the mistake this pass made before measuring
+properly:
+
+| detector | correct of 21 | seconds a page |
+|---|---|---|
+| tesseract orientation detection, at the render's own resolution | 18 | 0.55 |
+| the same, on a 1200 pixel copy | 14 | 0.41 |
+| four quarter turns scored by word confidence | 21 | about 1.5 |
+
+So the cheap detector selects candidates and the expensive one arbitrates: a page it calls
+upright with confidence is left alone, and only a page it calls turned, or one it cannot
+judge, is scored four ways. That is twenty of twenty-one per page, twenty-one with the file
+majority snapped in, at a fifth of a second a page across eight threads.
+
+
 Orientation is decided per page by the quarter turn tesseract reads with the most total word
 confidence, on a downscaled centre crop. The crop matters: on these pages the running head
 points the other way from the body, and the body is what must come up.
@@ -69,9 +88,18 @@ page is worse than none.
 Cost is a third of a second per page across eight threads, against about four seconds per
 page of reading, so orientation is a few percent of the pass.
 
+## Every page, not a sample
+
+The re-read list is built by examining every page of every file already read, not a sample of
+each. A paper of upright pages with one landscape table is both the likeliest case in this
+corpus and the one a sample misses, and it is the case that loses a column. The repair reads
+only the pages that are actually sideways and rewrites only those page files, so a
+seven-hundred-page book with one turned page costs one page of reading.
+
 ## What this changes
 
 `tools/references/chandra_pages.py` turns pages upright before reading them, and records how
 many turned in the extraction manifest. Passes 1 and 2 ran without it, so their files were
-read as scanned; the ones with turned pages are re-read afterwards. Nothing that came out of
+read as scanned; every page of every file they read is examined afterwards and the sideways
+ones are read again. Nothing that came out of
 those passes is wrong in what it says, but a rotated table page may be missing a column.

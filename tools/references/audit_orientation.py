@@ -1,34 +1,36 @@
 #!/usr/bin/env python
-"""Which already-read files were read sideways? Samples pages of every file recorded as chandra-ocr-2, scores each
-page's quarter turns the way the reading recipe does, and prints the files with turned pages so they can be read
-again. Writes the list to the path given, one filename per line (see notes/findings/2026-09-09-chandra-page-orientation.md).
+"""Which pages of the already-read files were read sideways? Scores every page of every file recorded as
+chandra-ocr-2 with the same two-stage test the reading recipe uses, and writes a repair list of
+`filename<TAB>page,page,...` for chandra_pages.py --repair. Every page is examined: a single landscape table in an
+otherwise upright paper is exactly the case a sample would miss (notes/findings/2026-09-09-chandra-page-orientation.md).
 
-    audit_orientation.py <out list> [--sample 6] [--workers 8]
+    audit_orientation.py <out list> [--workers 8] [--only <substring>]
 """
 import argparse, json, pathlib, subprocess, sys, tempfile
+from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from chandra_pages import turn_upright, MAN, PDF
+from chandra_pages import page_turn, MAN, PDF
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('out'); ap.add_argument('--sample', type=int, default=6); ap.add_argument('--workers', type=int, default=8); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('out'); ap.add_argument('--workers', type=int, default=8); ap.add_argument('--only', default=''); a = ap.parse_args()
     done = {}
     for l in open(MAN):
         r = json.loads(l)
         if r.get('engine') == 'chandra-ocr-2': done[r['file']] = r
-    hits = []
-    for i, (fn, rec) in enumerate(sorted(done.items()), 1):
+    files = sorted(f for f in done if a.only in f)
+    out_lines = []; n_pages = n_turned = 0
+    for i, fn in enumerate(files, 1):
         p = PDF / fn
-        if not p.exists(): print('missing', fn); continue
-        n = rec.get('pages') or 1
-        pages = sorted({max(1, round(n * k / (a.sample + 1))) for k in range(1, a.sample + 1)})
+        if not p.exists(): print('missing', fn, flush=True); continue
         with tempfile.TemporaryDirectory() as td:
-            imgs = []
-            for pg in pages:
-                subprocess.run(['pdftoppm', '-f', str(pg), '-l', str(pg), '-scale-to', '3300', '-png', '-singlefile', str(p), f'{td}/p{pg}'], check=True)
-                imgs.append(f'{td}/p{pg}.png')
-            turned, best = turn_upright(imgs, a.workers)
+            subprocess.run(['pdftoppm', '-scale-to', '3300', '-png', str(p), f'{td}/p'], check=True)
+            imgs = sorted(pathlib.Path(td).glob('p-*.png'), key=lambda x: int(x.stem.split('-')[-1]))
+            with ThreadPoolExecutor(max_workers=a.workers) as ex: verdicts = list(ex.map(page_turn, [str(x) for x in imgs]))
+        turned = [int(x.stem.split('-')[-1]) for x, d in zip(imgs, verdicts) if d]
+        n_pages += len(imgs); n_turned += len(turned)
         if turned:
-            hits.append(fn); print(f'{turned}/{len(imgs)} sampled pages turned: {fn} {best}', flush=True)
-        if i % 25 == 0: print(f'  ... {i}/{len(done)} files', flush=True)
-    pathlib.Path(a.out).write_text('\n'.join(hits) + ('\n' if hits else ''))
-    print(f'done: {len(hits)} of {len(done)} files have sideways pages; list at {a.out}')
+            out_lines.append(f'{fn}\t{",".join(str(t) for t in turned)}')
+            print(f'{len(turned):4d} of {len(imgs):4d} pages sideways: {fn}', flush=True)
+        if i % 20 == 0: print(f'  ... {i}/{len(files)} files, {n_pages} pages', flush=True)
+    pathlib.Path(a.out).write_text('\n'.join(out_lines) + ('\n' if out_lines else ''))
+    print(f'done: {n_turned} sideways pages in {len(out_lines)} of {len(files)} files, {n_pages} pages examined; repair list at {a.out}')
 if __name__ == '__main__': main()
