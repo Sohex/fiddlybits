@@ -45,9 +45,26 @@ margin separates the two populations cleanly:
 | three genuinely rotated table pages | 5.3, 5.9 and 146.8 times |
 | five pages flagged in error | 1.0, 1.1, 1.8, 2.2 and 2.6 times |
 
-The recipe turns a page only above three times, which keeps every true rotation and rejects
-every false one in this sample. Four upright pages from four other papers also stay upright,
-which is the control that matters.
+The recipe turns a page only above three times. That still let a second population through:
+pages that are almost entirely figure, where the crop holds nothing but the plots' own axis
+titles. Such a page prefers a turn by any ratio one likes, because there is no upright text
+in the crop to beat, but the winning score is tiny. Absolute confidence mass separates that
+population outright:
+
+| page | words the winning turn reads |
+|---|---|
+| three genuinely rotated table pages | 4,891, 6,303 and 6,408 |
+| three figure pages flagged in error | 49, 118 and 311 |
+
+So a page is turned only when the winning quarter turn beats upright by three times and reads
+as a page of text rather than a handful of axis labels. Scoring the whole page instead of a
+crop was tried and is worse: the upright running head of a rotated page competes with its own
+body and pulls the true rotation's margin down to about one and a half.
+
+With both rules the JANAF sample turns the same six of eight pages, and twelve pages that
+must not move, four figure pages, four earlier false flags and four upright controls from
+other papers, all stay put. That is the control that matters: a detector that turns a good
+page is worse than none.
 
 Cost is a third of a second per page across eight threads, against about four seconds per
 page of reading, so orientation is a few percent of the pass.

@@ -43,12 +43,15 @@ def page_scores(png, side=900):
     w, h = im.size; crop = im.crop((int(w * .12), int(h * .12), int(w * .88), int(h * .88)))
     return {d: _conf_mass(crop.rotate(-d, expand=True)) for d in (0, 90, 180, 270)}
 
-def turn_upright(imgs, workers, min_ratio=3.0, snap=1.5):
+def turn_upright(imgs, workers, min_ratio=3.0, min_mass=1500.0, snap=1.5):
     """Turn every page of one file upright. Per page the best quarter turn is the one tesseract reads most
     confidently, and it is applied only when it beats leaving the page alone by `min_ratio`: a figure page whose
     only turned text is an axis label or a download stamp prefers a turn slightly and must not be moved, while a
     page whose body is genuinely sideways prefers it by a wide margin (measured 2026-09-09: every true rotation
-    above five, every false one below three). The test is right about the axis and can still mistake a quarter turn
+    above five, every false one below three). It must also read as a page of text rather than a few axis labels:
+    a figure page whose plots carry rotated axis titles clears any ratio, because the crop holds almost nothing
+    else, and is rejected by `min_mass` (measured: true rotations from about five thousand, figure pages in the
+    hundreds). The test is right about the axis and can still mistake a quarter turn
     for its opposite, so a page that does not prefer its own direction by `snap` is snapped to the direction the
     rest of the file turned. Returns (pages turned, the applied turn per page)."""
     from PIL import Image
@@ -56,7 +59,7 @@ def turn_upright(imgs, workers, min_ratio=3.0, snap=1.5):
     best = []
     for sc in scores:
         d = max(sc, key=sc.get)
-        best.append(d if d and sc[d] >= min_ratio * max(sc[0], 1.0) else 0)
+        best.append(d if d and sc[d] >= min_ratio * max(sc[0], 1.0) and sc[d] >= min_mass else 0)
     turned_dirs = [d for d in best if d]
     if turned_dirs:
         major = max(set(turned_dirs), key=turned_dirs.count)
