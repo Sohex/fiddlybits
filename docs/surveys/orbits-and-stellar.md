@@ -42,9 +42,9 @@ Three findings matter most:
    safely shared across concurrent evaluations; and `SecondaryLimbDark`
    (`src/secondary.jl`) is hard-wired to exactly two bodies (a primary and one flipped
    secondary), with no path to a moon occulting a star for a planet. `starry` is more
-   general in principle — spherical-harmonic surface maps, a reflected-light
+   general in principle  --  spherical-harmonic surface maps, a reflected-light
    (Oren-Nayar) term, and a `System`/Kepler class that sums pairwise occultations over
-   however many bodies are declared — but it is Python and C++, so it is read as an
+   however many bodies are declared  --  but it is Python and C++, so it is read as an
    algorithm, never a dependency.
 3. **`Korg.jl` and `vplanet`'s `STELLAR` module are complementary in exactly the gap
    decision 0004 has.** Korg synthesizes a spectrum from `(Teff, logg, [M/H])` against
@@ -181,7 +181,7 @@ Astronomy* 63: a sequence of closed-form algebraic and trigonometric steps (no l
 convergence tolerance) that the paper and the docstring both claim is accurate to
 machine precision over the whole elliptic range. `trueanom(E, e)` is the one-line
 half-angle conversion from eccentric to true anomaly. Both are scalar, type-generic
-(`promote_type`), and contain no allocation, no `Dates` import and no array indexing —
+(`promote_type`), and contain no allocation, no `Dates` import and no array indexing  -- 
 nothing stops them running inside a GPU kernel per column per radiation step. The
 `DomainError` on out-of-range `e` would need to become the profile's own guard
 (`NotEvaluable`, per decision 0008's vocabulary) rather than a thrown exception if
@@ -192,8 +192,8 @@ merely "small error") at the eccentricities decision 0034's M0 synthetic instanc
 declare (`SyntheticNonEarth()` names "high eccentricity" explicitly), checked against a
 Newton iteration run to convergence as the reference, and does it stay closed-form
 (no branch divergence) when it is the body of a `KernelAbstractions` kernel rather than
-a scalar call. The rest of the package — `helio_jd`, `precess`, `bprecess`, `helio_rv`,
-everything in `common.jl` and `utils.jl` outside these two files — takes a `jd::Real`
+a scalar call. The rest of the package  --  `helio_jd`, `precess`, `bprecess`, `helio_rv`,
+everything in `common.jl` and `utils.jl` outside these two files  --  takes a `jd::Real`
 Julian date or a `DateTime` and is dismissed with every other ephemeris package here.
 
 ### Orbits.jl -- `src/keplerian/`
@@ -210,7 +210,7 @@ reference frame with `Rotations.RotZXZ(Omega, -incl, omega)` and returns it as a
 
 The question the closer look must answer, and the reason this is a caution rather than
 an unqualified recommendation: the constructor's own docstring states "if no stellar
-parameters are given, the central body is assumed to be the Sun" — a silent default
+parameters are given, the central body is assumed to be the Sun"  --  a silent default
 across exactly the boundary decision 0004 forbids one at ("no silent default across a
 component boundary; check at the point of reading"). Whether that default is reachable
 from this project's constructor call sites (it would not be, if every field decision
@@ -230,14 +230,14 @@ closed-form boundary integrals, falling back to numerical series only in named
 degenerate cases (`series.jl`). It handles one occulter over one limb-darkened disk;
 `SecondaryLimbDark` (`src/secondary.jl`) extends this to a primary and a secondary
 eclipse by literally flipping the orbit (`Orbits.flip`) and re-running the primary
-solver with swapped bodies — it is arithmetic for exactly two bodies, with no
+solver with swapped bodies  --  it is arithmetic for exactly two bodies, with no
 generalisation to a third (a moon occulting a star for a planet is not representable
 without composing instances by hand, and nothing in the package tracks which pairs of a
 larger system are even in mutual view).
 
 The question the closer look must answer: `PolynomialLimbDark`'s `n_max`-length `Mn`,
 `Nn` buffer arrays live inside the struct and are mutated in place by
-`downwardM!`/`upwardM!` on every `compute` call (`poly.jl`, lines around 170-200) —
+`downwardM!`/`upwardM!` on every `compute` call (`poly.jl`, lines around 170-200)  -- 
 whether that in-place recursion can be restructured to stack-allocated, per-call
 buffers (a `StaticArrays` `MVector` sized to the profile's declared limb-darkening
 order) without losing the closed-form structure, since a single shared mutable instance
@@ -254,7 +254,7 @@ Python with a C++ (`pybind11`/Eigen) numerical core, so it is read only, never a
 dependency; it is included because it generalises past what `Transits.jl` does in two
 ways this project needs. First, its surface maps are spherical-harmonic expansions
 rather than radially symmetric limb-darkening polynomials, and it carries a reflected-
-light term (`starry/_core/ops/lib/include/reflected/oren_nayar.py`) — the moon-
+light term (`starry/_core/ops/lib/include/reflected/oren_nayar.py`)  --  the moon-
 reflecting-starlight case decision 0032 names explicitly. Second, `starry/kepler.py`
 defines a `System` of a primary and arbitrary secondaries, each with its own orbit, and
 sums flux over the system by evaluating pairwise occultations (each still a closed-form
@@ -263,8 +263,8 @@ Green's-theorem solve) rather than hard-wiring a two-body relationship the way
 
 The question a closer look at the algorithm (not the code, which is not portable)
 should answer: does the pairwise-sum construction extend correctly to the specific case
-this project needs — a moon occulting a star as seen from a planet, i.e., the observer
-is not one of the two occulting bodies — or is `starry`'s pairwise sum only proven for
+this project needs  --  a moon occulting a star as seen from a planet, i.e., the observer
+is not one of the two occulting bodies  --  or is `starry`'s pairwise sum only proven for
 occultations as seen from a fixed external observer (the transiting-planet use case it
 was built for), in which case the geometry, not just the code, would need rederiving
 for an on-planet observer before any of this is usable as a reference for the
@@ -276,13 +276,13 @@ Bears on decision 0016 (the offline k-table build reads line lists and computes
 continuous opacities) and decision 0004 (the stellar spectrum and its domain fence).
 Korg reads VALD, Kurucz (short/long, air/vacuum), MOOG, MOOG-air and Turbospectrum
 linelist formats natively (`read_linelist`, `src/linelist.jl`), and ExoMol separately
-via `load_ExoMol_linelist` (marked experimental) — ExoMol is one of the two sources
+via `load_ExoMol_linelist` (marked experimental)  --  ExoMol is one of the two sources
 decision 0016 names (Tennyson et al. 2016); HITRAN/HITEMP, the primary sources decision
 0016 needs for molecular absorbers, are not among Korg's readers, because Korg's
 linelists are atomic/stellar-line formats, a different community and a different line
 shape convention than HITRAN's. `voigt_hjerting(alpha, v)` (`src/line_absorption.jl`)
 is a scalar Voigt-Hjerting function taking the reduced parameters directly, with no
-stellar-atmosphere state threaded through it — usable standing alone. Partition
+stellar-atmosphere state threaded through it  --  usable standing alone. Partition
 functions (`src/statmech.jl`) are read as a `Dict{Species, Function}` of tabulated
 `log(T)` curves (Barklem-derived data) and used inside `saha_ion_weights`, again a
 scalar evaluation independent of the rest of the synthesis pipeline. Continuum opacity
@@ -295,13 +295,13 @@ What Korg cannot do without something upstream of it: `interpolate_marcs(Teff, l
 ...)` (`src/atmosphere.jl`) interpolates a model atmosphere from the SDSS-MARCS grid, a
 separate "cool dwarf" grid resampled for `Teff <= 4000 K, logg >= 3.5`, and a
 metal-poor extension, each with its own declared bounds and a thrown
-`AtmosphereInterpolationError` outside them — the domain-fenced `Sourced`-law shape
+`AtmosphereInterpolationError` outside them  --  the domain-fenced `Sourced`-law shape
 decision 0004 wants, but the grid's own axes are `(Teff, logg, [M/H])`, not `(mass,
 age, metallicity)`. Korg has no evolutionary step from mass and age to `Teff` and
 `logg`; every abundance is expressed as a solar-relative offset
 (`format_A_X`, default `Korg.bergemann_2025_solar_abundances`) scaled by a single
 metallicity and alpha-enhancement knob, with individual-element overrides layered on
-top — workable for an arbitrary declared bulk composition in principle, but the
+top  --  workable for an arbitrary declared bulk composition in principle, but the
 default linelist, default solar-abundance pattern and the MARCS grid's own construction
 are all built around FGK-type, near-solar-composition photospheres; the "cool dwarf"
 extension is the one place the grid reaches toward M dwarfs, and nothing in the package
@@ -312,7 +312,7 @@ The question the closer look must answer: whether the MARCS grid's declared doma
 enough to cover the stellar parameter space decision 0034's `SyntheticSynchronous()`
 instance implies (an M-dwarf spectrum), and, if a stellar-evolution model is later
 carried per decision 0004, whether its own `(Teff, logg)` outputs land inside that
-domain — because Korg's refusal-outside-the-hull behaviour is exactly the shape decision
+domain  --  because Korg's refusal-outside-the-hull behaviour is exactly the shape decision
 0004 wants, but only if the hull the run's declared stars fall into is the hull Korg was
 built on.
 
