@@ -31,9 +31,23 @@ points the other way from the body, and the body is what must come up.
 That test is reliable about the axis and can still mistake a quarter turn for its opposite.
 On a sample of eight pages it placed seven correctly and turned one the wrong way, so the
 recipe snaps a page that does not prefer its own direction to the direction the rest of the
-file turned. With snapping the same sample is eight of eight, and four upright pages from
-four other papers stay upright, which is the control that matters: a detector that turns a
-good page is worse than none.
+file turned. With snapping the same sample is eight of eight.
+
+Snapping alone was not enough. Run over the files already read, the detector flagged pages in
+24 of 107, and the first five flags examined by eye were all wrong: an upright figure page
+whose only turned text was a download stamp down the margin, an upright table whose row
+labels run up the side, and three like them. A detector that turns a good page is worse than
+none, so a turn is now applied only when it beats leaving the page alone by a margin. The
+margin separates the two populations cleanly:
+
+| page | best turn beats upright by |
+|---|---|
+| three genuinely rotated table pages | 5.3, 5.9 and 146.8 times |
+| five pages flagged in error | 1.0, 1.1, 1.8, 2.2 and 2.6 times |
+
+The recipe turns a page only above three times, which keeps every true rotation and rejects
+every false one in this sample. Four upright pages from four other papers also stay upright,
+which is the control that matters.
 
 Cost is a third of a second per page across eight threads, against about four seconds per
 page of reading, so orientation is a few percent of the pass.
