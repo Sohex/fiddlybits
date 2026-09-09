@@ -76,7 +76,7 @@ a closer look; they answer different halves of the same question.
 | NLsolve.jl | generic nonlinear-equation and mixed-complementarity solver, vendored here as a PALEO dependency | - | not pertinent -- surveyed properly under the sciml or gpu-and-arrays groups if adopted; not a biogeochemistry reference itself |
 | SOCRATES.jl | Julia wrapper around the SOCRATES Fortran radiative-transfer code | - | not pertinent -- radiation belongs to the dycores-and-frameworks or orbits-and-stellar groups, not this one |
 | SparsityTracing.jl | automatic Jacobian sparsity detection by scalar tracing | - | not pertinent -- numerical-infrastructure utility, superseded upstream by Symbolics.jl per its own README |
-| PALEOtoolkit (org)/PALEOtutorials, .github | org metadata | - | not pertinent |
+| .github | org-wide GitHub Actions/community-health metadata | - | not pertinent |
 
 ### JuliaOcean (14 repositories)
 
@@ -128,7 +128,7 @@ or decision 0026's oracle programme.
 | CaosDB.jl | a database client | - | not pertinent |
 | Changepoints.jl | changepoint detection in timeseries, predates and is narrower than TransitionsInTimeseries.jl | - | not pertinent -- superseded in scope by the TransitionsInTimeseries.jl entry above |
 | chaospp, ChaosThroughBilliards, MCMC-DIFFUSION, HardSphereDynamics.jl, DynamicalBilliards.jl | billiard and hard-sphere chaotic-dynamics research code and demos | - | not pertinent -- pure chaotic-dynamics pedagogy and research, no climate content |
-| ChaosTools.jl, ComplexityMeasures.jl, DelayEmbeddings.jl, RecurrenceAnalysis.jl, RecurrenceMicrostatesAnalysis.jl, FractalDimensions.jl, PeriodicOrbits.jl, StateSpaceReconstruction.jl, StateSpaceSets.jl, TimeseriesPrediction.jl, TimeseriesSurrogates.jl, TreeEmbedding.jl, SignalDecomposition.jl, DynamicalSystemsBase.jl, PredefinedDynamicalSystems.jl, LagrangianDescriptors.jl, PeriodicOrbits.jl | general nonlinear-timeseries and dynamical-systems-analysis toolboxes underneath the DynamicalSystems.jl umbrella | - | not pertinent -- generic infrastructure the umbrella entry already covers; a closer look at the umbrella is the closer look at these |
+| ChaosTools.jl, ComplexityMeasures.jl, DelayEmbeddings.jl, RecurrenceAnalysis.jl, RecurrenceMicrostatesAnalysis.jl, FractalDimensions.jl, PeriodicOrbits.jl, StateSpaceReconstruction.jl, StateSpaceSets.jl, TimeseriesPrediction.jl, TimeseriesSurrogates.jl, TreeEmbedding.jl, SignalDecomposition.jl, DynamicalSystemsBase.jl, LagrangianDescriptors.jl | general nonlinear-timeseries and dynamical-systems-analysis toolboxes underneath the DynamicalSystems.jl umbrella | - | not pertinent -- generic infrastructure the umbrella entry already covers; a closer look at the umbrella is the closer look at these |
 | ConcurrentSim.jl, DiscreteEvents.jl, ResumableFunctions.jl | discrete-event simulation frameworks | - | not pertinent -- event-scheduling infrastructure, no physical content |
 | DrWatson.jl, ScienceProjectTemplate, GoodScientificCodeWorkshop, doctheme, ExercisesRepo, NonlinearDynamicsComplexSystemsCourse, NonlinearDynamicsTextbook, JuliaDynamics, JuliaDynamics-NGRIP, example-python | reproducibility tooling, documentation theming, course and textbook material, org website | - | not pertinent -- process and pedagogy, not domain content |
 | HybridStructs.jl, LightSumTypes.jl, StreamSampling.jl | Julia-language struct and sampling utilities | - | not pertinent -- general-purpose language tooling |
