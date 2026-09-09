@@ -38,3 +38,16 @@ the precision gain and the latency per query reported side by side.
 
 Raw results: `results.json` and the per-model page-embedding matrices are in the
 session scratchpad and are not kept; the script regenerates them.
+
+## Superseded on 2026-09-09
+
+The corpus these numbers were measured on no longer exists. Three quarters of the pages
+were extracted in page layout, which interleaves the columns of a two-column paper, and
+have since been re-extracted in reading order
+(`notes/findings/2026-09-09-text-extraction-layout.md`); a further set of papers has been
+read again by the model with pages turned upright
+(`notes/findings/2026-09-09-chandra-page-orientation.md`). The saved embedding matrices
+and the index built from that corpus were deleted the same day rather than left on disk
+to be mistaken for current. The ranking of the three models is not thereby refuted, but
+it is unverified: the comparison is rerun on the corrected corpus before any of these
+figures is quoted again.

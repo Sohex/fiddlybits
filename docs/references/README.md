@@ -64,7 +64,9 @@ class 9, and is never cited.
   `file | p.N | line` hits. This is the first reach; it costs nothing.
 - **PaperQA2, evidence with page citations.** `tools/references/ask.py --build`
   indexes the PDFs into `references/index/` (untracked) with a manifest generated
-  from `INDEX.md` so citations carry the verbatim title and identifier;
+  from `INDEX.md` so citations carry the verbatim title and identifier; the index is
+  derived and disposable, and is deleted rather than kept whenever the corpus beneath
+  it changes, so nothing on disk can be mistaken for current;
   `ask.py "question"` gathers page-cited evidence and, unless `--evidence-only`,
   a synthesised pointer. Configuration in `tools/references/paperqa.toml`: Qwen3-Embedding-8B
   from `/home/cfutro/models` (chosen by the A/B/C in
