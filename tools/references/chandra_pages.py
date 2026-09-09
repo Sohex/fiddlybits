@@ -101,7 +101,7 @@ def repair(a, ocr, done):
             for pg in pages:
                 subprocess.run(['pdftoppm', '-f', str(pg), '-l', str(pg), '-scale-to', str(a.long_side), '-png', '-singlefile', str(p), f'{td}/{pg:05d}'], check=True)
                 imgs.append(f'{td}/{pg:05d}.png')
-            turned, _ = turn_upright(imgs, int(os.environ.get('SLURM_CPUS_PER_TASK', '2')) * 2)
+            turned, _ = turn_upright(imgs, max(4, int(os.environ.get('SLURM_CPUS_PER_TASK', '4'))))
             texts = {}
             for i in range(0, len(imgs), a.batch):
                 chunk = imgs[i:i + a.batch]
@@ -151,7 +151,7 @@ def main():
             imgs = sorted(pathlib.Path(td).glob('p-*.png'), key=lambda x: int(x.stem.split('-')[-1]))
             turned = 0
             if not a.no_orient:
-                turned, _ = turn_upright([str(x) for x in imgs], int(os.environ.get('SLURM_CPUS_PER_TASK', '2')) * 2)
+                turned, _ = turn_upright([str(x) for x in imgs], max(4, int(os.environ.get('SLURM_CPUS_PER_TASK', '4'))))
             texts = {}
             for i in range(0, len(imgs), a.batch):
                 chunk = imgs[i:i + a.batch]

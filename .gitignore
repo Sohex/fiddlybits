@@ -41,3 +41,6 @@ Manifest.toml.bak
 .beads/backup/
 .beads/last-touched
 .beads/export-state.json
+
+# Pipeline work files (repair lists, markers)
+references/work/
