@@ -17,3 +17,4 @@ perrin1989-absorption-co2-n2-mixtures-far-line-wings.pdf
 watson1978-methanogenesis-fires-regulation-atmospheric-oxygen.pdf
 weiss1974-carbon-dioxide-water-seawater-solubility.pdf
 wilke1950-viscosity-equation-gas-mixtures.pdf
+chase1998-nist-janaf-thermochemical-tables-fourth-edition.pdf

@@ -80,11 +80,7 @@ Sources cited by the atmosphere, ocean, terrain, biosphere and system amendment 
 2026-09-08 (source lists in the audit scratchpad; the amended records name each by author
 and year) that OpenAlex and Unpaywall report as closed, or whose one open-access copy
 refused an automated fetch. Identifiers confirmed against Crossref by title, first author
-and year on 2026-09-08. Rule for this pass: one lookup and one fetch per source, no mirrors. The user supplied 28 of the 30 on 2026-09-08; those rows now sit in INDEX.md as held. Two remain.
-
-### Atmosphere: spectroscopy, boundary layer, deposition, gas properties (0016, 0022, REQ-ATM-003, -006, -012, -017)
-
-- NIST-JANAF Thermochemical Tables, Fourth Edition -- Chase, M. W. (1998). J. Phys. Chem. Ref. Data Monograph 9. No DOI (Crossref has no record for the monograph; OpenAlex W2974895998 carries none). The NIST WebBook serves the same tables one species at a time (janaf.nist.gov), which is not a single fetchable file. Anchors: REQ-ATM-017. Suggested filename: chase1998-nist-janaf-thermochemical-tables-fourth-edition.pdf
+and year on 2026-09-08. Rule for this pass: one lookup and one fetch per source, no mirrors. The user supplied 29 of the 30 on 2026-09-08 and 2026-09-09; those rows now sit in INDEX.md as held. One remains.
 
 ### Biosphere and lakes (0018, 0021, REQ-BIO-006, -007, -015)
 
