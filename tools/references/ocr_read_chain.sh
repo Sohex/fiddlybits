@@ -16,6 +16,10 @@ set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
 PY=${CHANDRA_PYTHON:-$HOME/.venvs/chandra-vllm/bin/python}
 WORK="$ROOT/references/work"; mkdir -p "$WORK"
+# Rendered pages go to disk, not to RAM. /tmp here is a tmpfs, and since the reader renders every page of a file before sending it,
+# the default temporary directory turns a large book into gigabytes of resident memory and the machine
+# swaps: throughput fell to a third of its rate with the card still reading 100 percent busy.
+export TMPDIR="$WORK/tmp"; mkdir -p "$TMPDIR"
 CORES=${OCR_CORES:-20}; MEM=${OCR_MEM:-20G}
 say() { echo "=== $(date +%H:%M:%S) $*"; }
 

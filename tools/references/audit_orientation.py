@@ -9,7 +9,7 @@ otherwise upright paper is exactly the case a sample would miss (notes/findings/
 import argparse, json, pathlib, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from chandra_pages import page_turn, MAN, PDF
+from chandra_pages import page_turn, MAN, PDF   # also sets the temporary directory off the tmpfs; see that file
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('out'); ap.add_argument('--workers', type=int, default=8); ap.add_argument('--only', default=''); a = ap.parse_args()
     done = {}

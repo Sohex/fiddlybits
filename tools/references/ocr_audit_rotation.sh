@@ -10,6 +10,10 @@ set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
 PY=${CHANDRA_PYTHON:-$HOME/.venvs/chandra-vllm/bin/python}
 WORK="$ROOT/references/work"; mkdir -p "$WORK"
+# Rendered pages go to disk, not to RAM. /tmp here is a tmpfs, and since the audit renders every page of every file it examines,
+# the default temporary directory turns a large book into gigabytes of resident memory and the machine
+# swaps: throughput fell to a third of its rate with the card still reading 100 percent busy.
+export TMPDIR="$WORK/tmp"; mkdir -p "$TMPDIR"
 CORES=${AUDIT_CORES:-8}
 rm -f "$WORK/audit_done"
 qrun -p light -m 12G -c "$CORES" -t 8:00:00 -- "$PY" tools/references/audit_orientation.py \

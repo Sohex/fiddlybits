@@ -20,6 +20,12 @@ undecided, and --no-orient skips the step.
 import argparse, os, hashlib, json, pathlib, subprocess, time, tempfile
 from concurrent.futures import ThreadPoolExecutor
 ROOT = pathlib.Path(__file__).resolve().parents[2]; PDF = ROOT / 'references' / 'pdf'; TXT = ROOT / 'references' / 'text'; MAN = TXT / 'manifest.jsonl'
+# Rendered pages are large and there are many of them; on this machine /tmp is a tmpfs, so the default
+# temporary directory would hold a whole book in RAM and the machine would swap. Render to disk unless
+# the caller has already chosen somewhere.
+os.environ.setdefault('TMPDIR', str(ROOT / 'references' / 'work' / 'tmp'))
+pathlib.Path(os.environ['TMPDIR']).mkdir(parents=True, exist_ok=True)
+tempfile.tempdir = os.environ['TMPDIR']
 MODEL = '/home/cfutro/models/chandra-ocr-2'
 def _conf_mass(img):
     """Total word confidence tesseract reports for one image: high when the text is the right way up."""
