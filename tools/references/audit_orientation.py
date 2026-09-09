@@ -16,7 +16,12 @@ def main():
     for l in open(MAN):
         r = json.loads(l)
         if r.get('engine') == 'chandra-ocr-2': done[r['file']] = r
-    files = sorted(f for f in done if a.only in f)
+    # Only files read before the recipe turned pages upright need examining. A file whose entry records the count
+    # of pages it turned was read the right way up already, and re-examining it from the unrotated PDF would flag
+    # every one of those pages and order a re-read of work that is correct.
+    pre = {f: r for f, r in done.items() if 'pages_turned_upright' not in r}
+    print(f'{len(pre)} of {len(done)} files were read before orientation existed; the rest are skipped', flush=True)
+    files = sorted(f for f in pre if a.only in f)
     out_lines = []; n_pages = n_turned = 0
     for i, fn in enumerate(files, 1):
         p = PDF / fn
