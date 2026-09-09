@@ -4,3 +4,16 @@ hallet1979-theoretical-model-glacial-abrasion.pdf
 paschen1889-funkenuebergang-luft-wasserstoff-kohlensaeure.pdf
 slinn1984-precipitation-scavenging.pdf
 albini1976-estimating-wildfire-behavior-and-effects.pdf
+brutsaert1975-theory-local-evaporation-rough-smooth-surfaces.pdf
+chapman1970-mathematical-theory-non-uniform-gases.pdf
+fuller1966-new-method-prediction-binary-gas-phase-diffusion.pdf
+henderson1966-open-channel-flow.pdf
+hwang1973-inhibition-nitrogenase-catalyzed-reductions.pdf
+maykut1987-role-shortwave-radiation-summer-decay-sea-ice.pdf
+mcphee1992-turbulent-heat-flux-upper-ocean-under-sea-ice.pdf
+monahan1986-oceanic-whitecaps.pdf
+parker1978-self-formed-straight-rivers-part-2-gravel-river.pdf
+perrin1989-absorption-co2-n2-mixtures-far-line-wings.pdf
+watson1978-methanogenesis-fires-regulation-atmospheric-oxygen.pdf
+weiss1974-carbon-dioxide-water-seawater-solubility.pdf
+wilke1950-viscosity-equation-gas-mixtures.pdf

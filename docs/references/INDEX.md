@@ -871,7 +871,7 @@ Fetched directly on 2026-09-08 from the sweep recorded in `recent-implementation
 
 ## Held: fetched for the implicit-Earth audit amendments (2026-09-08)
 
-Fetched directly on 2026-09-08 from the open-access locations OpenAlex or Unpaywall named (arXiv, PMC, HAL, AMS, AJS, USFS, OSTI, IAPWS, Internet Archive) for the sources the amendment passes cited by author and year; the lists are in the audit scratchpad. Identifiers confirmed against Crossref by title, first author and year. Per-page text extracted; pages under 200 characters were opened and are figure plates except where the row says no text layer. Nothing here is `read`.
+Fetched directly on 2026-09-08 from the open-access locations OpenAlex or Unpaywall named (arXiv, PMC, HAL, AMS, AJS, USFS, OSTI, IAPWS, Internet Archive) for the sources the amendment passes cited by author and year, plus the 28 the user supplied the same day from the request list (identified by first page; whole books keep a book filename with the cited chapter's pages noted); the lists are in the audit scratchpad. Identifiers confirmed against Crossref by title, first author and year. Per-page text extracted; pages under 200 characters were opened and are figure plates except where the row says no text layer. Nothing here is `read`.
 
 | filename | verbatim title | identifier | status | anchors |
 | --- | --- | --- | --- | --- |
@@ -887,40 +887,40 @@ Fetched directly on 2026-09-08 from the open-access locations OpenAlex or Unpayw
 | `paschen1889-funkenuebergang-luft-wasserstoff-kohlensaeure.pdf` | Ueber die zum Funkenuebergang in Luft, Wasserstoff und Kohlensaeure bei verschiedenen Drucken erforderliche Potentialdifferenz (umlauts transliterated; scanned original, journal pages 69-96 cut from the Internet Archive scan of Annalen der Physik 273(5), item sim_annalen-der-physik_1889_37_5, with its OCR layer) | 10.1002/andp.18892730505 | held | REQ-BIO-012 |
 | `davy2009-fluvial-erosion-transport-equation-landscape-evolution.pdf` | Fluvial erosion/transport equation of landscape evolution models revisited | 10.1029/2008JF001146 (HAL insu-00424874 author version) | held | 0015 |
 | `slinn1984-precipitation-scavenging.pdf` | Precipitation scavenging (chapter 11, pages 466-532, cut from the scanned DOE volume Atmospheric Science and Power Production, D. Randerson ed., with the OSTI OCR layer) | no DOI for the chapter; the volume is DOE/TIC-27601, DOI 10.2172/6503687, OSTI 6503687 | held | REQ-ATM-006 |
+| `rothman2010-hitemp-high-temperature-molecular-spectroscopic-database.pdf` | HITEMP, the high-temperature molecular spectroscopic database | 10.1016/j.jqsrt.2010.05.001 | held | 0016, REQ-ATM-003 |
+| `wilzewski2016-h2-he-co2-line-broadening-coefficients-part-1.pdf` | H2, He, and CO2 line-broadening coefficients, pressure shifts and temperature-dependence exponents for the HITRAN database. Part 1: SO2, NH3, HF, HCl, OCS and C2H2 (article-in-press proof, 14 pages, without final volume pagination) | 10.1016/j.jqsrt.2015.09.003 | held | 0016, REQ-ATM-003 |
+| `tan2022-h2-he-co2-pressure-induced-parameters-part-ii.pdf` | H2, He, and CO2 Pressure-induced Parameters for the HITRAN Database. II. Line Lists of CO2, N2O, CO, SO2, OH, OCS, H2CO, HCN, PH3, H2S, and GeH4 (Tan et al. 2022, ApJS; the records cite it as JQSRT 2019, to be corrected) | 10.3847/1538-4365/ac83a6 | held | 0016, REQ-ATM-003 |
+| `perrin1989-absorption-co2-n2-mixtures-far-line-wings.pdf` | Temperature-dependent measurements and modeling of absorption by CO2-N2 mixtures in the far line-wings of the 4.3 um CO2 band (scanned original with the publisher OCR layer) | 10.1016/0022-4073(89)90077-0 | held | 0016, REQ-ATM-003 |
+| `karman2019-update-hitran-collision-induced-absorption.pdf` | Update of the HITRAN collision-induced absorption section | 10.1016/j.icarus.2019.02.034 | held | 0016, REQ-ATM-003 |
+| `brutsaert1975-theory-local-evaporation-rough-smooth-surfaces.pdf` | A theory for local evaporation (or heat transfer) from rough and smooth surfaces at ground level (scanned original with the publisher OCR layer) | 10.1029/WR011i004p00543 | held | 0016, REQ-ATM-012 |
+| `wesely1989-parameterization-surface-resistances-gaseous-dry-deposition.pdf` | Parameterization of surface resistances to gaseous dry deposition in regional-scale numerical models (publisher OCR layer on a scan (native fonts)) | 10.1016/0004-6981(89)90153-4 | held | REQ-ATM-006 |
+| `monahan1986-oceanic-whitecaps.pdf` | A Model of Marine Aerosol Generation Via Whitecaps and Wave Disruption (the whole Springer volume Oceanic Whitecaps and Their Role in Air-Sea Exchange Processes, Monahan and Mac Niocaill eds, 1986, 298 pages, scanned original with an OCR layer; the cited chapter 16 is book pages 167-174, PDF pages 174-181) | 10.1007/978-94-009-4668-2_16 | held | REQ-ATM-006, 0022 |
+| `wagner2002-iapws-formulation-1995-thermodynamic-properties-water.pdf` | The IAPWS Formulation 1995 for the Thermodynamic Properties of Ordinary Water Substance for General and Scientific Use | 10.1063/1.1461829 | held | REQ-ATM-017 |
+| `lemmon2004-viscosity-thermal-conductivity-nitrogen-oxygen-argon-air.pdf` | Viscosity and Thermal Conductivity Equations for Nitrogen, Oxygen, Argon, and Air | 10.1023/B:IJOT.0000022327.04529.f3 | held | REQ-ATM-017 |
+| `wilke1950-viscosity-equation-gas-mixtures.pdf` | A Viscosity Equation for Gas Mixtures (scanned original with the publisher OCR layer) | 10.1063/1.1747673 | held | REQ-ATM-017 |
+| `chapman1970-mathematical-theory-non-uniform-gases.pdf` | The Mathematical Theory of Non-Uniform Gases, 3rd ed. (Chapman and Cowling 1970) (the 1995 Cambridge Mathematical Library reprint of the 3rd edition (1970), with a foreword by C. Cercignani; 448 pages, scanned original with an OCR layer) | no DOI; ISBN 978-0-521-40844-8 | held | REQ-ATM-017 |
+| `fuller1966-new-method-prediction-binary-gas-phase-diffusion.pdf` | New Method for Prediction of Binary Gas-Phase Diffusion Coefficients (scanned original with the publisher OCR layer) | 10.1021/ie50677a007 | held | REQ-ATM-017 |
+| `poling2001-properties-of-gases-and-liquids.pdf` | The Properties of Gases and Liquids, 5th ed. (Poling, Prausnitz and O'Connell 2001) (McGraw-Hill eBook edition of the 5th edition (print ISBN 0-07-011682-2), 803 pages, born digital) | no DOI; ISBN 978-0-07-011682-5 | held | REQ-ATM-017 |
+| `millero2008-composition-standard-seawater-reference-composition-salinity.pdf` | The composition of Standard Seawater and the definition of the Reference-Composition Salinity Scale (article-in-press copy, 23 pages) | 10.1016/j.dsr.2007.10.001 | held | 0017, REQ-OCN-003, 0004 |
+| `munk1998-abyssal-recipes-ii-energetics-tidal-wind-mixing.pdf` | Abyssal recipes II: energetics of tidal and wind mixing | 10.1016/S0967-0637(98)00070-3 | held | 0017 |
+| `wanninkhof2014-relationship-wind-speed-gas-exchange-revisited.pdf` | Relationship between wind speed and gas exchange over the ocean revisited | 10.4319/lom.2014.12.351 | held | 0017 |
+| `maykut1987-role-shortwave-radiation-summer-decay-sea-ice.pdf` | The role of shortwave radiation in the summer decay of a sea ice cover (scanned original with the publisher OCR layer) | 10.1029/JC092iC07p07032 | held | 0017, REQ-OCN-011 |
+| `mcphee1992-turbulent-heat-flux-upper-ocean-under-sea-ice.pdf` | Turbulent heat flux in the upper ocean under sea ice (scanned original with the publisher OCR layer) | 10.1029/92JC00239 | held | 0017, REQ-OCN-011 |
+| `lueker2000-ocean-pco2-calculated-dissolved-inorganic-carbon.pdf` | Ocean pCO2 calculated from dissolved inorganic carbon, alkalinity, and equations for K1 and K2: validation based on laboratory measurements of CO2 in gas and seawater at equilibrium | 10.1016/S0304-4203(00)00022-0 | held | REQ-OCN-003 |
+| `weiss1974-carbon-dioxide-water-seawater-solubility.pdf` | Carbon dioxide in water and seawater: the solubility of a non-ideal gas (scanned original with the publisher OCR layer) | 10.1016/0304-4203(74)90015-2 | held | REQ-OCN-003 |
+| `ferguson2004-simple-universal-equation-grain-settling-velocity.pdf` | A Simple Universal Equation for Grain Settling Velocity | 10.1306/051204740933 | held | 0015 |
+| `parker1978-self-formed-straight-rivers-part-2-gravel-river.pdf` | Self-formed straight rivers with equilibrium banks and mobile bed. Part 2. The gravel river (scanned original with the publisher OCR layer) | 10.1017/S0022112078002505 | held | 0015 |
+| `henderson1966-open-channel-flow.pdf` | Open Channel Flow (Henderson 1966) (scanned original, no text layer, 273 two-page spreads; the supplied file stored every spread sideways with /Rotate 0, fixed losslessly at ingest with qpdf --rotate=-90 on all pages so it reads upright) | no DOI; Macmillan, New York, 1966; ISBN 978-0-02-353790-5 from the Open Library record | held | 0019 |
+| `watson1978-methanogenesis-fires-regulation-atmospheric-oxygen.pdf` | Methanogenesis, fires and the regulation of atmospheric oxygen (scanned original with the publisher OCR layer) | 10.1016/0303-2647(78)90012-6 (the records cite ...-X, which does not resolve) | held | REQ-BIO-015, 0021 |
+| `nelson2002-effective-wind-speed-models-fire-spread.pdf` | An effective wind speed for models of fire spread | 10.1071/WF02031 | held | REQ-BIO-015 |
+| `hwang1973-inhibition-nitrogenase-catalyzed-reductions.pdf` | Inhibition of nitrogenase-catalyzed reductions (scanned original with the publisher OCR layer) | 10.1016/0005-2728(73)90270-3 | held | 0021, REQ-BIO-006 |
+| `hendersonsellers1985-new-formulation-eddy-diffusion-thermocline-models.pdf` | New formulation of eddy diffusion thermocline models | 10.1016/0307-904X(85)90110-6 | held | 0018 |
 
 ## Requested by the implicit-Earth audit amendments (2026-09-08)
 
-Cited by the same passes; closed per OpenAlex and Unpaywall, or the one open-access copy refused an automated fetch. Identifiers confirmed against Crossref. Repeated with authors, venues and suggested filenames in `REQUESTS.md`.
+Cited by the same passes and still open after the user's batch of 2026-09-08. Identifiers confirmed against Crossref. Repeated with authors, venues and suggested filenames in `REQUESTS.md`.
 
 | filename | verbatim title | identifier | status | anchors |
 | --- | --- | --- | --- | --- |
-| (requested) | HITEMP, the high-temperature molecular spectroscopic database | 10.1016/j.jqsrt.2010.05.001 | requested | 0016, REQ-ATM-003 |
-| (requested) | H2, He, and CO2 line-broadening coefficients, pressure shifts and temperature-dependence exponents for the HITRAN database. Part 1: SO2, NH3, HF, HCl, OCS and C2H2 | 10.1016/j.jqsrt.2015.09.003 | requested | 0016, REQ-ATM-003 |
-| (requested) | H2, He, and CO2 Pressure-induced Parameters for the HITRAN Database. II. Line Lists of CO2, N2O, CO, SO2, OH, OCS, H2CO, HCN, PH3, H2S, and GeH4 (Tan et al. 2022, ApJS; the records cite it as JQSRT 2019, to be corrected) | 10.3847/1538-4365/ac83a6 (open access at IOP; the PDF endpoint refused the automated fetch) | requested | 0016, REQ-ATM-003 |
-| (requested) | Temperature-dependent measurements and modeling of absorption by CO2-N2 mixtures in the far line-wings of the 4.3 um CO2 band | 10.1016/0022-4073(89)90077-0 | requested | 0016, REQ-ATM-003 |
-| (requested) | Update of the HITRAN collision-induced absorption section | 10.1016/j.icarus.2019.02.034 (open-access copy at hdl.handle.net/2066/204360 refused the automated fetch) | requested | 0016, REQ-ATM-003 |
-| (requested) | A theory for local evaporation (or heat transfer) from rough and smooth surfaces at ground level | 10.1029/WR011i004p00543 | requested | 0016, REQ-ATM-012 |
-| (requested) | Parameterization of surface resistances to gaseous dry deposition in regional-scale numerical models | 10.1016/0004-6981(89)90153-4 | requested | REQ-ATM-006 |
-| (requested) | A Model of Marine Aerosol Generation Via Whitecaps and Wave Disruption | 10.1007/978-94-009-4668-2_16 | requested | REQ-ATM-006, 0022 |
-| (requested) | The IAPWS Formulation 1995 for the Thermodynamic Properties of Ordinary Water Substance for General and Scientific Use | 10.1063/1.1461829 | requested | REQ-ATM-017 |
 | (requested) | NIST-JANAF Thermochemical Tables, Fourth Edition | no DOI; J. Phys. Chem. Ref. Data Monograph 9 (1998); tables served per species by the NIST WebBook, janaf.nist.gov | requested | REQ-ATM-017 |
-| (requested) | Viscosity and Thermal Conductivity Equations for Nitrogen, Oxygen, Argon, and Air | 10.1023/B:IJOT.0000022327.04529.f3 | requested | REQ-ATM-017 |
-| (requested) | A Viscosity Equation for Gas Mixtures | 10.1063/1.1747673 | requested | REQ-ATM-017 |
-| (requested) | The Mathematical Theory of Non-Uniform Gases, 3rd ed. (Chapman and Cowling 1970) | no DOI; ISBN 978-0-521-40844-8 | requested | REQ-ATM-017 |
-| (requested) | New Method for Prediction of Binary Gas-Phase Diffusion Coefficients | 10.1021/ie50677a007 | requested | REQ-ATM-017 |
-| (requested) | The Properties of Gases and Liquids, 5th ed. (Poling, Prausnitz and O'Connell 2001) | no DOI; ISBN 978-0-07-011682-5 | requested | REQ-ATM-017 |
-| (requested) | The composition of Standard Seawater and the definition of the Reference-Composition Salinity Scale | 10.1016/j.dsr.2007.10.001 | requested | 0017, REQ-OCN-003, 0004 |
-| (requested) | Abyssal recipes II: energetics of tidal and wind mixing | 10.1016/S0967-0637(98)00070-3 | requested | 0017 |
-| (requested) | Relationship between wind speed and gas exchange over the ocean revisited | 10.4319/lom.2014.12.351 | requested | 0017 |
-| (requested) | The role of shortwave radiation in the summer decay of a sea ice cover | 10.1029/JC092iC07p07032 | requested | 0017, REQ-OCN-011 |
-| (requested) | Turbulent heat flux in the upper ocean under sea ice | 10.1029/92JC00239 | requested | 0017, REQ-OCN-011 |
-| (requested) | Ocean pCO2 calculated from dissolved inorganic carbon, alkalinity, and equations for K1 and K2: validation based on laboratory measurements of CO2 in gas and seawater at equilibrium | 10.1016/S0304-4203(00)00022-0 | requested | REQ-OCN-003 |
-| (requested) | Carbon dioxide in water and seawater: the solubility of a non-ideal gas | 10.1016/0304-4203(74)90015-2 | requested | REQ-OCN-003 |
-| (requested) | A Simple Universal Equation for Grain Settling Velocity | 10.1306/051204740933 (open-access copy at Durham Research Online refused the automated fetch) | requested | 0015 |
-| (requested) | Self-formed straight rivers with equilibrium banks and mobile bed. Part 2. The gravel river | 10.1017/S0022112078002505 | requested | 0015 |
-| (requested) | Open Channel Flow (Henderson 1966) | no DOI; Macmillan, New York, 1966; ISBN 978-0-02-353790-5 from the Open Library record | requested | 0019 |
-| (requested) | Methanogenesis, fires and the regulation of atmospheric oxygen | 10.1016/0303-2647(78)90012-6 (the records cite ...-X, which does not resolve) | requested | REQ-BIO-015, 0021 |
-| (requested) | An effective wind speed for models of fire spread | 10.1071/WF02031 | requested | REQ-BIO-015 |
 | (requested) | Biochemical Models of Leaf Photosynthesis (von Caemmerer 2000) | 10.1071/9780643103405; ISBN 978-0-643-06379-2 | requested | REQ-BIO-007, 0021 |
-| (requested) | Inhibition of nitrogenase-catalyzed reductions | 10.1016/0005-2728(73)90270-3 | requested | 0021, REQ-BIO-006 |
-| (requested) | New formulation of eddy diffusion thermocline models | 10.1016/0307-904X(85)90110-6 | requested | 0018 |
