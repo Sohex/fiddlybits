@@ -53,7 +53,7 @@ The three findings that matter most:
    own reference implementation.** Huginn.jl (ODINN's shallow-ice solver) enforces
    `H >= 0` with `Hclip = map(x -> ifelse(x > 0.0, x, 0.0), H)`
    (`Huginn.jl/src/models/iceflow/SIA2D/SIA2D_utils.jl:63`), a plain clip, not the
-   active-set or complementarity treatment REQ-CRY-001 requires. Räss and Omlin's own
+   active-set or complementarity treatment REQ-CRY-001 requires. Rass and Omlin's own
    ParallelStencil.jl miniapp for a bound-constrained field does the same thing:
    `@inn(Phi) = max(0.0, @inn(Phi) + dt*@all(dPhidt))`
    (`ParallelStencil.jl/miniapps/scalar_porowaves2D.jl:32`). Two independent, mature
@@ -65,9 +65,9 @@ The three findings that matter most:
    expect no shortcut from adjacent GPU-native codebases when it builds one.
 2. **Gravity and density are already carried as explicit, overridable struct fields
    through the whole ODINN-SciML ice-flow stack**, not folded into a fitted
-   coefficient: `PhysicalParameters` in Sleipnir.jl carries `ρ` and `g` as named
+   coefficient: `PhysicalParameters` in Sleipnir.jl carries `` and `g` as named
    fields (default 900.0, 9.81, both overridable), and Huginn.jl's diffusivity writes
-   `gravity_term = ρ * g` then raises it to `n` or `p - q` explicitly
+   `gravity_term =  * g` then raises it to `n` or `p - q` explicitly
    (`SIA2D_utils.jl:86,93,98,105`), matching REQ-CRY-002's requirement almost exactly.
    GeoParams.jl does the same for the geodynamics side, with gravity as a
    `ConstantGravity` or `DippingGravity` struct rather than a literal. This is the
@@ -94,41 +94,41 @@ The three findings that matter most:
 | JuliaGeodynamics/GeoParams.jl | a general material-parameter and rheology library with gravity as a runtime struct, not a literal | 0015 | algorithmic reference | M1 |
 | JuliaGeodynamics/LaMEM.jl | Julia interface to LaMEM, a Fortran/C+PETSc visco-elasto-plastic thermomechanical solver, downloaded as a binary | 0015 | algorithmic reference | M1 |
 | JuliaGeodynamics/WorldBuilder.jl | Julia interface to the Geodynamic World Builder: a declarative feature language (plates, ridges, cratons) with half-space-cooling thermal models per feature | 0015 | algorithmic reference | M1 |
-| JuliaGeodynamics/JustPIC.jl | GPU particle-in-cell / semi-Lagrangian material advection on KernelAbstractions | - | not pertinent: tracks material advecting through a deforming mesh, which is exactly what 0015 declares a scope exclusion (no plate advection or remeshing during `T_int`) |
-| JuliaGeodynamics/RheologyCalculator.jl | a point-wise (0D) Newton solver composing viscous/elastic/plastic constitutive elements | - | not pertinent: 0015 has no active visco-elasto-plastic composite solve (flexure is linear-elastic, thermal subsidence is a conductive analytic form); nothing in the terrain record calls a rheology composition solver |
-| JuliaGeodynamics/TinyKernels.jl | a second GPU kernel abstraction (CUDA/ROCm/limited Metal) | - | not pertinent: decision 0012 already committed to KernelAbstractions.jl |
-| JuliaGeodynamics/CompGrids.jl | a thin grid-setup convenience layer over ParallelStencil or PETSc, assuming MPI | - | not pertinent: no physics content, and its multi-process assumption does not fit decision 0009's one-process design |
-| JuliaGeodynamics/AdriaArrayGeometryPicker.jl | a GUI for one regional seismic-array dataset | - | not pertinent: Earth-specific instrument tooling |
-| JuliaGeodynamics/DRex.jl | crystal-fabric seismic anisotropy evolution | - | not pertinent: fiddlybits has no seismic-anisotropy subsystem |
-| JuliaGeodynamics/FiniteDiffWENO5.jl | a WENO5 finite-difference advection scheme | - | not pertinent: no shock-capturing compositional advection exists in the terrain or mantle scope |
-| JuliaGeodynamics/GeoBackwardsTracing.jl | postprocessing backward particle tracing for P-T-t paths | - | not pertinent: petrology postprocessing with no analogue here |
-| JuliaGeodynamics/GeoDataPicker.jl | a web GUI layered on GeophysicalModelGenerator.jl | - | not pertinent: interactive tool, no algorithm beyond GMG itself |
-| JuliaGeodynamics/geomIO | 2D-cross-section-to-3D-solid geometry construction for CAD/3D printing | - | not pertinent |
-| JuliaGeodynamics/InjectSills.jl | analytic elastic-half-space displacement solutions for sills and dikes | - | not pertinent: no magmatic intrusion subsystem exists or is planned |
-| JuliaGeodynamics/InteractiveGeodynamics.jl | teaching GUIs wrapping LaMEM | - | not pertinent |
-| JuliaGeodynamics/ZirconGrowth.jl | zircon crystal growth and trace-element modelling | - | not pertinent |
-| JuliaGeodynamics/ZirconIsotopeDiffusion.jl | zircon isotope diffusion, a MATLAB port, not yet coupled to anything | - | not pertinent |
+| JuliaGeodynamics/JustPIC.jl | GPU particle-in-cell / semi-Lagrangian material advection on KernelAbstractions | - | not pertinent: tracks material advecting through a deforming mesh, which is exactly what 0015 declares a scope exclusion (no plate advection or remeshing during `T_int`) | - |
+| JuliaGeodynamics/RheologyCalculator.jl | a point-wise (0D) Newton solver composing viscous/elastic/plastic constitutive elements | - | not pertinent: 0015 has no active visco-elasto-plastic composite solve (flexure is linear-elastic, thermal subsidence is a conductive analytic form); nothing in the terrain record calls a rheology composition solver | - |
+| JuliaGeodynamics/TinyKernels.jl | a second GPU kernel abstraction (CUDA/ROCm/limited Metal) | - | not pertinent: decision 0012 already committed to KernelAbstractions.jl | - |
+| JuliaGeodynamics/CompGrids.jl | a thin grid-setup convenience layer over ParallelStencil or PETSc, assuming MPI | - | not pertinent: no physics content, and its multi-process assumption does not fit decision 0009's one-process design | - |
+| JuliaGeodynamics/AdriaArrayGeometryPicker.jl | a GUI for one regional seismic-array dataset | - | not pertinent: Earth-specific instrument tooling | - |
+| JuliaGeodynamics/DRex.jl | crystal-fabric seismic anisotropy evolution | - | not pertinent: fiddlybits has no seismic-anisotropy subsystem | - |
+| JuliaGeodynamics/FiniteDiffWENO5.jl | a WENO5 finite-difference advection scheme | - | not pertinent: no shock-capturing compositional advection exists in the terrain or mantle scope | - |
+| JuliaGeodynamics/GeoBackwardsTracing.jl | postprocessing backward particle tracing for P-T-t paths | - | not pertinent: petrology postprocessing with no analogue here | - |
+| JuliaGeodynamics/GeoDataPicker.jl | a web GUI layered on GeophysicalModelGenerator.jl | - | not pertinent: interactive tool, no algorithm beyond GMG itself | - |
+| JuliaGeodynamics/geomIO | 2D-cross-section-to-3D-solid geometry construction for CAD/3D printing | - | not pertinent | - |
+| JuliaGeodynamics/InjectSills.jl | analytic elastic-half-space displacement solutions for sills and dikes | - | not pertinent: no magmatic intrusion subsystem exists or is planned | - |
+| JuliaGeodynamics/InteractiveGeodynamics.jl | teaching GUIs wrapping LaMEM | - | not pertinent | - |
+| JuliaGeodynamics/ZirconGrowth.jl | zircon crystal growth and trace-element modelling | - | not pertinent | - |
+| JuliaGeodynamics/ZirconIsotopeDiffusion.jl | zircon isotope diffusion, a MATLAB port, not yet coupled to anything | - | not pertinent | - |
 | ParallelStencil.jl | architecture-agnostic stencil macros with pseudo-transient (PT) relaxation for stiff nonlinear multi-physics | 0019, 0020, REQ-HYD-004, REQ-CRY-001 | algorithmic reference | M2 |
-| ImplicitGlobalGrid.jl | MPI halo exchange for multi-GPU/multi-node domain decomposition | - | not pertinent: decision 0009 runs the whole coupled system in one process; there is no multi-node domain to decompose |
+| ImplicitGlobalGrid.jl | MPI halo exchange for multi-GPU/multi-node domain decomposition | - | not pertinent: decision 0009 runs the whole coupled system in one process; there is no multi-node domain to decompose | - |
 | ODINN-SciML/Sleipnir.jl | glacier state, parameter and simulation-config types for the ODINN ecosystem | 0020, REQ-CRY-002 | algorithmic reference | M10 |
 | ODINN-SciML/Huginn.jl | the SIA2D shallow-ice solver: diffusivity, sliding, margin handling, explicit adaptive time-stepping, a Halfar-solution test | 0020, REQ-CRY-001, REQ-CRY-002 | algorithmic reference | M10 |
 | ODINN-SciML/Muninn.jl | glacier surface mass balance: temperature-index models with one or two degree-day factors | 0020 | algorithmic reference (negative) | M10 |
-| ODINN-SciML/ODINN.jl | the top-level orchestrator coupling Sleipnir/Huginn/Muninn through SciML universal differential equations for parameter learning | - | not pertinent: the UDE/inverse-learning machinery is exactly what fiddlybits does not want; the physics it orchestrates is read directly from the three packages above |
-| ODINN-SciML/MassBalanceMachine.jl | ports MassBalanceMachine's neural-network (Lux.jl) mass-balance models into Muninn as `MBmodel`s | - | not pertinent: a second, statistical mass-balance route, same objection as the temperature-index route, sharper |
-| ODINN-SciML/MassBalanceMachine | the Python source project: ML-based point mass-balance modelling from geodetic and glaciological data | - | not pertinent: Earth glacier data science, not a physical scheme |
-| ODINN-SciML/SphereUDE.jl | non-parametric regression of data on the sphere via neural ODEs | - | not pertinent: a statistical interpolation tool, no physics |
-| ODINN-SciML/SphereUDE-examples | example notebooks for SphereUDE.jl | - | not pertinent |
-| ODINN-SciML/Gungnir | OGGM-based preprocessing of real DEM and climate reanalysis data for ODINN | - | not pertinent: Earth-specific data ingestion pipeline |
-| ODINN-SciML/oggm | vendored copy of the Python OGGM open global glacier model, used here as Gungnir's data backend | - | not pertinent: Earth-specific glacier inventory and climate data pipeline, not Julia, not this project's concern |
-| ODINN-SciML/iceflow_sandbox | experimental coupling of a Julia SIA model into OGGM's Python driver loop | - | not pertinent: an integration experiment, no physics beyond what Huginn.jl already gives directly |
-| ODINN-SciML/Database-Exploration | tooling to intersect glacier inventory and velocity databases (RGI, Theia, Millan et al.) | - | not pertinent: Earth glacier data wrangling |
-| ODINN-SciML/Glaciexplo | a Python tool for choosing which real glaciers to study, by data availability | - | not pertinent |
-| ODINN-SciML/GlacierStripes.jl | a "climate stripes" visualization for a glacier's mass-balance history | - | not pertinent: a plotting tool |
-| ODINN-SciML/DiffEqSensitivity-Review | a LaTeX review paper on differentiable-programming sensitivity methods | - | not pertinent: a paper, not code; adjacent to decision 0033 but not this group's question |
-| ODINN-SciML/universal_differential_equations | the companion repository to the Rackauckas et al. UDE paper | - | not pertinent: generic SciML methodology, no glacier or terrain content |
-| ODINN-SciML/ODINN-JOSS-paper | the JOSS journal-article source for ODINN.jl | - | not pertinent: a paper |
-| ODINN-SciML/ODINN_notebooks | demonstration Jupyter notebooks | - | not pertinent |
-| fastflow | github.com/fastflow/fastflow: a C++ structured-parallel-programming library (task farms, pipelines, MPMC queues) | - | not pertinent: a name collision; not Jain et al.'s GPU flow-routing algorithm named in the reasoning document. See finding 3 above. |
+| ODINN-SciML/ODINN.jl | the top-level orchestrator coupling Sleipnir/Huginn/Muninn through SciML universal differential equations for parameter learning | - | not pertinent: the UDE/inverse-learning machinery is exactly what fiddlybits does not want; the physics it orchestrates is read directly from the three packages above | - |
+| ODINN-SciML/MassBalanceMachine.jl | ports MassBalanceMachine's neural-network (Lux.jl) mass-balance models into Muninn as `MBmodel`s | - | not pertinent: a second, statistical mass-balance route, same objection as the temperature-index route, sharper | - |
+| ODINN-SciML/MassBalanceMachine | the Python source project: ML-based point mass-balance modelling from geodetic and glaciological data | - | not pertinent: Earth glacier data science, not a physical scheme | - |
+| ODINN-SciML/SphereUDE.jl | non-parametric regression of data on the sphere via neural ODEs | - | not pertinent: a statistical interpolation tool, no physics | - |
+| ODINN-SciML/SphereUDE-examples | example notebooks for SphereUDE.jl | - | not pertinent | - |
+| ODINN-SciML/Gungnir | OGGM-based preprocessing of real DEM and climate reanalysis data for ODINN | - | not pertinent: Earth-specific data ingestion pipeline | - |
+| ODINN-SciML/oggm | vendored copy of the Python OGGM open global glacier model, used here as Gungnir's data backend | - | not pertinent: Earth-specific glacier inventory and climate data pipeline, not Julia, not this project's concern | - |
+| ODINN-SciML/iceflow_sandbox | experimental coupling of a Julia SIA model into OGGM's Python driver loop | - | not pertinent: an integration experiment, no physics beyond what Huginn.jl already gives directly | - |
+| ODINN-SciML/Database-Exploration | tooling to intersect glacier inventory and velocity databases (RGI, Theia, Millan et al.) | - | not pertinent: Earth glacier data wrangling | - |
+| ODINN-SciML/Glaciexplo | a Python tool for choosing which real glaciers to study, by data availability | - | not pertinent | - |
+| ODINN-SciML/GlacierStripes.jl | a "climate stripes" visualization for a glacier's mass-balance history | - | not pertinent: a plotting tool | - |
+| ODINN-SciML/DiffEqSensitivity-Review | a LaTeX review paper on differentiable-programming sensitivity methods | - | not pertinent: a paper, not code; adjacent to decision 0033 but not this group's question | - |
+| ODINN-SciML/universal_differential_equations | the companion repository to the Rackauckas et al. UDE paper | - | not pertinent: generic SciML methodology, no glacier or terrain content | - |
+| ODINN-SciML/ODINN-JOSS-paper | the JOSS journal-article source for ODINN.jl | - | not pertinent: a paper | - |
+| ODINN-SciML/ODINN_notebooks | demonstration Jupyter notebooks | - | not pertinent | - |
+| fastflow | github.com/fastflow/fastflow: a C++ structured-parallel-programming library (task farms, pipelines, MPMC queues) | - | not pertinent: a name collision; not Jain et al.'s GPU flow-routing algorithm named in the reasoning document. See finding 3 above. | - |
 | whitebox_next_gen | the Rust rewrite of WhiteboxTools (John Lindsay): least-cost depression breaching, wetness-index and flow-routing tools | 0019, REQ-HYD-004, REQ-HYD-005 | algorithmic reference | M2 |
 | PATHSolver.jl | Julia wrapper for the PATH solver, the standard benchmark for mixed complementarity and LCP problems | 0019, REQ-HYD-004, 0025 | oracle arm | M2 |
 
@@ -158,7 +158,7 @@ term that the closed-form half-space solution cannot express (a thick sedimentar
 cover with different `k` than basement, for instance)? If so, this transient 1D
 explicit solve - or the general shape of it - is the fallback path to read before
 writing one from scratch, and the question of whether its stability criterion
-(`dtfac * dz^2 / 2κ`) is cheap enough to run once per province at seed time, not per
+(`dtfac * dz^2 / 2`) is cheap enough to run once per province at seed time, not per
 timestep, should be checked before ruling it out on cost.
 
 ### JuliaGeodynamics/GeoParams.jl
@@ -243,7 +243,7 @@ ice-margin solver: can a PT iteration be wrapped in an outer active-set loop (fr
 cells at their bound, PT-relax the free set, release cells whose residual says they
 should be free, repeat - the same shape REQ-HYD-004's uniqueness identity already
 requires as "two active-set trajectories, from all-free and all-pinned, must reach the
-one solution") without losing the damped-inertia contraction property Räss et al.
+one solution") without losing the damped-inertia contraction property Rass et al.
 rely on for convergence, or does the constraint have to be handled by a fundamentally
 different iteration (projected SOR, multigrid with a projected smoother) with PT
 reserved for the unconstrained smooth stages elsewhere in the model (Stokes,
@@ -253,12 +253,12 @@ ice-margin solver are designed, not after.
 ### ODINN-SciML/Sleipnir.jl, Huginn.jl and Muninn.jl
 
 Read together because they are one ecosystem: Sleipnir.jl's `PhysicalParameters`
-(`parameters/PhysicalParameters.jl:28`) carries `ρ` (default 900.0) and `g` (default
+(`parameters/PhysicalParameters.jl:28`) carries `` (default 900.0) and `g` (default
 9.81) as ordinary struct fields, alongside `DDF_min`/`DDF_max` fields whose docstring
 names them "degree-day factor for TI model calibration" - the temperature-index route
 is not an afterthought, it is wired into the parameter struct's own numerical bounds.
 Huginn.jl's `SIA2D!` (`models/iceflow/SIA2D/SIA2D_utils.jl:36`) computes
-`gravity_term = ρ * g` once and raises it to `n.value` for the deformation term and to
+`gravity_term =  * g` once and raises it to `n.value` for the deformation term and to
 `p.value - q.value` for the Weertman-type sliding term (lines 86-107), which is
 algebraically the overburden convention REQ-CRY-002 asks for (substituting `tau_b ~
 rho g H |grad z_S|` and `N ~ rho g H` into a `C tau_b^p / N^q` sliding law gives
