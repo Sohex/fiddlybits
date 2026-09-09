@@ -1,0 +1,27 @@
+# USGS Spectral Library Version 7 (splib07): laboratory and field reflectance spectra of minerals, rocks, soils, vegetation, liquids, coatings and artificial materials
+
+id = "usgs-splib07"
+title = "USGS Spectral Library Version 7"
+publisher = "U.S. Geological Survey"
+doi = "10.3133/ds1035"
+paper = "kokaly2017-usgs-spectral-library-v7.pdf (references/pdf; Data Series 1035)"
+source = "https://crustal.usgs.gov/speclab/QueryAll07a.php (the full usgs_splib07.zip archive)"
+licence = "USGS public domain"
+fetched = "before 2026-09-08, in /home/cfutro/Downloads/splib07 (not used by the predecessor); carried 2026-09-08"
+local_path = "inputs/data/usgs-splib07"  # untracked payload
+archive_zip = "usgs_splib07.zip"   # the complete archive is carried in the payload directory as well as the extracted subset
+archive_zip_sha256 = "677779df232149175036db4f79d398bf72b833b7d0c9cb1d94bb348c747a5edd"   # the complete 5.2 GB usgs_splib07.zip the carried subset was extracted from
+archive_zip_bytes = 5479324354
+kept = ["ASCIIdata_splib07a: spectra at their original measurement resolution, 19 chapters, with error bars", "ASCIIdata_splib07b: the same spectra with USGS corrections applied (see DS1035, section on splib07b)", "indexes: the HTML data tables", "USGS_Spectral_Library_Version_7_Data.xml, README.html, ASCIIdata_XML.pdf"]
+dropped = ["GIFplots (2.4 GB of plot images)", "HTMLmetadata (1.3 GB of per-sample pages; the ASCII headers carry the sample identity)", "SPECPRsplib07 (2.3 GB binary SPECPR form of the same data)", "the convolved subsets cvASD, cvAVIRIS, cvHYPERION, cvM3, cvVIMS, cvCRISM (instrument-specific resamplings; the model integrates the native spectra against its own bands)"]
+role = "model INPUT (Sourced): mineral, rock, soil and vegetation reflectance spectra for per-class N-band albedo (decision 0016); complements the ECOSTRESS library; not an oracle"
+anchors = ["0016 N-band surface albedo per surface class", "REQ-ATM-002", "REQ-TER-015"]
+
+[splib07a_files_by_chapter]
+ChapterA_ArtificialMaterials = 290
+ChapterC_Coatings = 12
+ChapterL_Liquids = 24
+ChapterM_Minerals = 1276
+ChapterO_OrganicCompounds = 360
+ChapterS_SoilsAndMixtures = 209
+ChapterV_Vegetation = 286

@@ -1,0 +1,43 @@
+# ECOSTRESS Spectral Library (version 1.0): laboratory reflectance spectra of minerals, rocks, soils, vegetation, water, snow and manmade materials, 0.3 to 15 micrometres
+
+id = "ecostress-spectral-library"
+title = "ECOSTRESS Spectral Library, Version 1.0"
+publisher = "NASA Jet Propulsion Laboratory, California Institute of Technology"
+source = "https://speclib.jpl.nasa.gov/ (bulk download, all spectra)"
+papers = ["meerdink2019 (library paper, held)", "baldridge2009 (ASTER library, held)"]
+licence = "ECOSTRESS spectral library terms of use; check at point of use"
+fetched = "2026-08 by the predecessor project; carried 2026-09-08"
+local_path = "inputs/data/ecostress-spectral-library"  # untracked payload: zip plus extracted spectra/
+zip_sha256 = "ea5877a99488808377966e60890c8cbfc937fd0d9f9ac18fcb02982e30dca886"
+zip_bytes = 45747784
+spectra = 3451   # *.spectrum.txt files; 6144 files in all, the rest ancillary metadata per sample
+role = "model INPUT (Sourced): per-class surface reflectance and emissivity spectra integrated against the declared stellar spectrum for N-band albedo (decision 0016) and per-class longwave emissivity; not an oracle"
+anchors = ["0016 N-band surface albedo per surface class", "REQ-ATM-002", "REQ-ATM-008", "REQ-TER-015"]
+
+[counts_by_type]
+manmade = 72
+meteorites = 59
+mineral = 1609
+nonphotosyntheticvegetation = 123
+rock = 470
+soil = 69
+vegetation = 1040
+water = 9
+
+[measurement_kinds]
+"Hemispherical reflectance" = 1961
+"Bidirectional reflectance" = 885
+"Directional (10 Degree) Hemispherical Reflectance" = 174
+"Directional (10 degree) hemispherical reflectance" = 128
+"Transmission" = 125
+"Directional Hemispherical Reflectance" = 88
+"Reflectance" = 36
+"Directional hemispherical reflectance" = 17
+
+[wavelength_ranges_micrometres]
+"0.35 to 2.5" = 614
+"2.501 to 15.387" = 490
+"2.5000 to 0.4000" = 489
+"0.4000 to 2.5000" = 430
+"15.3853 to 2.0003" = 420
+"25.0442 to 2.0795" = 328

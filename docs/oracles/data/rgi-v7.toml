@@ -1,0 +1,438 @@
+# RGI 7.0: Randolph Glacier Inventory, a dataset of global glacier outlines
+
+id = "rgi-v7"
+title = "Randolph Glacier Inventory - A Dataset of Global Glacier Outlines, Version 7.0"
+publisher = "RGI 7.0 Consortium, NSIDC"
+year = 2023
+doi = "10.5067/f6jmovy5navz"
+documentation = "https://www.glims.org/rgi_user_guide"
+local_path = "oracles/data/rgi-v7"  # untracked payload
+fetched = 2026-09-08
+anchors = ["M5", "M10", "C1 cryosphere metrics: glacier area outside the ice sheets"]
+products = ["G glacier", "C glacier complex", "I intersects", "L centerlines"]
+
+# Every zip in the payload with its sha256, so an extract used by an oracle can be traced to bytes.
+[[file]]
+path = "RGI2000-v7.0-regions.zip"
+bytes = 2331478
+sha256 = "1cfb55d19c5ff2cfaf8373f2ec2f7f4da54b00c8ff72d7a885da25a380885c43"
+
+[[file]]
+path = "global_files/RGI2000-v7.0-C-global.zip"
+bytes = 388536610
+sha256 = "2c312585097ec1c11350f4abaa050d8574b36acd5bbcbd1d1fe5024abdb0d026"
+
+[[file]]
+path = "global_files/RGI2000-v7.0-G-global.zip"
+bytes = 486584252
+sha256 = "33573533f17de6f1b39bafc807002cdda44a150bb8ed94329387de11751b8a85"
+
+[[file]]
+path = "global_files/RGI2000-v7.0-I-global.zip"
+bytes = 29473395
+sha256 = "9a002a5b2cdffcf07893f5d446321ace4ed2c16f8400ff5fd9d5143887d27690"
+
+[[file]]
+path = "global_files/RGI2000-v7.0-L-global.zip"
+bytes = 248899987
+sha256 = "6929554c360f6b68a5fdd4ea97879108b094d5a4913abb54d1d8506fb864ba23"
+
+[[file]]
+path = "global_files/attributes/RGI2000-v7.0-C-global-attributes.csv.zip"
+bytes = 5072076
+sha256 = "676c25fed153f2147d0ea8d4d3c01d598e96d445c697efc8cd8519a3069f3d88"
+
+[[file]]
+path = "global_files/attributes/RGI2000-v7.0-G-global-attributes.csv.zip"
+bytes = 24901803
+sha256 = "689d69f1ddece4d533d75a1ad58d77b1939d56dae4192258f0194f0c9c530cb4"
+
+[[file]]
+path = "global_files/attributes/RGI2000-v7.0-I-global-attributes.csv.zip"
+bytes = 2360871
+sha256 = "8273efeaa6c0464fc27f3436f4eacb75a7e8691004b25d427fbce5526ad6b959"
+
+[[file]]
+path = "global_files/attributes/RGI2000-v7.0-L-global-attributes.csv.zip"
+bytes = 3162717
+sha256 = "9b0c330b803046e74cb0d8cbac902cb9fbe00370bc52bb2db3193823693b4943"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-01_alaska.zip"
+bytes = 69899498
+sha256 = "ca2b4f0c719e30b825fd7d529b39d721b4dde476422f7fa06a5173f50b64c044"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-02_western_canada_usa.zip"
+bytes = 19101832
+sha256 = "f9e3ce4da4b0ca88ba45bec3bb0709d593bb430212cf51fcb17675e5b13f27c4"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-03_arctic_canada_north.zip"
+bytes = 12579665
+sha256 = "b9a009be927a069fd33a813b199007669bb98e0ed3eb68ae9e12d15d970d8060"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-04_arctic_canada_south.zip"
+bytes = 18309010
+sha256 = "b39a3d9d3e34fe3a0b1fcd9b453cf26bf167c2a55625b9283bf0b5389ab5551f"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-05_greenland_periphery.zip"
+bytes = 59695695
+sha256 = "a5a1251599c77f0d72da882225b1de60885847904e77c868aa3fc42ff59ed103"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-06_iceland.zip"
+bytes = 1324402
+sha256 = "5983f5a12f71303ea6086a835399f06027e1579a2a07d076ce8b7af110054aab"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-07_svalbard_jan_mayen.zip"
+bytes = 5322001
+sha256 = "76b3a5b05e0858127ab2991b83cb95654dce76c53838dd1588990d40a49c1c82"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-08_scandinavia.zip"
+bytes = 4198401
+sha256 = "c61b521bfb8a8d10912aaadc48a5550c94f50d81a560d3d0733d2168bee7d41e"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-09_russian_arctic.zip"
+bytes = 775318
+sha256 = "13ae1d32f6f9bcd422d73d230bad8a37d932862938f4ee42083313f736608b7b"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-10_north_asia.zip"
+bytes = 7277808
+sha256 = "2e41b31c16daf114cbf3a796304d46cde157c361807a527d31bd612dea8135e7"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-11_central_europe.zip"
+bytes = 5132684
+sha256 = "0de12958f98d5a94ac066868d1d5ccf44d5e2478bb34c4436cb35bdb6268c564"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-12_caucasus_middle_east.zip"
+bytes = 3751574
+sha256 = "8df068e51e63d19bf4ab56f9f8bcc0fd7b076246522ffc18ac098575bd3542e9"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-13_central_asia.zip"
+bytes = 68937256
+sha256 = "a3142f5c1fb12815feda0cfb945df8addefe5fd3c058f059136f17392309898d"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-14_south_asia_west.zip"
+bytes = 39297850
+sha256 = "0b35a3985b3797e9943b428c530792e9b0329ad24eca1fc1604689a14c575710"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-15_south_asia_east.zip"
+bytes = 19583277
+sha256 = "28569db062807fc32bab905bcb3755b129bdd57e01974e32bd770abdd2c0df44"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-16_low_latitudes.zip"
+bytes = 3038217
+sha256 = "b0bed87d3877e3d84c86809642c94d13a06cacd23c8afde69254e2155eb33ad7"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-17_southern_andes.zip"
+bytes = 36563831
+sha256 = "68dceb8d42372b9a2c0e0ffb80683e98a698a50fcb98f6f74c8d9ed0a25b474f"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-18_new_zealand.zip"
+bytes = 4383868
+sha256 = "61e514a9c22c6f4e75747d10a0c36dda5b2b9e1a6dee82f08408c5a1e4d004f6"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-C/RGI2000-v7.0-C-19_subantarctic_antarctic_islands.zip"
+bytes = 11222869
+sha256 = "c6dad9d2f540a401eead6fd42633e4792bb2ef2c1880177511034d22290cc0a8"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-01_alaska.zip"
+bytes = 82915936
+sha256 = "f2a1c54edea1168a89957a4297b8fad5a80cad05797fadd8426ce45128727b9a"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-02_western_canada_usa.zip"
+bytes = 23632619
+sha256 = "d1c62974f4cef7b85e8b03f68828097f1789f4b4b4296dcec159fd28274d4d1f"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-03_arctic_canada_north.zip"
+bytes = 15181890
+sha256 = "70cd68a3becf65ba67208c67c57ef4fd5e3643d5838f66cb8ea043528a249dcb"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-04_arctic_canada_south.zip"
+bytes = 23648511
+sha256 = "9f5e5acabaf2a0a9fdf6d339d7f432791484a7848b92cdbbe89a04b915c26845"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-05_greenland_periphery.zip"
+bytes = 69023862
+sha256 = "16f0a40b058d703f56e5ca85cc2835226c5dad63292299348feae2ad2ad86613"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-06_iceland.zip"
+bytes = 2309352
+sha256 = "60d69097dd2065d3ac5b935c90e3d4098617f12ca3b2fb4cea68d0c39d7ee30b"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-07_svalbard_jan_mayen.zip"
+bytes = 6099044
+sha256 = "73fb46265b878802d6a58c1ce18d07b28675afa1d1730a1c48a441ed5bb277cf"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-08_scandinavia.zip"
+bytes = 5138901
+sha256 = "54bdcdfb0771f58f66bbb95bb1585f16efe9ee10bdfcba022af802868d3d6b28"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-09_russian_arctic.zip"
+bytes = 3753990
+sha256 = "adc548c157c8235c42c0a6d9c7767fe2e97ee2560b2fdce6201cc7194cb080d2"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-10_north_asia.zip"
+bytes = 8934600
+sha256 = "25f4f8655050dbf973f5ee2eec6050cc08bf7fdb7cf2c0dc27e8a939a2cb9d7a"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-11_central_europe.zip"
+bytes = 6581457
+sha256 = "f52a79fe724234332027eebd16e23f9062d7178dc0edb67d21db0293589d1ff9"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-12_caucasus_middle_east.zip"
+bytes = 4295667
+sha256 = "fb517eb030c3d6ac52eff68a10ef50cdb0b6cb890a3a619844c61350bd098f5b"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-13_central_asia.zip"
+bytes = 92030676
+sha256 = "d21529f1b13b9e206806d30abef3cb31ebdd633f57484670f2a2592bffb9fdd6"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-14_south_asia_west.zip"
+bytes = 49958252
+sha256 = "7cd63bbe0dd8b93cb0581c6fd25c3b6a04de21539514110493af9d9bd5a58c57"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-15_south_asia_east.zip"
+bytes = 25758739
+sha256 = "089cbe0743669448aa3b7d1f91915853b9d014cb1ba6e3b01c0a926946bf9ebe"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-16_low_latitudes.zip"
+bytes = 4118752
+sha256 = "15989366e42e62958add2c0ea221ca21c9337003740b8a7b49e12ddc0a325354"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-17_southern_andes.zip"
+bytes = 44945013
+sha256 = "b00574a2c887d13cfa1d0d64e7c3040d3ea68c052f84e0610f4895cc2ea1e201"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-18_new_zealand.zip"
+bytes = 5097472
+sha256 = "7bae18fe1ff65bfa2df89ab9ccb362d6910c7861fe52017d2ed967bdcfd744e6"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-G/RGI2000-v7.0-G-19_subantarctic_antarctic_islands.zip"
+bytes = 14942178
+sha256 = "2a69a9f464f272f01fba37059094a5d34c3eef790ebf1625ae936523ab04737e"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-01_alaska.zip"
+bytes = 3337656
+sha256 = "3a029e5c7f2c52ee5e96002f66ea0bd8103aeadafefcd0972466d44562fceff8"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-02_western_canada_usa.zip"
+bytes = 830915
+sha256 = "47db4ed184ec1e8f3eb195a556826f553ad15da113a93a50408de85eb9f2277e"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-03_arctic_canada_north.zip"
+bytes = 1070939
+sha256 = "ec30a5fdcb6f7aec44b35743eada9a971f00c717968d2baf0ec72bbaa6945a92"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-04_arctic_canada_south.zip"
+bytes = 2132477
+sha256 = "a06c9883ba85cf25f0a8a4a975a82100980ef0c365d9faf823c1854469d365a8"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-05_greenland_periphery.zip"
+bytes = 3257192
+sha256 = "0ca3c33abb5e13518e5ebf4772f179e5576ed72a9674113b6bb89133a5dddb59"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-06_iceland.zip"
+bytes = 516982
+sha256 = "9fbb71097b2a42d498acce5604b0922f0055bbd14f2b3d1b3bce0f49c03732dc"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-07_svalbard_jan_mayen.zip"
+bytes = 271457
+sha256 = "d719779ba49a63d96cc52f5e0f221b2761be86d80049fdfc3302929420ac4dfb"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-08_scandinavia.zip"
+bytes = 235118
+sha256 = "b54afd6cb872fb3cddd09c890ab9ca80e5c985205931e2a216af37a436a78bcf"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-09_russian_arctic.zip"
+bytes = 1780980
+sha256 = "10659f5a5c6c66dc447edc8246a5af39b287e16c84d1942af9e673b238441986"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-10_north_asia.zip"
+bytes = 262748
+sha256 = "ccff9b4996c210ba04c03c530ac66b562ff1fe32c5467eb9e939e6762425c451"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-11_central_europe.zip"
+bytes = 169344
+sha256 = "2f96843c2dd3caed72e591b1b9c6b5aaa36dd29980cd077e601dce8022b622ce"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-12_caucasus_middle_east.zip"
+bytes = 74505
+sha256 = "55259c464c6db79de506af78df98fa7011782820d57d935427677c2a19f8581d"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-13_central_asia.zip"
+bytes = 6728264
+sha256 = "e00051d77af8f023ad2fee23495205506afd41c6236cf966da4a44e021e9f89d"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-14_south_asia_west.zip"
+bytes = 2557290
+sha256 = "eec6636511a659948a3761ca14128b54b304477b90207bc916f8489fa785e829"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-15_south_asia_east.zip"
+bytes = 1958547
+sha256 = "a61349f8880242446819f842b8eb5dc303865ac48d6c46d006aac06e6e01ca9c"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-16_low_latitudes.zip"
+bytes = 375821
+sha256 = "51c5f664e80dda55495dbdae56c77278602e20f6af2a6f5ea3eeb05f654ce75a"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-17_southern_andes.zip"
+bytes = 2131407
+sha256 = "677c04e86c84d3c0e165b6d6ca12a5fb62b4b19c608eed5bdd466f6306738494"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-18_new_zealand.zip"
+bytes = 119603
+sha256 = "1df473067ad271bee49672d677db0c75878155f7a4d5507a794b449039070570"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-I/RGI2000-v7.0-I-19_subantarctic_antarctic_islands.zip"
+bytes = 1801972
+sha256 = "0ef754a869efa0521c18cb57ba2b076f52a44bb4b6fff7b58c65e98d6578d2a7"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-01_alaska.zip"
+bytes = 30158095
+sha256 = "2fac3d321ecf37b3a7d29a2f0df6b0c250f993dcb2b6fbd699bfb686d31264a1"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-02_western_canada_usa.zip"
+bytes = 16814240
+sha256 = "57554b198d24fe8749e24e9ab448692173ef684ad12500904e34159f1f4afbd5"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-03_arctic_canada_north.zip"
+bytes = 9554038
+sha256 = "5ba7a39435c099cf6b66ff7443aac9fe9e9ab753500bc5e70a496bb185ce63c4"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-04_arctic_canada_south.zip"
+bytes = 11463211
+sha256 = "0707e62d26fe9e465d9130469f822f92574d9f7a3ccaaf99614a74a5d9274f74"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-05_greenland_periphery.zip"
+bytes = 25739200
+sha256 = "e476fb97e3f1ecf9b7e1f5a745da6a7ece274479e745ba370369f0860e086052"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-06_iceland.zip"
+bytes = 677631
+sha256 = "7432622d4643e1339417b90644e9bb8885eb3b5b12b7d0f19b51f24c57093148"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-07_svalbard_jan_mayen.zip"
+bytes = 3662809
+sha256 = "61ece016e6e8310ac4c11ea5aa32a049378f0ca33fc9d44610b80903858b8751"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-08_scandinavia.zip"
+bytes = 2918362
+sha256 = "fc5b874c96d0b50c9d6847b5e19f9bb48ed4b07554131ee572c336b755ba19e6"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-09_russian_arctic.zip"
+bytes = 2243767
+sha256 = "0e1c7851c38b50b838f973eb9f5fdb86b89d309fffa78c97697db7b6974c7743"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-10_north_asia.zip"
+bytes = 5017845
+sha256 = "c9d68c23faf88e0de6c3ec804065b3621e54df9d83dfe7b362c66c5845156fa8"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-11_central_europe.zip"
+bytes = 3071836
+sha256 = "4b96c2842828ec27a4ec6922eb501485e8af69afa9c1510a955b40a3ada92fc5"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-12_caucasus_middle_east.zip"
+bytes = 1816139
+sha256 = "67476be342784bfa4ab766b8be6129a05db6e0f796bf65de7242b139a9a76ba9"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-13_central_asia.zip"
+bytes = 58322796
+sha256 = "29b0168c9c554a83f62e3952014e333725618cee3340edecd31499c817f73dc3"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-14_south_asia_west.zip"
+bytes = 31364953
+sha256 = "3a6bee87bfe62d615be68933627fba473bb6286093e3bb8840c8a15084e2bddc"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-15_south_asia_east.zip"
+bytes = 16767417
+sha256 = "e6d375a43a3090da8f8e8cb20e483a4eb497bd396fba726f87ab5e5cb86565f7"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-16_low_latitudes.zip"
+bytes = 2897064
+sha256 = "ec04ca617ac6f555880be95e3ce32bc1d0c55d6aae99756f95c4523c53a0282c"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-17_southern_andes.zip"
+bytes = 21480774
+sha256 = "3eae53e0eedc48d648961c9e32bd26eaa37555320ed91a67ed5530b5f6a9e1c2"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-18_new_zealand.zip"
+bytes = 1963553
+sha256 = "1aebdf024d1306ce54a746dd20296538c100baa3816d2152c376c5ce0e4f5f8a"
+
+[[file]]
+path = "regional_files/RGI2000-v7.0-L/RGI2000-v7.0-L-19_subantarctic_antarctic_islands.zip"
+bytes = 4071808
+sha256 = "3a66e29fa85600003a0ae52c1d136e83878722c6011c8f0427ced5993388a6a1"

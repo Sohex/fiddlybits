@@ -1,0 +1,54 @@
+# Australian Groundwater Explorer state data download: NGIS geodatabases with water-level and salinity readings, eight states and territories
+
+id = "aus-groundwater"
+title = "Australian Groundwater Explorer State Data Download (NGIS geodatabase, water levels, salinity), all eight jurisdictions"
+publisher = "Bureau of Meteorology (Australia), collating state agency data under the Water Regulations"
+source = "https://www.bom.gov.au/water/groundwater/explorer/ (per-state download; no API serves the level values)"
+metadata = "https://www.bom.gov.au/water/groundwater/explorer/metadata.shtml"
+identifier = "no DOI; the per-state zip packages, hashed below"
+fetched = 2026-08-20  # by the predecessor project; zips carried over from /home/cfutro/docs/world/references/aus_groundwater on 2026-09-08
+local_path = "oracles/data/aus-groundwater"  # untracked payload
+recipe = "oracles/recipes/aus_gw_sites.py"
+anchors = ["REQ-HYD-002 water-table skill oracle (the arid analogue; Fan et al. 2013 Australian bars; bore purpose as the drawdown filter)", "M2"]
+contents = "each zip: gdb_<STATE>/ngis_<STATE>.gdb (bores, logs, aquifers, management zones), level_<state>.csv (hydroid, hydrocode, bore_id, data_owner, bore_date, obs_point_datum in {DTW, RSWL, SWL, UNKNOWN}, result, quality_flag), salinity_<state>.csv, gw_state_README.txt"
+note = "obs_point_datum DTW is depth below ground, Fan et al. 2013 quantity directly; RSWL is a head to subtract from land elevation; SWL is measured from the casing top and needs the bore stickup; quality flag codes are per agency and undefined in the README, so they are reported, never filtered."
+
+[[file]]
+path = "gw_gdb_ACT.zip"
+bytes = 76177142
+sha256 = "c991864fd08835fe56d398e85939ad5465b5734509c00b16844f6886f5f0c1db"
+
+[[file]]
+path = "gw_gdb_NSW.zip"
+bytes = 237713939
+sha256 = "5453e064aecf9baaa8805475d90ecd86e25596b216b01e3080bf3d004e08ccda"
+
+[[file]]
+path = "gw_gdb_NT.zip"
+bytes = 111717048
+sha256 = "64978e87bc7ff7a01bc404482f0f36b41da6b60df373f9cc5312788f1ff1980f"
+
+[[file]]
+path = "gw_gdb_QLD.zip"
+bytes = 208944880
+sha256 = "c73aa97a59094400fc6956c77841b2d23d2a83ec22f48d9fbe3e217791647630"
+
+[[file]]
+path = "gw_gdb_SA.zip"
+bytes = 184677227
+sha256 = "a4200b2dc6798e094e2b5bdb03fc8dd5a763b5eab4e58b7f2fd82d73aa37bc55"
+
+[[file]]
+path = "gw_gdb_TAS.zip"
+bytes = 86190988
+sha256 = "4bf6a5b18b514cf56460d947081824b9432a7887be8079b68550aa84ad5f2cfb"
+
+[[file]]
+path = "gw_gdb_VIC.zip"
+bytes = 229538073
+sha256 = "aca265a2090bdfb54565a0db6db36ef60f0645381de346723b6a67f43bb87651"
+
+[[file]]
+path = "gw_gdb_WA.zip"
+bytes = 120245694
+sha256 = "f0cc4327feedf3d67f8db8b00697dd1b35fc3241a86040d313afd2c50c2be97a"

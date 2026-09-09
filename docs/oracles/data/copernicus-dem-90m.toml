@@ -1,0 +1,444 @@
+# Copernicus DEM GLO-90: 90 m global DEM, cloud-optimised GeoTIFF tiles, DECLARED REGIONS ONLY
+
+id = "copernicus-dem-90m"
+title = "Copernicus DEM - Global and European Digital Elevation Model (GLO-90)"
+publisher = "European Space Agency / Airbus"
+doi = "10.5270/ESA-c5d3d65"
+source = "https://copernicus-dem-90m.s3.amazonaws.com/ (AWS Open Data, no credentials)"
+handbook = "esa2022-copernicus-dem-product-handbook.pdf (references/pdf)"
+fetched = 2026-09-08
+local_path = "oracles/data/copernicus-dem-90m"  # untracked payload
+recipe = "oracles/recipes/copernicus_fetch.sh with oracles/recipes/copernicus_regions_tiles.tsv"
+coverage = "regional, not global: the records that cite this DEM use it at declared boxes only, and a global GLO-90 pull (about 26,000 tiles) is deferred; extending coverage is a re-run of the recipe with more boxes, recorded here as a new fetch date"
+vertical_reference = "EGM2008 geoid, per the product handbook"
+tile_shape_note = "one-degree COG tiles, 1200 x 1200 at 3 arc-second"
+anchors = ["REQ-HYD-001", "REQ-TER-016", "M1", "M2"]
+
+[[region]]
+name = "great_salt_lake_basin"
+box = "lon -114.5 to -110.5, lat 39.5 to 42.5"
+anchor = "REQ-HYD-001 lake hypsometry: Great Salt Lake closed basin"
+tiles = 20
+
+[[region]]
+name = "qaidam_basin"
+box = "lon 89.5 to 99.5, lat 35.0 to 39.5"
+anchor = "REQ-HYD-001 lake hypsometry: Qaidam closed basin"
+tiles = 55
+
+[[region]]
+name = "drakensberg_escarpment"
+box = "lon 28.8 to 29.8, lat -29.6 to -28.6"
+anchor = "REQ-TER-016 escarpment relief anchor (full relief)"
+tiles = 4
+
+[[region]]
+name = "free_state_plateau"
+box = "lon 25.6 to 26.6, lat -29.0 to -28.0"
+anchor = "REQ-TER-016 relief anchor (minimum relief, plateau)"
+tiles = 2
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N39_00_W111_00_DEM.tif"
+bytes = 4949966
+sha256 = "a52fd5ab160281bd9ea01b5ca5b75bc629b68b2fa28a61f20759a747466cdfff"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N39_00_W112_00_DEM.tif"
+bytes = 4870148
+sha256 = "c0b46b234b80e075827474043c4f6381adce1ecb09bd2c37e628571de834286e"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N39_00_W113_00_DEM.tif"
+bytes = 4487799
+sha256 = "e26f5635c8fcf687a184450efcc0c29e3d32a96e82406e382102fff2580c9bd9"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N39_00_W114_00_DEM.tif"
+bytes = 4497267
+sha256 = "2eee1837a1c30c5277d4df2f27dbef1f462ede517bd44d2feedaba60b71e39f1"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N39_00_W115_00_DEM.tif"
+bytes = 4669818
+sha256 = "9d1f162a7c6ebf981a6c4e895fc28e95ec8e38cc800fdfffbad5a65d5109d6af"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N40_00_W111_00_DEM.tif"
+bytes = 4753866
+sha256 = "ddf90e385705965e2c66f6cbd24179795b5498361d6c0bd948641d23537bb371"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N40_00_W112_00_DEM.tif"
+bytes = 4702063
+sha256 = "aed64917b7fa55fbe10f3d464ca0e5d9ac2b95e07b63e981f507094dbd6a0864"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N40_00_W113_00_DEM.tif"
+bytes = 3999011
+sha256 = "1807c496cceaae6090f9aacc4d8fe1205a0ace218c65d15564c88b4692c54071"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N40_00_W114_00_DEM.tif"
+bytes = 4009172
+sha256 = "105565eb414bd88c6b0bb6a09dedc6e913099c7f747b707d538f4faee071d895"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N40_00_W115_00_DEM.tif"
+bytes = 4539740
+sha256 = "d7f0a664ac1c56ade6c68762f378761bad92b5d489872e085d5e4e726a513c67"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N41_00_W111_00_DEM.tif"
+bytes = 4516152
+sha256 = "98e7e42503a219a6d8c50bc499f1a79555e27bf1cb25c6e27901a4b5f6ae9f80"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N41_00_W112_00_DEM.tif"
+bytes = 4813360
+sha256 = "223b2445f00506a27e441c42a5c3f812d68ea0bf35d0321f3d82277edb0176ef"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N41_00_W113_00_DEM.tif"
+bytes = 3179968
+sha256 = "903a68789afe692db99a839c5832d7df11a80e35e633d38f14d02e6af55cc914"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N41_00_W114_00_DEM.tif"
+bytes = 4336020
+sha256 = "5337689fee6670c47e7b3b11636685b0c9ba1b8d4ac6a3ec843610ae89bf64b1"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N41_00_W115_00_DEM.tif"
+bytes = 4815562
+sha256 = "2edd01acdd054fe38bce707744c0a7857680c39416f3e49226d2835a927989cb"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N42_00_W111_00_DEM.tif"
+bytes = 4674069
+sha256 = "23d9c55a658ebe9caece89626a004ec602f7704030b009177803fb69c0fb4611"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N42_00_W112_00_DEM.tif"
+bytes = 4757773
+sha256 = "939ed68e66d0fc1aa83b82dd615d77386b46b76260e337b8fa95c76add1656b6"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N42_00_W113_00_DEM.tif"
+bytes = 4775158
+sha256 = "a4667b01141db1834dce593ad27899fb792b831ddb5a85c8bbfece0492989a92"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N42_00_W114_00_DEM.tif"
+bytes = 4448359
+sha256 = "227b32818621fd01fc453293281cd0da77fa3e6eac2d7bb679141afef604ecc1"
+
+[[file]]
+path = "great_salt_lake_basin/Copernicus_DSM_COG_30_N42_00_W115_00_DEM.tif"
+bytes = 4508346
+sha256 = "9676283e7e20d7f2168036bef2a49b29499bd30339c8c9d378f584e08ce827bf"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E089_00_DEM.tif"
+bytes = 3925073
+sha256 = "7a3cd0b1832ab1d8d547d433b840ea596725b8ccbf6b5f57d541f71367b241e4"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E090_00_DEM.tif"
+bytes = 3714972
+sha256 = "73cecb6c02df0d460367ed257b34614e2fe74684a8e411100ae82a0a196739e3"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E091_00_DEM.tif"
+bytes = 4016276
+sha256 = "d4622e6669421a5358d4dbab6d86fb8eabfcf58b6dd5bb78e0e49495f93452f9"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E092_00_DEM.tif"
+bytes = 4062892
+sha256 = "6139e1449c7bf06ea2f8a09dd9ff91de14f876dbc1be9818637b3050ae322b7b"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E093_00_DEM.tif"
+bytes = 4025202
+sha256 = "0dbae15064a833e6a1f850ac45b09df25602d55f134a883d8d533cd547432e53"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E094_00_DEM.tif"
+bytes = 4434621
+sha256 = "35a0a55d8c55b78e6410bce0f55500bd0d544f9106b3c3f813bc4eb4037aee8e"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E095_00_DEM.tif"
+bytes = 4385404
+sha256 = "9b3e421dffeef9bf47663a223d346d97c8de91cae0cec60a9dd7cd31e284366c"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E096_00_DEM.tif"
+bytes = 4351914
+sha256 = "8655c9c6238fbc4490e260be31088e8fa9dd3ff92d17ce2a1499455e94def671"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E097_00_DEM.tif"
+bytes = 4466480
+sha256 = "b03449221fe165a1f087e72d7672b2a4b67f5a0204b7f668e25eb0d5e42f62dd"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E098_00_DEM.tif"
+bytes = 4509292
+sha256 = "bd73f833f989dc0e57ee24a7cc371f4aa25e3aa22d09a6135ae3b77f95e18a8c"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N35_00_E099_00_DEM.tif"
+bytes = 4665721
+sha256 = "57bc907472a18ee5a0913a173e2b97fcee8002f7bfbb28b553b4edbe81009303"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E089_00_DEM.tif"
+bytes = 4053583
+sha256 = "63b84345a9d0af020299ad89f77bea737c3a49f3a7c3d723ec0512696aeda124"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E090_00_DEM.tif"
+bytes = 4262183
+sha256 = "57ab0c40b12ad11455323bad745e52d2425c8544f95b2838a777de6ff6ffed7e"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E091_00_DEM.tif"
+bytes = 4522478
+sha256 = "05a34ceb7edff55fdfabae0b368163bfc0497788f58813c18920c38c331f189b"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E092_00_DEM.tif"
+bytes = 4643848
+sha256 = "0a571c8af7b52969b042de6f96053e8da594661a1c62f24f2dea0f20b6509533"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E093_00_DEM.tif"
+bytes = 4402937
+sha256 = "f86f1e61c3379ab7a9855f70ab26f2129a1ec7f3d7a829bfec9e25550a304a1f"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E094_00_DEM.tif"
+bytes = 3993124
+sha256 = "8ca8dfda980dca2d807e5346a31b919a5ae8b135aeee3484bdda20bc79f64199"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E095_00_DEM.tif"
+bytes = 3686348
+sha256 = "7e2a671af9f5686c7c6d649e470a10024f989c950a81edba3fe43f0d46992e88"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E096_00_DEM.tif"
+bytes = 4000048
+sha256 = "9763e57d9607374dd7d94dcc1ee95e1aa82e6fef0a5b4f292fd381edfe7193f6"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E097_00_DEM.tif"
+bytes = 4168658
+sha256 = "4f1c139c851932587e0d1dce6def3d5fe4212615810389ef8fedd64cca0690f7"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E098_00_DEM.tif"
+bytes = 4661245
+sha256 = "b1428b3acd4ae32be4f25662a1ebe59ac332c5907feccbd5cb48921b7234f766"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N36_00_E099_00_DEM.tif"
+bytes = 4137195
+sha256 = "a31d9958d0e3b242cbd83a9e8ed5c4640a039c838c1d05cd22dcbf3a32ba4c40"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E089_00_DEM.tif"
+bytes = 3846616
+sha256 = "aa5a8a3a1652a48a11068160a9e486429b454b7ec9ed45ab7d7b2f34cf1c336e"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E090_00_DEM.tif"
+bytes = 4454620
+sha256 = "a48de4d5afd3969d460278131fc4b44828023a5e867286275f290e9d28074a12"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E091_00_DEM.tif"
+bytes = 4431888
+sha256 = "b0546e966d9e798b20209496db11ecb7349a8acc296a7f2a15c9bfdbd5d1ffb8"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E092_00_DEM.tif"
+bytes = 4017713
+sha256 = "6854206bd2a8738df6c033078036761658d13589a05e3e93af29b58e870965b5"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E093_00_DEM.tif"
+bytes = 3529725
+sha256 = "26124ae0037ffc9f57721f4351e2f323003ae6de64ba9bf0ab3646d224ae93a3"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E094_00_DEM.tif"
+bytes = 3872507
+sha256 = "18ad84e28a8c6dd6bc3caf15971563b42154f1d8f749d6bad4d00efe6c7bfa90"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E095_00_DEM.tif"
+bytes = 4171374
+sha256 = "f08e2cbaa1d41388c655ebdba067d6c7271cfe95a62ad911844e02e6f0533b25"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E096_00_DEM.tif"
+bytes = 4322418
+sha256 = "f12e1b1fa19d8dfe72125044456455c3ffb8313b9da98881a6129a13ffd54974"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E097_00_DEM.tif"
+bytes = 4429026
+sha256 = "7a3f29ce3d6ec6d87274f307d800362a037dc51e47d1942765ba37bccc45f57e"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E098_00_DEM.tif"
+bytes = 4713090
+sha256 = "176815a00cc2eff3aad5d3aaaef39a0419618feae00cc7261ef2fa5691748fd7"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N37_00_E099_00_DEM.tif"
+bytes = 4374083
+sha256 = "b75aa5dd686e9db5fab0824b4b14661c725128e0b12c8c32147e413cd274be33"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E089_00_DEM.tif"
+bytes = 4559421
+sha256 = "ba88a40c670d6f5d085b936e4876f4b9ea8db6c469c805f7578e67d6bd6b5838"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E090_00_DEM.tif"
+bytes = 4167721
+sha256 = "83f958dc1b3b7592bbde43cceb1a0e845a541bab0926992dec24ac6f50c4f45a"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E091_00_DEM.tif"
+bytes = 4341703
+sha256 = "4630e0631308a9bd03a3ce712c48dd0580d2d50352078f5c01b8ad47dc8de812"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E092_00_DEM.tif"
+bytes = 4025265
+sha256 = "86145159f10abbed268d18b9ded8a3c9d6be03fd619f3ed439768ef55457599a"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E093_00_DEM.tif"
+bytes = 4006897
+sha256 = "f62fcc83eb79b69320648ec97b5027c3d0a7bb1ced1a0a3f7721ce959b8cc843"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E094_00_DEM.tif"
+bytes = 4085193
+sha256 = "fb508e7172ea7ce38dfa50083cc67923eb7efe63d6a11967ab5da628b59562f8"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E095_00_DEM.tif"
+bytes = 4469635
+sha256 = "35360987a81506f8c32af8364a05394dd2c8290eea96766bfd7c6c121877cdc9"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E096_00_DEM.tif"
+bytes = 4456845
+sha256 = "bfd8e05ee249295a9d6a1e0e9b1b46c78f29950ea8c5086be0a8762964d118e5"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E097_00_DEM.tif"
+bytes = 4209161
+sha256 = "e79de185031e8278efc2a59c62d0992cb32e5c5245cd5542368de755a8c0019d"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E098_00_DEM.tif"
+bytes = 4506108
+sha256 = "67d0f15e062c9d7d38aa63fa5b649966b1a92d27ad6bd04882b5f8f566b730d0"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N38_00_E099_00_DEM.tif"
+bytes = 4808962
+sha256 = "92187dea70b742420cc3eb71ee417f6b9877dba492d8df088d209f53e6632035"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E089_00_DEM.tif"
+bytes = 4103436
+sha256 = "c5cb101eae4a7426f1bc0ae6bf26d6018733f875428d837756b3cbc72c50d222"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E090_00_DEM.tif"
+bytes = 4413191
+sha256 = "a5210a0f70cdc9a573441b4ce98424afc3177529009dae9db68715a9ef0c232d"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E091_00_DEM.tif"
+bytes = 4684572
+sha256 = "f584e07b06893179ab443b689eca9ebb4d8f31393705c43ae315631c338b6dc5"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E092_00_DEM.tif"
+bytes = 4645242
+sha256 = "e0a17938645b5b3c860f72cdf0af228b2f3a9dd7e518c6e05cf56a3155022528"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E093_00_DEM.tif"
+bytes = 4616163
+sha256 = "4c027b888b0231055c5f8e5f71ad67bcf1f9b52b6250bb21aba45803bb716471"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E094_00_DEM.tif"
+bytes = 4400413
+sha256 = "e9a11b493f63aa28dfd751657f69fe167ecbf39e011ecd8ffb890de8aae8a6eb"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E095_00_DEM.tif"
+bytes = 4585772
+sha256 = "084d834e5a5ada8904afc09a2374779f8cfc3865553ca785eaec72682f4f1bf0"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E096_00_DEM.tif"
+bytes = 4605338
+sha256 = "d0deb84af3873199f51a9b554517e9a87a685cbf877b06fcabca300c56167594"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E097_00_DEM.tif"
+bytes = 4818034
+sha256 = "6207f6e2e7e39cb20b577e9ac62e16534c990b6fadf5d31651f648e8f7a48c5c"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E098_00_DEM.tif"
+bytes = 4605473
+sha256 = "a3a402c1982f88dcac9eda9989fe8fdaf70cbc55a3133c55077f8b38c1d0488d"
+
+[[file]]
+path = "qaidam_basin/Copernicus_DSM_COG_30_N39_00_E099_00_DEM.tif"
+bytes = 4444409
+sha256 = "808524e2e01201780321ce95c8b339f67986ca038d3d8b7d5a7048e8f0cf85f2"
+
+[[file]]
+path = "drakensberg_escarpment/Copernicus_DSM_COG_30_S29_00_E028_00_DEM.tif"
+bytes = 4873044
+sha256 = "c7fd7c3805a7f22e101bbbcf4765ed3198f252f38d22d391d6c830f5ccf03a95"
+
+[[file]]
+path = "drakensberg_escarpment/Copernicus_DSM_COG_30_S29_00_E029_00_DEM.tif"
+bytes = 4804683
+sha256 = "c6470dcb4a1a3edd880d2e0bee90fdd29b39e4d3e2a0d4eef0ff8d421d560a0a"
+
+[[file]]
+path = "drakensberg_escarpment/Copernicus_DSM_COG_30_S30_00_E028_00_DEM.tif"
+bytes = 5056817
+sha256 = "4156676dad67c6cb577f2ab8f165043b4a8bc508928ed3112257e5fc3a85dc2a"
+
+[[file]]
+path = "drakensberg_escarpment/Copernicus_DSM_COG_30_S30_00_E029_00_DEM.tif"
+bytes = 5030797
+sha256 = "97d139c2d3e3611755fd20e98a6029f12ec6909cc3434b12852d9eb1c6a0504b"
+
+[[file]]
+path = "free_state_plateau/Copernicus_DSM_COG_30_S29_00_E025_00_DEM.tif"
+bytes = 4081646
+sha256 = "169821e465c4edbb718b71d9c3efa31fd139e5681fa19ed77958127971cd4e65"
+
+[[file]]
+path = "free_state_plateau/Copernicus_DSM_COG_30_S29_00_E026_00_DEM.tif"
+bytes = 4215761
+sha256 = "fd375b2959e111d927cc8983b3594a5c2d93c17ec8dd4bcc2c6fc5a5808edd19"

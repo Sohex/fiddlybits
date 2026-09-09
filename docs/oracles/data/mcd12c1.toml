@@ -1,0 +1,141 @@
+# MCD12C1 v061: MODIS land cover type, yearly, 0.05 degree CMG, reduced to IGBP majority class and per-class percents
+
+id = "mcd12c1"
+title = "MODIS/Terra+Aqua Land Cover Type Yearly L3 Global 0.05Deg CMG V061"
+publisher = "NASA LP DAAC"
+doi = "10.5067/MODIS/MCD12C1.061"
+source = "https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/MCD12C1.061/"
+window = [2001, 2020]
+fetched = 2026-09-08
+local_path = "oracles/data/mcd12c1"  # untracked extract
+recipe = "oracles/recipes/mcd12c1_reduce.py"
+recipe_sha256 = "15201bc9e5e401d36f26f3c0a645eed38c1aaa6636c759b2a49698c62c8d419b"
+anchors = ["earth.modis_albedo_by_class (per-class key)", "M5", "M7"]
+
+[reduction]
+kept = ["Majority_Land_Cover_Type_1 (IGBP)", "Majority_Land_Cover_Type_1_Assessment", "Land_Cover_Type_1_Percent (17 classes)"]
+per_year_file = "mcd12c1_igbp_<year>.npz"
+modal_file = "mcd12c1_igbp_modal.npz"  # modal IGBP class over the window, years_valid, per-class year counts
+dropped = ["Land_Cover_Type_2 and 3 (UMD, LAI schemes)"]
+raw_granules_retained = false
+
+# Every source granule, so the extract can be traced to bytes and regenerated.
+[[granule]]
+name = "MCD12C1.A2001001.061.2022146170409.hdf"
+year = 2001
+bytes = 1244259901
+sha256 = "0bd0e28a27e2907b0d3e3465e5d760b4764f6d9019791744c3b8f8802dcec150"
+
+[[granule]]
+name = "MCD12C1.A2002001.061.2022149015010.hdf"
+year = 2002
+bytes = 1244259901
+sha256 = "a56747b38666ec1794b7b0de3a2df083d7277d353a61e31c9377e93fcf4a8411"
+
+[[granule]]
+name = "MCD12C1.A2003001.061.2022151221423.hdf"
+year = 2003
+bytes = 1244259897
+sha256 = "235a7bbebd57a7bc3ef8b6902af2ad934ce5e3fd85bf250b647b259d99d2ecf2"
+
+[[granule]]
+name = "MCD12C1.A2004001.061.2022154032517.hdf"
+year = 2004
+bytes = 1244259897
+sha256 = "4c583357d0f76b110c911f28289761eeda49897f392715f21e704422df3ac2a9"
+
+[[granule]]
+name = "MCD12C1.A2005001.061.2022154061622.hdf"
+year = 2005
+bytes = 1244259897
+sha256 = "36ebf8a6c87265b95bea7fe9f5a6df31f1db85971f8de2b3e9329a82fe457538"
+
+[[granule]]
+name = "MCD12C1.A2006001.061.2022202141607.hdf"
+year = 2006
+bytes = 1244259901
+sha256 = "636fe608d0e1effe7e98225a0d0e21ab2506d1e38dcf3df43c497830bf4b8630"
+
+[[granule]]
+name = "MCD12C1.A2007001.061.2022154134516.hdf"
+year = 2007
+bytes = 1244259897
+sha256 = "a55481c9e750dd8dfe537655c3ecb50f87ee5a4337b79a4ac72d37e5f74b7c85"
+
+[[granule]]
+name = "MCD12C1.A2008001.061.2022159101912.hdf"
+year = 2008
+bytes = 1244259897
+sha256 = "68ed979b52d6cce437a76a319d08883c249e21d158aad7f980dbfac056195fca"
+
+[[granule]]
+name = "MCD12C1.A2009001.061.2022160072200.hdf"
+year = 2009
+bytes = 1244259897
+sha256 = "63227f8cc06cf514f0c80578665ee5149b01fc4fbc27cc5c355481b9f61946be"
+
+[[granule]]
+name = "MCD12C1.A2010001.061.2022161022952.hdf"
+year = 2010
+bytes = 1244259897
+sha256 = "967a21d1dff03576994bccc546e07c93a99c862be64565206ce1a7e9b3c55191"
+
+[[granule]]
+name = "MCD12C1.A2011001.061.2022162024514.hdf"
+year = 2011
+bytes = 1244259897
+sha256 = "74fbbcf7ae98efdc432bb68462ee2b60b018dcd4c9b9a83ec66cfffe843fa57d"
+
+[[granule]]
+name = "MCD12C1.A2012001.061.2022162172724.hdf"
+year = 2012
+bytes = 1244259897
+sha256 = "21d2ce25d9795373cd0fd99e47bdc91d47060007cb11054077f2bd23148fa302"
+
+[[granule]]
+name = "MCD12C1.A2013001.061.2022165063153.hdf"
+year = 2013
+bytes = 1244259897
+sha256 = "5195dac473a0d2c88649336dbe57c87e636d5d1604f9a4d384f2807a781dc096"
+
+[[granule]]
+name = "MCD12C1.A2014001.061.2022165213124.hdf"
+year = 2014
+bytes = 1244259897
+sha256 = "b4e8c28d3bb6eb742e44251c0641341e8ada06d174c5150067104f23b962201a"
+
+[[granule]]
+name = "MCD12C1.A2015001.061.2022166123617.hdf"
+year = 2015
+bytes = 1244259897
+sha256 = "357308b117e69959a5d7a8a9c75b4c173371af2130abcb32212c4780deb8bb52"
+
+[[granule]]
+name = "MCD12C1.A2016001.061.2022168010533.hdf"
+year = 2016
+bytes = 1244259897
+sha256 = "25563035ac5a8ebe798a49c88e9a22cc40a76dbb6bd154c0f57bdd8841e71073"
+
+[[granule]]
+name = "MCD12C1.A2017001.061.2022168170603.hdf"
+year = 2017
+bytes = 1244259897
+sha256 = "74c0d68621ad766819cb856d10eac729a5e8332382f947f0c5e1fa23b3bb4628"
+
+[[granule]]
+name = "MCD12C1.A2018001.061.2022169131657.hdf"
+year = 2018
+bytes = 1244259897
+sha256 = "37e5b246faf6b5c4ad05d9911ec3935ac520f24ae55f474e0726a51307f3c46e"
+
+[[granule]]
+name = "MCD12C1.A2019001.061.2022170020638.hdf"
+year = 2019
+bytes = 1244259897
+sha256 = "a56a11556c01805a2412c4d91d11f7b001afc0c9dbc519c6ed1e0a6bfc293bac"
+
+[[granule]]
+name = "MCD12C1.A2020001.061.2022172062638.hdf"
+year = 2020
+bytes = 1244259897
+sha256 = "6db4ae99fb074bb2c6f73b23dff443d0a2058cf907c1e4976a7b3ba68aed3bb1"

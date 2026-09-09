@@ -1,0 +1,43 @@
+# Models the instruments use, by Hugging Face repository id. They are not kept in the tree: fetch by name into
+# ~/models/<name> (directory or symlink). The A/B measurements that chose them are in notes/findings/.
+[[model]]
+name = "Qwen3-Embedding-8B"
+repo = "Qwen/Qwen3-Embedding-8B"
+path = "/home/cfutro/models/Qwen3-Embedding-8B"
+role = "retrieval embeddings for PaperQA2 and embed_ab.py (chosen 2026-09-08)"
+
+[[model]]
+name = "Qwen3-Reranker-4B"
+repo = "Qwen/Qwen3-Reranker-4B"
+path = "/home/cfutro/models/Qwen3-Reranker-4B"
+role = "cross-encoder rerank stage candidate (rerank_ab.py)"
+
+[[model]]
+name = "Qwen3-Reranker-0.6B"
+repo = "Qwen/Qwen3-Reranker-0.6B"
+path = "/home/cfutro/models/Qwen3-Reranker-0.6B"
+role = "cross-encoder rerank stage candidate, small enough to stay resident beside the chat model"
+
+[[model]]
+name = "chandra-ocr-2"
+repo = "datalab-to/chandra-ocr-2"
+path = "/home/cfutro/models/chandra-ocr-2"
+role = "OCR of scanned primary sources to Markdown with LaTeX equations (chandra_pages.py, serve_chandra_vllm.sh)"
+
+[[model]]
+name = "bge-m3"
+repo = "BAAI/bge-m3"
+path = "/home/cfutro/models/bge-m3"
+role = "embedding A/B comparator only"
+
+[[model]]
+name = "jina-embeddings-v5-text-small"
+repo = "jinaai/jina-embeddings-v5-text-small"
+path = "/home/cfutro/models/jina-embeddings-v5-text-small"
+role = "embedding A/B comparator only"
+
+[[model]]
+name = "chat-llm-gguf"
+repo = "local GGUF; see serve_llm.sh (LLM_GGUF environment variable overrides the path)"
+path = "/home/cfutro/Downloads/Qwen3.6-27B-Fable-Fus-711-UnHeretic-NM-DAU-NEO-MAX-NEO-MTP-Q4_K_M.gguf"
+role = "language model behind PaperQA2's evidence step, served by llama-server (serve_llm.sh)"

@@ -1,0 +1,18 @@
+# PaperQA2 configuration for the references archive. Retrieval returns locators, never values.
+# llm: any LiteLLM model string. Default is the local llama-server (tools/references/serve_llm.sh) speaking the
+# OpenAI protocol. To use Anthropic instead, set llm = "anthropic/claude-sonnet-5" and put the key in ~/.anthropic_key
+# (read at call time by ask.py, never written anywhere).
+llm = "openai/local"
+summary_llm = "openai/local"
+api_base = "http://127.0.0.1:8080/v1"
+embedding = "custom"                  # name recorded in the index; the model itself is embedding_path below
+embedding_path = "/home/cfutro/models/Qwen3-Embedding-8B"   # set by the A/B/C of 2026-09-08, notes/findings
+embedding_kind = "qwen3"              # qwen3 | jina | st
+query_instruction = "Given a question about a physical law, numerical scheme, dataset or constant, retrieve the page of a scientific paper or book that states it"
+max_seq = 2048
+paper_directory = "references/pdf"
+index_directory = "references/index"
+evidence_k = 12
+answer_max_sources = 6
+chunk_chars = 4000
+overlap = 200

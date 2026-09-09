@@ -1,0 +1,1777 @@
+# ETOPO 2022 Global Relief Model, 15 arc-second, ice-surface and bedrock elevation, netCDF tiles
+
+id = "etopo2022"
+title = "ETOPO 2022 15 Arc-Second Global Relief Model"
+publisher = "NOAA National Centers for Environmental Information"
+doi = "10.25921/fd45-gt74"
+source = "https://www.ngdc.noaa.gov/thredds/fileServer/global/ETOPO2022/15s/"
+paper = "macferrin2024-etopo-2022-global-dem-dataset.pdf (references/pdf)"
+fetched = 2026-09-08
+local_path = "oracles/data/etopo2022"  # untracked payload
+recipe = "oracles/recipes/etopo_fetch.sh"
+anchors = ["M1 terrain statistics: hypsometry, concavity, drainage density, relief", "M7 Earth bathymetry", "B1 sub-grid relief closure"]
+products = ["surface: ice-surface elevation, 288 tiles of 15 x 15 degrees, full global coverage", "bed: bedrock elevation, 62 tiles; NCEI publishes bedrock tiles only where the bed differs from the ice surface (Greenland and Antarctica), so 62 is the complete product and elsewhere the surface tile is the bed"]
+tile_shape = [3600, 3600]
+variables = ["z (float32, metres)", "lat", "lon", "crs"]
+vertical_reference = "as published: heights relative to the EGM2008 geoid per the ETOPO 2022 documentation; the geoid-height grid was deliberately not fetched"
+not_fetched = ["bedrock and surface source-ID grids (compilation provenance)", "geoid height grid"]
+
+[global_attributes_of_first_surface_tile]
+GDAL_AREA_OR_POINT = "Area"
+node_offset = "1"
+GDAL_TIFFTAG_COPYRIGHT = "DOC/NOAA/NESDIS/NCEI > National Centers for Environmental Information, NESDIS, NOAA, U.S. Department of Commerce"
+GDAL_TIFFTAG_DATETIME = "20220929130603.0"
+GDAL_TIFFTAG_IMAGEDESCRIPTION = "Topography-Bathymetry; EGM2008 height"
+Conventions = "CF-1.5"
+GDAL = "GDAL 3.3.2, released 2021/09/01"
+NCO = "netCDF Operators version 4.9.1 (Homepage = http://nco.sf.net, Code = http://github.com/nco/nco)"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E000_surface.nc"
+bytes = 17431594
+sha256 = "9d56f9cff04ecb695ce965f8a6b200ea54309b0d3f0574404a9dd6d68dc3136e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E015_surface.nc"
+bytes = 33659438
+sha256 = "3a919d6d060d75b49a95f84fab41b3475e233bb34f09866d203c64cd4ca41b43"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E030_surface.nc"
+bytes = 26086729
+sha256 = "290c1eef32bd77ef3a0dc54410075e286d31f81d63d9df99e502c22d7b468911"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E045_surface.nc"
+bytes = 11559274
+sha256 = "c7161f7e588a8a99f30fe24e13a0c0c890cc26053ab142c34423a6bc2f0c3f3f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E060_surface.nc"
+bytes = 11689642
+sha256 = "465f8a8594d338b83aaaebe2620931bfc5b4fde77ddc80cf1679a7eddd58238c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E075_surface.nc"
+bytes = 10412830
+sha256 = "0a764af71ce72146481b97cf624ef064a3fe7068a4b3cc5bf3f3ac653bbdb22f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E090_surface.nc"
+bytes = 14503882
+sha256 = "b47e6457dfef0e501039c5773a88a5dbc7dabea1653a78aa9967b42d3ad05769"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E105_surface.nc"
+bytes = 17058317
+sha256 = "f4aa2b734cf77ff1e7d845d9c0dff8c10d0ca73ddcc8ee6281b739d8d2758d5b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E120_surface.nc"
+bytes = 18276930
+sha256 = "7b285efe36d3856210f27e762d3ebdad28097897e3425288ba158796905e7e8b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E135_surface.nc"
+bytes = 23525517
+sha256 = "048b8005e59bc6af3d8d086aa1e61126ae32114ae754f66f10d314351ded006b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E150_surface.nc"
+bytes = 21863847
+sha256 = "dd43b455bb5cd4a95ef511f93a177ba766a6b078f3f6ccac9c75170b54567bc4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00E165_surface.nc"
+bytes = 12156660
+sha256 = "f4c751379dcc93c3d8ee40f23f8caed2572b750c5f89c93f93039b7ac28b6c9d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W015_surface.nc"
+bytes = 12213228
+sha256 = "37e50facd9cc5dcdda8ff9e25607a0872d3547263285f16df7718eed015a4013"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W030_surface.nc"
+bytes = 12676240
+sha256 = "1229d794e34a41a896b1c20ff21068f5f01f5722f96e4417cb922e603caaa51b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W045_surface.nc"
+bytes = 22645044
+sha256 = "108f7cc2db806d2f82338379a4126e3e69d826cac855ee436a1cd66572ed21e6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W060_surface.nc"
+bytes = 37214327
+sha256 = "ad8a0d687ff6b123928886c6ba09c76f9e9c39ba345ab197a89790b82c6eafc5"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W075_surface.nc"
+bytes = 37194453
+sha256 = "c440a1f771531a1ce7d50999a3923b2d93137adfd6896e588b96eb1fe7c73d5a"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W090_surface.nc"
+bytes = 23726138
+sha256 = "d0868294c101cb9ffa41d3322a4d91a268a82c23128cf36bbdd627b7c7d49a63"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W105_surface.nc"
+bytes = 13743306
+sha256 = "82b214fb47e558f4415678ed68132227a220f08599d775dd1fd1de873570c4ad"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W120_surface.nc"
+bytes = 14168016
+sha256 = "f8396ca4b69ff963bd1c739764cb0281c9aab839b8d1917be612f2aea1d384f1"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W135_surface.nc"
+bytes = 11919778
+sha256 = "bb2696340107453c2f0dd71bb3363359f20a6d2ad9629d2bb593c3dc0906f9fb"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W150_surface.nc"
+bytes = 14359146
+sha256 = "9feaea43069b24cc26b5151de34c00c7773a1781f938d57a014f527829dfda48"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W165_surface.nc"
+bytes = 13711709
+sha256 = "99bb3359a336083aca10e308542332cdbd6ff537140a85c27272d4547d3e3107"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N00W180_surface.nc"
+bytes = 16952154
+sha256 = "753ba1fb3db7e3be690e93851d537fdfbba22209f4abba3cdefdbaa566f17585"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E000_surface.nc"
+bytes = 29983573
+sha256 = "9c115586050dc647777f3c926bf6d769844363d18782388d3ad1213ade038ed4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E015_surface.nc"
+bytes = 32980081
+sha256 = "bbda7a1f6eb0d0301542a7623051a1c0b2edb595f4d7df7cc406e2d814b2a6f3"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E030_surface.nc"
+bytes = 33124257
+sha256 = "a617c55a28ef2e731aa5b6cb541ab9a3d4fffa4a09f91f2471af56cdaa86ba83"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E045_surface.nc"
+bytes = 17082217
+sha256 = "fe15cd1c20131268d2f942694683580f1b8e3819a73d1f4c1938ccfd5903f0dc"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E060_surface.nc"
+bytes = 10626784
+sha256 = "e5dcd2220cbabaa5172b16324c25c62138fc8118f90cb93fb43e3f1cfc9f76ce"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E075_surface.nc"
+bytes = 14048527
+sha256 = "13b0e86932a952ea942ac23da0bacff88a31c15767363d2fb8d6fb515e422431"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E090_surface.nc"
+bytes = 18866703
+sha256 = "8225b6abd3b6b79d8f1bda1e1f647fae31313f2c49fc9b62871084d9f281dc04"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E105_surface.nc"
+bytes = 19179699
+sha256 = "a7e9f77f8d571ecd038a1b1aa1b574743ce7beeadbe4f1bc862be2eea56bd80c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E120_surface.nc"
+bytes = 18888739
+sha256 = "8ab1941c434e745bbfe09293b9b5ab3c15f4735c3c4aa94e4d892dd727367fc2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E135_surface.nc"
+bytes = 16022120
+sha256 = "a14ce872e8b156d5b9c9923541968f081122781436fa70ace94daf7ff89fdc48"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E150_surface.nc"
+bytes = 11421357
+sha256 = "8350d7795e3be8c7c9a4918a4600bfba6be1973ac014db370e6bf16126529c5f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15E165_surface.nc"
+bytes = 11377784
+sha256 = "afa49e93cc81a59275def8840a2628cf6c749fc36f002f12b2c1129ba9ed1f22"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W015_surface.nc"
+bytes = 25952597
+sha256 = "73e367523beab606fbc7648b451bf7fe1b80cd55dcf392e39d6a99421130b604"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W030_surface.nc"
+bytes = 12181611
+sha256 = "14d16544d3d3e6aab86c8ccdae15c5dfce2d80d739dd7ad938b928f65d7babfa"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W045_surface.nc"
+bytes = 13826956
+sha256 = "306d83fd574350c22cbbe76b7e4960ddca29be9912e13874bab97f3c414c6c55"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W060_surface.nc"
+bytes = 20992260
+sha256 = "6085f22b8b90047ae875657d01e4dc34edf148fdfc07872e904e55fbd61040f4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W075_surface.nc"
+bytes = 32058598
+sha256 = "d96de260f137cb088b980a4a392109d42c22979e7831d7ee7f1e5dcb5063ebb6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W090_surface.nc"
+bytes = 24068429
+sha256 = "5c9f48e9800032c24f3dfd496ae866094d0b619e524dc0ed502698c5fc2939ba"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W105_surface.nc"
+bytes = 19822102
+sha256 = "935e39ed4822657632134c5f5583f9832786aaabd550635094120d68995bad83"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W120_surface.nc"
+bytes = 12767393
+sha256 = "c6b23df2fa4ce45eff94c5115b77825671aac0ca5b54149903dc11dd28eb3453"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W135_surface.nc"
+bytes = 10755588
+sha256 = "e6a9d8c4f709eff49036080a21da4345d3ee43730f47b63230a3bd1b588f7647"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W150_surface.nc"
+bytes = 12373006
+sha256 = "4806c51ee56cf7064df76adfa850ad5e15a5dac91080e67152eac840f4a529ac"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W165_surface.nc"
+bytes = 15144245
+sha256 = "daaa6365da665bed184ffecee9124c777494fe5c358cd5460476134a4b7d84ce"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N15W180_surface.nc"
+bytes = 12455669
+sha256 = "4680dc05ab7418f5deb27cfba6e6ca668ac7903e82fb929777b674872c7a143b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E000_surface.nc"
+bytes = 32751266
+sha256 = "6392648eba98ed0b67d816f2125876b553c597f9e8d5b4b7604a8297af96e652"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E015_surface.nc"
+bytes = 33375652
+sha256 = "2a520d3b952bcd6306cec7e8a22fc0e947ab53cb941b33eeb061fa030daee277"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E030_surface.nc"
+bytes = 31854486
+sha256 = "8d8c515c1146096e83c04e15394a919d5a14d08a2ba58753cd8e7db9cac4beb7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E045_surface.nc"
+bytes = 29284544
+sha256 = "6623115f151a7ba87215901c880023311676f0ac91ddfcc7c7f228e17eb7eeb6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E060_surface.nc"
+bytes = 22398922
+sha256 = "6fafb2682b39b23e0d3adf2fcf37d358a2ff4f53711701629164c42ce72fe892"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E075_surface.nc"
+bytes = 31239250
+sha256 = "74caf0756b2860e63cf4ca38e0fb9e7e449d1a5e8a31186786244f288d1d5b5f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E090_surface.nc"
+bytes = 34542948
+sha256 = "2011cf0d24ef1036a5355a07645ecf9711392947cb47095a28cd00af4b397d37"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E105_surface.nc"
+bytes = 27618615
+sha256 = "67221208aac6baef72678a8531c9ec809e4b2967668e3c89d0e3ba1fe5de6bbb"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E120_surface.nc"
+bytes = 16077790
+sha256 = "88124ae7065354e1756e15f672652fcf9a350ab07e19b62a63b3071cd902b9c2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E135_surface.nc"
+bytes = 14269005
+sha256 = "b1f08864a1d8df4bc00fe1d8537357f25007a105f9d070e3da65afd38526fc74"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E150_surface.nc"
+bytes = 10927870
+sha256 = "4742817bed00bb9a0ff3d89440c62586a4319c3c351ad9ba32481dffa86ec684"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30E165_surface.nc"
+bytes = 12439826
+sha256 = "f70209a78a284c8e0bff7f2c5182f1722b924066ca9ef40a06b017afe9b7b0c0"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W015_surface.nc"
+bytes = 32524322
+sha256 = "9ad6004c90a0c1fd756ae9ae0e9452a3ba39708b906bfbc963180580db07a762"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W030_surface.nc"
+bytes = 13070418
+sha256 = "58a1050db60aa440730eb86091d0ea94c7401c7c395d5e5593140b566effe6f7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W045_surface.nc"
+bytes = 15128952
+sha256 = "b2a74acb7ef44ff9224167a924118e5adf138e9e52b8894cb129159b58c0c9a8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W060_surface.nc"
+bytes = 19626536
+sha256 = "8ef76b723d72d0e869d96b25b515b1267f2272dee8ffcd16e9f4055864af80b2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W075_surface.nc"
+bytes = 17706272
+sha256 = "dcd7ffd12546b2e5f8d8f875e55cb590607ed5fa3600924bb5d58a7606e50218"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W090_surface.nc"
+bytes = 20588137
+sha256 = "4cc5ce41a7a0615c8ef16d55890c6d93980c3a4d5e2d6c3aba0aabc67c45ff81"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W105_surface.nc"
+bytes = 29898818
+sha256 = "ef87cc5ebbce7299852fce1815eb6c94eab4210d6782dede7caa2b9eb4c50a1f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W120_surface.nc"
+bytes = 22571874
+sha256 = "2b11df33042edd80954316c84883933c98fe99b7fc00be3eeb517ab144b59940"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W135_surface.nc"
+bytes = 13101240
+sha256 = "72ac1c5fa46fe20b3e6d832c4931eee8e1a0895fda24e71427cd31c1c2911290"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W150_surface.nc"
+bytes = 13696553
+sha256 = "a917ef031b00b635715bb53523c8805a2f5b24ad7beb4d888dc93a2367f62dcf"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W165_surface.nc"
+bytes = 22217552
+sha256 = "9d734a8eff0b03d14ec9b3cece1e6e8d7d407547b487b10287c8ab50f918a20d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N30W180_surface.nc"
+bytes = 15812461
+sha256 = "23c17ade1e38d4213fe81b83e8eb5b2355e017b86163990ff1a5a4704118e786"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E000_surface.nc"
+bytes = 26181576
+sha256 = "7977f87e9eab91cd6ec5ad875af26c8201a5139db8a46c8cffc417de2c451c72"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E015_surface.nc"
+bytes = 25604791
+sha256 = "419ff5afe37107853289c7c0d510a12038565a4a12dd65df1265f1e3524292e1"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E030_surface.nc"
+bytes = 31639894
+sha256 = "59830612cb19146edb52595db3ca687b7c7ed2094d5070ec232d147071197eb8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E045_surface.nc"
+bytes = 29516230
+sha256 = "7e5e4a83ded63fa9d304ea4680a10fef4bbf42b80af6779e190cb9972461efc4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E060_surface.nc"
+bytes = 35185231
+sha256 = "ee89733ce8a57797708d310f8b515e48020ef5c43da5816e37f6384bb1e4564f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E075_surface.nc"
+bytes = 32417849
+sha256 = "1f9bf3248ed0d5c29ac54ad6190f164d3ccd3debb3817be0aec5dcafe1db3d3e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E090_surface.nc"
+bytes = 32379863
+sha256 = "27a04ea7975ddd1b489c8066c66ca8be40b0e8b84904e7032feb8057c1d04b88"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E105_surface.nc"
+bytes = 35243738
+sha256 = "36596bc863f30910e408f729ab773a02c5af0c848e6e7184918e6d5f1d0e3bb6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E120_surface.nc"
+bytes = 21553337
+sha256 = "bc10eca8bf89ba7e9f19c24fdee5968466d9b838940ce6e73dc0b75b5a3498ad"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E135_surface.nc"
+bytes = 18744741
+sha256 = "95f51ac4991e7e523c8bff8f818ee6322e265381451fbb0829974a6c366ddd39"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E150_surface.nc"
+bytes = 13257112
+sha256 = "d8b0b556b3655ffa598d0abbaf5ba112d345653a99157a924a45ab7f8811f42b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45E165_surface.nc"
+bytes = 11616894
+sha256 = "bca954cc855ca8f437c172be8be938bb5f37c9ceafac15b867368bb73d9e4583"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W015_surface.nc"
+bytes = 30646502
+sha256 = "129c286e71da0b55416ea447b756efafdfd2b9cf3141bf58a1fae8b848f228d8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W030_surface.nc"
+bytes = 16040988
+sha256 = "57b1b568ac661c2a089c177ca845feb888286ada476ddc11df3927f67c975489"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W045_surface.nc"
+bytes = 15540345
+sha256 = "73406ab1a84c4b88724a598e089da962ef1084deedbc2cc9f1cf4a600e51e52f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W060_surface.nc"
+bytes = 15589321
+sha256 = "d7fd352f01f4d34b152a5942519215c04ea9569fb160c0f1432e727cb31d6355"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W075_surface.nc"
+bytes = 24880839
+sha256 = "a45595638c4e8559fff76ba5dcc1a29ea83cffa4b852f3b3c85209c2ba8d3559"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W090_surface.nc"
+bytes = 34679059
+sha256 = "79f64e23adb9901da1792cceb7bd9276632f1c6fb98134da5e0c5f82d09eaf0c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W105_surface.nc"
+bytes = 34721261
+sha256 = "0b7d5abec774e92489dec1eea9b9c4ec9163753e4c8180469a0bb39347122b58"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W120_surface.nc"
+bytes = 34163188
+sha256 = "8393a59b8f8f577439ca544197c6e66fa72f80b5c35c31a3d096a2e94d84b87f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W135_surface.nc"
+bytes = 23462028
+sha256 = "9153aaa89134cdf0f27d951c0b83fc85945eed824718cbbe4552da4a24f1c389"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W150_surface.nc"
+bytes = 14603583
+sha256 = "90f26ed9f2f799cc5664b77589c036a1bbcc76818616e0f79accfaaa3f7e5ea1"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W165_surface.nc"
+bytes = 13250979
+sha256 = "7fbc7462d04a39da4e1494b08f7781aefbc2e2e41478bcc26790e9a9aa5b1e5a"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N45W180_surface.nc"
+bytes = 11078877
+sha256 = "5f5cc1fbe6214495df76bd33ca99712c630bed23249a017337fd56dd22394cb4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E000_surface.nc"
+bytes = 33593137
+sha256 = "9703f70c1757021ab3b4d42b93f7fc9cd0b31bc080406c243aa10f05602ffb15"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E015_surface.nc"
+bytes = 36517344
+sha256 = "1693777b9f64f4453ab54ee05fab23fead2063bf37012b4d14e705c365fe1aca"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E030_surface.nc"
+bytes = 35014531
+sha256 = "3546190897078f0c1938f38a82703a8f8f489b78261be875b91ce0038def6833"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E045_surface.nc"
+bytes = 35693036
+sha256 = "347d4b7ad1df213a665ca3976de20326df9c8c442e6dc27b6baab0de691f992f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E060_surface.nc"
+bytes = 33173823
+sha256 = "f8d562a96ed734f0805a3853698db9c23db8de3b0286becd349ea26dba9222bb"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E075_surface.nc"
+bytes = 34095361
+sha256 = "0c5a5d864a7d6f47875a28645796c2462380247a1ff00d6d5a7c4f4b936b520d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E090_surface.nc"
+bytes = 35305869
+sha256 = "277551398182a7f6dc77faafd3ad52dde6d265d18424edb1a964ace8b172e1fb"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E105_surface.nc"
+bytes = 34833912
+sha256 = "8d2d37f71da0dccc85cec16c6c9519ae3c0b2ae24689d4f09fb24e05269942d7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E120_surface.nc"
+bytes = 36939206
+sha256 = "c8c93dc59c8c8c53875fb0af4dbfe5232235117966c60965461838d5323b2583"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E135_surface.nc"
+bytes = 19400428
+sha256 = "ab9ad7b2334b84ff277b5c09aee444609fb737ce83157bade731893c17df85c3"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E150_surface.nc"
+bytes = 16681482
+sha256 = "5448898340633e006711a505d357f687914b14da2d29ae6c94ea0d61c4d5d72e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60E165_surface.nc"
+bytes = 12306422
+sha256 = "2556fa3f73b7f59a1e5b1eff672bc4e9c0ae392f775d52bc0b05ad5d85099c9c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W015_surface.nc"
+bytes = 29748491
+sha256 = "8add272bf723d34f0d4d5984a37c1de3f1bee54020a9c77b81c61043aa8eb0ad"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W030_surface.nc"
+bytes = 15933710
+sha256 = "6924a8401bc8012bef8cb3a2e0d0d001a208a8baffad09d0b16c009ba2197d40"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W045_surface.nc"
+bytes = 14480694
+sha256 = "0410507f939da2e49f8b03f4f2d51c059d43189765014155e4a223ea81044d5d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W060_surface.nc"
+bytes = 14678824
+sha256 = "4e930198d3bf424024cbaefe1b046ed3ab1e4a9c58a97d21cb093639522b9ddf"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W075_surface.nc"
+bytes = 31871420
+sha256 = "e32bbe2090a4175e381815efd2bdeb27237a9d3a74354bef462af4e958be9fd7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W090_surface.nc"
+bytes = 24495370
+sha256 = "b39b825aa0e3fdc8fba83e749d8fa8104e678e23eeff27d2ef737893c1f209a3"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W105_surface.nc"
+bytes = 30276477
+sha256 = "ca337bf4d0a1bddb04cf539572de4e35c8cf04bdb9b49ec6a975f169bae1027f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W120_surface.nc"
+bytes = 33414199
+sha256 = "65c60033caf17df0940a04a98734e35f6c90659ebc8a5d976f8adc95e6b6c392"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W135_surface.nc"
+bytes = 31778974
+sha256 = "c97cec99b50bcaa7d4a435ddb383984363533631c90b6f932b67fc3252694d70"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W150_surface.nc"
+bytes = 18216436
+sha256 = "86b55ce016622dcc2b45255f3f7572bf169134c5e49dff6dc6d9693dca551dcc"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W165_surface.nc"
+bytes = 17075477
+sha256 = "d8b6ab3ed3133d6178809531ca350effd64581ccec1b236513c48bd4f12686f8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N60W180_surface.nc"
+bytes = 11335283
+sha256 = "52e3349133a07053c1e9d740e78a3110ad4c698cfe71f87287f8b8c66a17e16e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E000_surface.nc"
+bytes = 23264648
+sha256 = "5a0a4ee7a6ec58fe6252cf99dba1c8bfb2ec166835a1440c20c7a3c97be4e95f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E015_surface.nc"
+bytes = 28720770
+sha256 = "ca133d14eb034bc611c014c682d8fe1842bd7119deaa5799085f6395bc7c5703"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E030_surface.nc"
+bytes = 20351606
+sha256 = "963629c5264c31ba78417dd9d7a2615a35dc331f46ebb956b3ced183e0e55471"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E045_surface.nc"
+bytes = 24276325
+sha256 = "5a71cdbe685c2b246929d1b6a2730af3687f367a381ee8e30b0a57861e0e0a96"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E060_surface.nc"
+bytes = 26379509
+sha256 = "570bca60c13deaead950a2e8dbe3256111a2ee52be4e35698430ae838eb43099"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E075_surface.nc"
+bytes = 32984920
+sha256 = "7ac66fced93bff07d594907ba66bb2bf321c023cddb1e078d1a9af7f7cb7da9d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E090_surface.nc"
+bytes = 36142269
+sha256 = "9e81badd3129a2192a834f1515b40374ead1d66185deafcb9009c686e0e3c65e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E105_surface.nc"
+bytes = 33053737
+sha256 = "059064ccdc47831aed70d9525b397ee316b6110b2769f00e2a8d691b1df4a9b3"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E120_surface.nc"
+bytes = 30895367
+sha256 = "a60db0eb978863d0cc6f33c8c7821217a7f5c654372339004cc39c23c5682855"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E135_surface.nc"
+bytes = 31111616
+sha256 = "1ae53848de858ea9d61459999463e192df7c64f7ecf4bcf14a8f6d36db5045f6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E150_surface.nc"
+bytes = 25146467
+sha256 = "bc67ec47d06954db4f50b4bfafb84de3e0a1dd747de9a0bc1aa25075e73d841b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75E165_surface.nc"
+bytes = 22113527
+sha256 = "9e3a24e1e694103f98e8cb42465fbd9250b87ff4790cb4831a103fadb5c9d3a8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W015_surface.nc"
+bytes = 14482546
+sha256 = "d7a30df100b56d326cb938c0f74c087ebd7297241bd13e944509899270cb67eb"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W030_surface.nc"
+bytes = 17937637
+sha256 = "aad9decf993311dd3b6e3bf436d17522018722ec3701c0db3750dd42f4540468"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W045_surface.nc"
+bytes = 21407269
+sha256 = "f8df8339c092b9790b0b1167691bf5c7a35408b5c779436523295302d8b8c17a"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W060_surface.nc"
+bytes = 20750899
+sha256 = "945774c34765697afbee43e1fb39d2a922d29d18e5f05e4774417f3fb3bbbbab"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W075_surface.nc"
+bytes = 18410618
+sha256 = "08ab5807020926c5fe953931feafa398fc1343e1c502d6f95981bc40dcd5177a"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W090_surface.nc"
+bytes = 19942348
+sha256 = "e518a60d7bc62fdfeb8de988edfe625a6b79e1a88e3e2554b9eb8db93c2a7f10"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W105_surface.nc"
+bytes = 25956671
+sha256 = "3eae35e5107fde6f521dcbfbff7c9e97d5cf79fc50d94b393f152c0b38dcb7a2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W120_surface.nc"
+bytes = 28390859
+sha256 = "528814e3a7e0bccdfaf21062a4d05c627d4388754dba83cc984d5207ece43d5f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W135_surface.nc"
+bytes = 26581248
+sha256 = "a95930b1bd5a047ca98088be448e240041d7a5c99937e308f087a0b0984e1cfa"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W150_surface.nc"
+bytes = 27430361
+sha256 = "aff898b9528444a1f9f81d02b278967eeb255ab179004f3cb0541c7447af72b7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W165_surface.nc"
+bytes = 28899812
+sha256 = "9fe776b295b134dbd18bca1bec101d37d4bc93503666610fc53509cd21ce1e04"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N75W180_surface.nc"
+bytes = 7480733
+sha256 = "24b065d130de323d22a8335781e9c2a58f4a0346d14af525ebc2b72e04f85e25"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E000_surface.nc"
+bytes = 7221153
+sha256 = "4bafafeb330b07850f43a0f198778bd5a6e754801ae62187be353ac349535114"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E015_surface.nc"
+bytes = 7411833
+sha256 = "95289565a1bd814af2cef8f9b1f404e8b43409aee352a79cb3090583d63036a6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E030_surface.nc"
+bytes = 3495695
+sha256 = "6b6615ad5d1bfa26b101f05c49189fcb186913117c19def8048e37b786bf1764"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E045_surface.nc"
+bytes = 4304685
+sha256 = "c18bc2fb5dab3d553b78cc8192851701d3c10b1a932201c5c6c7a1e5dde3df9b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E060_surface.nc"
+bytes = 4198994
+sha256 = "bc7f339ff7fdee7cf59d711cc92fcde964c950c1c725a293ca470b6cb918e63b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E075_surface.nc"
+bytes = 2633729
+sha256 = "b3ccdcfb70f0ca34b1f2b8baf0dd1f10e5e1a9bf2d647445b4389d043c9bb4fa"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E090_surface.nc"
+bytes = 8360874
+sha256 = "72b66ae2fecefc37bfd8bb02d2169a32e45d3ca4db9b5ef4fd8223722a73ce59"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E105_surface.nc"
+bytes = 4997270
+sha256 = "c257576b10a8dc3a7ced4169d7ce61df222c0cb893635cbb1cb856cc5afcc919"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E120_surface.nc"
+bytes = 2553502
+sha256 = "2bd9b9fe491da04403e455dc5d347e6c762cbae03df1822c55961065e20fb44f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E135_surface.nc"
+bytes = 4792724
+sha256 = "2c6a029dc84e7e0cf8d9456c73f8c5d4563141652981baf17740ba6a26c34069"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E150_surface.nc"
+bytes = 3286192
+sha256 = "c115c7c654fa47f51c0b5fd6ede01a7c7e1716249495b91364ce70f46d1640a1"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90E165_surface.nc"
+bytes = 3154682
+sha256 = "2c22d56183b58ab6bb26af404c73eb518a079ca7d681883288642fd4975b8a55"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W015_surface.nc"
+bytes = 5393180
+sha256 = "851558e09d32edafd308fd9dd1986b90aef4f82d40b133458e99db71b9b268b4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W030_surface.nc"
+bytes = 14441423
+sha256 = "b7396d86b578e8525021571b58b10ac46521987564a6c14a12f68d9089f2b074"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W045_surface.nc"
+bytes = 15927830
+sha256 = "c796fd6fd03abc3533ae9c65ad2802cce32add5e7eb2b2b30c3a413e48671cc4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W060_surface.nc"
+bytes = 14730647
+sha256 = "b4f17275127ff85c0561e5752576bb2e4f8ca8ba586b4e19a8338932842d43f8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W075_surface.nc"
+bytes = 13490757
+sha256 = "4b9f7fa0774f320d0af6897ed8adc72b7536b7d8474663896978c47e570bea3d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W090_surface.nc"
+bytes = 15446740
+sha256 = "b136d75b5e281133a1da0b546a5887f60f0d1dbacfe2337bb406da6b3ed87546"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W105_surface.nc"
+bytes = 9687680
+sha256 = "2c4496e0c7794b97b829faf32d9b88898a74ba6f1ccb75b190d4257d8a34dbfe"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W120_surface.nc"
+bytes = 6766243
+sha256 = "b4d45ca39d253dcd59815ea882a1dbca6164bae1fd5946ccbaa8b13b62d68461"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W135_surface.nc"
+bytes = 3748790
+sha256 = "b69358294d08cc5f742b211e4cff9894c23b034a3a980f254dc8568e92363a49"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W150_surface.nc"
+bytes = 3234737
+sha256 = "b10048742892b7df697d906c857d45bc1450bb85036eceb0b5b04f795f58a02a"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W165_surface.nc"
+bytes = 5400042
+sha256 = "bdb34ee0f1bef3107427c688f6918d5d05a6d402705896813aa155a0851d4b11"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_N90W180_surface.nc"
+bytes = 4730594
+sha256 = "fbfb1c910759a73e0d556ddbcdfdc0b9d9e5fdb48f70435e1912c146acb112e7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E000_surface.nc"
+bytes = 13131497
+sha256 = "663fc41d27943e8eb249b4a8bbedf803eaac1c2bc72d893797770bbcccb73d6c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E015_surface.nc"
+bytes = 30169572
+sha256 = "9ad9f81459574b4f8991b817696dc6e5fbe7d33162501b552a76674f37010685"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E030_surface.nc"
+bytes = 22094508
+sha256 = "4acb82cea84ec32622365bf9c69353ece202646b839c7001ea57e38930b5e191"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E045_surface.nc"
+bytes = 16222695
+sha256 = "545cdf5bf3c1e885d47d0776a7f413f84528551e4d668dcab1b0a06aa280ba65"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E060_surface.nc"
+bytes = 14296394
+sha256 = "af196b1aafdec876118a22f4d007e5846b1ca68416289ad2c88913242798ff8e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E075_surface.nc"
+bytes = 10968617
+sha256 = "27915aceb3697e09f152ade6e4d53631f551188f7cc2ac0a3b5fbe04c8f00991"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E090_surface.nc"
+bytes = 10865299
+sha256 = "daa576872bac9b2920ee561171669b2d9680094c36b2eae5066f9e80da882509"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E105_surface.nc"
+bytes = 17209551
+sha256 = "c50ffd8f513414fb03ca1d3bb56f05a4d7a3c930cdd4e44e0922cdfc6acca325"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E120_surface.nc"
+bytes = 31831498
+sha256 = "d5a568c5867b50b657c5476443166bfdcbadb2681917282854430e78a90ab98e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E135_surface.nc"
+bytes = 34095078
+sha256 = "ae5611fce0eece264d54255e3b44849c5aacc066ef20fd3a03bcab9eb7cc8ea5"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E150_surface.nc"
+bytes = 25240871
+sha256 = "193c4bcb6dacd4101fc12c4c3fb13ef682e1c0fcd49b027aee2a7a0302f23405"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15E165_surface.nc"
+bytes = 14213264
+sha256 = "3ad4b80e9a0549e1abd36c40e8a0fa737eb120fe2a37c5711e1e3212ae24c99c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W015_surface.nc"
+bytes = 12166124
+sha256 = "ea5da5b545b5cef14d2dca53b4e33af832ed3125f957dccc859c904bd6ceecd6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W030_surface.nc"
+bytes = 12488765
+sha256 = "9fae26d972458168d6138fffbecd79d93784bc7296cc48c75453a9d5c3ed9803"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W045_surface.nc"
+bytes = 15123018
+sha256 = "495cdaf2d4d504d5d8b3785cec00b1b86b07df533eed9dd2a7decb3ac7079ed6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W060_surface.nc"
+bytes = 34240262
+sha256 = "a2603a0d4d0137bbb057027aa02bd0fb516575812ae32a4f1620ccdcba5facf9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W075_surface.nc"
+bytes = 30759315
+sha256 = "1b99b5564ba927b23c2641aad9d75b53553230b925b367ca6b41d4bfbfba95d7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W090_surface.nc"
+bytes = 13934139
+sha256 = "3b211fc35bf868573b5270419db6edee51acf898f2a6c237d548e563408edcb9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W105_surface.nc"
+bytes = 11787244
+sha256 = "af147c5087f144ab7beb7aec10a5bad72897944f411f5a12613de89f484bd3a8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W120_surface.nc"
+bytes = 16782422
+sha256 = "fa8c91db14e329f4cf24092bbc1e53642048d623ae8acedda326f8304e585e15"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W135_surface.nc"
+bytes = 12198647
+sha256 = "346dc571f608c05eca3090e4bf7a259f456c147882516ae8b8fcd24ea264ed4c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W150_surface.nc"
+bytes = 14245856
+sha256 = "0f2e8126b76c8e6613007f3eda67d15049e68ac2544fc0c8b0fbe741540eb404"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W165_surface.nc"
+bytes = 13993831
+sha256 = "7e7643d84e0eb1ab2b0323945bdd796e43fc60b0238b3f3d987a2a13ca2aa1c1"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S15W180_surface.nc"
+bytes = 20764791
+sha256 = "92e582efde1f9454d956756c17666755b4145d42d422ba1943ce4cc187d97af2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E000_surface.nc"
+bytes = 12269274
+sha256 = "5ecee61a1b0acbd6243be6c606209089ef500e3f9f14f49e3b722a4d9279f6c9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E015_surface.nc"
+bytes = 16986617
+sha256 = "768793d17e2d60274dc33cf05d0e04fb41b1ace9682915947522b8acb9e89e7b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E030_surface.nc"
+bytes = 12293500
+sha256 = "7b83eaf5028c1453d6078974f248261f577542b85db4cf089e5bddab93df4be9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E045_surface.nc"
+bytes = 11762864
+sha256 = "e5c68791cff91e59b7328a6e733e89130b211129a99dac4d59fb1db1c29db594"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E060_surface.nc"
+bytes = 9427953
+sha256 = "529c5676f816fbb4fae766c60933f3b4a7883e12a788b064ecf0c3b0ce62320c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E075_surface.nc"
+bytes = 12202175
+sha256 = "70e26d125fdafd4deaf4ee26d07be0cabc1d482948c64042e695b2353f8722d7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E090_surface.nc"
+bytes = 13607705
+sha256 = "44197cec1f8ff04b9612243b4b51eaf5744be8f60f9492b74024940df5090ec4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E105_surface.nc"
+bytes = 14575169
+sha256 = "aed36d5a4c0fbfa9503566f10d6d782cfd149b3d3e6d410b02d5c0c06eb9201f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E120_surface.nc"
+bytes = 14255735
+sha256 = "2649b5252a11b33de13377ade09d612c15b4fe7cd1d411ae47c8a8b228a64cc5"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E135_surface.nc"
+bytes = 24453105
+sha256 = "2984a92f75004714989801687b4a5696c21b40f9e8ba47f781661e8e2a1449b5"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E150_surface.nc"
+bytes = 12008323
+sha256 = "9b4b8e90548faf6459411b6a5c5bf7250423a154aab90d69374ae6d951a79e1d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30E165_surface.nc"
+bytes = 15286450
+sha256 = "c900edff4bd9bfee3dbb261d6bcfa15ae9efa88a55493f659d24c5fa7a4b6114"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W015_surface.nc"
+bytes = 12556502
+sha256 = "eabd588456a3c88847a66953aa81559915e68773b08e277b2a0671ec147e4df0"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W030_surface.nc"
+bytes = 10714847
+sha256 = "75a02ab9c6910ffe5b30c6ccae7a9ed010d0a32d6f51b29208c6c532bdea7301"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W045_surface.nc"
+bytes = 9019101
+sha256 = "974a1ff8125ba82e8423d434e4bcf1b2814bdd74e1878e8d83c1f3f213979edc"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W060_surface.nc"
+bytes = 14903577
+sha256 = "3e241f7d188b705c65aa29fa5e9f96b88e9a80171ed3f20fa7500b250e9352f7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W075_surface.nc"
+bytes = 30582089
+sha256 = "2486c35a69b31443d9b3ae2c3e0baa05f275587bc9aaa929d4d571c1ef2a201f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W090_surface.nc"
+bytes = 12570269
+sha256 = "e6bc90738e67165632bf1bb9b34bc33bb79be08412a65f05798438a8c0d9d235"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W105_surface.nc"
+bytes = 11287792
+sha256 = "f32aa86c748892e42c74d80a7b608f16a832db8d6639d646890932de5c07c23f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W120_surface.nc"
+bytes = 11409106
+sha256 = "c766be9c9e9520706ea4a1ada2e62a34aa7eb6cfe063036e86539fccde1d6ff3"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W135_surface.nc"
+bytes = 10571361
+sha256 = "db7f334d78e2f5cd80d493136cca031f535e729a59b08a7fb9b0671ab146d780"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W150_surface.nc"
+bytes = 11504355
+sha256 = "03965b2849b85caa159e4d6e3f5517e6324e676f4e203bd8a495e191a33489ee"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W165_surface.nc"
+bytes = 13785147
+sha256 = "7f17dd653eb13b5edc0e56850ccd7be58b7c96c084e570c0c9482dcb98d668d7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S30W180_surface.nc"
+bytes = 12402512
+sha256 = "0157079769e0d294f758b0fb286e847ae782854a170a23db5cae4cbbbf6b4d5f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E000_surface.nc"
+bytes = 11244535
+sha256 = "f26c4f3c99d908964472bd186e88ed7e1b746fecc1f45841912a40ef39c5589e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E015_surface.nc"
+bytes = 11038977
+sha256 = "dfa2933462e63439adb8aff599ae18d78c07aa04c075929b6d53f8a25ea924dc"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E030_surface.nc"
+bytes = 8746885
+sha256 = "eb4f54f735326fa2453b3e406788ff9d3c234543472d5b310679e2d541dbbbc6"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E045_surface.nc"
+bytes = 7125718
+sha256 = "b0fcc0f0adf6b88254ffa04091c20dc9a4b226f0635e61fbf12bafd224b0bc25"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E060_surface.nc"
+bytes = 14229337
+sha256 = "1b905eb8dca441399dd593a972c5f977ff29c438b4df4b0740f4b95031892eb2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E075_surface.nc"
+bytes = 12008295
+sha256 = "91ab938ef2ab45ddc18749532c8baa0d724dcd7af86ebd722254d69aeff527b4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E090_surface.nc"
+bytes = 8793174
+sha256 = "d6267c9b305d4ff602e71d12f1ea662e1ff4a758f92e2ea961b1922a1c3c4089"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E105_surface.nc"
+bytes = 8965752
+sha256 = "e452ead2f2ef88f5a1235a05729675d75705b5caaf298d5afc1200f9d036bdb9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E120_surface.nc"
+bytes = 9123910
+sha256 = "041b84d0d86caa308af4b508ef74a012f4562f033d911b3e1585ffe2750281e9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E135_surface.nc"
+bytes = 11729524
+sha256 = "2abead3914170078dd5b7ca440080eafbb6c6bd942aecb1bfb0f0393fe9c9d7f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E150_surface.nc"
+bytes = 12328215
+sha256 = "6d0d93de44c256e58c18355092e0cfce60f2bf3aed6f0b9c46d1aebc3eb22952"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45E165_surface.nc"
+bytes = 10360543
+sha256 = "c80d4778d840c7911270d3fe2cd8ff618472931a4e4d3a7eaae30d7040c02abb"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W015_surface.nc"
+bytes = 10637678
+sha256 = "6e4914cc68082355b609926813a03acb68e27c59b088a8f409cc6da7a226595c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W030_surface.nc"
+bytes = 10303597
+sha256 = "3d0735c33f13a54a56d306110bac74bb7c6a32900243c8c11bce05cd2bf12f98"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W045_surface.nc"
+bytes = 13506948
+sha256 = "387481c8838e6017801227f60931a504075953ea1e1467efae3c985e426ffea9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W060_surface.nc"
+bytes = 11745615
+sha256 = "aa778fdb08dbcc5865a386405a03967e4d5a3d814d3993006699205e105d952f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W075_surface.nc"
+bytes = 18621662
+sha256 = "2dcf865ad7424481ba588e23e207d00e0c11abc6d05bb6727c8a41c5c2dab5ec"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W090_surface.nc"
+bytes = 12201992
+sha256 = "7a63f3941177edfe803edcabb10137a8e389b09b4a8581aa100bcea568b54cc0"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W105_surface.nc"
+bytes = 10739198
+sha256 = "d1c908de8d28638055e69083adf501f086c6d48d8658a3bad36e0bddb9cba893"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W120_surface.nc"
+bytes = 9627848
+sha256 = "428095475b06bbab2df4ff31ebdfd94794dba24a6ab1ce4af3eff96d5a07db42"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W135_surface.nc"
+bytes = 9572199
+sha256 = "5cb06e2a723e6a8ce3fd1988c0b4432cd4c098da217025af35e232352f217e80"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W150_surface.nc"
+bytes = 9921307
+sha256 = "78432596874a471f72683fa16b4d746e548476a45ad7a581da43a4df2c9002a9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W165_surface.nc"
+bytes = 9364199
+sha256 = "1cf3655022bbe614eb49fdb42405149fd78f87285b1452acc18c942133743da8"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S45W180_surface.nc"
+bytes = 10566315
+sha256 = "e36367267392818bae903d372a94ba10afeca92b82966d94e6179f3f5ecb8300"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E000_surface.nc"
+bytes = 14137357
+sha256 = "542964ca13e1f2cdb671cf16184a7101efa351222cf630095d8f88da9a450627"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E015_surface.nc"
+bytes = 13708653
+sha256 = "faf73c4692d88171f783b3b2c212b73bcec4c724c351a8b4e695da78a29012de"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E030_surface.nc"
+bytes = 15188788
+sha256 = "ce0a4d3a9d856e444be2d0cbbe3fb84386fcba7b5fafbab529ec5386f6278aad"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E045_surface.nc"
+bytes = 17893001
+sha256 = "3d9399f68a8b297ae4a09927b44b30d922f957ebbb7574d3cebc7848d6e6e91d"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E060_surface.nc"
+bytes = 16937881
+sha256 = "1bf69cffa25adb8d8f861afa94c6970d890cbe0a7ecaffc40c5bdaa2ff060717"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E075_surface.nc"
+bytes = 17308035
+sha256 = "d71edcb10908f2e5a3e901da28c4ae7497e7b71ec91bd6ab8ef564ffcaa0bd78"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E090_surface.nc"
+bytes = 18796500
+sha256 = "f3e26cf96cf6cd2e57a831cbdd85a655f23c01afee76ffec9550a0ff0f695341"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E105_surface.nc"
+bytes = 17771746
+sha256 = "710b59282d1303cb3712a93b955d38fde9da6e0b64b3363f66c7166a8126b4d4"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E120_surface.nc"
+bytes = 17681091
+sha256 = "17a3d6f6d41f8d0e62791824a141d491d1315de4832e90ec7471b9c240eee4bc"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E135_surface.nc"
+bytes = 21599581
+sha256 = "2760c46151bd0981f39bf96e41dff5d892230e24b97c33656c77e6e74c35e2d2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E150_surface.nc"
+bytes = 15907772
+sha256 = "cfe360c4fe372c99a6448fd537efd255f89d3a5dbc940fcab4fc501c259ab773"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60E165_surface.nc"
+bytes = 13640493
+sha256 = "eeef03da62e42a96436d726a0f6c8e1351acdc5b98076a3e84b15386b3ef0113"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W015_surface.nc"
+bytes = 13188434
+sha256 = "0daf7eea21975038d4e2473ede7d920bb705bba81b1ac0e668312b74308d24b3"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W030_surface.nc"
+bytes = 8608733
+sha256 = "38b9fb242456562588693626978c9af4ce6e3b20649082bab0b787b85049ba67"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W045_surface.nc"
+bytes = 6237662
+sha256 = "234a5b1f1f53fc9ad0662b424167d06689aafe540f9d06bc637ed8f2fa921331"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W060_surface.nc"
+bytes = 7264296
+sha256 = "cbba6c5d67817b7e2f5f1864605117eb50282fc5efb0b1e5e50b85e73d0b3ba1"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W075_surface.nc"
+bytes = 22911271
+sha256 = "bace6476b840d7687be10bc47e04d4eff37cbf81df8b9f23670df61b8edef31b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W090_surface.nc"
+bytes = 11277116
+sha256 = "c481654bc62b0a50aaedfde2e64234328509c1ef7d043311ef80bd6581ed1d67"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W105_surface.nc"
+bytes = 12881566
+sha256 = "fa2c797452a632f30d41cf4750bd5a562230f2253e04a3b86084336215a9b435"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W120_surface.nc"
+bytes = 9690130
+sha256 = "59c848db06846349d4884f45c6397c94a5ea330b3fcb33174d7294fbfff2f095"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W135_surface.nc"
+bytes = 10442948
+sha256 = "d38fbc24f5e8eca455be78f3ecc7512fb43b14883f814207b0c37b82503a05e7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W150_surface.nc"
+bytes = 7821493
+sha256 = "ad0a2b5d7c6965becb54425373d8ed00c5dcd8f30f87457a14d29790372e4446"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W165_surface.nc"
+bytes = 9153956
+sha256 = "0b2093c05c3498485c908f16c8f6bd42b00f4ce62f4ada2401da74c5bbca55f3"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S60W180_surface.nc"
+bytes = 10973944
+sha256 = "305b7c9da5e2b731747021ab297b6bf66d963da4872d92ec5c5edb96c225905e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E000_surface.nc"
+bytes = 24514828
+sha256 = "4247c4f3d0f218ee58f45198bc29ca29fe85c8d0b7e0e3d17c378aa21d45820b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E015_surface.nc"
+bytes = 24313983
+sha256 = "30b2bf1bdfbcea2736c3b14ee9212a1b289fd1d24f7bf47d82cefc02be0505ae"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E030_surface.nc"
+bytes = 24366437
+sha256 = "789a0c6fa928d7eb9148de03424e5cc0e84f0f39b6e46dbf80037b7c67198a8e"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E045_surface.nc"
+bytes = 24085067
+sha256 = "bb92065541ca135df7d665c000e2b7d6536e757b3c4188cf9b13d2f6eaa8c104"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E060_surface.nc"
+bytes = 24298765
+sha256 = "8ba0b96721bc92413708eb59856368549d52a8626cbc2c79fe78cbfafba6501c"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E075_surface.nc"
+bytes = 24306529
+sha256 = "7e32b2d933d904a150ed4262385a33d71e491103d64fd73f3221c08527e3e561"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E090_surface.nc"
+bytes = 24321207
+sha256 = "c756182df20ad869ef3a90af398d3ad4e7f6eb09d7c01ba2f76de7908e9676f7"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E105_surface.nc"
+bytes = 24241617
+sha256 = "169967cf74fe4ed48b1d0f98fba0569f19925f89893f2d2c98921882685311d9"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E120_surface.nc"
+bytes = 24151975
+sha256 = "45c0937465b7d2e927c520e798633091fa76c31683d7d64b1bf4665cc48e9529"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E135_surface.nc"
+bytes = 24454956
+sha256 = "dd5cef0cdda4084d083186006d8f70c86290cd16f198047a6cb25debb8546fab"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E150_surface.nc"
+bytes = 26912383
+sha256 = "41502244ff12a45f30ceb1aa2da99dbd2f418d618f88cb4546b0efb3298b9346"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75E165_surface.nc"
+bytes = 25177925
+sha256 = "46a16c73e1e2d0543475ec3b76277bab8d711e096cddb0e7dc4538da054ca281"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W015_surface.nc"
+bytes = 25314812
+sha256 = "228df8773beab29c5d589e28767863a03cab5e50b4ee05901b9500b62edfbc3b"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W030_surface.nc"
+bytes = 26083339
+sha256 = "35c3369a1857388d1ea7c30e4f3dfc64a12fe04f019cdafb3f3d7430f497b248"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W045_surface.nc"
+bytes = 22770879
+sha256 = "e0e42b6feac8c526082ee395b0a71767ef89454309feeb699e7909d13862c283"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W060_surface.nc"
+bytes = 24575213
+sha256 = "194ede112eb7d8655096d9f42a17cb76176dd063fb0bbecb23f7e59cce364dd1"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W075_surface.nc"
+bytes = 27273417
+sha256 = "2fe483c508b9e63d5444d84169bc4d96727078620fe27ef462b6eacded94a6ae"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W090_surface.nc"
+bytes = 27135790
+sha256 = "86d0ed391d5876e750ec6913d83cae72fca82231462987cb0f5bcbfeec54097f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W105_surface.nc"
+bytes = 26147150
+sha256 = "9cba639492199c308e8a19090a17638d04a8beaf22195f48cb7c3c7a6a61d211"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W120_surface.nc"
+bytes = 26257149
+sha256 = "2da9a1a56833f1b7f20f0cff4e9a4aba090ea34a3cdd22a5f05f3a9f48d28aa2"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W135_surface.nc"
+bytes = 26523457
+sha256 = "247849297ed0cadf0ff7f94254d7d0c7e6178890bb9b3ca98a5644e8e217d204"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W150_surface.nc"
+bytes = 27095570
+sha256 = "ce40a683f535082eee29e5a10edd1682db4403d1ac3974093f0c5c3afa95c83f"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W165_surface.nc"
+bytes = 24714935
+sha256 = "4977acbaafbada873826e32b43cc7338e36520cb7448380380aa6dcc5f9eab88"
+
+[[file]]
+path = "surface/ETOPO_2022_v1_15s_S75W180_surface.nc"
+bytes = 23499314
+sha256 = "ad1f5ed9076cb88f89dd976df7518e1a3f8358d0e87a2aa8e009acc8459ac0e1"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N60W030_bed.nc"
+bytes = 15933887
+sha256 = "6c475a04a0ec3a62d015359a1fac292262deb1e9d32e0290db4740ad434bd0b8"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N60W045_bed.nc"
+bytes = 15148090
+sha256 = "46d9aae8b25aeeb9268b1c231af50dea22046c4fa6e09e38bd23fb5b82075bee"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N60W060_bed.nc"
+bytes = 15309711
+sha256 = "00fe7652fd75635fef4300b5ab9372f7c1cb1a28fec886028a58e187bf70e054"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N75W015_bed.nc"
+bytes = 14624230
+sha256 = "96092c3ab8f0b20fe6d0418a643eee839f30802ee5b5ea01c3c2680f8d974dae"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N75W030_bed.nc"
+bytes = 23711107
+sha256 = "6330798d41e1ff0e0c44f1418d7042839de170f69ff87e03378bda277812a550"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N75W045_bed.nc"
+bytes = 32632434
+sha256 = "d0bd8e68ce0fc63cb9cf8957a189afe830fa1506f7a97b01c05eb93e4c19fd10"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N75W060_bed.nc"
+bytes = 31986667
+sha256 = "1af95feac84c5c0a8080f8ca134c2679b04e29e947d23f882a1a2fb33e6477c5"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N75W075_bed.nc"
+bytes = 21233704
+sha256 = "af4aabacc191caeff8728d1dc616a291431e3a96a5d6936d6366d0ba8aaeb44c"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90E000_bed.nc"
+bytes = 8609631
+sha256 = "cb1ee20048baeea49eac602451aef9d1dd483bc72399a553453016fb5511c0d1"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90W015_bed.nc"
+bytes = 14405959
+sha256 = "1bbae858858b085a78040b7ad44b7c8cb3c4e6126c1776363d2606adc3b0eca2"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90W030_bed.nc"
+bytes = 20507564
+sha256 = "ab9dffa9dab8dd3a7af95d782913b539739f8deb12c95e7d8f05487c56c66cf3"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90W045_bed.nc"
+bytes = 20311132
+sha256 = "40a537c91fcc73f579ff1e82c1ee90b9b9045d533657c830760a2fa1f4490725"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90W060_bed.nc"
+bytes = 20672580
+sha256 = "22b8bbc636db23e101ec8c0043270a7f6afeaf071754276046026dbdacd4f4cf"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90W075_bed.nc"
+bytes = 18966019
+sha256 = "a9d4cee2c6b0ec06a661983b08b8e44ec3e97b00455b5b8fac40f4062893e9c7"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90W090_bed.nc"
+bytes = 16003981
+sha256 = "0538ff9fd62abf82a48390a59fbc19dde4291e7fe1adedd6793017d762ccff3a"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_N90W105_bed.nc"
+bytes = 9698834
+sha256 = "cef0141623c99882e9a13a849fa85bc8a670aa178b4186747ce02eea720bf81f"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E000_bed.nc"
+bytes = 15299946
+sha256 = "906bfe69d1c821d1a3318a67d10335340b75f72dbac5a34f4946bfe5df191011"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E015_bed.nc"
+bytes = 14533599
+sha256 = "e96d2952c0a26d54258871a07410a7c347bfae50ac92c4018e4483a89703e7a0"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E030_bed.nc"
+bytes = 16786286
+sha256 = "7276967ca3cd5d894839960991d4c814f3b1c83ed41d5486539b3db89b21d29e"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E045_bed.nc"
+bytes = 20402229
+sha256 = "df3d41f1bd1e1c6c534b9dd249b0545b18c14167714679e67d3509a83e6ae421"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E060_bed.nc"
+bytes = 18644189
+sha256 = "0fd4a4ebb0aefb88a050a3b8f004465a4a5829f72ce8ad2454f3e9001dcd11fa"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E075_bed.nc"
+bytes = 20463715
+sha256 = "35a703f3e534ca2d45d384b7452252e2a2db92e1772e2dbb446fb6e417849c5a"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E090_bed.nc"
+bytes = 21914061
+sha256 = "7298dffb30454c9f25ba7c5a4510af54ef6546568599ec859d75d9d950adf5ce"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E105_bed.nc"
+bytes = 20215928
+sha256 = "62a945377050dbeb93f22c4bea5ac6ce17d6d73f24d7a3e94df576490b4467a5"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E120_bed.nc"
+bytes = 21206803
+sha256 = "d9b91ca8519d967f0afdeb3d60d6c6509cd9c6e99034c16ef022236680018bad"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E135_bed.nc"
+bytes = 24466141
+sha256 = "e3768213645d9c7fd2a7ab17e6c244f371f0357a1afd65f1d32824350076dce0"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E150_bed.nc"
+bytes = 17606956
+sha256 = "824ad669f6e202976c6932e678f3f14ef23c4f3b8682fb89102513f89f277b6d"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60E165_bed.nc"
+bytes = 13537064
+sha256 = "890eada0ad1dcd6c5562b4678da5d0d0e49a253f4b3afc10f512018526ce4d44"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W015_bed.nc"
+bytes = 14112899
+sha256 = "4ee58475e66a95e3c625a2435a5b27b509ded483a92a4d8d24cd3f09b16a2ff1"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W030_bed.nc"
+bytes = 8325570
+sha256 = "6bbaba9d286e37377694523e335c3da07327791b39a7c4db59bda080835a1eaf"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W045_bed.nc"
+bytes = 6237076
+sha256 = "04b1f204f3e64d2ad77219c72be0c8c3bf6c2ac8127cee3059526d13168fd2be"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W060_bed.nc"
+bytes = 7197601
+sha256 = "526ac04221f629ffe5a099a75c3e9f55e33aa0df5df0a2c80da7ac83bd294569"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W075_bed.nc"
+bytes = 22998536
+sha256 = "b238153afd5f4f23cfaf2d4a1ebf10b203937f9cc070216391dfed12dad78e39"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W090_bed.nc"
+bytes = 11682552
+sha256 = "6bfe3d6cec0a30429253259504f3dc3f54f0ab0ededf51036928846056726831"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W105_bed.nc"
+bytes = 13255026
+sha256 = "2a395752f59c1c47f19f3c1067df6924f43619124b4c33537e5c26e9d61fb035"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W120_bed.nc"
+bytes = 9673071
+sha256 = "df490fc42ebccd474255accf3b822ce57fa09821c56ebd40b1a4be806cba74dd"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W135_bed.nc"
+bytes = 10401761
+sha256 = "2122ce7fd720e0713f1cac10f601572d8a9e00af25831c210bc78b5d86fb86d7"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S60W150_bed.nc"
+bytes = 7832705
+sha256 = "ed569a6559e0a45d36edb92df97c5b308ebe2ba662adda10810b1663dea84f32"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E000_bed.nc"
+bytes = 28960011
+sha256 = "7b435b4b87c5b34ab408c0f941a60b4ae88eaaecc79492ca16a7d481ac8860d9"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E015_bed.nc"
+bytes = 28084602
+sha256 = "9b92a57870e57c608e93ca420d06cdfc0f08111242439951fe9717824b9a5fd4"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E030_bed.nc"
+bytes = 27243973
+sha256 = "dcd4496d289fad795de28a017737524f8ead48977975e6e7af99ae44ee820524"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E045_bed.nc"
+bytes = 28198096
+sha256 = "f1d31402a0e88dd46b5bcbac60dc552c995d24d21e1c2007ced04d403138cf78"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E060_bed.nc"
+bytes = 27785471
+sha256 = "e93dab5f28e28dae904d05b5cbec8499aea428164157192bb8c4c575f7e4af65"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E075_bed.nc"
+bytes = 28259733
+sha256 = "af6261a0154414a4be36416905575ca1208bf67487ccd5409b2405c096ebd3c6"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E090_bed.nc"
+bytes = 28328495
+sha256 = "ee246ecd7fd1e8501da2a2d2fd2db92260407fe093ad5037abf8d345d528e10c"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E105_bed.nc"
+bytes = 29284437
+sha256 = "280d21060b65c872c855d393c6f66b9903b81ebae69a431c2c9f21d23aecfda2"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E120_bed.nc"
+bytes = 29393665
+sha256 = "300404066f572fd3a56b348633380f59f04cc99de1a7bd59878663d0fe9e8423"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E135_bed.nc"
+bytes = 29008176
+sha256 = "f4ba6e734edb373b33f5c48a8829150a849a024779eaee58816680cd4f9524c1"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E150_bed.nc"
+bytes = 28225286
+sha256 = "6fe8cf1cdbf4b3f2a2210bac6d9896cac8b3f4af6f938ef71b5acf02bf8ebdf3"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75E165_bed.nc"
+bytes = 21602302
+sha256 = "5d069a9c58bb5831bed52f939050bb1f47eae68299b8726f94ad07055e054821"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W015_bed.nc"
+bytes = 28690547
+sha256 = "36b61a368ebc77f16b89a2356b83efaaea585045c2b07108588d9e82d65975be"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W030_bed.nc"
+bytes = 28724054
+sha256 = "ba306a8aaa5ed3959dfd314ed20a1d66b760dea2e4f3c2bf11e3902fd2de88d0"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W045_bed.nc"
+bytes = 23403597
+sha256 = "a32d2149adc10998ea4176e5c35f013df27f93adbbb56c519d30c35011fdbcd8"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W060_bed.nc"
+bytes = 24317805
+sha256 = "59fb55bf180a1d9f6fee80a7ee00a770c0458494636a9fc997ca018be05c5c53"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W075_bed.nc"
+bytes = 27464005
+sha256 = "ab6c59a8aff85074f1b48bb3cb090ed1f2dd37ca0f39d6bfbfc45dd1321b608a"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W090_bed.nc"
+bytes = 29363001
+sha256 = "019f79e22117918d061e9624e64db45f52620acb6999d11abb86c12152fd994b"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W105_bed.nc"
+bytes = 29004635
+sha256 = "2b1e72701a68338356d4bb63faa7ed891762bd99a6599078166d809e30069cc4"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W120_bed.nc"
+bytes = 29187489
+sha256 = "d62f59a3b74693b6c41ae6df35a76641a3ed3bc0912ea5b63d26155c846d888d"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W135_bed.nc"
+bytes = 29149350
+sha256 = "da06c0fb1b3e350a8b4a8b42ab3ce6ea312d64bb089b9e3c8813abf5170cfdc6"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W150_bed.nc"
+bytes = 28009032
+sha256 = "ef9e23b46bcc89e9226b8925628162a698df4531c6be70a97fba28d907efc82e"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W165_bed.nc"
+bytes = 22379087
+sha256 = "b9e40083c359d6c2c3429aeeda014c9757850ee6dbcc87bc8fc3dd4b7ba87b4b"
+
+[[file]]
+path = "bed/ETOPO_2022_v1_15s_S75W180_bed.nc"
+bytes = 19589110
+sha256 = "4724247357cc60e375ca38f73d34d00ffe670656e1d98e83892cc8fc3dc23416"

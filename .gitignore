@@ -13,3 +13,31 @@ oracles/data/
 references/text/
 references/index/
 inputs/data/
+
+# Build and tool artifacts
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.npy
+*.npz
+*.log
+*.tmp
+*.swp
+.DS_Store
+# Julia
+Manifest.toml.bak
+.julia/
+*.cov
+*.jl.mem
+# Beads: the Dolt working copy and local state; issues.jsonl is the tracked export
+.beads/embeddeddolt/
+.beads/backup/
+.beads/last-touched
+.beads/export-state.json
