@@ -1,16 +1,22 @@
 #!/usr/bin/env python
 """PaperQA2 over the held papers: evidence with page citations.
 
-    tools/references/ask.py --build                      # (re)build the index; incremental
+    tools/references/ask.py --build                      # index new files only; keeps existing chunks
+    tools/references/ask.py --rebuild                    # discard the index and index every file again
     tools/references/ask.py "How does Millero 1995 give the pressure dependence of K1?"
     tools/references/ask.py --evidence-only "..."       # gathered passages with page numbers, no synthesised answer
 
 Reads tools/references/paperqa.toml. Every answer is printed with its sources as <file> p.<page>: quote.
 The answer text is a pointer to pages, not a source: a value or scheme enters a record only after the page is
-opened and the table or equation is named (docs/references/README.md). The index manifest is generated from
+opened and the table or equation is named (docs/references/README.md).
+
+Use --rebuild after any OCR pass. The index keys staleness on the PDF, and re-OCR changes only the extracted
+text under references/text/, so an incremental --build would leave a re-read paper indexed under its old text
+and answer from both. --rebuild removes the index directory first, which is the only way the replacement is
+complete. The index manifest is generated from
 docs/references/INDEX.md so citations carry the verbatim title and identifier the index holds.
 """
-import argparse, asyncio, csv, os, pathlib, re, sys, tomllib
+import argparse, asyncio, csv, os, pathlib, re, shutil, sys, tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CFG = tomllib.loads((ROOT / 'tools' / 'references' / 'paperqa.toml').read_text())
 
@@ -101,8 +107,11 @@ def settings(evidence_only=False):
     s.parsing.parse_pdf = parse_from_extracted_text
     s.parsing.use_doc_details = False   # no network lookups of metadata; the manifest carries title and DOI
     return s
-async def build():
+async def build(fresh=False):
     from paperqa.agents.search import get_directory_index
+    if fresh:
+        d = ROOT / CFG['index_directory']
+        if d.exists(): shutil.rmtree(d); print('removed', d)
     s = settings(); idx = await get_directory_index(settings=s); print('indexed', len(await idx.index_files), 'files')
 async def ask(q, evidence_only):
     from paperqa import Docs
@@ -120,8 +129,8 @@ async def ask(q, evidence_only):
     for c in ses.contexts:
         t = c.text; name = getattr(t.doc, 'docname', '') or getattr(t.doc, 'dockey', ''); print(f"- {t.doc.citation[:90]} | {t.name} | score {c.score}\n  {c.context[:400].strip()}\n")
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('query', nargs='?'); ap.add_argument('--build', action='store_true'); ap.add_argument('--evidence-only', action='store_true'); a = ap.parse_args()
-    if a.build: asyncio.run(build())
+    ap = argparse.ArgumentParser(); ap.add_argument('query', nargs='?'); ap.add_argument('--build', action='store_true'); ap.add_argument('--rebuild', action='store_true'); ap.add_argument('--evidence-only', action='store_true'); a = ap.parse_args()
+    if a.build or a.rebuild: asyncio.run(build(fresh=a.rebuild))
     elif a.query: asyncio.run(ask(a.query, a.evidence_only))
     else: ap.print_help()
 if __name__ == '__main__': main()

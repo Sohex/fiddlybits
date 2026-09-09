@@ -66,6 +66,15 @@ class 9, and is never cited.
   `serve_llm.sh` under `qrun`
   on one GPU share, or an Anthropic model with the key read from `~/.anthropic_key`
   at call time. The second reach; it spends model calls.
+- **One document per held PDF, everywhere.** The page-text corpus is one directory
+  per PDF and the index manifest is one row per PDF, so a work cannot enter either
+  instrument twice; a work held in two versions is two rows on purpose and says so
+  in its remarks. After any OCR pass, rebuild the index with `ask.py --rebuild`
+  rather than `--build`: staleness is keyed on the PDF, whose bytes a re-read does
+  not change, so an incremental build would answer from a mixture of the old text
+  layer and the new one. `references/text/manifest.jsonl` is append-only and its
+  last entry per file wins, which is how a Chandra pass supersedes an earlier
+  extraction without the pages being written twice.
 
 ## Environments and models
 
