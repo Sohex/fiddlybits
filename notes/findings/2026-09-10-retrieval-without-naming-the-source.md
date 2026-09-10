@@ -50,11 +50,24 @@ fabricated citation. They are there. The extraction renders the line as
     fw ¼ Rf  18:41 expd0:0553 T P
 
 with the equals sign as a vulgar fraction, the decimal points as colons and the
-parentheses as eth and thorn. 89 of 736 papers carry that substitution, 41 of them with
-the decimal corruption appearing more than five times. `extract_text.py` exists so that
-`rg` across the archive is a page-cited search, and on those 89 a search for a coefficient
-or an exponent returns nothing. The model read through it correctly; a grep does not, and
-neither does a person transcribing a constant. Filed separately with the list.
+parentheses as eth and thorn. The degree sign goes the same way: 16 degrees C reads `16 jC`.
+
+It is not the extractor. pdftotext, pypdf and pdfium return the same characters, and
+installing fontTools, which pypdf's own warning recommends, changes nothing. The publisher
+shipped subsetted Type1 fonts declaring WinAnsiEncoding with a glyph mapping that does not
+match, and no ToUnicode table, so the codepoints in the file genuinely are those
+characters. Anything that reads the text layer reproduces it.
+
+89 of 736 papers, about 7143 lines. All 89 were read by pdftotext; none of the 230 read by
+Chandra are affected, which is the shape of the fix.
+
+The damage is narrow and badly placed. Body prose is clean, which is why retrieval found
+this paper at all. What is corrupt is the display-math font: equations, coefficients,
+exponents and units. That is what a constant with the Sourced disposition gets transcribed
+from. `extract_text.py` exists so that `rg` across the archive is a page-cited search, and
+on those 89 a search for a printed coefficient returns nothing. The model read through the
+mangling correctly; a grep does not, and neither does a person reading the page. Filed
+separately with the list.
 
 ## Also fixed here
 
