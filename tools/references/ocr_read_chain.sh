@@ -46,4 +46,8 @@ if [ -s "$WORK/repair_list.txt" ]; then
 else
   say "no sideways pages to repair"
 fi
+# Tables read by OCR are not kept: prose comes back faithful, tables do not, and a number that cannot be verified
+# must not be quotable with a page citation. Each becomes a marker with its caption and page (strip_ocr_tables.py).
+say "removing OCR'd table cells from the text"
+"$PY" tools/references/strip_ocr_tables.py --apply
 say "reading chain complete"

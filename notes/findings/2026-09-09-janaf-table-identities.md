@@ -120,9 +120,9 @@ a species evaluated from the coefficients is checked against the printed table b
 
 ## The part that generalises
 
-The pixel budget was not specific to this book. Passes 2 and 3 read every scanned source in
-the reference tree at the same 6291456 cap, and only this one could be caught, because only
-this one prints columns that check each other. Chapman and Cowling, Henderson's open channel
-flow, Brutsaert's evaporation: each has tables, none has an internal identity, and nothing has
-looked at them. The cap has been raised for future reads; what was already read at the old one
-has no audit and no positive control.
+The pixel budget was not specific to this book, and neither was the lesson. Every scanned source
+was read at the same cap, and only this one could be caught, because only this one prints columns
+that check each other. What followed for the rest is in
+`notes/findings/2026-09-09-tables-invented-from-figures.md`: OCR'd table cells are removed from the
+queryable text corpus-wide, and this book's text was deleted outright because its data has a
+machine-readable home in the NASA CEA polynomials.

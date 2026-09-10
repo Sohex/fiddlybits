@@ -74,21 +74,33 @@ which is the failure this whole exercise is about.
 Chapman's flags were all false: an index of symbols and page numbers read as a ragged table, and
 a genuine jump in a column of molecular weights between krypton and xenon.
 
-## What follows, and what does not
+## What followed
 
-`ask.py` already states the standing rule: an answer names pages, and a value enters a record only
-after the page is opened and the table named. So this corpus is a pointer, not a data path, and
-that sorts the defects into two piles rather than fifty-seven.
+The first resolution was wrong and is recorded here because the reasoning is the finding. It
+said: repair what would make retrieval misquote a page, ignore what merely garbles a number,
+because numbers do not come from the corpus. That treats a known-wrong number as harmless if a
+rule downstream says not to use it. It is not harmless. A corpus that returns wrong numbers with a
+page citation is worse than no corpus, and the rule downstream is a second check, not a licence
+for the first one to lie.
 
-**Repaired, because retrieval would otherwise assert something the page does not say.** The 255
-invented tables are gone, each leaving a marker naming the figure it came from
-(`tools/references/strip_invented_tables.py`). Henderson's four cancelled rows are marked and the
-duplicated column removed.
+The second resolution was also wrong, in shape: treat every scanned source as a data source, and
+for each find a dataset, a born-digital copy, or re-read it. Most scanned sources are held for a
+scheme or an argument. That framing sent out a request for 22 books and a search of a plant trait
+archive for a book the model takes no numbers from.
 
-**Not repaired, deliberately.** Every other damaged table in the corpus, including the 493 JANAF
-pages. A garbled number in a table that is not a data path costs nothing, because the standing
-rule already requires the page to be opened before the value is used. Re-reading three thousand
-pages to fix numbers nobody may read is work with no claim on anyone.
+The resolution that stands is mechanical. OCR prose came back faithful everywhere it was checked;
+OCR tables did not, and a re-read at twice the pixel budget fixed four of seven wholly corrupt
+pages and left the rest unverifiable. So no OCR'd table cell stays in the queryable text. Each
+table becomes a marker carrying its caption, row count and page, the prose around it stays
+searchable, and the scan is what a reader opens. 1889 tables on 1511 pages across 189 sources,
+one pass, `tools/references/strip_ocr_tables.py`, and it runs as the last step of the reading
+chain so a fresh read cannot bring them back. Sources with a real text layer are untouched.
 
-The raised pixel cap stands for reads that have not happened yet. It is not a reason to redo the
-ones that have.
+Separately, and per constant rather than per book: where the data a scan carries has a
+machine-readable home, that home is the input dataset. NIST-JANAF's tables are the NASA CEA
+polynomials, 214 of whose records cite that book; Carmichael's rock spectra are ECOSTRESS and
+USGS splib07, already held. Both scans are deleted from the text and kept as scans to open by eye.
+
+The residual risk is a number garbled in OCR prose, which this does not touch. It is diffuse
+rather than concentrated, the page-opening rule applies to it as to everything, and it is stated
+here rather than claimed away.
