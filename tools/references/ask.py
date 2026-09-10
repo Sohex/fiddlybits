@@ -104,9 +104,17 @@ def parse_from_extracted_text(path, page_size_limit=None, page_range=None, **kwa
     """PaperQA2 parser that reads the per-page text extracted by tools/references/extract_text.py instead of
     re-parsing the PDF: the OCR layers are already the text, and pypdf on 700-page scans was the build's bottleneck."""
     from paperqa.types import ParsedText, ParsedMetadata
+    from paperqa.utils import ImpossibleParsingError
     import paperqa
     stem = pathlib.Path(path).stem; d = ROOT / 'references' / 'text' / stem
-    if not d.is_dir(): raise FileNotFoundError(f'no extracted text for {path}; run tools/references/extract_text.py')
+    # A PDF registered but not yet read is a normal state: a scan waits on the OCR chain, and the chain reads from
+    # references/pdf, so the file has to sit there first. PaperQA marks such a file failed and moves on only for
+    # ImpossibleParsingError and ValueError; anything else it re-raises, which killed the whole query rather than
+    # skipping one source. It cannot be parsed yet, so that is what this says.
+    if not d.is_dir():
+        raise ImpossibleParsingError(
+            f'no extracted text for {path}; run tools/references/extract_text.py, '
+            f'or tools/references/ocr_read_chain.sh if it is a scan')
     # A source whose data has a machine-readable home keeps a one-page stub naming that home instead of its text,
     # so a query for the quantity lands on the pointer rather than on a number a reader transcribed from a scan.
     content = {}
@@ -219,11 +227,16 @@ async def build(fresh=False, reingest=()):
         idx = SearchIndex(fields=[*SearchIndex.REQUIRED_FIELDS, 'title', 'year'],
                           index_name=s.agent.index.name or s.get_index_name(),
                           index_directory=s.agent.index.index_directory)
-        indexed = set(await idx.index_files)
-        stale = [n for n in indexed if n in forced or stored.get(n) != on_disk.get(n)]
+        index_files = await idx.index_files
+        indexed = set(index_files)
+        # A file PaperQA failed to parse is recorded under the name with ERROR for its hash. It is listed, so it is
+        # not new, and it carries no digest, so without naming it here it would fall into adopt below and be
+        # written off as read. That is how a scan queued for OCR would silently never be indexed once it was read.
+        errored = {n for n, h in index_files.items() if h == 'ERROR'}
+        stale = [n for n in indexed if n in forced or n in errored or stored.get(n) != on_disk.get(n)]
         # An indexed file with no digest recorded predates this bookkeeping; adopt its current text rather than
         # reading the whole archive again to learn what it already knows.
-        adopt = [n for n in stale if n not in forced and n not in stored]
+        adopt = [n for n in stale if n not in forced and n not in errored and n not in stored]
         stale = [n for n in stale if n not in adopt]
         for n in adopt: stored[n] = on_disk[n]
         if adopt: print(f'adopted the current text of {len(adopt)} already-indexed sources')
