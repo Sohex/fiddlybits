@@ -9,10 +9,11 @@ papers = ["mcbride1996 NASA RP-1311 (the CEA method)", "mcbride2002 NASA/TP-2002
 licence = "Apache-2.0; LICENSE.txt and NOTICE.txt carried beside the payload"
 fetched = "2026-09-09"
 local_path = "inputs/data/nasa-cea-thermo"   # untracked payload
-role = "model INPUT (Sourced), the primary one: heat capacity, enthalpy and entropy of a species as a function of temperature, read as polynomial coefficients and evaluated, never interpolated from a table"
+role = "model INPUT (Sourced), the primary one: heat capacity, enthalpy and entropy of a species from thermo.inp, and viscosity and thermal conductivity from trans.inp, as a function of temperature, read as polynomial coefficients and evaluated, never interpolated from a table"
 
 [files]
 "thermo.inp" = { bytes = 1234323, sha256 = "fa7746572952d74e249e818a82a35c113829742fb421a308e167185528884363", format = "NASA 9-term polynomials, fixed-width, one to five temperature intervals a species", species = 2030 }
+"trans.inp" = { bytes = 37847, sha256 = "379c514a7f7638371d8d9254a1d653cd078084a9371061aa0b45c5a5c3334d41", format = "viscosity and thermal conductivity coefficients, per species, per temperature interval, 200 to 16000 K", species = 108, note = "each block names its source, Bich et al 1990 and Svehla 1962 among them" }
 "LICENSE.txt" = { bytes = 9170, sha256 = "a60026be9384468d074c19425e552f1bb4a6f507f805e55a96fad586716168ed" }
 "NOTICE.txt" = { bytes = 713, sha256 = "03b64364559d540d97615c31675a69e8eb1965e30de8859a2f8c5c9a38ecb55e" }
 
@@ -39,6 +40,9 @@ naming = "metals and their compounds are upper case (AL2O3), condensed phases ca
 [caveats]
 fits_not_tables = "these are least-squares fits, not the measurements; the residual against the source table is a property of the fit and is not carried in the file"
 intervals = "coefficients are per temperature interval and are not continuous across an interval boundary to machine precision; a reader must select the interval, and must refuse a temperature outside the record's range rather than extrapolate"
+
+[supersedes]
+"chapman1970-mathematical-theory-non-uniform-gases.pdf" = "the transport coefficients its tables carry are here machine-readable over a wider range with their own sources; the book stays for the Chapman-Enskog theory, which is what it is actually held for, and its 37 OCR'd table pages are not a data path"
 
 [oracle]
 note = "the scanned NIST-JANAF fourth edition in references/pdf is a check, not a data path. 214 records here are sourced from that book, so a species with a j code can be evaluated and compared against the printed table by eye, and the two identities in tools/references/audit_janaf_tables.py hold for evaluated values as much as printed ones"
