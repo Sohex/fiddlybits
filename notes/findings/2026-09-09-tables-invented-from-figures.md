@@ -61,17 +61,34 @@ ordinary rows, with no strikethrough and nothing else to mark them, beside the a
 that replaced them. The reader can produce strikethrough and does so on 31 other pages of the
 corpus; here it did not.
 
-That one is recoverable without re-reading, because the table carries its own test and
-Henderson states it in the facing text: a row is cancelled exactly when column 14 differs from
-column 5. Both cancelled and accepted rows are present and correct, so the information is not
-lost, only unmarked.
+That one was recoverable without re-reading: both cancelled and accepted rows are present and
+correct, only unmarked. The four were marked and the duplicate column removed.
+
+The test Henderson states in the facing text, that a line is ruled through when column 14 differs
+from column 5, is not exact. Applied as written it marks a fifth row, mile 37.30 at stage 69.75,
+which the page does not rule through: its residual is 0.02 ft and Henderson takes that as
+converged. The strikethrough on the scan is the ground truth and the arithmetic is only a
+candidate generator. Marking that fifth row would have asserted something the page does not say,
+which is the failure this whole exercise is about.
 
 Chapman's flags were all false: an index of symbols and page numbers read as a ragged table, and
 a genuine jump in a column of molecular weights between krypton and xenon.
 
-## What follows
+## What follows, and what does not
 
-The invented tables are not damage to be repaired by reading the page again. They are content
-that should not exist, and the honest caption is a reliable handle for removing them. What needs
-deciding is whether they are deleted from the text or fenced where a reader cannot mistake them
-for the page, and that is a decision, not a cleanup.
+`ask.py` already states the standing rule: an answer names pages, and a value enters a record only
+after the page is opened and the table named. So this corpus is a pointer, not a data path, and
+that sorts the defects into two piles rather than fifty-seven.
+
+**Repaired, because retrieval would otherwise assert something the page does not say.** The 255
+invented tables are gone, each leaving a marker naming the figure it came from
+(`tools/references/strip_invented_tables.py`). Henderson's four cancelled rows are marked and the
+duplicated column removed.
+
+**Not repaired, deliberately.** Every other damaged table in the corpus, including the 493 JANAF
+pages. A garbled number in a table that is not a data path costs nothing, because the standing
+rule already requires the page to be opened before the value is used. Re-reading three thousand
+pages to fix numbers nobody may read is work with no claim on anyone.
+
+The raised pixel cap stands for reads that have not happened yet. It is not a reason to redo the
+ones that have.
