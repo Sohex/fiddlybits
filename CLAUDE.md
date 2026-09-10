@@ -48,6 +48,10 @@ Arguments live in `docs/practice.md` and `docs/decisions/`; findings in
 - Do not use the AskUserQuestion tool with this user; raise decisions in prose with
   description, options, pros and cons, and expect a conversation.
 - Heavy work goes through `qrun`, never directly; see `~/.claude/CLAUDE.md`.
+- Anything crossing two resources is concurrent from its first version (decision 0038):
+  stages sized to their own resource, a pool between them rather than a barrier, the
+  queue bounded in bytes. A file, a level or a batch is never the unit of waiting.
+  Arrival order never reaches a result; reductions stay partition-independent (0029).
 - Work is tiered (decision 0037): plan rows are frontier work; implementation rows carry
   `tier:local|sonnet|frontier`, a file boundary and named acceptance oracles, and run in
   their own worktree; every merge is reviewed against the plan.
