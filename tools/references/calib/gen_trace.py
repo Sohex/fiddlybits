@@ -115,8 +115,13 @@ def trim(ids, eos):
 
 
 @torch.inference_mode()
-def generate(model, tok, prompts, max_new, batch_size, label, temperature, top_p):
-    """Batched sampling. Returns (prompt_ids, response_ids) per prompt, in input order."""
+def generate(model, tok, prompts, max_new, batch_size, label, temperature, top_p,
+             emit=None, meta=None):
+    """Batched sampling. Returns (prompt_ids, response_ids) per prompt, in input order.
+
+    emit(row) is called for each completed generation as its batch lands, with the
+    matching entry of meta merged in, so a long run leaves finished work on disk.
+    """
     eos = set(getattr(model.generation_config, 'eos_token_id', None) or [tok.eos_token_id])
     order = sorted(range(len(prompts)), key=lambda i: -len(prompts[i]))
     out = [None] * len(prompts)
@@ -134,10 +139,27 @@ def generate(model, tok, prompts, max_new, batch_size, label, temperature, top_p
             keep = enc['attention_mask'][j].bool()
             prompt_ids = enc['input_ids'][j][keep].tolist()
             out[i] = (prompt_ids, trim(gen[j][plen:].tolist(), eos))
+            if emit is not None:
+                emit({**(meta[i] if meta else {}),
+                      'input_ids': out[i][0], 'response_ids': out[i][1]})
         done += len(idx)
         rate = sum(len(out[i][1]) for i in order[:done]) / max(1e-9, time.time() - t0)
         print(f'    {label}: {done}/{len(prompts)}  {rate:.1f} gen tok/s', flush=True)
     return out
+
+
+def load_done(path):
+    """Rows already written, and the keys identifying the jobs that produced them."""
+    rows = []
+    if pathlib.Path(path).is_file():
+        for line in open(path):
+            if line.strip():
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    break          # a row cut off mid-write by a kill; stop there
+    done = {(r['role'], r['question'], r.get('name', '')) for r in rows}
+    return done, rows
 
 
 def load_seeds(path):
@@ -170,6 +192,8 @@ def questions_needed(tok, seeds):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-o', '--out', default=str(HERE / 'trace.jsonl'))
+    ap.add_argument('-r', '--resume', action='store_true',
+                    help='keep the rows already in --out and generate only what is missing')
     ap.add_argument('-s', '--seeds', default=str(HERE / 'seeds.jsonl'),
                     help='from build_seeds.py, which runs in the venv that holds paperqa')
     ap.add_argument('--device', choices=('auto', 'cpu'), default='auto',
@@ -197,23 +221,44 @@ def main():
 
     model = load_model(model_dir, a.gpu_gib, a.cpu_gib, a.device)
 
+    # Rows are appended as each batch lands, not held to the end: this stage runs for
+    # hours and a crash at hour five used to lose all of it.
+    done, rows = load_done(a.out) if a.resume else ([], [])
+    sink = open(a.out, 'a' if a.resume else 'w')
+
+    def emit(r):
+        rows.append(r)
+        sink.write(json.dumps(r) + '\n')
+        sink.flush()
+
+    def digest(text):
+        try:
+            blob = json.loads(re.search(r'\{.*\}', text, re.S).group(0))
+            return blob['summary'], int(blob['relevance_score'])
+        except Exception:
+            return text, 0
+
+    by_question = {}
+    for r in rows:                       # rebuild context from whatever resumed
+        if r['role'] == 'summary':
+            body, score = digest(tok.decode(r['response_ids'], skip_special_tokens=True).strip())
+            by_question.setdefault(r['question'], []).append(
+                {'name': r['name'], 'citation': r['citation'], 'summary': body, 'score': score})
+
     # Phase B: the evidence-summary calls, the bulk of what PaperQA2 asks of the model
-    jobs = [(s, e) for s in seeds for e in s['evidence']]
+    jobs = [(s, e) for s in seeds for e in s['evidence']
+            if ('summary', s['question'], e['name']) not in done]
+    if rows:
+        print(f' -- resuming: {len(rows)} rows already on disk, {len(jobs)} summaries left',
+              flush=True)
     prompts = [render(tok, *build_seeds.summary_prompt(s['question'], e), 'summary') for s, e in jobs]
     summaries = generate(model, tok, prompts, CFG['trace']['max_new_summary'],
-                         a.batch_size, 'summaries', a.temperature, a.top_p)
+                         a.batch_size, 'summaries', a.temperature, a.top_p, emit,
+                         [{'role': 'summary', 'question': s['question'], 'name': e['name'],
+                           'citation': e['citation']} for s, e in jobs])
 
-    rows, by_question = [], {}
     for (s, e), (pids, rids) in zip(jobs, summaries):
-        text = tok.decode(rids, skip_special_tokens=True).strip()
-        rows.append({'role': 'summary', 'question': s['question'], 'name': e['name'],
-                     'citation': e['citation'], 'input_ids': pids, 'response_ids': rids})
-        score = 0
-        try:
-            score = int(json.loads(re.search(r'\{.*\}', text, re.S).group(0))['relevance_score'])
-            body = json.loads(re.search(r'\{.*\}', text, re.S).group(0))['summary']
-        except Exception:
-            body = text
+        body, score = digest(tok.decode(rids, skip_special_tokens=True).strip())
         by_question.setdefault(s['question'], []).append(
             {'name': e['name'], 'citation': e['citation'], 'summary': body, 'score': score})
 
@@ -224,15 +269,13 @@ def main():
         top = [c for c in sorted(ctxs, key=lambda c: -c['score']) if c['summary']][:keep]
         if top:
             a_jobs.append((q, top))
+    a_jobs = [(q, c) for q, c in a_jobs if ('answer', q, '') not in done]
     prompts = [render(tok, *build_seeds.answer_prompt(q, c), 'answer') for q, c in a_jobs]
-    answers = generate(model, tok, prompts, CFG['trace']['max_new_answer'],
-                       a.batch_size, 'answers', a.temperature, a.top_p)
-    for (q, _), (pids, rids) in zip(a_jobs, answers):
-        rows.append({'role': 'answer', 'question': q, 'input_ids': pids, 'response_ids': rids})
+    generate(model, tok, prompts, CFG['trace']['max_new_answer'],
+             a.batch_size, 'answers', a.temperature, a.top_p, emit,
+             [{'role': 'answer', 'question': q} for q, _ in a_jobs])
+    sink.close()
 
-    with open(a.out, 'w') as f:
-        for r in rows:
-            f.write(json.dumps(r) + '\n')
     ctx = sum(len(r['input_ids']) for r in rows)
     gen = sum(len(r['response_ids']) for r in rows)
     print(f' -- {len(rows)} rows, {ctx:,} context + {gen:,} response tokens '
