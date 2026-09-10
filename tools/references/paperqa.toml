@@ -15,6 +15,10 @@ embedding_path = "/home/cfutro/models/Qwen3-Embedding-8B"   # set by the A/B/C o
 embedding_kind = "qwen3"              # qwen3 | jina | st
 query_instruction = "Given a question about a physical law, numerical scheme, dataset or constant, retrieve the page of a scientific paper or book that states it"
 max_seq = 2048
+# auto | cuda | cpu. auto puts the embedder on the card when more than 18 GiB is free, which is the 8B model at
+# fp16 plus its activations, and on the CPU otherwise. The choice is printed with the free VRAM that decided it:
+# on the CPU this model is about fifty times slower and the only other sign is a full, idle card.
+embedding_device = "auto"
 paper_directory = "references/pdf"
 index_directory = "references/index"
 evidence_k = 12                       # chunks summarised per question; what the rerank stage returns

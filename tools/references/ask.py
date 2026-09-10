@@ -19,6 +19,7 @@ docs/references/INDEX.md so citations carry the verbatim title and identifier th
 import argparse, asyncio, csv, os, pathlib, re, shutil, sys, tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CFG = tomllib.loads((ROOT / 'tools' / 'references' / 'paperqa.toml').read_text())
+_EMBEDDING = None   # the one embedding model of this process; see S.get_embedding_model below
 
 class InstructedSTEmbedding:
     """Sentence-transformers embedding with query/document modes for instruction-aware models (Qwen3-Embedding):
@@ -33,7 +34,13 @@ class InstructedSTEmbedding:
             import torch
             from sentence_transformers import SentenceTransformer
             free = torch.cuda.mem_get_info()[0] / 2**30 if torch.cuda.is_available() else 0
-            dev = 'cuda' if free > 18 else 'cpu'; dt = torch.float16 if dev == 'cuda' else torch.bfloat16
+            want = CFG.get('embedding_device', 'auto')
+            dev = want if want in ('cuda', 'cpu') else ('cuda' if free > 18 else 'cpu')
+            # Announced, never silent: an 8B embedder on the CPU is about fifty times slower, and the only sign
+            # is a warm card doing nothing. Whichever way this goes, it says so once and says why.
+            print(f'embedding model on {dev} ({free:.1f} GiB free on the card, threshold 18; '
+                  f'embedding_device={want})', file=sys.stderr, flush=True)
+            dt = torch.float16 if dev == 'cuda' else torch.bfloat16
             mk = {'torch_dtype': dt, 'low_cpu_mem_usage': True}
             if dev == 'cuda': mk['device_map'] = 'cuda'   # load shards straight onto the card; no 16 GB host copy
             kw = dict(model_kwargs=mk, device=dev)
@@ -98,7 +105,15 @@ def settings(evidence_only=False):
     mf = manifest(paper_dir, index_dir)
     class S(Settings):
         def get_embedding_model(self):
-            if CFG.get('embedding_path'): return InstructedSTEmbedding(CFG['embedding_path'], CFG.get('query_instruction', ''), CFG.get('embedding_kind', 'qwen3'), CFG.get('max_seq', 2048))
+            # One instance for the life of the process. PaperQA asks for an embedding model once per document
+            # (paperqa/docs.py aadd_texts), so returning a fresh one here loaded the 15 GB model 736 times: the
+            # first landed on the card, and every later one found too little free VRAM and went quietly to the
+            # CPU. The card sat full and idle while the build crawled. Measured 2026-09-09.
+            global _EMBEDDING
+            if CFG.get('embedding_path'):
+                if _EMBEDDING is None:
+                    _EMBEDDING = InstructedSTEmbedding(CFG['embedding_path'], CFG.get('query_instruction', ''), CFG.get('embedding_kind', 'qwen3'), CFG.get('max_seq', 2048))
+                return _EMBEDDING
             return super().get_embedding_model()
     s = S(llm=CFG['llm'], summary_llm=CFG['summary_llm'], embedding=CFG['embedding'], temperature=0.0,
                  llm_config=llm_cfg, summary_llm_config=llm_cfg,
