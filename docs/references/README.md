@@ -64,7 +64,12 @@ class 9, and is never cited.
   `file | p.N | line` hits. This is the first reach; it costs nothing.
 - **PaperQA2, evidence with page citations.** `tools/references/ask.py --build`
   indexes the PDFs into `references/index/` (untracked) with a manifest generated
-  from `INDEX.md` so citations carry the verbatim title and identifier; the index is
+  from `INDEX.md` so citations carry the verbatim title and identifier; the manifest
+  also names which fields PaperQA2 may fill for itself, without which it rebuilds a
+  citation from a bibtex entry it invented and every source answers as "Unknown
+  authors"; a citation is stored beside the chunks it belongs to, so a title or
+  identifier corrected in `INDEX.md` reaches an indexed source through
+  `ask.py --relabel`, which rewrites the label and re-reads nothing; the index is
   derived and disposable, and is deleted rather than kept whenever the corpus beneath
   it changes, so nothing on disk can be mistaken for current;
   `ask.py "question"` gathers page-cited evidence and, unless `--evidence-only`,
@@ -84,12 +89,14 @@ class 9, and is never cited.
 - **One document per held PDF, everywhere.** The page-text corpus is one directory
   per PDF and the index manifest is one row per PDF, so a work cannot enter either
   instrument twice; a work held in two versions is two rows on purpose and says so
-  in its remarks. After any OCR pass, rebuild the index with `ask.py --rebuild`
-  rather than `--build`: staleness is keyed on the PDF, whose bytes a re-read does
-  not change, so an incremental build would answer from a mixture of the old text
-  layer and the new one. `references/text/manifest.jsonl` is append-only and its
-  last entry per file wins, which is how a Chandra pass supersedes an earlier
-  extraction without the pages being written twice.
+  in its remarks. After any OCR pass, `ask.py --build` is enough: it keeps a sha256
+  of the extracted text behind each indexed PDF in `references/index/text-digests.toml`
+  and re-reads whatever no longer matches, so a re-read paper is picked up even though
+  its own bytes never changed. `--reingest <name>` forces one source through anyway,
+  for when the text is unchanged but the chunking or the embedding model is not.
+  `references/text/manifest.jsonl` is append-only and its last entry per file wins,
+  which is how a Chandra pass supersedes an earlier extraction without the pages
+  being written twice.
 
 ## Environments and models
 

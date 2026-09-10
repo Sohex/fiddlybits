@@ -4,6 +4,7 @@
     tools/references/ask.py --build                      # index whatever the index does not hold at its current text
     tools/references/ask.py --reingest henderson1966     # drop one source and read it again, after re-OCR
     tools/references/ask.py --rebuild                    # discard the index entirely; rarely what you want
+    tools/references/ask.py --relabel                    # re-apply the manifest's citations to what is already indexed
     tools/references/ask.py "How does Millero 1995 give the pressure dependence of K1?"
     tools/references/ask.py --evidence-only "..."       # gathered passages with page numbers, no synthesised answer
 
@@ -19,7 +20,8 @@ dropped from the index and read again; one that matches is left alone; one the i
 the embedding model is not. --rebuild discards everything, which is now rarely the right tool.
 
 The index manifest is generated from docs/references/INDEX.md so citations carry the verbatim title and
-identifier the index holds.
+identifier the index holds. A citation is stored with the chunks it belongs to, so a correction in INDEX.md
+reaches an already-indexed source only through --relabel, which rewrites the label and nothing else.
 """
 import argparse, asyncio, csv, hashlib, os, pathlib, re, shutil, sys, tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -92,12 +94,25 @@ def manifest(paper_dir, index_dir):
         if m: rows[m.group(1)] = (m.group(2).replace('"', "'"), m.group(3).strip('`'))
     index_dir.mkdir(parents=True, exist_ok=True); mf = index_dir / 'manifest.csv'
     with open(mf, 'w', newline='') as f:
-        # citation supplied here so Docs.aadd never asks the language model for one during indexing
-        w = csv.writer(f); w.writerow(['file_location', 'doi', 'title', 'citation'])
+        # citation and docname supplied here so Docs.aadd never asks the language model for either during indexing.
+        # KEEP is the one column that makes PaperQA honour them. Every manifest row is passed through
+        # DocDetails before Docs.aadd sees it, and that validator rebuilds the bibtex of any row that carries
+        # none -- which a manifest row never does -- and then, for each field named in
+        # fields_to_overwrite_from_metadata, replaces what the row said with what it just built. The default
+        # names citation, key and docname, so the verbatim citation below arrived as "Unknown authors. <title>.
+        # Unknown journal, Unknown year." with a docname to match. Naming only the fields PaperQA has to fill
+        # for itself leaves the three this manifest is for alone.
+        KEEP = 'doc_id,dockey,content_hash'
+        w = csv.writer(f)
+        w.writerow(['file_location', 'doi', 'title', 'citation', 'docname', 'fields_to_overwrite_from_metadata'])
         for p in sorted(paper_dir.glob('*.pdf')):
             title, ident = rows.get(p.name, (p.stem, ''))
             doi = ident if re.match(r'10\.\d{4,}/', ident) else ''
-            w.writerow([p.name, doi, title, f'{title}. {ident}. [{p.name}]'.replace('. .', '.')])
+            # One period between the parts, whether or not the INDEX.md row already ended in one.
+            citation = '. '.join(x.rstrip('.') for x in (title, ident) if x) + f'. [{p.name}]'
+            # The stem is the docname because it is the handle an answer is checked against: evidence prints as
+            # <file> p.<page>, and the file is what a reader opens.
+            w.writerow([p.name, doi, title, citation, p.stem, KEEP])
     return mf
 def settings(evidence_only=False):
     from paperqa import Settings
@@ -197,6 +212,46 @@ async def build(fresh=False, reingest=()):
     idx = await get_directory_index(settings=s)
     save_digests({**stored, **{n: h for n, h in on_disk.items() if n in set(await idx.index_files)}})
     print('indexed', len(await idx.index_files), 'files')
+async def relabel():
+    """Rewrite the citation and docname of every indexed source from the manifest, in place.
+
+    A source's citation is stored in the index alongside its chunks, so a source already indexed keeps whatever
+    citation it was indexed with; correcting the manifest does nothing until the index is written to. This reads
+    each stored record, replaces those two fields with what the manifest now says, and writes it back. Nothing is
+    re-read, re-chunked or re-embedded, so no model is loaded and the text and its vectors are untouched: this is
+    a relabelling, and the only thing it can change is what a citation says."""
+    import pickle, zlib
+    from paperqa.agents.search import SearchIndex
+    s = settings()   # regenerates the manifest first, so the labels applied are the current ones
+    rows = {r['file_location']: r for r in csv.DictReader((ROOT / CFG['index_directory'] / 'manifest.csv').read_text().splitlines())}
+    idx = SearchIndex(fields=[*SearchIndex.REQUIRED_FIELDS, 'title', 'year'],
+                      index_name=s.agent.index.name or s.get_index_name(),
+                      index_directory=s.agent.index.index_directory)
+    files = await idx.index_files
+    if not files: sys.exit(f'no index at {await idx.index_directory}; nothing to relabel')
+    docs_dir = pathlib.Path(str(await idx.docs_index_directory))
+    changed = missing = 0
+    for loc, filehash in sorted(files.items()):
+        row = rows.get(loc); rec = docs_dir / f'{filehash}.{idx.storage.extension()}'
+        if not row or filehash == 'ERROR' or not rec.is_file():
+            missing += 1; continue
+        obj = pickle.loads(zlib.decompress(rec.read_bytes()))
+        touched = False
+        for doc in obj.docs.values():
+            if (doc.citation, doc.docname) == (row['citation'], row['docname']): continue
+            was = doc.docname
+            doc.citation, doc.docname = row['citation'], row['docname']
+            # A chunk is named "<docname> pages 3-5" and that name is what the evidence lines print, so the
+            # chunks are renamed with the doc rather than left pointing at the name it no longer has.
+            for t in obj.texts:
+                if t.name.startswith(was): t.name = row['docname'] + t.name[len(was):]
+            touched = True
+        if not touched: continue
+        obj.docnames = {d.docname for d in obj.docs.values()}
+        rec.write_bytes(zlib.compress(pickle.dumps(obj)))
+        changed += 1
+    print(f'relabelled {changed} of {len(files)} indexed sources'
+          + (f'; {missing} had no manifest row or no stored record' if missing else ''))
 async def ask(q, evidence_only):
     from paperqa import Docs
     from paperqa.agents.search import get_directory_index
@@ -220,9 +275,11 @@ def main():
     ap.add_argument('--build', action='store_true', help='index what the index does not already hold at its current text')
     ap.add_argument('--reingest', action='append', default=[], metavar='PDF', help='drop this source and read it again, whatever its digest says; repeatable. Use after re-OCR of one file')
     ap.add_argument('--rebuild', action='store_true', help='discard the whole index and read every source again. Rarely what you want: --build already picks up changed text')
+    ap.add_argument('--relabel', action='store_true', help='rewrite the citation and docname of every indexed source from the manifest, without re-reading or re-embedding anything. Use after a title or identifier changes in docs/references/INDEX.md')
     ap.add_argument('--evidence-only', action='store_true')
     a = ap.parse_args()
-    if a.build or a.rebuild or a.reingest: asyncio.run(build(fresh=a.rebuild, reingest=a.reingest))
+    if a.relabel: asyncio.run(relabel())
+    elif a.build or a.rebuild or a.reingest: asyncio.run(build(fresh=a.rebuild, reingest=a.reingest))
     elif a.query: asyncio.run(ask(a.query, a.evidence_only))
     else: ap.print_help()
 if __name__ == '__main__': main()
