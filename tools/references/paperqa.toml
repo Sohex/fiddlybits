@@ -29,6 +29,16 @@ max_seq = 2048
 embedding_device = "auto"
 paper_directory = "references/pdf"
 index_directory = "references/index"
+# The index directory's name, pinned rather than derived. PaperQA otherwise hashes it from, among other things,
+# the parser function's module, and ask.py supplies its own parser: the name came out under __main__ when ask.py
+# ran as a script and under ask when anything imported it, so an importer opened a different directory, found
+# nothing, and either refused to answer or started a second copy of the archive.
+#
+# What the hash was really guarding is that an index is only valid for the geometry it was built with, so the
+# name carries that instead: the embedding model, then chunk_chars by overlap. Change any of those and this name
+# must change with them, and the new name is built from scratch. Nothing else notices: the digests in
+# text-digests.toml are of the extracted text, not of how it was cut up or embedded.
+index_name = "qwen3-embedding-8b-4000x200"
 evidence_k = 12                       # chunks summarised per question; what the rerank stage returns
 answer_max_sources = 6
 

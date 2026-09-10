@@ -172,7 +172,7 @@ def settings(evidence_only=False):
             return super().get_embedding_model()
     s = S(llm=CFG['llm'], summary_llm=CFG['summary_llm'], embedding=CFG['embedding'], temperature=0.0,
                  llm_config=llm_cfg, summary_llm_config=llm_cfg,
-                 agent=AgentSettings(index=dict(paper_directory=str(paper_dir), index_directory=str(index_dir), manifest_file=str(mf), concurrency=1, batch_size=1), agent_llm=CFG['llm'], agent_llm_config=llm_cfg))
+                 agent=AgentSettings(index=dict(paper_directory=str(paper_dir), index_directory=str(index_dir), manifest_file=str(mf), name=CFG.get('index_name'), concurrency=1, batch_size=1), agent_llm=CFG['llm'], agent_llm_config=llm_cfg))
     s.answer.evidence_k = CFG.get('evidence_k', 12); s.answer.answer_max_sources = CFG.get('answer_max_sources', 6)
     s.parsing.reader_config = {'chunk_chars': CFG.get('chunk_chars', 4000), 'overlap': CFG.get('overlap', 200)}
     s.parsing.multimodal = False   # text only; the OCR layers are the text
