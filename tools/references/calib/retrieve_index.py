@@ -93,8 +93,7 @@ def query_embedder():
     sys.path.insert(0, str(ROOT / 'tools' / 'references'))
     import ask
     from lmi.embeddings import EmbeddingModes
-    m = ask.InstructedSTEmbedding(PQ['embedding_path'], PQ.get('query_instruction', ''),
-                                  PQ.get('embedding_kind', 'qwen3'), PQ.get('max_seq', 2048))
+    m = ask.embedding_from_config()
     m.set_mode(EmbeddingModes.QUERY)
     return m.embed_document
 

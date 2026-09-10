@@ -28,45 +28,76 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 CFG = tomllib.loads((ROOT / 'tools' / 'references' / 'paperqa.toml').read_text())
 _EMBEDDING = None   # the one embedding model of this process; see S.get_embedding_model below
 
-class InstructedSTEmbedding:
+def instructed_st_class():
     """Sentence-transformers embedding with query/document modes for instruction-aware models (Qwen3-Embedding):
     left padding, fp16 on the GPU when enough memory is free, bf16 on CPU otherwise; queries get the retrieval
-    instruction, documents do not; vectors normalised. Built lazily so `--build` and a single query pay only what they use."""
-    def __init__(self, path, instruction, kind='qwen3', max_seq=2048, dim=None):
-        from lmi.embeddings import EmbeddingModes
-        self.name = path; self.ndim = dim; self.config = {}; self._m = None; self._mode = EmbeddingModes.DOCUMENT
-        self.path, self.instruction, self.kind, self.max_seq = path, instruction, kind, max_seq
-    def _model(self):
-        if self._m is None:
-            import torch
-            from sentence_transformers import SentenceTransformer
-            free = torch.cuda.mem_get_info()[0] / 2**30 if torch.cuda.is_available() else 0
-            want = CFG.get('embedding_device', 'auto')
-            dev = want if want in ('cuda', 'cpu') else ('cuda' if free > 18 else 'cpu')
-            # Announced, never silent: an 8B embedder on the CPU is about fifty times slower, and the only sign
-            # is a warm card doing nothing. Whichever way this goes, it says so once and says why.
-            print(f'embedding model on {dev} ({free:.1f} GiB free on the card, threshold 18; '
-                  f'embedding_device={want})', file=sys.stderr, flush=True)
-            dt = torch.float16 if dev == 'cuda' else torch.bfloat16
-            mk = {'torch_dtype': dt, 'low_cpu_mem_usage': True}
-            if dev == 'cuda': mk['device_map'] = 'cuda'   # load shards straight onto the card; no 16 GB host copy
-            kw = dict(model_kwargs=mk, device=dev)
-            if self.kind == 'qwen3': kw['tokenizer_kwargs'] = {'padding_side': 'left'}
-            if self.kind == 'jina': kw['trust_remote_code'] = True
-            self._m = SentenceTransformer(self.path, **kw); self._m.max_seq_length = self.max_seq; self._dev = dev
-        return self._m
-    def set_mode(self, mode): self._mode = mode
-    async def embed_documents(self, texts):
-        import asyncio
-        from lmi.embeddings import EmbeddingModes
-        m = self._model(); q = self._mode == EmbeddingModes.QUERY
-        if self.kind == 'qwen3' and q: texts = [f'Instruct: {self.instruction}\nQuery:{t}' for t in texts]
-        extra = {'task': 'retrieval', 'prompt_name': 'query' if q else 'document'} if self.kind == 'jina' else {}
-        bs = 4 if (self.kind == 'qwen3' and self._dev == 'cuda') else 16
-        out = await asyncio.to_thread(lambda: m.encode(texts, batch_size=bs, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False, **extra))
-        return out.tolist()
-    async def embed_document(self, text): return (await self.embed_documents([text]))[0]
-    async def check_rate_limit(self, *a, **k): return None
+    instruction, documents do not; vectors normalised. Built lazily so `--build` and a single query pay only what they use.
+
+    It subclasses lmi's EmbeddingModel rather than merely matching its shape. Indexing calls the embedder
+    directly and a duck type survives that, but PaperQA builds its tools as pydantic models with a typed
+    embedding_model field, so a query is refused before it reaches the index unless this is the declared type.
+    The class is built inside this function, not at import, so that only the paths that embed anything pay for
+    importing lmi.
+    """
+    from pydantic import ConfigDict, PrivateAttr
+    from lmi.embeddings import EmbeddingModel, EmbeddingModes
+
+    class InstructedSTEmbedding(EmbeddingModel):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+        path: str
+        instruction: str = ''
+        kind: str = 'qwen3'
+        max_seq: int = 2048
+        _m: object = PrivateAttr(default=None)
+        _dev: str = PrivateAttr(default='')
+        _mode: EmbeddingModes = PrivateAttr(default=EmbeddingModes.DOCUMENT)
+
+        def _model(self):
+            if self._m is None:
+                import torch
+                from sentence_transformers import SentenceTransformer
+                free = torch.cuda.mem_get_info()[0] / 2**30 if torch.cuda.is_available() else 0
+                want = CFG.get('embedding_device', 'auto')
+                dev = want if want in ('cuda', 'cpu') else ('cuda' if free > 18 else 'cpu')
+                # Announced, never silent: an 8B embedder on the CPU is about fifty times slower, and the only sign
+                # is a warm card doing nothing. Whichever way this goes, it says so once and says why.
+                print(f'embedding model on {dev} ({free:.1f} GiB free on the card, threshold 18; '
+                      f'embedding_device={want})', file=sys.stderr, flush=True)
+                dt = torch.float16 if dev == 'cuda' else torch.bfloat16
+                mk = {'torch_dtype': dt, 'low_cpu_mem_usage': True}
+                if dev == 'cuda': mk['device_map'] = 'cuda'   # load shards straight onto the card; no 16 GB host copy
+                kw = dict(model_kwargs=mk, device=dev)
+                if self.kind == 'qwen3': kw['tokenizer_kwargs'] = {'padding_side': 'left'}
+                if self.kind == 'jina': kw['trust_remote_code'] = True
+                self._m = SentenceTransformer(self.path, **kw); self._m.max_seq_length = self.max_seq; self._dev = dev
+            return self._m
+        def set_mode(self, mode): self._mode = mode
+        async def embed_documents(self, texts):
+            import asyncio
+            m = self._model(); q = self._mode == EmbeddingModes.QUERY
+            if self.kind == 'qwen3' and q: texts = [f'Instruct: {self.instruction}\nQuery:{t}' for t in texts]
+            extra = {'task': 'retrieval', 'prompt_name': 'query' if q else 'document'} if self.kind == 'jina' else {}
+            bs = 4 if (self.kind == 'qwen3' and self._dev == 'cuda') else 16
+            out = await asyncio.to_thread(lambda: m.encode(texts, batch_size=bs, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False, **extra))
+            return out.tolist()
+
+    return InstructedSTEmbedding
+
+
+def embedding_from_config():
+    """The one embedder paperqa.toml names, built once for the life of the process.
+
+    PaperQA asks for an embedding model once per document (paperqa/docs.py aadd_texts), so handing back a fresh
+    one loaded the 15 GB model 736 times: the first landed on the card, and every later one found too little
+    free VRAM and went quietly to the CPU. The card sat full and idle while the build crawled. Measured 2026-09-09.
+    """
+    global _EMBEDDING
+    if _EMBEDDING is None:
+        _EMBEDDING = instructed_st_class()(
+            name=CFG['embedding_path'], path=CFG['embedding_path'],
+            instruction=CFG.get('query_instruction', ''), kind=CFG.get('embedding_kind', 'qwen3'),
+            max_seq=CFG.get('max_seq', 2048))
+    return _EMBEDDING
 
 
 def parse_from_extracted_text(path, page_size_limit=None, page_range=None, **kwargs):
@@ -129,15 +160,7 @@ def settings(evidence_only=False):
     mf = manifest(paper_dir, index_dir)
     class S(Settings):
         def get_embedding_model(self):
-            # One instance for the life of the process. PaperQA asks for an embedding model once per document
-            # (paperqa/docs.py aadd_texts), so returning a fresh one here loaded the 15 GB model 736 times: the
-            # first landed on the card, and every later one found too little free VRAM and went quietly to the
-            # CPU. The card sat full and idle while the build crawled. Measured 2026-09-09.
-            global _EMBEDDING
-            if CFG.get('embedding_path'):
-                if _EMBEDDING is None:
-                    _EMBEDDING = InstructedSTEmbedding(CFG['embedding_path'], CFG.get('query_instruction', ''), CFG.get('embedding_kind', 'qwen3'), CFG.get('max_seq', 2048))
-                return _EMBEDDING
+            if CFG.get('embedding_path'): return embedding_from_config()
             return super().get_embedding_model()
     s = S(llm=CFG['llm'], summary_llm=CFG['summary_llm'], embedding=CFG['embedding'], temperature=0.0,
                  llm_config=llm_cfg, summary_llm_config=llm_cfg,
@@ -265,8 +288,12 @@ async def ask(q, evidence_only):
     docs = rerank.reranked_docs_class(rr, CFG.get('rerank_fetch_k', 50))() if rr else Docs()
     # gather across the whole index rather than an agent loop: deterministic, cheaper, and every source is page-cited
     from paperqa.agents.main import agent_query
-    from paperqa.agents.models import QueryRequest
-    resp = await agent_query(QueryRequest(query=q, settings=s), docs=docs)
+    # agent_query takes the query and the settings directly; the QueryRequest wrapper this was written against
+    # does not exist in the pinned paperqa. agent_type='fake' is what makes the comment above true: it runs
+    # search, gather and answer in that fixed order instead of letting a tool-selecting loop choose. It is also
+    # the only path that runs, because the ToolSelector agent reaches for LiteLLMModel.get_router, which the
+    # pinned fhlmi no longer has.
+    resp = await agent_query(q, settings=s, docs=docs, agent_type='fake')
     ses = resp.session
     if not evidence_only:
         print('\n=== answer (a pointer to pages, not a source) ===\n'); print(ses.answer)
