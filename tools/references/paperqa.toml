@@ -2,13 +2,19 @@
 # llm: any LiteLLM model string. Default is the local llama-server (tools/references/serve_llm.sh) speaking the
 # OpenAI protocol. To use Anthropic instead, set llm = "anthropic/claude-sonnet-5" and put the key in ~/.anthropic_key
 # (read at call time by ask.py, never written anywhere).
-# Once the quantized local model is in use, these two split: summary_llm serves the
-# evidence call with thinking off, llm serves the answer call with thinking on. That
-# is how the model was calibrated (tools/references/calib/calib.toml), and serving it
-# the other way wastes the calibration. exllamav3 has no OpenAI server of its own, so
-# an exl3 quant needs a different server behind api_base than serve_llm.sh runs now.
 llm = "openai/local"
 summary_llm = "openai/local"
+# Thinking is off for both roles, and must stay in step with
+# tools/references/calib/calib.toml, which is how the local model was calibrated:
+# serving with reasoning on would put the model in front of a token distribution the
+# quantization never saw. Measured 2026-09-10 (tools/references/calib/think_ab.py):
+# with thinking off the answer call finished on its own in about 410 tokens with correct
+# citation keys and covered more ground than the reasoning arm, which spent ~500 tokens
+# planning and then truncated. The evidence call is extractive and JSON-shaped and never
+# wanted reasoning. Passed to the server as enable_thinking; ignored by backends that do
+# not take it. exllamav3 has no OpenAI server of its own, so an exl3 quant needs a
+# different server behind api_base than serve_llm.sh runs now.
+thinking = false
 api_base = "http://127.0.0.1:8080/v1"
 embedding = "custom"                  # name recorded in the index; the model itself is embedding_path below
 embedding_path = "/home/cfutro/models/Qwen3-Embedding-8B"   # set by the A/B/C of 2026-09-08, notes/findings

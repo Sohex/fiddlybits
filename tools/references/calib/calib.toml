@@ -24,10 +24,10 @@ margin = 1.35
 temperature = 0.7
 top_p = 0.9
 max_new_summary = 320
-# Measured: a medium-effort thinking block runs 450-550 tokens and the answer PaperQA2
-# asks for is about 200 words, so 700 truncated every answer mid-sentence. This leaves
-# room for both. Summaries need far less; they ran to a median of 154 with thinking off.
-max_new_answer = 1200
+# With thinking off the answers finished on their own at 406 and 417 tokens, so this is
+# headroom rather than a budget. It was 1200 while thinking was on, where a 450-550 token
+# reasoning block had to fit in front of the answer.
+max_new_answer = 600
 max_new_question = 64
 seed = 0
 
@@ -40,9 +40,14 @@ seed = 0
 enable = false
 effort = "low"
 
+# Measured 2026-09-10 with think_ab.py, greedy, same evidence in every arm: thinking off
+# finished on its own at 406 and 417 tokens with correct citation keys and covered more
+# ground than the medium arm, which spent ~500 tokens reasoning and then truncated. The
+# answer call synthesises summaries that have already been extracted and scored, so the
+# reasoning was not earning its tokens. Off in the calibration REQUIRES off on the server.
 [thinking.answer]
-enable = true
-effort = "medium"
+enable = false
+effort = "low"
 
 [thinking.question]
 enable = false

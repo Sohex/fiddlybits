@@ -120,7 +120,11 @@ def settings(evidence_only=False):
     key = pathlib.Path.home() / '.anthropic_key'
     if CFG['llm'].startswith('anthropic/') and key.is_file(): os.environ.setdefault('ANTHROPIC_API_KEY', key.read_text().strip())
     if CFG['llm'].startswith('openai/'): os.environ.setdefault('OPENAI_API_KEY', 'local')
-    llm_cfg = {'model_list': [{'model_name': CFG['llm'], 'litellm_params': {'model': CFG['llm'], 'api_base': CFG.get('api_base'), 'api_key': os.environ.get('OPENAI_API_KEY', 'local'), 'temperature': 0.0}}]} if CFG['llm'].startswith('openai/') else None
+    # enable_thinking rides through litellm as extra_body; it has to match how the local
+    # model was calibrated (paperqa.toml, thinking)
+    _params = {'model': CFG['llm'], 'api_base': CFG.get('api_base'), 'api_key': os.environ.get('OPENAI_API_KEY', 'local'), 'temperature': 0.0}
+    if 'thinking' in CFG: _params['extra_body'] = {'enable_thinking': bool(CFG['thinking']), 'chat_template_kwargs': {'enable_thinking': bool(CFG['thinking'])}}
+    llm_cfg = {'model_list': [{'model_name': CFG['llm'], 'litellm_params': _params}]} if CFG['llm'].startswith('openai/') else None
     paper_dir = ROOT / CFG['paper_directory']; index_dir = ROOT / CFG['index_directory']
     mf = manifest(paper_dir, index_dir)
     class S(Settings):
