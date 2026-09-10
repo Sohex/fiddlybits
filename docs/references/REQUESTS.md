@@ -85,3 +85,46 @@ and year on 2026-09-08. Rule for this pass: one lookup and one fetch per source,
 ### Biosphere and lakes (0018, 0021, REQ-BIO-006, -007, -015)
 
 - Biochemical Models of Leaf Photosynthesis -- von Caemmerer, S. (2000). Techniques in Plant Sciences 2, CSIRO Publishing, Collingwood. DOI: 10.1071/9780643103405 (CSIRO monograph record); ISBN 978-0-643-06379-2 (0-643-06379-X). Anchors: REQ-BIO-007, 0021. Suggested filename: voncaemmerer2000-biochemical-models-leaf-photosynthesis.pdf Left open by the user for a later date.
+
+## Born-digital replacements for scanned holdings
+
+These are already held, as scans, and were read by OCR. The request is not for the work but for a
+born-digital copy of it: the publisher's own PDF, with a real text layer, in place of a scan whose
+tables were transcribed by a model. Each certainly exists born-digital behind a paywall, so none can
+be fetched here.
+
+Why it matters, measured: on the one scanned source whose columns check each other, the NIST-JANAF
+fourth edition, the OCR damaged 493 of 1071 table pages silently
+(`notes/findings/2026-09-09-janaf-table-identities.md`). These sources carry 719 OCR'd table pages
+between them and have no such internal check. A born-digital copy removes the question rather than
+re-reading a scan and hoping.
+
+On arrival, replace `references/pdf/<file>.pdf`, delete `references/text/<file>/`, and re-extract with
+`tools/references/extract_text.py`; no OCR pass is needed for a file with a real text layer.
+
+| OCR'd table pages | title | identifier | held as |
+|---|---|---|---|
+| 239 | Spectroscopic properties of rocks and minerals | `10.1201/9780203712115` | `Robert S. Carmichael (Editor) - Handbook of Physical Properties of Rocks (1982)_ Volume I (2017, CRC Press) [10.1201_9780203712115] - libgen.li.pdf` |
+| 139 | Magmatic Sulfide Deposits: Geology, Geochemistry and Exploration | `10.1007/978-3-662-08444-1` | `naldrett2004-magmatic-sulfide-deposits.pdf` |
+| 101 | Frost Survival of Plants | `10.1007/978-3-642-71745-1` | `sakai1987-frost-survival-of-plants.pdf` |
+| 64 | Solving Ordinary Differential Equations II | `10.1007/978-3-642-05221-7` | `hairer1996-solving-ordinary-differential-equations-ii.pdf` |
+| 35 | The Linear Complementarity Problem | `10.1137/1.9780898719000` | `cottle2009-the-linear-complementarity-problem.pdf` |
+| 33 | A Model of Marine Aerosol Generation Via Whitecaps and Wave Disruption (the whole Springer volume Oceanic Whitecaps and Their Role in Air-Sea Exchange Processes, Monahan and Mac Niocaill eds, 1986, 298 pages, scanned original with an OCR layer; the cited chapter 16 is book pages 167-174, PDF pages 174-181) | `10.1007/978-94-009-4668-2_16` | `monahan1986-oceanic-whitecaps.pdf` |
+| 30 | Evaporation into the Atmosphere | `10.1007/978-94-017-1497-6` | `brutsaert1982-evaporation-into-the-atmosphere.pdf` |
+| 16 | On the Distribution and Continuity of Water Substance in Atmospheric Circulations. | `10.1007/978-1-935704-36-2` | `kessler1969-on-the-distribution-and-continuity-of-water-substance.pdf` |
+| 12 | Saline Lakes | `10.1007/978-1-4757-1152-3_8` | `eugster1978-saline-lakes.pdf` |
+| 9 | Modeling the Primary Productivity of the World. | `10.1007/978-3-642-80913-2_12` | `lieth1975-miami-model.pdf` |
+| 9 | A global analysis of root distributions for terrestrial biomes. | `10.1007/BF00333714` | `jackson_1996_a-global-analysis-of-root-distributions-for-terrestrial-biomes.pdf` |
+| 8 | Determination of biomass burning emission factors: Methods and results | `10.1007/BF00546762` | `delmas1995-determination-biomass-burning-emission-factors.pdf` |
+| 5 | The Accuracy of Floating Point Summation | `10.1137/0914050` | `higham1993-accuracy-floating-point-summation.pdf` |
+| 4 | Dynamics of C, N, P and S in grassland soils: a model. | `10.1007/BF02180320` | `parton1988-century-c-n-p-s-grassland-model.pdf` |
+| 3 | A biochemical model of photosynthetic CO2 assimilation in leaves of C3 species | `10.1007/bf00386231` | `farquhar1980-biochemical-model-photosynthetic-co2-assimilation.pdf` |
+| 2 | Thermophysical Properties of Ice, Snow, and Sea Ice. | `10.1007/BF01133567` | `fukusako1990.pdf` |
+| 2 | Sur les fonctions convexes et les inegalites entre les valeurs moyennes | `10.1007/BF02418571` | `jensen1906-sur-les-fonctions-convexes.pdf` |
+| 2 | Monte Carlo Methods in Statistical Mechanics: Foundations and New Algorithms | `10.1007/978-1-4899-0319-8_6` | `sokal1997-monte-carlo-methods-statistical-mechanics.pdf` |
+| 2 | Monotone Piecewise Cubic Interpolation | `10.1137/0717021` | `fritsch1980-monotone-piecewise-cubic-interpolation.pdf` |
+| 2 | Icosahedral Discretization of the Two-Sphere | `10.1137/0722066` | `baumgardner1985-icosahedral-discretization-two-sphere.pdf` |
+| 1 | Self-formed straight rivers with equilibrium banks and mobile bed. Part 2. The gravel river (scanned original with the publisher OCR layer) | `10.1017/S0022112078002505` | `parker1978-self-formed-straight-rivers-part-2-gravel-river.pdf` |
+| 1 | A comparison of the Two One-Sided Tests Procedure and the Power Approach for assessing the equivalence of average bioavailability | `10.1007/BF01068419` | `schuirmann1987-two-one-sided-tests-procedure.pdf` |
+
+719 table pages over 22 works.
