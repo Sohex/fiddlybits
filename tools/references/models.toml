@@ -36,8 +36,16 @@ repo = "jinaai/jina-embeddings-v5-text-small"
 path = "/home/cfutro/models/jina-embeddings-v5-text-small"
 role = "embedding A/B comparator only"
 
+# defunct
 [[model]]
 name = "chat-llm-gguf"
 repo = "local GGUF; see serve_llm.sh (LLM_GGUF environment variable overrides the path)"
 path = "/home/cfutro/Downloads/Qwen3.6-27B-Fable-Fus-711-UnHeretic-NM-DAU-NEO-MAX-NEO-MTP-Q4_K_M.gguf"
 role = "language model behind PaperQA2's evidence step, served by llama-server (serve_llm.sh)"
+
+[[model]]
+name = "Qwen3.8-27B-4.5bpw"
+repo = "local quant of Qwen3.8-27B"
+path = "/home/cfutro/models/Qwen3.8-27B-4.5bpw"
+role = "language model behind PaperQA2's evidence step, served by TabbyAPI"
+

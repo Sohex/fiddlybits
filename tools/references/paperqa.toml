@@ -11,11 +11,13 @@ summary_llm = "openai/local"
 # with thinking off the answer call finished on its own in about 410 tokens with correct
 # citation keys and covered more ground than the reasoning arm, which spent ~500 tokens
 # planning and then truncated. The evidence call is extractive and JSON-shaped and never
-# wanted reasoning. Passed to the server as enable_thinking; ignored by backends that do
-# not take it. exllamav3 has no OpenAI server of its own, so an exl3 quant needs a
-# different server behind api_base than serve_llm.sh runs now.
+# wanted reasoning. Sent as enable_thinking, both bare and under chat_template_kwargs.
+# TabbyAPI reads chat_template_kwargs as an alias of its own template_vars, so the flag
+# arrives; do not set template_vars_force on the server, which overrides what is sent
+# here and would serve the model in a mode the quantization was not calibrated for.
 thinking = false
-api_base = "http://127.0.0.1:8080/v1"
+# TabbyAPI on its default port, serving the exl3 quant. llama-server ran on 8080.
+api_base = "http://127.0.0.1:5000/v1"
 embedding = "custom"                  # name recorded in the index; the model itself is embedding_path below
 embedding_path = "/home/cfutro/models/Qwen3-Embedding-8B"   # set by the A/B/C of 2026-09-08, notes/findings
 embedding_kind = "qwen3"              # qwen3 | jina | st
@@ -38,7 +40,7 @@ answer_max_sources = 6
 # int8 are the two that fit beside the served generator and they have not been compared.
 # rerank_quant is bitsandbytes: none | int8 | nf4. rerank_vram_gib is the free VRAM below
 # which the stage runs on CPU instead, which a shortlist is small enough to survive.
-rerank_path = ""
+rerank_path = "/home/cfutro/models/Qwen3-Reranker-0.6B"
 rerank_kind = "qwen3"
 rerank_quant = "none"
 rerank_fetch_k = 50
