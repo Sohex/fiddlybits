@@ -17,7 +17,7 @@ notes/findings/2026-09-09-chandra-page-orientation.md). Orientation comes from t
 from the quarter turn tesseract reads most confidently, snapped to the file's own majority where a page is
 undecided, and --no-orient skips the step.
 """
-import argparse, os, hashlib, json, pathlib, subprocess, time, tempfile
+import argparse, os, hashlib, json, pathlib, shutil, subprocess, time, tempfile
 from concurrent.futures import ThreadPoolExecutor
 ROOT = pathlib.Path(__file__).resolve().parents[2]; PDF = ROOT / 'references' / 'pdf'; TXT = ROOT / 'references' / 'text'; MAN = TXT / 'manifest.jsonl'
 # Rendered pages are large and there are many of them; on this machine /tmp is a tmpfs, so the default
@@ -131,36 +131,198 @@ def is_stub(fn):
     return True
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Reading is three stages with different bottlenecks: pdftoppm and tesseract are CPU, the card is the model, and
+# writing is neither. Done a file at a time they run in series, and measured on the 2026-09-10 repair pass that
+# cost 36 seconds of fixed CPU per file with the card idle through all of it, against 3.4 seconds a page of
+# actual reading. Worse, a batch was one file's pages, and 84 of those 88 files held fewer pages than the fan-out,
+# so the card ran 4 or 5 requests deep where it had room for 16. Generation throughput tracks that depth almost
+# linearly, 70 to 90 tokens a second at one request against 800 and up at fourteen, so a small file is not a small
+# job, it is the same job run at a third of the rate.
+#
+# So: prepare ahead on the CPU while the card reads, and draw each batch from every page prepared rather than from
+# one file. Orientation stays per file, because its majority-snapping rule is about a document and means nothing
+# across two.
+
+class _Prepared:
+    """One file's pages, rendered and turned upright, waiting to be read. Holds its own temporary directory open
+    until the last of its pages comes back, which is why this is a class and not a tuple."""
+    __slots__ = ('key', 'td', 'nums', 'imgs', 'turned', 'texts', 'nbytes')
+    def __init__(self, key, td, nums, imgs, turned):
+        self.key, self.td, self.nums, self.imgs, self.turned = key, td, nums, imgs, turned
+        self.texts = {}
+        # What it costs to be held: the rendered pages themselves, which is what the budget below is spent on.
+        self.nbytes = sum(os.path.getsize(i) for i in imgs)
+    def done(self): return len(self.texts) == len(self.nums)
+    def close(self): shutil.rmtree(self.td, ignore_errors=True)
+
+
+def _prepare(key, pdf, pages, long_side, orient, workers):
+    """Render the pages wanted and turn them upright. Whole document when `pages` is None."""
+    td = tempfile.mkdtemp()
+    if pages is None:
+        imgs = [str(x) for x in render_pages(pdf, td, long_side, workers)]
+        nums = [int(pathlib.Path(x).stem.split('-')[-1]) for x in imgs]
+    else:
+        nums, imgs = list(pages), []
+        # One pdftoppm per page here, unlike render_pages: a repair list is a handful of scattered pages, and a
+        # range that spanned them would render everything in between.
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            def one(pg):
+                subprocess.run(['pdftoppm', '-f', str(pg), '-l', str(pg), '-scale-to', str(long_side), '-png',
+                                '-singlefile', str(pdf), f'{td}/{pg:05d}'], check=True)
+                return f'{td}/{pg:05d}.png'
+            imgs = list(ex.map(one, nums))
+    turned = 0
+    if orient: turned, _ = turn_upright(imgs, workers)
+    return _Prepared(key, td, nums, imgs, turned)
+
+
+def bytesize(x):
+    """A size with an optional K, M or G suffix, so a budget reads like the memory it stands for."""
+    x = x.strip()
+    mult = {'K': 1024, 'M': 1024 ** 2, 'G': 1024 ** 3}.get(x[-1:].upper())
+    return int(float(x[:-1]) * mult) if mult else int(x)
+
+
+DEFAULT_RENDER_BUDGET = 1024 ** 3
+"""How many bytes of rendered pages may wait to be read at once.
+
+A gigabyte is about 1700 pages at the 0.6 MB a page renders to here, which is more runway than any repair list
+needs and still holds the largest book in the archive, 966 pages at about 580 MB, with room to start the next.
+The pages are written to TMPDIR, which the reading chain puts on disk precisely because /tmp here is a tmpfs;
+where that has not been done they are resident, so this is a memory bound as much as a disk one. --render-budget
+moves it.
+"""
+
+
+def read_files(specs, ocr, inflight, long_side, orient, workers, budget=None):
+    """Read every page of every spec, yielding (key, {page: text}, pages_turned) as each file completes.
+
+    specs: (key, pdf_path, pages or None). Files come out as they finish, not in the order they went in.
+
+    Three stages with different bottlenecks, run at once instead of in series. Preparing is pdftoppm and tesseract
+    and belongs on the cores; reading is the card; neither should wait on the other, and neither should wait on a
+    file boundary, which is an artefact of how the work was listed rather than anything the hardware cares about.
+
+      preparers (one per core)  ->  pool of prepared pages  ->  readers (one per request in flight)
+
+    The readers submit one page each and take the next the moment it returns, so the server always has `inflight`
+    requests to schedule and never drains between batches. That is what saturation means here: vllm batches across
+    concurrent requests itself, and its generation throughput tracks how many are running, so the client's job is
+    to keep the number up rather than to assemble batches of its own.
+
+    How far preparing runs ahead is bounded by bytes, not by a count of files, because a file is not a unit of
+    anything: one spec is two pages of a paper and the next is a 966-page book. A preparer stops before starting a
+    file whenever the pages already waiting exceed the budget, so the overshoot is at most one file per preparer,
+    nothing being able to know what a book renders to until it is rendered.
+    """
+    import queue, threading
+    budget = budget or DEFAULT_RENDER_BUDGET
+    pool = queue.Queue()                       # prepared pages: (prepared, page number, image path)
+    outq = queue.Queue()                       # finished files, and the errors that stopped one
+    lock = threading.Condition(); held = [0]   # bytes of prepared pages not yet read
+    src = iter(specs); src_lock = threading.Lock()
+    live = threading.Semaphore(0)              # counts pages in the pool, so readers can be told to stop
+
+    def release(pre):
+        with lock: held[0] -= pre.nbytes; lock.notify_all()
+        pre.close()
+
+    def prepare_loop():
+        while True:
+            with src_lock: spec = next(src, None)
+            if spec is None: return
+            key, pdf, pages = spec
+            try:
+                with lock:
+                    while held[0] >= budget: lock.wait()
+                pre = _prepare(key, pdf, pages, long_side, orient, 1)
+            except BaseException as e:
+                outq.put(('!', e)); return
+            with lock: held[0] += pre.nbytes
+            if not pre.nums:                   # a spec naming no pages
+                release(pre); outq.put(('.', (pre.key, {}, pre.turned))); continue
+            for n, i in zip(pre.nums, pre.imgs):
+                pool.put((pre, n, i)); live.release()
+
+    def read_loop():
+        while True:
+            live.acquire()
+            item = pool.get()
+            if item is None: return            # the stop token, one per reader
+            pre, n, img = item
+            try:
+                text = ocr([img])[0]
+            except BaseException as e:
+                outq.put(('!', e)); return
+            with lock:
+                pre.texts[n] = text
+                finished = pre.done()
+            if finished:
+                texts, turned = pre.texts, pre.turned; release(pre)
+                outq.put(('.', (pre.key, texts, turned)))
+
+    # One preparer per core, because pdftoppm and tesseract are each one process on one page and a file is too
+    # small a unit to fill a machine; page rotation inside a file therefore takes one thread, not a pool of its own.
+    preparers = [threading.Thread(target=prepare_loop, daemon=True) for _ in range(max(1, workers))]
+    readers = [threading.Thread(target=read_loop, daemon=True) for _ in range(max(1, inflight))]
+    for t in preparers + readers: t.start()
+
+    def wind_down():
+        for t in preparers: t.join()
+        for _ in readers: pool.put(None); live.release()
+        for t in readers: t.join()
+        outq.put(None)
+    threading.Thread(target=wind_down, daemon=True).start()
+
+    while True:
+        item = outq.get()
+        if item is None: break
+        kind, payload = item
+        if kind == '!': raise payload
+        yield payload
+
+
 def repair(a, ocr, done):
     """Read again only the pages a list names, and rewrite only those page files. A file whose one landscape table
-    was read sideways does not need its other pages read a second time."""
-    out = open(MAN, 'a')
+    was read sideways does not need its other pages read a second time.
+
+    --resume skips a file whose last manifest row already records the same repaired pages, so an interrupted pass
+    picks up where it stopped instead of reading everything again from the top.
+    """
+    rows = []
     for line in open(a.list):
         if not line.strip(): continue
-        fn, pages = line.rstrip('\n').split('\t'); pages = [int(x) for x in pages.split(',')]
-        p = PDF / fn; t0 = time.time()
-        with tempfile.TemporaryDirectory() as td:
-            imgs = []
-            for pg in pages:
-                subprocess.run(['pdftoppm', '-f', str(pg), '-l', str(pg), '-scale-to', str(a.long_side), '-png', '-singlefile', str(p), f'{td}/{pg:05d}'], check=True)
-                imgs.append(f'{td}/{pg:05d}.png')
-            turned, _ = turn_upright(imgs, cores())
-            texts = {}
-            for i in range(0, len(imgs), a.batch):
-                chunk = imgs[i:i + a.batch]
-                for x, t in zip(chunk, ocr(chunk)): texts[int(pathlib.Path(x).stem)] = t
-        d = TXT / p.stem
+        fn, pages = line.rstrip('\n').split('\t')
+        rows.append((fn, [int(x) for x in pages.split(',')]))
+    if a.resume:
+        before = len(rows)
+        rows = [(fn, pg) for fn, pg in rows if done.get(fn, {}).get('repaired_pages') != pg]
+        if before != len(rows): print(f'resuming: {before - len(rows)} of {before} files already repaired', flush=True)
+    out = open(MAN, 'a'); t_all = time.time(); total = 0
+    specs = [(fn, PDF / fn, pg) for fn, pg in rows]
+    want = dict(rows)
+    for fn, texts, turned in read_files(specs, ocr, a.batch, a.long_side, not a.no_orient, cores(), a.render_budget):
+        p = PDF / fn; d = TXT / pathlib.Path(fn).stem
         for n, t in texts.items(): (d / f'{n:04d}.txt').write_text(t)
         prev = done.get(fn, {})
         out.write(json.dumps({'file': fn, 'sha256': prev.get('sha256') or sha(p), 'pages': prev.get('pages') or len(texts),
                               'chars': sum(len(x.read_text()) for x in sorted(d.glob('*.txt'))), 'engine': 'chandra-ocr-2', 'method': a.method,
-                              'long_side_px': a.long_side, 'repaired_pages': pages, 'pages_turned_upright': turned,
+                              'long_side_px': a.long_side, 'repaired_pages': want[fn], 'pages_turned_upright': turned,
                               'extracted': time.strftime('%Y-%m-%dT%H:%M:%S')}) + '\n'); out.flush()
-        print(f'{fn}: repaired {len(texts)} pages ({turned} turned) in {time.time()-t0:.0f}s', flush=True)
+        total += len(texts)
+        print(f'{fn}: repaired {len(texts)} pages ({turned} turned) '
+              f'[{total} pages, {total/(time.time()-t_all):.2f} p/s]', flush=True)
     print('done: repair pass')
 
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('list'); ap.add_argument('--repair', action='store_true'); ap.add_argument('--method', default='vllm'); ap.add_argument('--batch', type=int, default=16); ap.add_argument('--long-side', type=int, default=3300); ap.add_argument('--resume', action='store_true'); ap.add_argument('--no-orient', action='store_true'); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('list'); ap.add_argument('--repair', action='store_true'); ap.add_argument('--method', default='vllm'); ap.add_argument('--batch', type=int, default=16, metavar='N',
+                    help='requests kept in flight against the reader. The server batches across concurrent requests itself, so this is what decides how deep it runs'); ap.add_argument('--long-side', type=int, default=3300); ap.add_argument('--resume', action='store_true'); ap.add_argument('--no-orient', action='store_true')
+    ap.add_argument('--render-budget', type=bytesize, default=None, metavar='SIZE',
+                    help='how many bytes of rendered pages may wait to be read at once, e.g. 6G. Default 1G, about 1700 pages')
+    a = ap.parse_args()
     from chandra.model.schema import BatchInputItem
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = None   # our own rendered pages, not untrusted uploads
@@ -188,23 +350,13 @@ def main():
     if a.resume: files = [f for f in files if done.get(f, {}).get('engine') != 'chandra-ocr-2']
     files = [f for f in files if not is_stub(f)]
     out = open(MAN, 'a'); total = 0; t_all = time.time()
-    for fn in files:
-        p = PDF / fn; t0 = time.time()
-        with tempfile.TemporaryDirectory() as td:
-            # bounded long side: a page's declared size no longer decides the raster
-            imgs = render_pages(p, td, a.long_side, cores())
-            turned = 0
-            if not a.no_orient:
-                turned, _ = turn_upright([str(x) for x in imgs], cores())
-            texts = {}
-            for i in range(0, len(imgs), a.batch):
-                chunk = imgs[i:i + a.batch]
-                for x, t in zip(chunk, ocr(chunk)): texts[int(x.stem.split('-')[-1])] = t
-        d = TXT / p.stem
+    specs = [(fn, PDF / fn, None) for fn in files]
+    for fn, texts, turned in read_files(specs, ocr, a.batch, a.long_side, not a.no_orient, cores(), a.render_budget):
+        p = PDF / fn; d = TXT / p.stem
         for f in d.glob('*.txt'): f.unlink()
         d.mkdir(exist_ok=True)
         for n, t in texts.items(): (d / f'{n:04d}.txt').write_text(t)
         out.write(json.dumps({'file': fn, 'sha256': sha(p), 'pages': len(texts), 'chars': sum(len(t) for t in texts.values()), 'engine': 'chandra-ocr-2', 'method': a.method, 'long_side_px': a.long_side, 'pages_turned_upright': turned, 'extracted': time.strftime('%Y-%m-%dT%H:%M:%S')}) + '\n'); out.flush()
-        total += len(texts); print(f'{fn}: {len(texts)} pages ({turned} turned) in {time.time()-t0:.0f}s ({total} pages, {total/(time.time()-t_all):.2f} p/s)', flush=True)
+        total += len(texts); print(f'{fn}: {len(texts)} pages ({turned} turned) ({total} pages, {total/(time.time()-t_all):.2f} p/s)', flush=True)
     print('done')
 if __name__ == '__main__': main()
