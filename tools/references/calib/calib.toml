@@ -8,6 +8,14 @@
 # Sampled from and packed with. Must be the model being quantized.
 dir = "/home/cfutro/git/Qwen3.8-27B"
 
+[index]
+# The PaperQA2 index the seeds are drawn from, by name. Not derived from settings:
+# PaperQA2 keys the index name on parsing and embedding configuration, and a calibration
+# run should read the index that exists rather than the one today's config would build.
+# Empty falls back to build_chunks.py + BM25, which approximates the index rather than
+# reading it.
+name = "pqa_index_cf50d05045ca4aed8ea18ce5e1321e61"
+
 [trace]
 # Slack over the pack's token budget. The question count is derived from that budget,
 # not set here; generating past it only makes the heavy stage longer.
@@ -16,7 +24,10 @@ margin = 1.35
 temperature = 0.7
 top_p = 0.9
 max_new_summary = 320
-max_new_answer = 700
+# Measured: a medium-effort thinking block runs 450-550 tokens and the answer PaperQA2
+# asks for is about 200 words, so 700 truncated every answer mid-sentence. This leaves
+# room for both. Summaries need far less; they ran to a median of 154 with thinking off.
+max_new_answer = 1200
 max_new_question = 64
 seed = 0
 

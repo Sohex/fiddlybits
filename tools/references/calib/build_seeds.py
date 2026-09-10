@@ -54,27 +54,57 @@ def answer_prompt(question, contexts):
     return PROMPTS['default_system_prompt'], user
 
 
-def build(questions, chunks=None, bm=None, k=None):
-    """Attach retrieved evidence to each question. Returns a list of seed records."""
-    if chunks is None:
-        chunks, bm = retrieve.load()
-    k = k or PQ.get('evidence_k', 12)
-    seeds = []
-    for q in questions:
-        hits = bm.query(q['text'], k)
-        evidence = []
-        for idx, score in hits:
-            c = chunks[idx]
-            evidence.append({
-                'name': citation_key(c), 'citation': c['citation'],
-                'doc': c['doc'], 'page': c['page'], 'text': c['text'],
-                'bm25': round(score, 3),
-            })
-        if evidence:
-            seeds.append({'question': q['text'], 'area': q.get('area', ''),
-                          'kind': q.get('kind', ''), 'origin': q.get('origin', 'curated'),
-                          'evidence': evidence})
-    return seeds
+class BM25Retriever:
+    """Fallback when no index is named: the reconstruction in build_chunks.py + retrieve.py."""
+
+    def __init__(self, chunks=None, bm=None):
+        self.chunks, self.bm = (chunks, bm) if chunks is not None else retrieve.load()
+
+    def sample(self, n, rng):
+        """Random excerpts, for deriving extra questions from the corpus."""
+        picks = rng.sample(range(len(self.chunks)), min(n, len(self.chunks)))
+        return [self.chunks[i]['text'] for i in picks]
+
+    def evidence(self, question, k):
+        out = []
+        for idx, score in self.bm.query(question, k):
+            c = self.chunks[idx]
+            out.append({'name': citation_key(c), 'citation': c['citation'], 'doc': c['doc'],
+                        'page': c['page'], 'text': c['text'], 'score': round(score, 3)})
+        return out
+
+
+def default_retriever():
+    """The real index when calib.toml names one, else the BM25 reconstruction."""
+    import tomllib
+    cfg = tomllib.loads((HERE / 'calib.toml').read_text())
+    if cfg.get('index', {}).get('name'):
+        import retrieve_index
+        return retrieve_index.IndexRetriever(retrieve_index.query_embedder())
+    return BM25Retriever()
+
+
+def build(questions, retriever=None, k=None):
+    """Attach retrieved evidence to each question. Returns a list of seed records.
+
+    The index retriever is async and the BM25 one is not, so both are driven through one
+    coroutine and the caller does not have to know which calib.toml selected.
+    """
+    import asyncio, inspect
+
+    async def gather(r, k):
+        seeds = []
+        for q in questions:
+            ev = r.evidence(q['text'], k)
+            if inspect.isawaitable(ev):
+                ev = await ev
+            if ev:
+                seeds.append({'question': q['text'], 'area': q.get('area', ''),
+                              'kind': q.get('kind', ''), 'origin': q.get('origin', 'curated'),
+                              'evidence': ev})
+        return seeds
+
+    return asyncio.run(gather(retriever or default_retriever(), k or PQ.get('evidence_k', 12)))
 
 
 def curated():
@@ -87,9 +117,10 @@ def curated():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-o', '--out', default=str(HERE / 'seeds.jsonl'))
+    ap.add_argument('--bm25', action='store_true',
+                    help='force the BM25 reconstruction even when calib.toml names an index')
     a = ap.parse_args()
-    chunks, bm = retrieve.load()
-    seeds = build(curated(), chunks, bm)
+    seeds = build(curated(), BM25Retriever() if a.bm25 else None)
     with open(a.out, 'w') as f:
         for s in seeds:
             f.write(json.dumps(s) + '\n')

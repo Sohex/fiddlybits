@@ -9,10 +9,14 @@ sampling runs under transformers with the weights split across the card and syst
 RAM, which is slow per token and does not matter: PaperQA2's token stream is almost
 all context, so only about a sixth of the calibration set is ever generated.
 
-Three phases. Derived questions widen the curated bank. Summaries are the evidence
-call PaperQA2 makes evidence_k times per question. Answers are the single call it
-makes over the surviving summaries. Every record keeps the exact model-visible token
-stream, prompt and response, for pack_cal.py to slice into rows.
+Two phases. Summaries are the evidence call PaperQA2 makes evidence_k times per
+question; answers are the single call it makes over the summaries that survive. Every
+record keeps the exact model-visible token stream, prompt and response, for pack_cal.py
+to slice into rows.
+
+Seeds come from build_seeds.py, which runs in the venv holding paperqa; this stage runs
+wherever torch and the model are. They are separate processes on purpose: the retrieval
+side and the generation side do not share a dependency set.
 
 Heavy: run under qrun, with RAM for the CPU-resident half of the weights.
 
@@ -21,29 +25,68 @@ Heavy: run under qrun, with RAM for the CPU-resident half of the weights.
 The whole card is taken, not a share: the GPU-resident half of the weights needs
 about 19 GiB, so leaving shares free would only invite a job that cannot fit.
 """
-import argparse, json, pathlib, random, re, sys, time, tomllib
+import argparse, json, os, pathlib, random, re, sys, time, tomllib
 
 import torch
 from transformers import AutoTokenizer
 
-import build_seeds, retrieve
+import build_seeds
 
 HERE = pathlib.Path(__file__).parent
 CFG = tomllib.loads((HERE / 'calib.toml').read_text())
 PQ = tomllib.loads((HERE.parents[2] / 'tools' / 'references' / 'paperqa.toml').read_text())
 
-QUESTION_ASK = (
-    'Below is an excerpt from a scientific paper.\n\n---\n\n{text}\n\n---\n\n'
-    'Write one question that a researcher building a planetary simulation would ask a '
-    'literature search tool, that this excerpt helps answer. Ask about a physical law, a '
-    'numerical scheme, a dataset or a constant. Write the question alone, no preamble.'
-)
+class _BlockImport:
+    """Import hook that makes a package look absent."""
+
+    def __init__(self, *names):
+        self.names = names
+
+    def find_spec(self, name, path=None, target=None):
+        if name in self.names or any(name.startswith(n + '.') for n in self.names):
+            raise ImportError(f'{name} blocked: no GPU in this job')
+        return None
 
 
-def load_model(model_dir, gpu_gib, cpu_gib):
+def block_triton_kernels():
+    """Force the pure-torch gated-delta path.
+
+    The 48 linear-attention layers dispatch through flash-linear-attention, which is
+    Triton, which needs a CUDA driver and dies with "0 active drivers" in a CPU-only job.
+    transformers carries torch implementations of the same functions and falls back to
+    them, but only when the accelerated package fails to import, and that choice is made
+    once when the modeling module is first imported. So the import has to fail before
+    then. The torch path is correct but slower than the kernel; whether it is slower than
+    streaming the weights across PCIe is the thing worth measuring.
+    """
+    for mod in [m for m in sys.modules if m == 'fla' or m.startswith('fla.')]:
+        del sys.modules[mod]
+    sys.meta_path.insert(0, _BlockImport('fla'))
+    print(' -- flash-linear-attention blocked; using the torch gated-delta path', flush=True)
+
+
+def load_model(model_dir, gpu_gib, cpu_gib, device='auto'):
+    """Split across card and RAM, or run wholly on the CPU.
+
+    The split is not the obvious win it looks like. accelerate treats every module mapped
+    to the CPU as offloaded when the main device is a GPU: the weights stay in host RAM and
+    are copied across PCIe on every forward pass, and compute happens on the card. Measured
+    here that saturates a PCIe 4.0 x16 link at about 22 GB/s, which is far below what this
+    CPU can read from its own memory, so the bus is the bottleneck and the cores sit idle.
+    device='cpu' takes the card out of the path entirely and reads the weights in place.
+    """
     from transformers import AutoModelForCausalLM, AutoModelForImageTextToText
-    kw = dict(dtype=torch.bfloat16, device_map='auto',
-              max_memory={0: f'{gpu_gib}GiB', 'cpu': f'{cpu_gib}GiB'})
+    if device == 'cpu':
+        block_triton_kernels()
+        # whole physical cores, from the allocation rather than from nproc, which counts
+        # both SMT siblings and would oversubscribe every core
+        n = int(os.environ.get('SLURM_CPUS_PER_TASK', torch.get_num_threads()))
+        torch.set_num_threads(n)
+        print(f' -- CPU execution, {n} threads', flush=True)
+        kw = dict(dtype=torch.bfloat16)
+    else:
+        kw = dict(dtype=torch.bfloat16, device_map='auto',
+                  max_memory={0: f'{gpu_gib}GiB', 'cpu': f'{cpu_gib}GiB'})
     for cls in (AutoModelForCausalLM, AutoModelForImageTextToText):
         try:
             m = cls.from_pretrained(model_dir, **kw)
@@ -97,6 +140,13 @@ def generate(model, tok, prompts, max_new, batch_size, label, temperature, top_p
     return out
 
 
+def load_seeds(path):
+    recs = [json.loads(l) for l in open(path) if l.strip()]
+    if not recs:
+        raise SystemExit(f' ## {path} is empty; run build_seeds.py first')
+    return recs
+
+
 def questions_needed(tok, seeds):
     """How many questions the pack's trace budget actually needs. Generation is the cost."""
     pack = CFG['pack']
@@ -115,52 +165,37 @@ def questions_needed(tok, seeds):
     return n
 
 
-def derive_questions(model, tok, chunks, n_extra, args):
-    """Widen the curated bank with questions the model asks of sampled excerpts."""
-    rng = random.Random(CFG['trace']['seed'])
-    # ask for more than needed; the shape filter below rejects some
-    picks = rng.sample(range(len(chunks)), min(len(chunks), int(n_extra * 1.6) + 4))
-    prompts = [render(tok, None, QUESTION_ASK.format(text=chunks[i]['text'][:3000]), 'question')
-               for i in picks]
-    pairs = generate(model, tok, prompts, CFG['trace']['max_new_question'],
-                     args.batch_size, 'questions', args.temperature, args.top_p)
-    derived = []
-    for (_, resp), i in zip(pairs, picks):
-        text = tok.decode(resp, skip_special_tokens=True).strip().split('\n')[0].strip()
-        text = re.sub(r'^["\'\s]*(?:Question:)?\s*', '', text).strip(' "\'')
-        if 20 < len(text) < 400 and text.endswith('?'):
-            derived.append({'text': text, 'area': '', 'kind': '', 'origin': 'derived'})
-    print(f' -- {len(derived)} derived questions kept of {len(picks)} attempted', flush=True)
-    return derived[:n_extra]
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-o', '--out', default=str(HERE / 'trace.jsonl'))
+    ap.add_argument('-s', '--seeds', default=str(HERE / 'seeds.jsonl'),
+                    help='from build_seeds.py, which runs in the venv that holds paperqa')
+    ap.add_argument('--device', choices=('auto', 'cpu'), default='auto',
+                    help="'cpu' runs wholly on the CPU; 'auto' splits across card and RAM")
     ap.add_argument('--gpu-gib', type=int, default=19, help='weight budget on the card')
     ap.add_argument('--cpu-gib', type=int, default=36, help='weight budget in system RAM')
     ap.add_argument('--batch-size', type=int, default=8)
     ap.add_argument('--max-questions', type=int, default=None, help='cap, for a smoke run')
     ap.add_argument('--temperature', type=float, default=CFG['trace']['temperature'])
     ap.add_argument('--top-p', type=float, default=CFG['trace']['top_p'])
-    ap.add_argument('--no-derive', action='store_true', help='curated questions only')
     a = ap.parse_args()
 
     torch.manual_seed(CFG['trace']['seed'])
     model_dir = CFG['model']['dir']
     tok = AutoTokenizer.from_pretrained(model_dir)
-    chunks, bm = retrieve.load()
-    print(f' -- {len(chunks)} chunks indexed', flush=True)
+    seeds = load_seeds(a.seeds)
+    print(f' -- {len(seeds)} seeds from {a.seeds}', flush=True)
 
-    model = load_model(model_dir, a.gpu_gib, a.cpu_gib)
+    want = a.max_questions or questions_needed(tok, seeds)
+    if want > len(seeds):
+        print(f' !! seeds hold {len(seeds)} questions, budget wants {want}; '
+              f'add to questions.toml and rerun build_seeds.py', flush=True)
+    seeds = seeds[:want]
+    print(f' -- using {len(seeds)} questions x {PQ.get("evidence_k", 12)} evidence', flush=True)
 
-    curated = build_seeds.curated()
-    want = a.max_questions or questions_needed(tok, build_seeds.build(curated, chunks, bm))
-    questions = curated[:want]
-    if not a.no_derive and want > len(curated):
-        questions += derive_questions(model, tok, chunks, want - len(curated), a)
-    seeds = build_seeds.build(questions, chunks, bm)
-    print(f' -- {len(seeds)} questions x {PQ.get("evidence_k", 12)} evidence', flush=True)
+    model = load_model(model_dir, a.gpu_gib, a.cpu_gib, a.device)
 
     # Phase B: the evidence-summary calls, the bulk of what PaperQA2 asks of the model
     jobs = [(s, e) for s in seeds for e in s['evidence']]
