@@ -110,10 +110,19 @@ entropy and the enthalpy of formation stand on their own with nothing to test th
 number lifted from these tables by hand is probably right and gives no sign either way, which
 is worse than a read that fails loudly.
 
-So the tables are not a usable source yet. The flagged pages are re-read and put back through
-the audit, and a page that carries a constant into the model is checked against the scan by eye
-whatever the audit says about it.
+The conclusion is not to read the pages again. It is that this scan should never have been a
+data path. The same quantities are published as machine-readable NASA polynomial fits in the
+Burcat and Ruscic database, 3526 species, fetched and manifested at
+`docs/inputs/data/burcat-ruscic-thermochemical.toml`. Coefficients evaluated in closed form
+beat a table lookup on a page that has to be transcribed correctly first, and every record
+there carries its own source and date. The scanned book keeps a role, and it is the right one:
+a species evaluated from the coefficients is checked against the printed table by eye.
 
-The 493 flagged pages are listed for re-reading in `references/work/janaf_repair_list.txt`, in
-the form `chandra_pages.py --repair` takes, split into chunks of fifty so a long run writes its
-work as it goes.
+## The part that generalises
+
+The pixel budget was not specific to this book. Passes 2 and 3 read every scanned source in
+the reference tree at the same 6291456 cap, and only this one could be caught, because only
+this one prints columns that check each other. Chapman and Cowling, Henderson's open channel
+flow, Brutsaert's evaporation: each has tables, none has an internal identity, and nothing has
+looked at them. The cap has been raised for future reads; what was already read at the old one
+has no audit and no positive control.

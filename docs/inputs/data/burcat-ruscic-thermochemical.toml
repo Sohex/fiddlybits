@@ -1,0 +1,41 @@
+# Extended Third Millennium Ideal Gas and Condensed Phase Thermochemical Database: NASA polynomial fits of heat capacity, enthalpy and entropy for 3526 species, machine-readable
+
+id = "burcat-ruscic-thermochemical"
+title = "Extended Third Millennium Ideal Gas and Condensed Phase Thermochemical Database for Combustion and Air Pollution, with updates from Active Thermochemical Tables"
+authors = "Elke Goos, Alexander Burcat and Branko Ruscic"
+publisher = "ReSpecTh Information System, thermochemistry branch (ELTE, Budapest); originally Technion-IIT Haifa"
+printed_edition = "Argonne National Laboratory report ANL-05/20 and Technion Aerospace report TAE 960, September 2005; the served files carry later updates"
+source = "https://respecth.elte.hu/burcat/"
+edition = "the January 2018 README accompanies the served files; the files themselves are updated in place and carry no version, so the fetch date is the identifier"
+licence = "free of charge on condition that the database and its author are quoted; sale forbidden; not to be listed, printed or copied in any commercial publication without written agreement from the author"
+fetched = "2026-09-09"
+local_path = "inputs/data/burcat-ruscic-thermochemical"   # untracked payload
+role = "model INPUT (Sourced): heat capacity, enthalpy and entropy of a species as a function of temperature, read as polynomial coefficients and evaluated, never interpolated from a table"
+
+[files]
+"BURCAT.THR" = { bytes = 2315627, sha256 = "42a597ff852d1a2995f81d4fdca069f3cdcaef77ead5e3c66e02e80ed6699101", format = "NASA 7-term polynomials, CHEMKIN fixed-width, four lines a species", species = 3526 }
+"NEWNASA.TXT" = { bytes = 1957990, sha256 = "3e6717ed4e0e266eeb961c116a7589d8e8d71f63c9a935eebea7e263eb25c440", format = "NASA 9-term polynomials", species = 2362, note = "Burcat's additions to the NASA set, not the NASA set itself; species absent here are at NASA ThermoBuild" }
+"ELEMENTS.DAT" = { bytes = 65602, sha256 = "7b3b1fc083e8a9b00df952f88e2c6cdf5e402767a5327d741c413b7ebdb9c8d0", format = "reference elements, 9-term", note = "needed to form an enthalpy of formation from the absolute enthalpies" }
+"BURCAT_THR.xml" = { bytes = 2674331, sha256 = "0f4cfd21cfa19f620110bbe63bbb96beff112a2c5e8cf38c885c6d7b3d00a3af", format = "the same records as XML" }
+"READ.ME.txt" = { bytes = 12765, sha256 = "cb86eb13a76cae2487ac3a662e8552e2ec76942106bee948f037cb17173dd3f5", format = "the database's own README, January 2018; carries the licence condition quoted above" }
+
+[phases_in_burcat_thr]
+G = 3049
+S = 156
+C = 114
+L = 100
+
+[provenance]
+atct_updated_records = 816   # records whose comment names Active Thermochemical Tables, the highest-accuracy tier in the file
+per_record = "every record carries its own source code and date in the comment field, so a constant taken from here cites the record, not the file"
+
+[caveats]
+fixed_width_is_not_universal = "about 100 of the 3526 records have a name long enough to push the later fields out of their nominal columns, so a parser that slices by column silently mis-reads them; parse by field with a width check and refuse a record whose phase letter is not one of G, L, S, C"
+coverage = "volatiles and rock-forming oxides are present (H2O, CO2, CH4, NH3, CO, N2, H2, H2S, SO2, PH3, HCN, SiO, SiO2, MgO, CaO, FeO, Al2O3, AlO, Fe, Mg). TiO and VO are absent, as are several bare alkali metals, so a hot atmosphere needing those needs a second source"
+upper_bound = "most records stop at 6000 K, a few at 5000; nothing here reaches the 20000 K of the NASA CEA set"
+fits_not_tables = "these are least-squares fits, not the measurements; the residual against the source table is a property of the fit and is not carried in the file"
+
+[oracle]
+note = "the scanned NIST-JANAF fourth edition in references/pdf is no longer a data path. It stays as a check: a species evaluated from these coefficients is compared against the printed JANAF table read by eye, and the two arithmetic identities in tools/references/audit_janaf_tables.py hold for the evaluated values as much as for the printed ones"
+
+anchors = []   # filled when the first Sourced constant names a record in this file
