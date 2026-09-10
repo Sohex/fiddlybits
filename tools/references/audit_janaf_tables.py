@@ -21,13 +21,15 @@ LN10 = math.log(10)
 CELL = re.compile(r'<td[^>]*>(.*?)</td>')
 ROW = re.compile(r'<tr>(<td.*?)</tr>', re.S)
 TABLE = re.compile(r'<table.*?</table>', re.S)
-DATA_ROWS = 20                   # a table with this many eight-wide rows is the page's thermochemical table
+DATA_ROWS = 20                   # a table with this many temperature-led rows is the page's thermochemical table
+MIN_CELLS = 5                    # a data row narrower than this is a caption or a stray, not a mangled table row
 
 
 def data_row(markup):
     """One table row as its cell texts with trailing blanks dropped, or None if it does not begin with a
     tabulated temperature. The rows below 100 K carry INFINITE in the Gibbs energy function and constrain
-    neither relation."""
+    neither relation. Width is not part of the test: a page whose every row lost a cell is the case this audit
+    exists for, and gating the table on eight-wide rows let exactly that page through as clean."""
     cs = [re.sub(r'<[^>]+>', '', c).strip().replace(',', '') for c in CELL.findall(markup)]
     while cs and cs[-1] == '':
         cs.pop()
@@ -51,8 +53,8 @@ def failures(text, tol_gef=0.06, tol_log=0.03):
     """The rows of one page that break a relation or lost a cell, as (temperature, which, printed, implied)."""
     bad = []
     for table in TABLE.findall(text):
-        rows = [r for r in (data_row(m.group(1)) for m in ROW.finditer(table)) if r]
-        if sum(len(r) == 8 for r in rows) < DATA_ROWS:
+        rows = [r for r in (data_row(m.group(1)) for m in ROW.finditer(table)) if r and len(r) >= MIN_CELLS]
+        if len(rows) < DATA_ROWS:
             continue                                    # not the thermochemical table
         for cs in rows:
             T = float(cs[0])
@@ -123,7 +125,7 @@ def main():
     for p in sorted(d.glob('*.txt')):
         text = p.read_text(errors='replace')
         rows = [r for tb in TABLE.findall(text)
-                for r in (data_row(m.group(1)) for m in ROW.finditer(tb)) if r]
+                for r in (data_row(m.group(1)) for m in ROW.finditer(tb)) if r and len(r) >= MIN_CELLS]
         if len(rows) < DATA_ROWS:
             continue
         tabled += 1

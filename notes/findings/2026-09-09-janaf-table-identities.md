@@ -1,8 +1,9 @@
 # The JANAF tables read cleanly and arrive wrong on a third of their pages
 
 Measured on 2026-09-09 over the finished read of the scanned NIST-JANAF Thermochemical Tables,
-fourth edition: 1961 pages by `chandra-ocr-2` under vLLM, 1095 of them carrying a
-thermochemical data table, 64,327 tabulated rows in all.
+fourth edition: 1961 pages by `chandra-ocr-2` under vLLM, 1071 of them carrying a
+thermochemical data table, 63,426 tabulated rows in all. Every count here is of that read, at
+the 6291456 pixel cap the server was started with, before any page was read again.
 
 The prose of that read is excellent. Title page, copyright page, the species index, the
 per-species discussion of enthalpy of formation, and the reference lists all come back with
@@ -29,19 +30,14 @@ lost decimal point -- and requires all four to be caught.
 
 ## What the relations find
 
-| broken rows | kind |
-|---|---|
-| 3501 | the equilibrium constant does not follow from the Gibbs energy beside it |
-| 928 | the row is not eight cells wide; a value is simply absent |
-| 251 | the Gibbs energy function does not follow from the entropy and enthalpy beside it |
+493 of the 1071 table pages carry at least one defect, 9614 broken relations in all. 578 are
+clean throughout.
 
-| pages | how much of the page |
-|---|---|
-| 281 | one to four rows |
-| 128 | five or more rows, short of the whole |
-| 12 | more than four fifths of the rows |
-
-421 of the 1095 table pages carry at least one defect. 674 are clean throughout.
+The audit had to be corrected before that number could be trusted. It first decided which
+table on a page was the thermochemical one by counting rows that were eight cells wide, which
+meant a page whose every row had lost a cell was not recognised as a table at all and was
+reported clean. Two of the worst pages in the corpus passed that way. The gate now counts rows
+that begin with a tabulated temperature, and width is a defect rather than a filter.
 
 ## The shapes the damage takes
 
@@ -69,9 +65,46 @@ This is the same silent loss recorded for sideways pages in
 repair. Turning the page upright fixed the reading; it did not make a dense eight-column table
 safe to transcribe.
 
+## Most of it is the pixel budget
+
+The server was started from the chandra_vllm docker recipe's cap of 6291456 pixels. A letter
+page rendered at the reader's 3300 pixel long side is 8.4 million, so every page was being
+downscaled to 2205 pixels across the text before the model saw it, which is about 24 pixels
+for a column of six digits and a sign.
+
+Doubling the cap to 12582912 puts the page at 3118 pixels across the text, at the cost of
+doubling the prompt: one visual token covers 32 by 32 pixels, so the model length has to hold
+12288 visual tokens and the reply as well. Seven wholly corrupt pages read again at that
+budget, whole, at a 4400 pixel render:
+
+| page | broken relations, 6.3 Mpx | at 12.6 Mpx |
+|---|---|---|
+| aluminium ion | 64 | 3 |
+| boron crystal-liquid | 52 | 51 |
+| mercury fluoride | 64 | 64 |
+| a lanthanum page | 61 | 0 |
+| zirconium oxide | 64 | 0 |
+| tetraphosphorus trisulfide | 116 | 116 |
+| a sulfur page | 122 | 1 |
+
+Sampling is greedy, so the old column is the same page read the same way at the smaller budget
+and needed no re-running. Four of the seven come back clean or nearly so.
+
+## What the budget does not fix
+
+The three that do not move share a signature, and it is in the header rather than the data. On
+each of them two adjacent column headings are returned as one cell -- `S - [G - H(Tr)]/T`
+where the page prints the entropy and the Gibbs energy function as neighbours -- and one data
+column then goes missing from every row. The mercury fluoride page came back byte for byte
+identical at twice the resolution.
+
+So the model is not failing to resolve those characters. It is parsing two columns as one,
+and reading them larger does not change its mind. That residue needs a different lever than
+the pixel budget.
+
 ## What it means for the reader
 
-4398 of the 64,327 rows break a relation, so 93 percent of rows pass. That is the ceiling, not
+9303 of the 63,426 rows break a relation, so 85 percent of rows pass. That is the ceiling, not
 the estimate: the two relations constrain four of the eight columns, and the heat capacity, the
 entropy and the enthalpy of formation stand on their own with nothing to test them against. A
 number lifted from these tables by hand is probably right and gives no sign either way, which
@@ -81,5 +114,6 @@ So the tables are not a usable source yet. The flagged pages are re-read and put
 the audit, and a page that carries a constant into the model is checked against the scan by eye
 whatever the audit says about it.
 
-The 421 flagged pages are listed for re-reading in `references/work/janaf_repair_list.txt`, in
-the form `chandra_pages.py --repair` takes.
+The 493 flagged pages are listed for re-reading in `references/work/janaf_repair_list.txt`, in
+the form `chandra_pages.py --repair` takes, split into chunks of fifty so a long run writes its
+work as it goes.
