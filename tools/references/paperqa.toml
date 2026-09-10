@@ -39,12 +39,23 @@ answer_max_sources = 6
 # empty until the A/B in notes/findings picks a reranker, because 0.6B fp16 and 4B at
 # int8 are the two that fit beside the served generator and they have not been compared.
 # rerank_quant is bitsandbytes: none | int8 | nf4. rerank_vram_gib is the free VRAM below
-# which the stage runs on CPU instead, which a shortlist is small enough to survive.
+# which the stage runs on CPU instead. It was 3.0, which is above what the card has free
+# once TabbyAPI is serving, so every query reranked on the CPU and paid 60 s for it: the
+# whole cost of an 83 s query, against 4 s for the embedder. Measured 2026-09-10,
+# notes/findings/2026-09-10-rerank-stage-on-the-cpu.md.
+#
+# 1.5 and rerank_batch_size = 1 belong together and neither is free to move alone. At the
+# default batch of 4 the stage loads onto the card and then runs out of memory mid-pass;
+# PaperQA catches that inside gather_evidence and gen_answer, so the query returns an
+# empty answer in 9 s and the wall clock reads like a speedup. Batch 1 peaks at 1.24 GiB
+# against 2.3 GiB free and answers in 24 s. Larger batches buy 0.09 s across the whole
+# shortlist, because 50 sequences of about 2000 tokens already saturate the card.
 rerank_path = "/home/cfutro/models/Qwen3-Reranker-0.6B"
 rerank_kind = "qwen3"
 rerank_quant = "none"
 rerank_fetch_k = 50
-rerank_vram_gib = 3.0
+rerank_batch_size = 1
+rerank_vram_gib = 1.5
 rerank_instruction = "Given a question about a physical law, numerical scheme, dataset or constant, judge whether the page of a scientific paper or book states it"
 chunk_chars = 4000
 overlap = 200
