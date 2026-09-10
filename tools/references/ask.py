@@ -62,6 +62,8 @@ def parse_from_extracted_text(path, page_size_limit=None, page_range=None, **kwa
     import paperqa
     stem = pathlib.Path(path).stem; d = ROOT / 'references' / 'text' / stem
     if not d.is_dir(): raise FileNotFoundError(f'no extracted text for {path}; run tools/references/extract_text.py')
+    # A source whose data has a machine-readable home keeps a one-page stub naming that home instead of its text,
+    # so a query for the quantity lands on the pointer rather than on a number a reader transcribed from a scan.
     content = {}
     for f in sorted(d.glob('*.txt')):
         n = int(f.stem)
