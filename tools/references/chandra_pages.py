@@ -115,6 +115,22 @@ def sha(p):
     with open(p, 'rb') as f:
         for c in iter(lambda: f.read(1 << 22), b''): h.update(c)
     return h.hexdigest()
+# A source whose numbers have a machine-readable home keeps a one-page stub naming that home instead of its text
+# (see ask.py, parse_from_extracted_text). The stub is not a partial read waiting to be finished: reading the book
+# would replace a deliberate pointer with 1961 pages of numbers transcribed from a photograph of a table, which is
+# what the stub exists to prevent. Its manifest row was deleted with its text, so --resume cannot tell it from a
+# file that was never read, and until now only its absence from a hand-kept list protected it.
+STUB_MARK = 'THIS SOURCE IS DELIBERATELY NOT INDEXED'
+
+def is_stub(fn):
+    d = TXT / pathlib.Path(fn).stem
+    pages = sorted(d.glob('*.txt')) if d.is_dir() else []
+    if len(pages) != 1: return False
+    if STUB_MARK not in pages[0].read_text(errors='ignore'): return False
+    print(f'{fn}: pointer stub, left alone', flush=True)
+    return True
+
+
 def repair(a, ocr, done):
     """Read again only the pages a list names, and rewrite only those page files. A file whose one landscape table
     was read sideways does not need its other pages read a second time."""
@@ -170,6 +186,7 @@ def main():
         return repair(a, ocr, done)
     files = [l.strip() for l in open(a.list) if l.strip()]
     if a.resume: files = [f for f in files if done.get(f, {}).get('engine') != 'chandra-ocr-2']
+    files = [f for f in files if not is_stub(f)]
     out = open(MAN, 'a'); total = 0; t_all = time.time()
     for fn in files:
         p = PDF / fn; t0 = time.time()
