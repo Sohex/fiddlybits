@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """PaperQA2 over the held papers: evidence with page citations.
 
-    tools/references/ask.py --build                      # index new files only; keeps existing chunks
-    tools/references/ask.py --rebuild                    # discard the index and index every file again
+    tools/references/ask.py --build                      # index whatever the index does not hold at its current text
+    tools/references/ask.py --reingest henderson1966     # drop one source and read it again, after re-OCR
+    tools/references/ask.py --rebuild                    # discard the index entirely; rarely what you want
     tools/references/ask.py "How does Millero 1995 give the pressure dependence of K1?"
     tools/references/ask.py --evidence-only "..."       # gathered passages with page numbers, no synthesised answer
 
@@ -10,13 +11,17 @@ Reads tools/references/paperqa.toml. Every answer is printed with its sources as
 The answer text is a pointer to pages, not a source: a value or scheme enters a record only after the page is
 opened and the table or equation is named (docs/references/README.md).
 
-Use --rebuild after any OCR pass. The index keys staleness on the PDF, and re-OCR changes only the extracted
-text under references/text/, so an incremental --build would leave a re-read paper indexed under its old text
-and answer from both. --rebuild removes the index directory first, which is the only way the replacement is
-complete. The index manifest is generated from
-docs/references/INDEX.md so citations carry the verbatim title and identifier the index holds.
+--build is incremental and is what to run after an OCR pass. PaperQA decides staleness on the file name alone,
+and a re-read paper keeps its name, so ask.py keeps its own record: references/index/text-digests.toml holds a
+sha256 of the extracted text behind each indexed PDF. A source whose text no longer matches its digest is
+dropped from the index and read again; one that matches is left alone; one the index has never seen is added.
+--reingest forces a named source through that regardless, for when the text is unchanged but the chunking or
+the embedding model is not. --rebuild discards everything, which is now rarely the right tool.
+
+The index manifest is generated from docs/references/INDEX.md so citations carry the verbatim title and
+identifier the index holds.
 """
-import argparse, asyncio, csv, os, pathlib, re, shutil, sys, tomllib
+import argparse, asyncio, csv, hashlib, os, pathlib, re, shutil, sys, tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CFG = tomllib.loads((ROOT / 'tools' / 'references' / 'paperqa.toml').read_text())
 _EMBEDDING = None   # the one embedding model of this process; see S.get_embedding_model below
@@ -124,12 +129,74 @@ def settings(evidence_only=False):
     s.parsing.parse_pdf = parse_from_extracted_text
     s.parsing.use_doc_details = False   # no network lookups of metadata; the manifest carries title and DOI
     return s
-async def build(fresh=False):
-    from paperqa.agents.search import get_directory_index
+def text_digest(stem):
+    """A source's extracted text as one hash: every page file, in page order, name and bytes. This is what the
+    index is stale against. PaperQA decides staleness on the file name alone (its process_file calls filecheck
+    without a body hash), and the name never changes when a paper is read again, so without this a rebuild from
+    scratch was the only way to pick up new text."""
+    d = ROOT / 'references' / 'text' / stem
+    h = hashlib.sha256()
+    for f in sorted(d.glob('*.txt'), key=lambda x: x.name):
+        h.update(f.name.encode()); h.update(f.read_bytes())
+    return h.hexdigest()
+
+def digest_path():
+    return ROOT / CFG['index_directory'] / 'text-digests.toml'
+
+def load_digests():
+    p = digest_path()
+    return tomllib.loads(p.read_text())['digest'] if p.is_file() else {}
+
+def save_digests(d):
+    p = digest_path(); p.parent.mkdir(parents=True, exist_ok=True)
+    body = '\n'.join(f'"{k}" = "{v}"' for k, v in sorted(d.items()))
+    p.write_text('# sha256 of the extracted text behind each indexed PDF, written by ask.py --build.\n'
+                 '# A source whose digest here differs from its text on disk is dropped from the index and read\n'
+                 '# again; one whose digest matches is left alone. Delete a line to force that source to be\n'
+                 '# re-ingested, or use --reingest.\n\n[digest]\n' + body + '\n')
+
+async def build(fresh=False, reingest=()):
+    """Index whatever the index does not already hold at its current text. Nothing else is touched."""
+    from paperqa.agents.search import SearchIndex, get_directory_index
+    os.environ.setdefault('PQA_INDEX_ENABLE_PROGRESS_BAR', '1')   # the bar is CLI-gated upstream; this is a CLI
     if fresh:
         d = ROOT / CFG['index_directory']
         if d.exists(): shutil.rmtree(d); print('removed', d)
-    s = settings(); idx = await get_directory_index(settings=s); print('indexed', len(await idx.index_files), 'files')
+    s = settings()
+    pdfs = sorted((ROOT / CFG['paper_directory']).glob('*.pdf'))
+    forced = set()
+    for r in reingest:
+        stem = pathlib.Path(r).stem
+        hits = [p for p in pdfs if p.stem == stem or stem in p.stem]
+        if not hits: sys.exit(f'--reingest {r}: no PDF matches')
+        forced.update(p.name for p in hits)
+    on_disk = {p.name: text_digest(p.stem) for p in pdfs}
+    stored = {} if fresh else load_digests()
+
+    if not fresh:
+        idx = SearchIndex(fields=[*SearchIndex.REQUIRED_FIELDS, 'title', 'year'],
+                          index_name=s.agent.index.name or s.get_index_name(),
+                          index_directory=s.agent.index.index_directory)
+        indexed = set(await idx.index_files)
+        stale = [n for n in indexed if n in forced or stored.get(n) != on_disk.get(n)]
+        # An indexed file with no digest recorded predates this bookkeeping; adopt its current text rather than
+        # reading the whole archive again to learn what it already knows.
+        adopt = [n for n in stale if n not in forced and n not in stored]
+        stale = [n for n in stale if n not in adopt]
+        for n in adopt: stored[n] = on_disk[n]
+        if adopt: print(f'adopted the current text of {len(adopt)} already-indexed sources')
+        for n in stale:
+            await idx.remove_from_index(n); stored.pop(n, None)
+        if stale: await idx.save_index()
+        new = [p.name for p in pdfs if p.name not in indexed]
+        print(f'{len(indexed)} indexed, {len(new)} new, {len(stale)} changed or forced'
+              + (f' ({", ".join(sorted(stale)[:3])}{" ..." if len(stale) > 3 else ""})' if stale else ''))
+        if not new and not stale:
+            save_digests(stored); print('nothing to do'); return
+
+    idx = await get_directory_index(settings=s)
+    save_digests({**stored, **{n: h for n, h in on_disk.items() if n in set(await idx.index_files)}})
+    print('indexed', len(await idx.index_files), 'files')
 async def ask(q, evidence_only):
     from paperqa import Docs
     from paperqa.agents.search import get_directory_index
@@ -148,8 +215,14 @@ async def ask(q, evidence_only):
     for c in ses.contexts:
         t = c.text; name = getattr(t.doc, 'docname', '') or getattr(t.doc, 'dockey', ''); print(f"- {t.doc.citation[:90]} | {t.name} | score {c.score}\n  {c.context[:400].strip()}\n")
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('query', nargs='?'); ap.add_argument('--build', action='store_true'); ap.add_argument('--rebuild', action='store_true'); ap.add_argument('--evidence-only', action='store_true'); a = ap.parse_args()
-    if a.build or a.rebuild: asyncio.run(build(fresh=a.rebuild))
+    ap = argparse.ArgumentParser()
+    ap.add_argument('query', nargs='?')
+    ap.add_argument('--build', action='store_true', help='index what the index does not already hold at its current text')
+    ap.add_argument('--reingest', action='append', default=[], metavar='PDF', help='drop this source and read it again, whatever its digest says; repeatable. Use after re-OCR of one file')
+    ap.add_argument('--rebuild', action='store_true', help='discard the whole index and read every source again. Rarely what you want: --build already picks up changed text')
+    ap.add_argument('--evidence-only', action='store_true')
+    a = ap.parse_args()
+    if a.build or a.rebuild or a.reingest: asyncio.run(build(fresh=a.rebuild, reingest=a.reingest))
     elif a.query: asyncio.run(ask(a.query, a.evidence_only))
     else: ap.print_help()
 if __name__ == '__main__': main()
