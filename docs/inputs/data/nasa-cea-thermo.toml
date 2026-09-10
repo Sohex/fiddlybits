@@ -1,0 +1,46 @@
+# NASA CEA thermodynamic database: 9-term polynomial fits of heat capacity, enthalpy and entropy for 2030 species, gas and condensed, to 20000 K
+
+id = "nasa-cea-thermo"
+title = "thermo.inp, the thermodynamic database of NASA Chemical Equilibrium with Applications"
+publisher = "NASA Glenn Research Center"
+source = "https://github.com/nasa/cea, data/thermo.inp"
+revision = "v3.3.4, commit e88676bb3e2a70e08b7f773136e51f4cf9216c00, committed 2026-08-28"
+papers = ["mcbride1996 NASA RP-1311 (the CEA method)", "mcbride2002 NASA/TP-2002-211556 (the coefficients and their form)"]
+licence = "Apache-2.0; LICENSE.txt and NOTICE.txt carried beside the payload"
+fetched = "2026-09-09"
+local_path = "inputs/data/nasa-cea-thermo"   # untracked payload
+role = "model INPUT (Sourced), the primary one: heat capacity, enthalpy and entropy of a species as a function of temperature, read as polynomial coefficients and evaluated, never interpolated from a table"
+
+[files]
+"thermo.inp" = { bytes = 1234323, sha256 = "fa7746572952d74e249e818a82a35c113829742fb421a308e167185528884363", format = "NASA 9-term polynomials, fixed-width, one to five temperature intervals a species", species = 2030 }
+"LICENSE.txt" = { bytes = 9170, sha256 = "a60026be9384468d074c19425e552f1bb4a6f507f805e55a96fad586716168ed" }
+"NOTICE.txt" = { bytes = 713, sha256 = "03b64364559d540d97615c31675a69e8eb1965e30de8859a2f8c5c9a38ecb55e" }
+
+[species_by_phase]
+gas = 1269
+condensed = 761   # phase index 1 to 5, so a polymorph is its own record: 338, 256, 123, 37, 7
+
+[provenance]
+per_record = "every record names its source and page in the comment and carries a six-character reference-date code, so a constant taken from here cites the record and the volume behind it, not the file"
+tpis = 1206   # Thermodynamic Properties of Individual Substances, Gurvich
+g = 513       # calculated at Glenn Research Center
+j = 214       # NIST-JANAF Thermochemical Tables, Chase 1998, the book this project was reading by OCR
+n = 39        # TRC Thermodynamic Tables, NIST
+coda = 28
+srd = 21
+bar = 8       # Barin, Thermochemical Data of Pure Substances
+h = 1
+
+[coverage]
+upper_bound = "255 records reach 20000 K; the rest stop lower, per record and per interval"
+refractories = "TiO, TiO2, VO, Ti, V, Fe, Mg, Na, K, SiO, SiO2, MgO, FeO and AL2O3 with its alpha and liquid phases are all present, which is what the Burcat set lacked"
+naming = "metals and their compounds are upper case (AL2O3), condensed phases carry a suffix (AL2O3(a), AL2O3(L)); a reader matching names must not assume the mixed case of the gas-phase organics"
+
+[caveats]
+fits_not_tables = "these are least-squares fits, not the measurements; the residual against the source table is a property of the fit and is not carried in the file"
+intervals = "coefficients are per temperature interval and are not continuous across an interval boundary to machine precision; a reader must select the interval, and must refuse a temperature outside the record's range rather than extrapolate"
+
+[oracle]
+note = "the scanned NIST-JANAF fourth edition in references/pdf is a check, not a data path. 214 records here are sourced from that book, so a species with a j code can be evaluated and compared against the printed table by eye, and the two identities in tools/references/audit_janaf_tables.py hold for evaluated values as much as printed ones"
+
+anchors = []   # filled when the first Sourced constant names a record in this file

@@ -10,7 +10,7 @@ edition = "the January 2018 README accompanies the served files; the files thems
 licence = "free of charge on condition that the database and its author are quoted; sale forbidden; not to be listed, printed or copied in any commercial publication without written agreement from the author"
 fetched = "2026-09-09"
 local_path = "inputs/data/burcat-ruscic-thermochemical"   # untracked payload
-role = "model INPUT (Sourced): heat capacity, enthalpy and entropy of a species as a function of temperature, read as polynomial coefficients and evaluated, never interpolated from a table"
+role = "model INPUT (Sourced), the SECOND source, not the first: nasa-cea-thermo is where a thermochemical quantity comes from. This file is read only for a species CEA does not carry, or for an enthalpy of formation whose Active Thermochemical Tables value here is better than CEA's, and either case is an exception named on the constant. One quantity has one definition; two databases must not become two definitions."
 
 [files]
 "BURCAT.THR" = { bytes = 2315627, sha256 = "42a597ff852d1a2995f81d4fdca069f3cdcaef77ead5e3c66e02e80ed6699101", format = "NASA 7-term polynomials, CHEMKIN fixed-width, four lines a species", species = 3526 }
@@ -34,6 +34,10 @@ fixed_width_is_not_universal = "about 100 of the 3526 records have a name long e
 coverage = "volatiles and rock-forming oxides are present (H2O, CO2, CH4, NH3, CO, N2, H2, H2S, SO2, PH3, HCN, SiO, SiO2, MgO, CaO, FeO, Al2O3, AlO, Fe, Mg). TiO and VO are absent, as are several bare alkali metals, so a hot atmosphere needing those needs a second source"
 upper_bound = "most records stop at 6000 K, a few at 5000; nothing here reaches the 20000 K of the NASA CEA set"
 fits_not_tables = "these are least-squares fits, not the measurements; the residual against the source table is a property of the fit and is not carried in the file"
+
+[against_nasa_cea_thermo]
+what_this_adds = "3526 species against CEA's 2030, the surplus being combustion organics and radicals; and 816 records carrying Active Thermochemical Tables values, which are the most accurate enthalpies of formation published for small molecules"
+what_this_lacks = "TiO, VO and several bare alkali metals, which CEA has; nothing beyond 6000 K, where CEA reaches 20000; and a licence, where CEA is Apache-2.0"
 
 [oracle]
 note = "the scanned NIST-JANAF fourth edition in references/pdf is no longer a data path. It stays as a check: a species evaluated from these coefficients is compared against the printed JANAF table read by eye, and the two arithmetic identities in tools/references/audit_janaf_tables.py hold for the evaluated values as much as for the printed ones"
