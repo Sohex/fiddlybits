@@ -1,0 +1,5 @@
+# lint_calendar: REQ-SYS-102 gives the system one clock in SI seconds and no
+# calendar. Rendering a date for a person is Render's job.
+
+module_name = "Dates"
+exempt = ["Render"]

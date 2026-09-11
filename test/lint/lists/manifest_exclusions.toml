@@ -1,0 +1,7 @@
+# lint_manifest: a dependency hazard arrives through the graph, not through a call
+# site, so it is caught in the resolved manifest. Every entry names the import
+# record that excluded the package; an entry with no record fails.
+
+[[exclusion]]
+package = "FastPower"
+record = "docs/imports/fastpower-jl.md"

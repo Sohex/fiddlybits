@@ -1,0 +1,8 @@
+# lint_index_base: decision F7 puts 1-based indices in kernels and 0-based ones on
+# disk, with CellId refusing arithmetic at the boundary. An offset applied to an
+# index bound by @index is the translation layer the project does not have.
+
+# The macro whose bindings the lint follows, and the type whose arithmetic it refuses.
+index_macro = "@index"
+refusing_type = "CellId"
+exempt = []

@@ -1,0 +1,12 @@
+julia_version = "1.12.7"
+manifest_format = "2.0"
+
+[deps]
+
+[deps.Adapt]
+uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+version = "4.7.0"
+
+[deps.FastPower]
+uuid = "a4df4552-cc26-4903-aec0-212e50a0e84b"
+version = "1.5.0"
