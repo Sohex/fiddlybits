@@ -39,5 +39,9 @@ consulted by absolute path and never copied.
 | `docs/inputs/` | manifests of the datasets the model READS (spectral libraries), kept apart from the oracle datasets |
 | `docs/oracles/` | the three oracle tiers, verdict semantics, and the registry of thresholds |
 | `docs/imports/` | one review per dependency: what it carries and how a leak is caught |
+| `src/` | the package: one module over the submodules `docs/plans/fiddlybits-52v.1-skeleton.md` names, each filled by its own area |
+| `test/` | one suite per directory, discovered rather than listed; `test/lint/` and `test/imports/` hold the checks that guard the boundary against the dependencies |
+| `bench/` | the benchmark bed, and the reference artifact whose hash a commit may not move without saying what moved it |
+| `tools/gate/` | the per-commit gate, which runs the whole suite through the machine's scheduler |
 | `notes/findings/` | dated measurements with their evidence |
 | `bd` | what to do; every issue cites a finding, decision or requirement |
