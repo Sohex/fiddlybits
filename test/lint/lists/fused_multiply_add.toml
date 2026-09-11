@@ -104,8 +104,3 @@ reason = "decision 0027's naive serial reference, which decision 0044 keeps unfu
 # Sites a row moves onto fma. Each is a bare multiply feeding a bare add in
 # source bitwise mode compiles, outside the file boundary of the row that
 # built this lint.
-[[exemption]]
-path = "Backends/certify.jl"
-function = "admissible"
-found = "carried + injected * Float64(roundoff)"
-reason = "the envelope bound's last assembly; fiddlybits-52v.7.31 moves it onto fma"
