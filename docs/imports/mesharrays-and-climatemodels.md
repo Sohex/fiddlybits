@@ -89,14 +89,13 @@ of them keeps the sequence. A reader asking why a run ended where it did is curr
 expected to reconstruct it from the artifacts, which is the reconstruction decision 0029
 forbids for run records.
 
-So the recommendation, for the store row to carry: **an append-only per-run event journal
-in TOML, written beside the run record, keyed by the run identity, carrying no identity of
-its own and never read back by the model.** One line per event, each with the simulated
-instant, the emitting component, the event kind and its verdict. It is a report, not a
-store: nothing in the model may branch on it, which is what keeps it from becoming a
-second source of truth. And it is not git. A repository per run puts a second identity
-next to the first, invites a reader to diff two runs that have no common ancestor, and
-makes the journal's own history a thing to reason about.
+This is taken, and it is decision 0042: an append-only per-run event journal in TOML
+beside the plan and the system struct, from a closed event vocabulary, written through one
+emitter, and inert. It is a report, not a store: nothing in the model branches on it and
+it is in no content key, which is what keeps it from becoming a second source of truth.
+And it is not git. A repository per run puts a second identity next to the first, invites
+a reader to diff two runs that have no common ancestor, and makes the journal's own
+history a thing to reason about.
 
 ## Assumptions they carry
 

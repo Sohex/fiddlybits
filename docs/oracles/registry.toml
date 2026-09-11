@@ -1020,6 +1020,32 @@ anchors = []
 # ---------------------------------------------------------------- tier 1: reproducibility
 
 [[oracle]]
+id = "provenance.journal_is_inert"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "the short coupled case run twice, once with the event journal written and once with it switched off, compared artifact by artifact"
+verdict_kind = "fail_bar"
+threshold = "bitwise identical artifacts and identical content keys; the journal is in no content key"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "provenance.event_vocabulary_closed"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "every event kind in the declared vocabulary has a payload schema, and every event emitted over the short coupled case validates against the schema of its kind"
+verdict_kind = "fail_bar"
+threshold = "no kind without a schema and no event failing its schema (positive control: an event emitted with a kind outside the vocabulary, which must be refused at the emitter)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "loop.exit_criteria_on_a_known_surrogate"
 tier = 1
 subsystem = "coupled loop"
