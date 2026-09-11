@@ -328,18 +328,34 @@ already live on `backend` and have the same length; the block sums are
 combined on the host through `combine_fixed_order`, the same door
 `pairwise_sum` uses. Refuses when `blocksize` is not positive.
 """
-function area_weighted_sum(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
-                            backend::Backend = CPU(BLOCKSIZE); blocksize::Integer = BLOCKSIZE) where {A<:Number}
+area_weighted_sum(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
+                   backend::Backend = CPU(BLOCKSIZE);
+                   blocksize::Integer = BLOCKSIZE) where {A<:Number} =
+    combine_fixed_order(on(area_weighted_block_sums(A, xs, areas, x, backend;
+                                                     blocksize = blocksize), CPU(1)))
+
+"""
+    area_weighted_block_sums(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
+
+`area_weighted_sum`'s block sums before they are combined: block `i` the
+fixed-order sum, accumulated in type `A`, of `areas` over that block's
+indices where `xs` is at or above `x` and zero elsewhere, one block per
+launched work item, left on `backend`. `pairwise_block_sums`' sibling, and
+the door `area_fraction_above` reads when it moves two block-sum arrays to
+the host together. Refuses when `blocksize` is not positive.
+"""
+function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
+                                   backend::Backend = CPU(BLOCKSIZE);
+                                   blocksize::Integer = BLOCKSIZE) where {A<:Number}
     blocksize > 0 ||
-        refuse("pairwise blocksize", "Reductions.area_weighted_sum",
+        refuse("pairwise blocksize", "Reductions.area_weighted_block_sums",
                "blocksize $blocksize is not positive")
     n = length(xs)
     nb = cld(n, blocksize)
     partials = similar(areas, A, nb)
-    if nb > 0
-        launch!(area_weighted_block_kernel!, backend, nb, partials, xs, areas, x, Int(blocksize), Int(n))
-    end
-    return combine_fixed_order(on(partials, CPU(1)))
+    nb == 0 && return partials
+    launch!(area_weighted_block_kernel!, backend, nb, partials, xs, areas, x, Int(blocksize), Int(n))
+    return partials
 end
 
 """
@@ -358,17 +374,25 @@ or above the threshold, while calling it on any value absent from the data
 the same length and must already live on `backend`. Refuses when they
 differ in length, or when the total area is not positive.
 
-The return is a host scalar, and the two sums are read back separately, so
-on device-resident input this is two `Events.moved` records per call, one
-per sum.
+The return is a host scalar, and the two block-sum arrays are joined on
+`backend` and read back in one move, so on device-resident input this is one
+`Events.moved` record per call and one completion, not one of each per sum.
+Each half is combined on its own afterwards, over the same block sums and by
+the same tree, whose shape `combine_tree` takes from the half's length
+alone. The two forms and their cost are in
+notes/findings/2026-09-11-area-fraction-in-one-read.md.
 """
 function area_fraction_above(xs::AbstractVector, areas::AbstractVector, x::Real,
                               backend::Backend = CPU(BLOCKSIZE))
     length(xs) == length(areas) ||
         refuse("area fraction extent", "Reductions.area_fraction_above",
                "xs has length $(length(xs)), areas has length $(length(areas))")
-    total = pairwise_sum(Float64, areas, backend)
-    weighted = area_weighted_sum(Float64, xs, areas, x, backend)
+    total_blocks = pairwise_block_sums(Float64, areas, backend)
+    weighted_blocks = area_weighted_block_sums(Float64, xs, areas, x, backend)
+    nb = length(total_blocks)
+    both = on(vcat(total_blocks, weighted_blocks), CPU(1))
+    total = combine_fixed_order(view(both, 1:nb))
+    weighted = combine_fixed_order(view(both, nb+1:lastindex(both)))
     total > 0 ||
         refuse("area fraction total", "Reductions.area_fraction_above",
                "total area $total is not positive")
