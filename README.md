@@ -7,9 +7,11 @@ moons, and the initial inventories. Terrain with real ages, hydrology, atmospher
 ocean, ice, soil, vegetation, biogeochemistry and managed use are one coupled system
 rather than a chain of separate models exchanging files.
 
-No code exists yet. This pass produces the founding documents: decision records, the
+The founding documents came first and are the bulk of the tree: decision records, the
 requirements archive, the references index, the practice book and the oracle registry.
-The predecessor project is an archive of findings at `/home/cfutro/docs/world`,
+The package is `Fiddlybits`, one top-level module over the submodules
+`docs/plans/fiddlybits-52v.1-skeleton.md` names, each filled by its own row on the
+board. The predecessor project is an archive of findings held outside this repository,
 consulted by absolute path and never copied.
 
 ## Founding principles
