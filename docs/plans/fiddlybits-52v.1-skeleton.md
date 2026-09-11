@@ -177,10 +177,13 @@ it decides, and the rest is the reviewer's.
 Every tree run asserts what its root holds before asserting the lint finds nothing
 in it, so a lint pointed at a directory that has moved fails rather than passing.
 
-`test/imports/` declares `import_records()`, which reads the non-stdlib entries of
-`Project.toml` and matches each against the first-line heading of the records in
-`docs/imports/`, with a trailing `.jl` dropped, so the match is by the package's
-name and not by a file name. Of each it asserts that a record exists, that the
+`test/imports/` reads the entries of `Project.toml` and its `[extras]`, drops the
+names Julia ships, and matches each of the rest against the first-line heading of
+the records in `docs/imports/`, with a trailing `.jl` dropped, so the match is by
+the package's name and not by a file name. Which names are shipped is read from
+the resolved manifest, where a registered package carries a tree hash and a
+shipped one does not; the manifest is what the environment resolved, and `Pkg` is
+not on the test target. Of each it asserts that a record exists, that the
 record names at least one leak check, and that every named check resolves: a path
 under `test/` that exists, or an oracle id present in `docs/oracles/registry.toml`,
 since some records catch their leak with an oracle rather than a file. The
@@ -188,15 +191,20 @@ direction matters: the check reads the dependency list and looks for records, ne
 the reverse, because `docs/imports/` also holds records of packages that were
 surveyed and refused, and those have nothing to test.
 
-Most of the leak tests the adopted records name are written by the area rows, not
-here, because they test the area's code. The harness therefore passes in full only
-once those rows have merged, and the verify row of this plan depends on their verify
-rows for exactly that reason. The named tests and their owners:
+The check has two halves. The structural half, that every dependency has a record
+and the record names at least one leak check, holds whatever the board's state and
+is asserted on the tree. The resolution half is reported rather than asserted,
+because most of the leak tests the adopted records name are written by the area
+rows and test the area's code. The harness therefore passes in full only once those
+rows have merged, and the verify row of this plan depends on their verify rows for
+exactly that reason; meanwhile the suite checks every unresolved name against this
+table. The named tests and their owners:
 
 | named check | record | owner |
 | --- | --- | --- |
 | `test/lint/lint_index_base.jl`, `test/lint/lint_earth.jl`, `test/lint/lint_literals.jl` | kernelabstractions, dynamicquantities, julia-1.12 | 52v.1.3 |
 | `test/mesh/stencil_valence.jl` | kernelabstractions | 52v.2 |
+| `repro.thread_count_bitwise`, `repro.fp32_kernel_certification` | kernelabstractions, julia-1.12 | 52v.7 |
 | `test/fields/dimension_refusal.jl`, `test/fields/adapt_roundtrip.jl` | dynamicquantities, adapt | 52v.3 |
 | `test/render/no_calendar.jl` | ncdatasets | 52v.5 |
 | `test/io/index_roundtrip.jl` | zarr | 52v.6 |
