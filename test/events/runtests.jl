@@ -132,6 +132,24 @@ const VALID_PAYLOAD_ARGS = Dict(
         @test Events.Event(Events.Verdict(), 1, 0.0, :fast, "Mesh", matching) isa Events.Event
     end
 
+    @testset "the header form refuses a payload type mismatch the same way" begin
+        header = Events.Header(1, 0.0, :fast, "Mesh", Events.Verdict())
+        mismatched = Events.BudgetPayload(; VALID_PAYLOAD_ARGS[Events.BudgetPayload]...)
+        e = try
+            Events.Event(header, mismatched)
+        catch err
+            err
+        end
+        @test e isa Verdicts.Refusal
+        message = sprint(showerror, e)
+        @test occursin("verdict", message)
+        @test occursin(string(nameof(Events.VerdictPayload)), message)
+        @test occursin(string(nameof(Events.BudgetPayload)), message)
+
+        matching = Events.VerdictPayload(; VALID_PAYLOAD_ARGS[Events.VerdictPayload]...)
+        @test Events.Event(header, matching) isa Events.Event
+    end
+
     @testset "an unrecognised keyword refuses, naming the keyword" begin
         args = VALID_PAYLOAD_ARGS[Events.VerdictPayload]
         e = try

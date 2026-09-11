@@ -243,22 +243,26 @@ has_payload_type(kind) = hasmethod(payload_type, Tuple{typeof(kind)})
 One journal entry: the header decision 0042 fixes and its typed payload. The
 second form builds the header from its parts; `kind` must be a `Kind`, which
 is what makes a kind outside the vocabulary a type error rather than a
-runtime check. It refuses, naming the kind and the payload type, unless
-`payload isa payload_type(kind)`.
+runtime check. Both forms refuse, naming the kind and the declared payload
+type, unless `payload isa payload_type(header.kind)`.
 """
 struct Event
     header::Header
     payload::Any
+
+    function Event(header::Header, payload)
+        kind = header.kind
+        expected = payload_type(kind)
+        payload isa expected ||
+            Verdicts.refuse(string(typeof(payload)), "Event(:$(name(kind)))",
+                             "kind :$(name(kind)) declares payload type $(expected)")
+        return new(header, payload)
+    end
 end
 
-function Event(kind::Kind, sequence::Integer, instant::Real, tier::Symbol,
-               component::AbstractString, payload)
-    expected = payload_type(kind)
-    payload isa expected ||
-        Verdicts.refuse(string(typeof(payload)), "Event(:$(name(kind)))",
-                         "kind :$(name(kind)) declares payload type $(expected)")
-    return Event(Header(Int(sequence), Float64(instant), tier, String(component), kind), payload)
-end
+Event(kind::Kind, sequence::Integer, instant::Real, tier::Symbol,
+      component::AbstractString, payload) =
+    Event(Header(Int(sequence), Float64(instant), tier, String(component), kind), payload)
 
 "A sink that does nothing with the record it is handed."
 noop_sink(record) = nothing
