@@ -4,7 +4,8 @@ Fiddlybits is a generic exoplanet-building simulation system written from scratc
 Julia: one process, one icosahedral mesh hierarchy, GPU-first with a CPU fallback. No
 specific planet or star is its subject. The predecessor project at
 `/home/cfutro/docs/world` is an archive of findings consulted by absolute path, never
-copied. No code exists yet; this tree holds the founding documents.
+copied. The package is `Fiddlybits`: one top-level module over the submodules
+`docs/plans/fiddlybits-52v.1-skeleton.md` names, each filled by its own area row.
 
 **This file is a map: identity, pointers, and the rules that bite. Nothing else.**
 Arguments live in `docs/practice.md` and `docs/decisions/`; findings in

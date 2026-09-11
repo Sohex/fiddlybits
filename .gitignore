@@ -44,5 +44,3 @@ Manifest.toml.bak
 
 # Pipeline work files (repair lists, markers)
 references/work/
-# bd worktree
-fiddlybits-52v.1.2/
