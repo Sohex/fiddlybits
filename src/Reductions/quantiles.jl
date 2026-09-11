@@ -310,6 +310,10 @@ or above the threshold, while calling it on any value absent from the data
 (an interpolated value, among others) does not. `xs` and `areas` must have
 the same length and must already live on `backend`. Refuses when they
 differ in length, or when the total area is not positive.
+
+The return is a host scalar, and the two sums are read back separately, so
+on device-resident input this is two `Events.moved` records per call, one
+per `pairwise_sum`.
 """
 function area_fraction_above(xs::AbstractVector, areas::AbstractVector, x::Real,
                               backend::Backend = CPU(BLOCKSIZE))

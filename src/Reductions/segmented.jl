@@ -195,9 +195,20 @@ end
 The per-segment weighted mean of `xs` by `weights`, accumulated in type
 `A`: the segmented sum of `xs .* weights` divided elementwise by the
 segmented sum of `weights`, both by `segmented_sum` on `backend`. Refuses
-when `xs` and `weights` differ in length, or when a segment's total weight
-is zero. The boundaries reach both sums once, so the `Segmentation` form
-checks them no times and the boundary-array form once rather than twice.
+when `xs` and `weights` differ in length, or when any segment's total
+weight is zero, naming how many. The boundaries reach both sums once, so
+the `Segmentation` form checks them no times and the boundary-array form
+once rather than twice.
+
+The result is a device array on `backend`, so nothing here reads the
+result back; the zero-weight refusal is raised on the host and pays a
+device-to-host read of its own. That read is the one `pairwise_sum` makes
+over the per-segment zero-weight indicator: one `Events.moved` record per
+call on device-resident input, of the block sums of that indicator rather
+than of `denominator` itself, and none on host-resident input. It is the
+device-move record of decision 0010, not an event of decision 0042's
+journal vocabulary. It is not a read of the boundary array, which the
+`Segmentation` form still reads no times.
 """
 function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentation,
                          weights::AbstractVector, backend::Backend = CPU(BLOCKSIZE)) where {A<:Number}
@@ -206,9 +217,10 @@ function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentatio
                "xs has length $(length(xs)), weights has length $(length(weights))")
     numerator = segmented_sum(A, xs .* weights, segmentation, backend)
     denominator = segmented_sum(A, weights, segmentation, backend)
-    any(iszero, denominator) &&
+    nzero = pairwise_sum(Int, ifelse.(iszero.(denominator), 1, 0), backend)
+    nzero == 0 ||
         refuse("segmented mean weight", "Reductions.segmented_mean",
-               "a segment's total weight is zero")
+               "$nzero of $(segmentation.nseg) segments have zero total weight")
     return numerator ./ denominator
 end
 
