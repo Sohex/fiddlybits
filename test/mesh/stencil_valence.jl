@@ -1,7 +1,7 @@
 using Test
 using KernelAbstractions
 using CUDA
-using Fiddlybits: Mesh
+using Fiddlybits: Mesh, Verdicts
 
 # The stencil acceptance of docs/plans/fiddlybits-52v.2-mesh.md, section
 # "Stencils", row 52v.2.4, and the leak check
@@ -229,6 +229,34 @@ end
             @test eltype(st.vertex_neighbour) === Int32 && size(st.vertex_neighbour) == (12, nc)
             @test eltype(st.vertex_weight) === Int32 && size(st.vertex_weight) == (12, nc)
         end
+    end
+
+    @testset "building the tables allocates within a small multiple of them" begin
+        level = level_at(TOP_LEVEL)
+        nc = Mesh.ncells(TOP_LEVEL)
+        ne = Mesh.nedges(TOP_LEVEL)
+        tables = ((3 + 3 + 12 + 12) * nc + 2 * ne) * sizeof(Int32)
+        Mesh.stencils(level)
+        GC.gc()
+        used = @allocated Mesh.stencils(level)
+        @info "Mesh.stencils allocation" level = TOP_LEVEL tables_bytes = tables allocated_bytes = used
+        @test used <= 2 * tables
+    end
+
+    @testset "a cells table that is not a closed triangulated surface is refused" begin
+        # Two disjoint triangles carry six edges where edge_count admits three.
+        disjoint = Int32[1 4; 2 5; 3 6]
+        @test_throws Verdicts.Refusal Mesh.build_edges(disjoint)
+
+        # Seven triangles around one vertex exceeds the valence a bisection
+        # level produces.
+        fan = Matrix{Int32}(undef, 3, 7)
+        for i in 1:7
+            fan[1, i] = 1
+            fan[2, i] = Int32(i + 1)
+            fan[3, i] = Int32(i == 7 ? 2 : i + 2)
+        end
+        @test_throws Verdicts.Refusal Mesh.build_vertex_neighbour(fan, 9)
     end
 
     @testset "the leak check catches mesh geometry named directly in a kernel" begin

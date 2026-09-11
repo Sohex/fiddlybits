@@ -1,6 +1,17 @@
 # The dense stencil tables: docs/plans/fiddlybits-52v.2-mesh.md, section
 # "Stencils".
 
+using ..Verdicts: refuse
+
+# Every face of a closed triangulated surface carries three edges and every
+# edge two faces, so a level of ncells cells has exactly (3 * ncells) >> 1
+# edges.
+edge_count(ncells::Integer) = (3 * ncells) >> 1
+
+# Bisection preserves the valence of an existing vertex and gives every new
+# one six, so no vertex of a level reaches seven.
+const MAX_VALENCE = 6
+
 """
     Stencils
 
@@ -53,36 +64,38 @@ end
     build_edges(cells)
 
 `cell_edge` and `edge_cell`, with global edges numbered by first appearance
-scanning cells in index order and local edges 1, 2, 3 within a cell.
+scanning cells in index order and local edges 1, 2, 3 within a cell, into an
+`edge_cell` sized by `edge_count`.
 `edge_cell[1, e]` is the cell that created edge `e`, `edge_cell[2, e]` the
 other cell sharing it.
 """
 function build_edges(cells::Matrix{Int32})
     nc = size(cells, 2)
+    ne = edge_count(nc)
     cell_edge = Matrix{Int32}(undef, 3, nc)
+    edge_cell = Matrix{Int32}(undef, 2, ne)
     seen = Dict{Tuple{Int32,Int32},Int32}()
-    first_cell = Int32[]
-    second_cell = Int32[]
+    sizehint!(seen, ne)
+    found = 0
     for i in 1:nc
         for k in 1:3
             a, b = edge_local_vertices(cells, i, k)
             key = a < b ? (a, b) : (b, a)
             e = get(seen, key, Int32(0))
             if e == 0
-                push!(first_cell, Int32(i))
-                push!(second_cell, Int32(0))
-                e = Int32(length(first_cell))
+                found += 1
+                found <= ne || refuse("edge count", "Mesh.build_edges",
+                                      "a level of $nc cells yielded more than $ne edges, so its cells are not a closed triangulated surface")
+                e = Int32(found)
+                edge_cell[1, e] = Int32(i)
+                edge_cell[2, e] = Int32(0)
                 seen[key] = e
             else
-                second_cell[e] = Int32(i)
+                edge_cell[2, e] = Int32(i)
             end
             cell_edge[k, i] = e
         end
     end
-    ne = length(first_cell)
-    edge_cell = Matrix{Int32}(undef, 2, ne)
-    edge_cell[1, :] .= first_cell
-    edge_cell[2, :] .= second_cell
     return cell_edge, edge_cell
 end
 
@@ -112,28 +125,50 @@ end
 vertex with a given cell, excluding the cell itself, ordered ascending by
 cell index. A cell with fewer than twelve such neighbours is padded with
 itself at the remaining slots, at zero weight.
+
+The incident cells of a vertex are held in a dense `MAX_VALENCE` by
+`nvertices` matrix, and a vertex incident on more cells than that is refused
+by name rather than written past.
 """
 function build_vertex_neighbour(cells::Matrix{Int32}, nvertices::Integer)
     nc = size(cells, 2)
-    stars = [Int32[] for _ in 1:nvertices]
+    stars = Matrix{Int32}(undef, MAX_VALENCE, nvertices)
+    valence = zeros(Int32, nvertices)
     for i in 1:nc, k in 1:3
-        push!(stars[cells[k, i]], Int32(i))
+        v = cells[k, i]
+        valence[v] < MAX_VALENCE || refuse("vertex valence", "Mesh.build_vertex_neighbour",
+                                           "vertex $v is incident on more than $MAX_VALENCE cells, which a bisection level does not produce")
+        valence[v] += Int32(1)
+        stars[valence[v], v] = Int32(i)
     end
     vertex_neighbour = Matrix{Int32}(undef, 12, nc)
     vertex_weight = Matrix{Int32}(undef, 12, nc)
-    neighbours = Set{Int32}()
+    # Three vertices of at most MAX_VALENCE cells each bound what one cell can
+    # see, so the scratch is sized once and reused.
+    scratch = Vector{Int32}(undef, 3 * MAX_VALENCE)
     for i in 1:nc
-        empty!(neighbours)
-        for k in 1:3, c in stars[cells[k, i]]
-            c == i || push!(neighbours, c)
+        found = 0
+        for k in 1:3
+            v = cells[k, i]
+            for j in 1:valence[v]
+                c = stars[j, v]
+                c == i && continue
+                seen = false
+                for x in 1:found
+                    scratch[x] == c && (seen = true; break)
+                end
+                seen && continue
+                found += 1
+                scratch[found] = c
+            end
         end
-        sorted = sort!(collect(neighbours))
-        n = length(sorted)
-        for j in 1:n
-            vertex_neighbour[j, i] = sorted[j]
+        neighbours = view(scratch, 1:found)
+        sort!(neighbours, alg = InsertionSort)
+        for j in 1:found
+            vertex_neighbour[j, i] = neighbours[j]
             vertex_weight[j, i] = 1
         end
-        for j in (n + 1):12
+        for j in (found + 1):12
             vertex_neighbour[j, i] = Int32(i)
             vertex_weight[j, i] = 0
         end
