@@ -1,5 +1,5 @@
 # PaperQA2 configuration for the references archive. Retrieval returns locators, never values.
-# llm: any LiteLLM model string. Default is the local llama-server (tools/references/serve_llm.sh) speaking the
+# llm: any LiteLLM model string. Default is the local TabbyAPI server (tools/references/serve_llm.sh) speaking the
 # OpenAI protocol. To use Anthropic instead, set llm = "anthropic/claude-sonnet-5" and put the key in ~/.anthropic_key
 # (read at call time by ask.py, never written anywhere).
 llm = "openai/local"
@@ -16,7 +16,7 @@ summary_llm = "openai/local"
 # arrives; do not set template_vars_force on the server, which overrides what is sent
 # here and would serve the model in a mode the quantization was not calibrated for.
 thinking = false
-# TabbyAPI on its default port, serving the exl3 quant. llama-server ran on 8080.
+# TabbyAPI on its default port, serving the exl3 quant; the port is set in its own config.
 api_base = "http://127.0.0.1:5000/v1"
 embedding = "custom"                  # name recorded in the index; the model itself is embedding_path below
 embedding_path = "/home/cfutro/models/Qwen3-Embedding-8B"   # set by the A/B/C of 2026-09-08, notes/findings
