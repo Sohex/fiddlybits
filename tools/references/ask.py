@@ -126,10 +126,21 @@ def parse_from_extracted_text(path, page_size_limit=None, page_range=None, **kwa
         if t.strip(): content[str(n)] = t
     return ParsedText(content=content, metadata=ParsedMetadata(parsing_libraries=['pdftotext (poppler) via tools/references/extract_text.py'], paperqa_version=paperqa.__version__, total_parsed_text_length=sum(len(t) for t in content.values()), name=f'extracted-text:{stem}'))
 
+# What counts as a source. The archive is overwhelmingly PDFs, but not only: a specification held as an HTML
+# snapshot is a primary source like any other and PaperQA reads it directly rather than through the parser below.
+# Globbing for '*.pdf' alone left that file with no citation from INDEX.md and no digest, so nothing would ever
+# have noticed it changing, and its INDEX.md row was written and silently ignored.
+SOURCE_SUFFIXES = ('.pdf', '.html', '.htm', '.txt', '.md')
+
+
+def sources(paper_dir):
+    return sorted((p for p in paper_dir.iterdir() if p.suffix.lower() in SOURCE_SUFFIXES), key=lambda p: p.name)
+
+
 def manifest(paper_dir, index_dir):
     rows = {}
     for l in (ROOT / 'docs' / 'references' / 'INDEX.md').read_text().splitlines():
-        m = re.match(r'\| `([^`]+\.pdf)` \| (.+?) \| (.+?) \| (read|held|requested) \| (.*?) \|', l)
+        m = re.match(r'\| `([^`]+\.(?:pdf|html?|txt|md))` \| (.+?) \| (.+?) \| (read|held|requested) \| (.*?) \|', l)
         if m: rows[m.group(1)] = (m.group(2).replace('"', "'"), m.group(3).strip('`'))
     index_dir.mkdir(parents=True, exist_ok=True); mf = index_dir / 'manifest.csv'
     with open(mf, 'w', newline='') as f:
@@ -144,7 +155,7 @@ def manifest(paper_dir, index_dir):
         KEEP = 'doc_id,dockey,content_hash'
         w = csv.writer(f)
         w.writerow(['file_location', 'doi', 'title', 'citation', 'docname', 'fields_to_overwrite_from_metadata'])
-        for p in sorted(paper_dir.glob('*.pdf')):
+        for p in sources(paper_dir):
             title, ident = rows.get(p.name, (p.stem, ''))
             doi = ident if re.match(r'10\.\d{4,}/', ident) else ''
             # One period between the parts, whether or not the INDEX.md row already ended in one.
@@ -179,15 +190,27 @@ def settings(evidence_only=False):
     s.parsing.parse_pdf = parse_from_extracted_text
     s.parsing.use_doc_details = False   # no network lookups of metadata; the manifest carries title and DOI
     return s
-def text_digest(stem):
-    """A source's extracted text as one hash: every page file, in page order, name and bytes. This is what the
-    index is stale against. PaperQA decides staleness on the file name alone (its process_file calls filecheck
-    without a body hash), and the name never changes when a paper is read again, so without this a rebuild from
-    scratch was the only way to pick up new text."""
-    d = ROOT / 'references' / 'text' / stem
+def text_digest(src):
+    """What the index is stale against, for one source.
+
+    PaperQA decides staleness on the file name alone (its process_file calls filecheck without a body hash), and
+    the name never changes when a paper is read again, so without this a rebuild from scratch was the only way to
+    pick up new text.
+
+    For a source that goes through extract_text.py or the OCR chain, that is the extracted text: every page file,
+    in page order, name and bytes, because the PDF is untouched by a re-read and its own bytes would say nothing.
+    For one PaperQA reads directly, an HTML snapshot say, there is no extracted text and the file itself is the
+    thing that can change, so it is hashed instead. Hashing an absent text directory, which is what the first
+    version did, gives every such source the same digest and makes all of them permanently unstale.
+    """
+    d = ROOT / 'references' / 'text' / src.stem
     h = hashlib.sha256()
-    for f in sorted(d.glob('*.txt'), key=lambda x: x.name):
-        h.update(f.name.encode()); h.update(f.read_bytes())
+    if d.is_dir():
+        for f in sorted(d.glob('*.txt'), key=lambda x: x.name):
+            h.update(f.name.encode()); h.update(f.read_bytes())
+        return h.hexdigest()
+    with open(src, 'rb') as f:
+        for c in iter(lambda: f.read(1 << 22), b''): h.update(c)
     return h.hexdigest()
 
 def digest_path():
@@ -213,14 +236,14 @@ async def build(fresh=False, reingest=()):
         d = ROOT / CFG['index_directory']
         if d.exists(): shutil.rmtree(d); print('removed', d)
     s = settings()
-    pdfs = sorted((ROOT / CFG['paper_directory']).glob('*.pdf'))
+    srcs = sources(ROOT / CFG['paper_directory'])
     forced = set()
     for r in reingest:
         stem = pathlib.Path(r).stem
-        hits = [p for p in pdfs if p.stem == stem or stem in p.stem]
+        hits = [p for p in srcs if p.stem == stem or stem in p.stem]
         if not hits: sys.exit(f'--reingest {r}: no PDF matches')
         forced.update(p.name for p in hits)
-    on_disk = {p.name: text_digest(p.stem) for p in pdfs}
+    on_disk = {p.name: text_digest(p) for p in srcs}
     stored = {} if fresh else load_digests()
 
     if not fresh:
@@ -243,7 +266,7 @@ async def build(fresh=False, reingest=()):
         for n in stale:
             await idx.remove_from_index(n); stored.pop(n, None)
         if stale: await idx.save_index()
-        new = [p.name for p in pdfs if p.name not in indexed]
+        new = [p.name for p in srcs if p.name not in indexed]
         print(f'{len(indexed)} indexed, {len(new)} new, {len(stale)} changed or forced'
               + (f' ({", ".join(sorted(stale)[:3])}{" ..." if len(stale) > 3 else ""})' if stale else ''))
         if not new and not stale:
