@@ -48,8 +48,18 @@ function hash_of(text::AbstractString)
     return m === nothing ? "" : String(m.captures[1])
 end
 
-read_index(path) = try read(`git show $(":" * path)`, String) catch; "" end
-read_head(path) = try read(`git show $("HEAD:" * path)`, String) catch; "" end
+"The file's text at a git revision, or an empty string. A path absent there is an
+answer, not an error, so git's own message is suppressed."
+function at_revision(spec)
+    try
+        return read(pipeline(`git show $spec`, stderr = devnull), String)
+    catch
+        return ""
+    end
+end
+
+read_index(path) = at_revision(":" * path)
+read_head(path) = at_revision("HEAD:" * path)
 
 function main(args)
     if isempty(args)
