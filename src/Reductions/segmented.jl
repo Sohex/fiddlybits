@@ -1,9 +1,40 @@
 # Segmented sums and means: docs/plans/fiddlybits-52v.7-kernels.md, section
 # "The reductions".
 
-using ..Backends: Backend, CPU, launch!
+using ..Backends: Backend, CPU, launch!, on
 using ..Verdicts: refuse
 using KernelAbstractions: @kernel, @index, @Const
+
+"""
+    starts_on_host(starts)
+
+`starts` moved to the host through `Backends.on`: a no-op returning
+`starts` unchanged when it already lives there, otherwise one copy.
+`segment_extent` and `segment_depth` both accept the already-host array
+through their `_host`-suffixed forms below, so a caller that needs both
+checks (`segmented_quantile`) reads the boundary array to the host once
+rather than once per check.
+"""
+starts_on_host(starts::AbstractVector{<:Integer}) = on(starts, CPU(1))
+
+"""
+    segment_extent_host(xs, starts_host)
+
+`segment_extent`'s check, given `starts` already on the host.
+"""
+function segment_extent_host(xs::AbstractVector, starts_host::AbstractVector{<:Integer})
+    isempty(starts_host) &&
+        refuse("segment boundaries", "Reductions.segment_extent", "starts is empty")
+    issorted(starts_host) ||
+        refuse("segment boundaries", "Reductions.segment_extent", "starts is not non-decreasing")
+    first(starts_host) == 1 ||
+        refuse("segment boundaries", "Reductions.segment_extent",
+               "starts begins at $(first(starts_host)), not 1")
+    last(starts_host) == length(xs) + 1 ||
+        refuse("segment boundaries", "Reductions.segment_extent",
+               "starts ends at $(last(starts_host)), xs has length $(length(xs))")
+    return length(starts_host) - 1
+end
 
 """
     segment_extent(xs, starts)
@@ -16,18 +47,7 @@ this check, so it is copied to the host first when it is not already
 there (a boundary array, not the reduced data, so the copy is cheap).
 """
 function segment_extent(xs::AbstractVector, starts::AbstractVector{<:Integer})
-    starts_host = starts isa Array ? starts : Array(starts)
-    isempty(starts_host) &&
-        refuse("segment boundaries", "Reductions.segment_extent", "starts is empty")
-    issorted(starts_host) ||
-        refuse("segment boundaries", "Reductions.segment_extent", "starts is not non-decreasing")
-    first(starts_host) == 1 ||
-        refuse("segment boundaries", "Reductions.segment_extent",
-               "starts begins at $(first(starts_host)), not 1")
-    last(starts_host) == length(xs) + 1 ||
-        refuse("segment boundaries", "Reductions.segment_extent",
-               "starts ends at $(last(starts_host)), xs has length $(length(xs))")
-    return length(starts_host) - 1
+    return segment_extent_host(xs, starts_on_host(starts))
 end
 
 """
