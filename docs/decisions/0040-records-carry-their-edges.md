@@ -47,7 +47,9 @@ This is not the only way a record changes, and the two must not be confused.
   stands and a detail inside it is filled in or sharpened, usually from a finding.
   The body is edited and a dated line is appended to that section naming what moved
   and the finding it came from. Every amendment in the corpus at the time of writing
-  is of this kind. No front-matter edge is involved: the record is amending itself.
+  is of this kind. Nothing is related to anything: one document changed, and the line
+  is its own log of the change. The finding it cites is a citation like any other in
+  the record's references, not a relation between records, and needs no schema.
 - **A front-matter edge.** A *later* record changes what an *earlier* one decided.
   `amends` where part of the earlier record no longer holds and the rest stands;
   `supersedes` where the earlier record is replaced whole. The earlier record's body
@@ -71,11 +73,6 @@ detail amends itself. A record overturning another's claim takes an edge.
 - *Put the relation in the body, under a "Supersedes" heading.* Lost: it is the same
   information one parse-step further away, and the front matter is already the place
   this project puts what a program reads (decision 0036).
-- *Make the `## Amendments` lines parseable too, each naming its finding as data.*
-  Not taken here, and worth taking later. Those lines carry a real edge, from a
-  finding to the records it moved, and answering "which records did this audit
-  change?" means grepping prose today. It is a larger change, it touches
-  twenty-six records, and it is a different relation from this one.
 
 ## Consequences
 
