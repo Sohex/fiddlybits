@@ -3,17 +3,38 @@
 # notes/findings/2026-09-10-kepler-in-a-portable-kernel.md; the residual and the
 # derivative are Markley equations 30 to 35. Every transcendental call and every
 # multiply that feeds an add takes a `Backend` (decision 0029), per
-# notes/findings/2026-09-11-polynomial-transcendentals-for-bitwise-mode.md.
+# notes/findings/2026-09-11-polynomial-transcendentals-for-bitwise-mode.md. The
+# multiply is `fma` in bitwise mode and a plain multiply otherwise (decision 0044).
 
 using ..Backends: Backend, bitwise, sine, sine_cosine, cube_root, nofuse_mul
 
 """
+    fma_add(a, b, c, backend)
+
+`fma(a, b, c)` when `backend` runs in bitwise mode and `a * b + c` otherwise
+(decision 0044).
+"""
+@inline fma_add(a, b, c, backend::Backend) = bitwise(backend) ? fma(a, b, c) : a * b + c
+
+"""
     barrier_mul(a, b, backend)
 
-`a * b`, through `Backends.nofuse_mul` when `backend` runs in bitwise mode
-(decision 0029) and as a plain multiply otherwise.
+`a * b`, through `Backends.nofuse_mul` when `backend` runs in bitwise mode and
+as a plain multiply otherwise (decision 0044). Used where the product is read
+by more than one later expression, so it must be rounded once before any of
+them sees it.
 """
 @inline barrier_mul(a, b, backend::Backend) = bitwise(backend) ? nofuse_mul(a, b) : a * b
+
+"""
+    kepler_poly(z, c, backend)
+
+The Horner evaluation at `z` of the polynomial with coefficients `c`, the
+constant term first, through `fma_add`.
+"""
+@inline kepler_poly(z::T, c::Tuple{T}, backend::Backend) where {T<:AbstractFloat} = c[1]
+@inline kepler_poly(z::T, c::Tuple{T,T,Vararg{T}}, backend::Backend) where {T<:AbstractFloat} =
+    fma_add(kepler_poly(z, Base.tail(c), backend), z, c[1], backend)
 
 """
     e_minus_sin(E, backend)
@@ -25,9 +46,9 @@ against `Backends.sine`.
 @inline function e_minus_sin(E::T, backend::Backend) where {T<:AbstractFloat}
     if abs(E) < T(0.5)
         E2 = E * E
-        return E * E2 * @evalpoly(E2,
-            T(1//6), T(-1//120), T(1//5040), T(-1//362880),
-            T(1//39916800), T(-1//6227020800), T(1//1307674368000))
+        return E * E2 * kepler_poly(E2,
+            (T(1//6), T(-1//120), T(1//5040), T(-1//362880),
+             T(1//39916800), T(-1//6227020800), T(1//1307674368000)), backend)
     else
         return E - sine(E, backend)
     end
@@ -40,7 +61,7 @@ end
 terms kept positive and of comparable size.
 """
 @inline kepler_residual(E::T, e::T, M::T, backend::Backend) where {T} =
-    barrier_mul(one(T) - e, E, backend) + barrier_mul(e, e_minus_sin(E, backend), backend) - M
+    fma_add(one(T) - e, E, e * e_minus_sin(E, backend), backend) - M
 
 """
     kepler_derivative(E, e, backend)
@@ -48,7 +69,7 @@ terms kept positive and of comparable size.
 `1 - e + 2 e sin^2(E/2)`, Markley equation 30.
 """
 @inline kepler_derivative(E::T, e::T, backend::Backend) where {T} =
-    (one(T) - e) + barrier_mul(2 * e, abs2(sine(E / 2, backend)), backend)
+    fma_add(2 * e, abs2(sine(E / 2, backend)), one(T) - e, backend)
 
 """
     naive_kepler_residual(E, e, M)
@@ -67,22 +88,21 @@ evaluations and a fixed sequence of arithmetic, through `backend`.
 """
 @inline function markley_start(M::T, e::T, backend::Backend) where {T<:AbstractFloat}
     pi2 = abs2(T(pi))
-    alpha = (barrier_mul(T(3), pi2, backend) +
-             8 * (pi2 - barrier_mul(T(pi), abs(M), backend)) / (5 * (1 + e))) / (pi2 - 6)
-    d = barrier_mul(T(3), 1 - e, backend) + barrier_mul(alpha, e, backend)
-    q = barrier_mul(2 * alpha * d, 1 - e, backend) - barrier_mul(M, M, backend)
-    r = barrier_mul(3 * alpha * d * (d - 1 + e), M, backend) + barrier_mul(M * M, M, backend)
-    w = cube_root(abs2(abs(r) + sqrt(barrier_mul(q * q, q, backend) +
-                                      barrier_mul(r, r, backend))), backend)
-    E1 = (2 * r * w / @evalpoly(w, q * q, q, one(T)) + M) / d
+    alpha = fma_add(T(3), pi2,
+             8 * fma_add(-T(pi), abs(M), pi2, backend) / (5 * (1 + e)), backend) / (pi2 - 6)
+    d = fma_add(T(3), 1 - e, alpha * e, backend)
+    q = fma_add(2 * alpha * d, 1 - e, -(M * M), backend)
+    r = fma_add(3 * alpha * d * (d - 1 + e), M, M * M * M, backend)
+    w = cube_root(abs2(abs(r) + sqrt(fma_add(q * q, q, r * r, backend))), backend)
+    E1 = (2 * r * w / kepler_poly(w, (q * q, q, one(T)), backend) + M) / d
     s, c = sine_cosine(E1, backend)
     f2 = barrier_mul(e, s, backend)
     f3 = barrier_mul(e, c, backend)
     f0 = E1 - f2 - M
     f1 = one(T) - f3
     d3 = -f0 / (f1 - f0 * f2 / (2 * f1))
-    d4 = -f0 / @evalpoly(d3, f1, f2 / 2, f3 / 6)
-    d5 = -f0 / @evalpoly(d4, f1, f2 / 2, f3 / 6, -f2 / 24)
+    d4 = -f0 / kepler_poly(d3, (f1, f2 / 2, f3 / 6), backend)
+    d5 = -f0 / kepler_poly(d4, (f1, f2 / 2, f3 / 6, -f2 / 24), backend)
     return E1 + d5
 end
 
