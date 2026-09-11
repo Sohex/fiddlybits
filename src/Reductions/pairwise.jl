@@ -1,7 +1,7 @@
 # Fixed-order pairwise summation: docs/plans/fiddlybits-52v.7-kernels.md,
 # section "The reductions".
 
-using ..Backends: Backend, CPU, launch!
+using ..Backends: Backend, CPU, backend_of, launch!, on
 using ..Verdicts: refuse
 using KernelAbstractions: @kernel, @index, @Const
 
@@ -49,19 +49,37 @@ function pairwise_block_sums(::Type{A}, xs::AbstractVector, backend::Backend;
 end
 
 """
-    combine_fixed_order(v::AbstractVector{A}) where A
+    combine_tree(v::AbstractVector{A}) where A
 
 `v`'s entries added in a binary-tree order determined only by `length(v)`
 (recursive halving of the index range), never by what computed each entry
-or in what order those computations finished. `v` must already live on the
-host; a device array is copied to it first.
+or in what order those computations finished. `v` is read element by
+element, so it must already live on the host; `combine_fixed_order` is the
+door that checks that, and this function does not check it again on each
+of its own recursive calls.
 """
-function combine_fixed_order(v::AbstractVector{A}) where {A<:Number}
+function combine_tree(v::AbstractVector{A}) where {A<:Number}
     n = length(v)
     n == 0 && return zero(A)
     n == 1 && return v[1]
     mid = n ÷ 2
-    return combine_fixed_order(view(v, 1:mid)) + combine_fixed_order(view(v, mid+1:n))
+    return combine_tree(view(v, 1:mid)) + combine_tree(view(v, mid+1:n))
+end
+
+"""
+    combine_fixed_order(v::AbstractVector{A}) where A
+
+`v`'s entries added by `combine_tree`. Refuses, naming the backend, when
+`v` does not live on the host (`Backends.backend_of`), rather than reading
+device memory element by element. `pairwise_sum` moves the block sums to
+the host through `Backends.on` before calling this.
+"""
+function combine_fixed_order(v::AbstractVector{A}) where {A<:Number}
+    from = backend_of(v)
+    from === :cpu ||
+        refuse("combine operand backend", "Reductions.combine_fixed_order",
+               "v lives on backend $from, not the host")
+    return combine_tree(v)
 end
 
 """
@@ -74,11 +92,18 @@ of `blocksize` terms, each block's sum computed independently on
 atomic, never a library reduction (decision 0029): the result depends only
 on `length(xs)`, `blocksize` and `A`, never on the thread count or how the
 blocks were scheduled to workers.
+
+The return is a host scalar, so the block sums are moved to the host on
+every call, through `Backends.on` (decision 0011). On a device-resident
+`xs` that is one `Events.moved` record per call, the device-move record of
+decision 0010; it is not an event of decision 0042's journal vocabulary,
+which carries no move kind. On a host-resident `xs` the move is a no-op
+and records nothing.
 """
 function pairwise_sum(::Type{A}, xs::AbstractVector, backend::Backend = CPU(BLOCKSIZE);
                        blocksize::Integer = BLOCKSIZE) where {A<:Number}
     partials = pairwise_block_sums(A, xs, backend; blocksize = blocksize)
-    return combine_fixed_order(Array(partials))
+    return combine_fixed_order(on(partials, CPU(1)))
 end
 
 """
