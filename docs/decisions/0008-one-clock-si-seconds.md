@@ -128,3 +128,12 @@ everywhere in the system, which the predecessor's terrain generator could not of
 - 2026-09-08: the sidereal day is the declared sidereal rotation period; the solar and mean solar day are per source, undefined by name for a synchronous rotator; the true anomaly is a Kepler solve to rounding and Berger's secular variations are a declared absence, from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-08: the epoch is a declared (event kind, source index) pair with the equinox kind admissible only above a rounding-derived obliquity threshold and with one declared primary; the reference direction for the argument of periapsis is named, from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-08: the implied oracles are the registry's system.* section, each run on Earth() and a synthetic non-Earth instance, from notes/findings/2026-09-08-implicit-earth-audit.md.
+- 2026-09-10: the Kepler solve is this project's own and takes a named form. Markley's
+  closed form supplies the starting value, and two Newton steps refine it on the residual
+  `(1 - e)E + e(E - sin E) - M` with the derivative `1 - e + 2 e sin^2(E/2)`, which are
+  Markley equations 30 to 35; `E - sin E` below half a radian is the series through
+  `E^15`. The iteration count is fixed, so every lane does the same work. An eccentricity
+  outside the elliptic range is refused once by the `System` constructor and never inside
+  a per-cell kernel. From `notes/findings/2026-09-10-kepler-in-a-portable-kernel.md` and
+  `notes/findings/2026-09-10-sampling-the-kepler-hard-region.md`, carried by
+  `fiddlybits-52v.10`.
