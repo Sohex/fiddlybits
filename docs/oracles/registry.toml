@@ -1235,6 +1235,45 @@ anchors = []
 # ---------------------------------------------------------------- tier 1: reproducibility
 
 [[oracle]]
+id = "provenance.key_stability"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "the artifact key of one artifact computed twice, once after every float of the declared parameter subset has been printed to text and parsed back, and once on a second machine"
+verdict_kind = "fail_bar"
+threshold = "identical in every case, the hash taken over IEEE bit patterns (positive control: a hash taken over printed decimal, which the text round trip must move). A code version with uncommitted changes must refuse to write a keyed artifact and may write only a scratch run"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "provenance.store_refuses_incomplete"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "opening an array with each of support id, semantics, time semantics, dimension, owner and interval dropped in turn; and storing a field whose ledger is open"
+verdict_kind = "fail_bar"
+threshold = "every case refuses, naming the attribute that was missing; an open ledger refuses naming the quantity (positive control: each attribute dropped in turn, all six of which must refuse rather than defaulting)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "provenance.index_roundtrip"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "a known index field written 0-based to the container and read back 1-based in memory, compared cell by cell"
+verdict_kind = "fail_bar"
+threshold = "unchanged in every cell (positive control: an off-by-one applied at the disk boundary, which the known field must expose; a field of constant value would not)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "provenance.journal_is_inert"
 tier = 1
 subsystem = "provenance"
