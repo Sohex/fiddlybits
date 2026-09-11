@@ -189,5 +189,14 @@ for those two dependencies.
 | 52v.3.7 | sonnet | none; reports only | all six oracles ran; verdicts by name |
 
 52v.3.3, 52v.3.5 and 52v.3.6 depend on 52v.3.2; 52v.3.4 depends on 52v.3.3 and
-52v.3.5. The whole area depends on the mesh's `Support` and on the kernel layer's
-reductions.
+52v.3.5.
+
+The area's own rows are not the whole order. 52v.3.2 depends on
+`fiddlybits-52v.5.2`, which declares the `TimeSemantics` enumeration this module
+dispatches over, and on `fiddlybits-52v.7.2`, which declares the `(cells, levels)`
+layout convention and the `Adapt` rules `fields.adapt_roundtrip` exercises. 52v.3.3
+depends on `fiddlybits-52v.7.3` for the segmented sum and mean and on
+`fiddlybits-52v.7.5` for the segmented quantile and `area_fraction_above`. 52v.3.6
+depends on `fiddlybits-52v.7.3` for the `k * N * eps * M` bound and for the explicit
+accumulator type the reservoir refusal is written against. The mesh's `Support` is
+already merged. The board carries the same edges.
