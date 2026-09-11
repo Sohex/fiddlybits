@@ -180,4 +180,99 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
             @test Reductions.Segmentation(xs_gpu, starts_gpu) isa Reductions.Segmentation
         end
     end
+
+    # Every entry point in Reductions that can reach a device, its per-call
+    # host-read count in one table. The counts above are the same numbers
+    # reached one at a time; this testset is the restatement
+    # fiddlybits-52v.7.47 asks for, and it is where a new reduction is added
+    # or a changed one shows up. Whether pairwise_sum's own read is inherent
+    # to its contract is settled in
+    # notes/findings/2026-09-11-device-scalar-reduction-contract.md.
+    @testset "every reduction in Reductions, its per-call host reads restated" begin
+        segmentation = Reductions.Segmentation(xs_gpu, starts_gpu)
+        quartered_segmentation = Reductions.Segmentation(xs_gpu, quartered_gpu)
+        quartered_nseg = length(quartered) - 1
+        host_partials = Reductions.pairwise_block_sums(Float64, xs, cpu)
+
+        device_calls = [
+            ("pairwise_block_sums", 0,
+             () -> Reductions.pairwise_block_sums(Float64, xs_gpu, gpu)),
+            ("pairwise_sum", 1,
+             () -> Reductions.pairwise_sum(Float64, xs_gpu, gpu)),
+            ("segment_extent", 1,
+             () -> Reductions.segment_extent(xs_gpu, starts_gpu)),
+            ("segment_depth", 1,
+             () -> Reductions.segment_depth(quartered_gpu, quartered_nseg)),
+            ("Segmentation", 1,
+             () -> Reductions.Segmentation(xs_gpu, starts_gpu)),
+            ("segmented_sum, boundary array", 1,
+             () -> Reductions.segmented_sum(Float64, xs_gpu, starts_gpu, gpu)),
+            ("segmented_sum, Segmentation", 0,
+             () -> Reductions.segmented_sum(Float64, xs_gpu, segmentation, gpu)),
+            ("segmented_mean, boundary array", 2,
+             () -> Reductions.segmented_mean(Float64, xs_gpu, starts_gpu, weights_gpu, gpu)),
+            ("segmented_mean, Segmentation", 1,
+             () -> Reductions.segmented_mean(Float64, xs_gpu, segmentation, weights_gpu, gpu)),
+            ("segmented_quantile, boundary array", 1,
+             () -> Reductions.segmented_quantile(xs_gpu, quartered_gpu, 0.5, gpu)),
+            ("segmented_quantile, Segmentation", 0,
+             () -> Reductions.segmented_quantile(xs_gpu, quartered_segmentation, 0.5, gpu)),
+            ("area_fraction_above", 2,
+             () -> Reductions.area_fraction_above(xs_gpu, areas_gpu, 0.0, gpu)),
+        ]
+
+        for (name, expected, call) in device_calls
+            @testset "$name reads the host $expected times per call" begin
+                @test moves(call) == expected
+                @test moves() do
+                    for _ in 1:repeats
+                        call()
+                    end
+                end == expected * repeats
+            end
+        end
+
+        host_calls = [
+            ("pairwise_block_sums", () -> Reductions.pairwise_block_sums(Float64, xs, cpu)),
+            ("pairwise_sum", () -> Reductions.pairwise_sum(Float64, xs, cpu)),
+            ("pairwise_sum_reference", () -> Reductions.pairwise_sum_reference(Float64, xs)),
+            ("combine_fixed_order", () -> Reductions.combine_fixed_order(host_partials)),
+            ("compensated_sum", () -> Reductions.compensated_sum(xs)),
+            ("compensated_sum_reference", () -> Reductions.compensated_sum_reference(xs)),
+            ("segment_extent", () -> Reductions.segment_extent(xs, starts)),
+            ("segment_depth", () -> Reductions.segment_depth(quartered, quartered_nseg)),
+            ("Segmentation", () -> Reductions.Segmentation(xs, starts)),
+            ("segmented_sum", () -> Reductions.segmented_sum(Float64, xs, starts, cpu)),
+            ("segmented_sum_reference",
+             () -> Reductions.segmented_sum_reference(Float64, xs, starts)),
+            ("segmented_mean", () -> Reductions.segmented_mean(Float64, xs, starts, weights, cpu)),
+            ("segmented_mean_reference",
+             () -> Reductions.segmented_mean_reference(Float64, xs, starts, weights)),
+            ("segmented_quantile", () -> Reductions.segmented_quantile(xs, quartered, 0.5, cpu)),
+            ("segmented_quantile_reference",
+             () -> Reductions.segmented_quantile_reference(xs, quartered, 0.5)),
+            ("area_fraction_above", () -> Reductions.area_fraction_above(xs, areas, 0.0, cpu)),
+            ("area_fraction_above_reference",
+             () -> Reductions.area_fraction_above_reference(xs, areas, 0.0)),
+        ]
+
+        for (name, call) in host_calls
+            @testset "$name reads the host no times per call on host-resident input" begin
+                @test moves(call) == 0
+            end
+        end
+
+        @testset "positive control: the counter is live across the table's own calls" begin
+            # Every count above is zero or small, so the table would read the
+            # same way if the sink had been detached: one extra read of a
+            # device array inside the same measured call must raise the count
+            # by exactly one.
+            for (name, expected, call) in device_calls
+                @test moves(() -> (call(); Backends.on(xs_gpu, Backends.CPU(1)))) == expected + 1
+            end
+            for (name, call) in host_calls
+                @test moves(() -> (call(); Backends.on(xs_gpu, Backends.CPU(1)))) == 1
+            end
+        end
+    end
 end

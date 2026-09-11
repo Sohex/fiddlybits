@@ -37,6 +37,24 @@ using Fiddlybits: Reductions, Backends, Verdicts
         @test Float64(result32) != result64
     end
 
+    @testset "the contract: the sum is a host scalar of the accumulator type" begin
+        # notes/findings/2026-09-11-device-scalar-reduction-contract.md
+        for FT in (Float64, Float32)
+            terms = ReductionFixtures.seeded_vector(FT, ReductionFixtures.N)
+            result = Reductions.pairwise_sum(FT, terms, Backends.CPU(8))
+            @test result isa FT
+            @test !(result isa AbstractArray)
+        end
+
+        @testset "positive control: the block sums it is built from are an array" begin
+            # Without this the assertions above would also hold of a
+            # reduction that returned nothing but its first block sum.
+            partials = Reductions.pairwise_block_sums(Float64, xs, Backends.CPU(8))
+            @test partials isa AbstractArray
+            @test length(partials) == cld(length(xs), Reductions.BLOCKSIZE)
+        end
+    end
+
     @testset "block partition invariance: same blocksize, different workgroup" begin
         result_wg4 = Reductions.pairwise_sum(Float64, xs, Backends.CPU(4))
         result_wg16 = Reductions.pairwise_sum(Float64, xs, Backends.CPU(16))

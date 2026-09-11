@@ -29,6 +29,23 @@ using Fiddlybits: Reductions, Backends
         gpu_result = Reductions.pairwise_sum(Float64, xs_gpu, gpu)
 
         @test gpu_result == cpu_result
+
+        # The contract: a device-resident xs sums to a host scalar of the
+        # accumulator type, not to a one-element device array. Settled in
+        # notes/findings/2026-09-11-device-scalar-reduction-contract.md.
+        @test gpu_result isa Float64
+        @test !(gpu_result isa AbstractArray)
+        @test Backends.backend_of([gpu_result]) === :cpu
+
+        @testset "positive control: a segmented sum on the same input is not a host scalar" begin
+            # The same call shape at the same backend returns a device array,
+            # so the assertions above are a statement about pairwise_sum's
+            # contract and not about what every reduction happens to return.
+            segmented = Reductions.segmented_sum(Float64, xs_gpu,
+                                                  Backends.on(starts, gpu), gpu)
+            @test segmented isa AbstractArray
+            @test Backends.backend_of(segmented) === :gpu
+        end
     end
 
     @testset "segmented_sum" begin
