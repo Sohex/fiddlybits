@@ -90,3 +90,11 @@ applies (a worktree does not regenerate a linked artifact).
 - Decisions 0029 (`answers:` discipline), 0034 (gates), 0027 (reference paths and
   mutation run); predecessor working agreement "a delegated agent works the rows it
   files", `/home/cfutro/docs/world/docs/src/practice/working-agreements.md`.
+
+## Amendments
+
+- 2026-09-10: the closed label vocabulary gains a fourth namespace,
+  `milestone:m-1|m0|...|m4b|...|m11`, naming the milestone of decision 0034 a row is
+  wanted by. It is carried by survey and reading rows, which are timed to a milestone
+  without belonging to its epic; rows that sit under a milestone epic take their
+  milestone from the parent and do not repeat it.

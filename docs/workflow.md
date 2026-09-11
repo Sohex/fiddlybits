@@ -34,7 +34,10 @@ Every implementation row has, in the tracker (`bd show <id>`):
 - **acceptance**: the oracles, identities or lints that decide it, by name, fixed
   before work starts. A row with an empty acceptance field is not ready; ask the
   planner (file a row against the plan), do not invent a criterion.
-- **labels**: `kind:*`, `tier:*`, `area:*`. Closed vocabulary; `bd label list-all`.
+- **labels**: `kind:*`, `tier:*`, `area:*`, and `milestone:*` on a row that is timed
+  to a milestone of decision 0034 without sitting under its epic (a survey or reading
+  row). A row under a milestone epic inherits the milestone and does not repeat it.
+  Closed vocabulary; `bd label list-all`.
 - **deps**: the rows that must be merged first.
 
 ## The executor loop
