@@ -7,10 +7,9 @@ using KernelAbstractions: @kernel, @index, @Const
 """
     nofuse_mul(a, b)
 
-`a * b`, through a function boundary this project's GPU compiler does not
-fuse with an add that follows it. Bitwise mode (decision 0029) routes every
-multiply that feeds an add through this function; the fused kernels below do
-not.
+`a * b`, returned through a call the compiler may not inline. Bitwise mode
+(decision 0029) routes every multiply that feeds an add through this
+function; the fused kernels below do not.
 """
 @noinline nofuse_mul(a, b) = a * b
 

@@ -51,11 +51,12 @@ workgroup(b::Backend) = b.workgroup
 """
     bitwise(backend::Backend)
 
-Whether `backend` runs in bitwise debug mode (decision 0029). A kernel that
-needs a transcendental branches on this to choose the project's own
-polynomial implementation over the platform library once one exists
-(fiddlybits-52v.7.8); a kernel with no transcendental in it runs the same
-arithmetic either way.
+Whether `backend` runs in bitwise debug mode (decision 0029). A kernel
+branches on this to route a multiply that feeds an add through the fusion
+barrier instead of letting it fuse on the GPU backend; a kernel with a
+transcendental in it also branches on this to choose the project's own
+polynomial implementation over the platform library, once one exists
+(fiddlybits-52v.7.8).
 """
 bitwise(b::Backend) = b.bitwise
 

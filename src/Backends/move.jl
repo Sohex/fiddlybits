@@ -2,38 +2,49 @@
 # "The device layer".
 
 using ..Events: moved
+using ..Verdicts: refuse
 import Adapt
 import CUDA
+import KernelAbstractions
 
 """
     backend_of(array)
 
-The backend name `array` currently lives on, read from its concrete type:
-`:gpu` for a `CUDA.CuArray`, `:cpu` for any other `AbstractArray`.
+The backend name `array` currently lives on, from
+`KernelAbstractions.get_backend(array)`: `:cpu` for `KernelAbstractions.CPU`,
+`:gpu` for `CUDA.CUDABackend`. Refuses for any other backend that function
+returns, and for an array type it cannot resolve to one.
 """
-backend_of(::CUDA.CuArray) = :gpu
-backend_of(::AbstractArray) = :cpu
+function backend_of(array::AbstractArray)
+    ka = KernelAbstractions.get_backend(array)
+    ka isa KernelAbstractions.CPU && return :cpu
+    ka isa CUDA.CUDABackend && return :gpu
+    refuse("array backend", "Backends.backend_of",
+           "KernelAbstractions.get_backend returned $(typeof(ka)), neither CPU nor CUDABackend")
+end
 
 """
     on(array::AbstractArray, backend::CPU)
     on(array::AbstractArray, backend::GPU)
 
-`array` moved to `backend`, recording the move through `Events.moved` from
-the backend `array` currently lives on to `backend`'s name. Returns `array`
-unchanged when it already lives on `backend`, and a copy on `backend`
-otherwise.
+`array` moved to `backend`. Returns `array` unchanged, recording nothing,
+when it already lives on `backend`; otherwise returns a copy on `backend`
+and records the move through `Events.moved`, from the backend `array`
+lived on to `backend`'s name.
 """
 function on(array::AbstractArray, backend::CPU)
     from = backend_of(array)
+    from === :cpu && return array
     moved(array, from, :cpu)
-    return from === :cpu ? array : Array(array)
+    return Array(array)
 end
 
 function on(array::AbstractArray, backend::GPU)
     ka_backend(backend)
     from = backend_of(array)
+    from === :gpu && return array
     moved(array, from, :gpu)
-    return from === :gpu ? array : CUDA.CuArray(array)
+    return CUDA.CuArray(array)
 end
 
 """
