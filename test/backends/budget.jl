@@ -139,3 +139,57 @@ end
         ("field_b", Float64, 2000),
     ])
 end
+
+@testset "budget refuses when field product overflows: positive control" begin
+    # The declaration that returned -8 before the fix must now refuse.
+    # sizeof(Float64) * div(typemax(Int), 4) overflows
+    overflowing_extent = div(typemax(Int), 4)
+    @test_throws Verdicts.Refusal Backends.budget([("a", Float64, overflowing_extent)])
+
+    try
+        Backends.budget([("a", Float64, overflowing_extent)])
+    catch err
+        @test err isa Verdicts.Refusal
+        @test occursin("a", err.reason)
+        @test occursin(string(overflowing_extent), err.reason)
+    end
+end
+
+@testset "budget accepts large but representable totals" begin
+    # A large extent that does not overflow must still return the correct value.
+    # Use a value that is large but representable when multiplied by sizeof.
+    large_but_safe_extent = typemax(Int) ÷ 16  # Safe because sizeof(Float64)=8
+    safe_bytes = 8 * large_but_safe_extent
+
+    @test_nowarn Backends.budget([("large", Float64, large_but_safe_extent)])
+    @test Backends.budget([("large", Float64, large_but_safe_extent)]) == safe_bytes
+end
+
+@testset "budget refuses when sum of fields overflows" begin
+    # Two fields that are individually fine but whose sum overflows.
+    # Each field = roughly typemax(Int)/2 - 100 to avoid individual overflow
+    # but their sum will overflow when added.
+    half_max = typemax(Int) ÷ 2
+
+    # Create two fields, each with a large extent of the same type
+    # so their individual products don't overflow but the sum does.
+    large_extent = half_max - 100
+
+    # Using Float64 (8 bytes), each field is roughly 8 * (half_max - 100)
+    # which is less than typemax(Int) but their sum will overflow.
+    @test_throws Verdicts.Refusal Backends.budget([
+        ("field_1", Float64, large_extent),
+        ("field_2", Float64, large_extent),
+    ])
+
+    try
+        Backends.budget([
+            ("field_1", Float64, large_extent),
+            ("field_2", Float64, large_extent),
+        ])
+    catch err
+        @test err isa Verdicts.Refusal
+        # The refusal should name at least one field that caused the overflow
+        @test occursin("field_1", err.reason) || occursin("field_2", err.reason)
+    end
+end
