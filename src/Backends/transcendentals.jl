@@ -305,8 +305,8 @@ value, two Newton steps, and one final step on a residual formed exactly by
     y = m * two_power(j)
     t = horner(fma(2.0, m, -3.0), CBRT_START)
     t = t * ifelse(j == Int32(0), 1.0, ifelse(j == Int32(1), CBRT_TWO, CBRT_FOUR))
-    t = (2.0 * t + y / (t * t)) / 3.0
-    t = (2.0 * t + y / (t * t)) / 3.0
+    t = fma(2.0, t, y / (t * t)) / 3.0
+    t = fma(2.0, t, y / (t * t)) / 3.0
     p = t * t
     ep = fma(t, t, -p)
     c = nofuse_mul(p, t)

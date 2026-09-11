@@ -105,12 +105,6 @@ reason = "decision 0027's naive serial reference, which decision 0044 keeps unfu
 # source bitwise mode compiles, outside the file boundary of the row that
 # built this lint.
 [[exemption]]
-path = "Backends/transcendentals.jl"
-function = "cube_root_poly"
-found = "2.0t + y / (t * t)"
-reason = "the Float64 Newton steps, whose product is exactly representable per notes/findings/2026-09-11-polynomial-transcendentals-for-bitwise-mode.md; the Float32 method already writes the same step as fma and fiddlybits-52v.7.30 moves this one"
-
-[[exemption]]
 path = "Backends/certify.jl"
 function = "admissible"
 found = "carried + injected * Float64(roundoff)"
