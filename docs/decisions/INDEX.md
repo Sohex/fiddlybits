@@ -50,5 +50,6 @@ from those, and is the only place that back-edge is written down.
 | [0038](0038-concurrency-from-the-outset.md) | Concurrency is designed in from the outset, and a stage is never the unit of waiting | accepted | 2026-09-10 | - | - | - |
 | [0039](0039-comments-say-what-the-code-does.md) | A comment says what the code does; the argument for it lives in the durable record | accepted | 2026-09-10 | - | - | - |
 | [0040](0040-records-carry-their-edges.md) | A decision record names the records it amends or supersedes, in its front matter, as data | accepted | 2026-09-10 | - | - | - |
+| [0041](0041-fast-tier-integrator.md) | The fast tier integrates with ClimaTimeSteppers under five conditions, and the alternative is excluded by its own dependency graph | proposed | 2026-09-10 | 0012 (takes the ClimaTimeSteppers.jl candidacy it left open, and closes the four points it named for that decision) | - | - |
 
-40 records; 40 accepted, 0 proposed, 0 superseded.
+41 records; 40 accepted, 1 proposed, 0 superseded.

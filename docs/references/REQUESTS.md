@@ -25,6 +25,8 @@ registry, not here.
 
 ## Numerics, precision and reproducibility (A6, A7, C3, C4, C6)
 
+- Implicit-explicit Runge-Kutta methods for time-dependent partial differential equations -- Ascher, U. M., Ruuth, S. J., Spiteri, R. J. (1997). Applied Numerical Mathematics 25 (2-3), 151-167. DOI: 10.1016/S0168-9274(97)00056-1. Anchors: decision 0041, the ARS tableaux and the ARS343 unconstrained comparison arm for the fast tier's integrator. Unpaywall reports no open copy. Suggested filename: ascher1997-implicit-explicit-runge-kutta-methods.pdf
+
 
 ## Atmosphere radiation and column physics (B2, M4)
 

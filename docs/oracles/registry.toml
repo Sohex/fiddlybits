@@ -230,6 +230,32 @@ anchors = []
 # ---------------------------------------------------------------- tier 1: dynamical core
 
 [[oracle]]
+id = "core.imex_convergence_order"
+tier = 1
+subsystem = "atmosphere"
+dataset_or_reference = "method of manufactured solutions in time"
+statistic = "observed temporal convergence order of the fast tier's integrator against the tableau's designed order, on the SSP-constrained arm and on the unconstrained arm, at fixed spatial resolution over a step-size ladder"
+verdict_kind = "fail_bar"
+threshold = "observed order not below the tableau's designed order by more than provisional 0.2 on either arm"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = ["Implicit-explicit (IMEX) Runge-Kutta methods for non-hydrostatic atmospheric models"]
+
+[[oracle]]
+id = "core.implicit_stage_refusal"
+tier = 1
+subsystem = "atmosphere"
+dataset_or_reference = "identity"
+statistic = "an implicit stage given a deliberately unconvergeable residual returns Refused by name and the step does not advance the clock; the same stage with a convergent residual returns Converged"
+verdict_kind = "fail_bar"
+threshold = "both verdicts fire by name (positive control: the unconvergeable stage, which must not pass)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "core.mms_convergence_order"
 tier = 1
 subsystem = "atmosphere"
