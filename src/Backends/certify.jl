@@ -1,8 +1,9 @@
 # The ulp-ensemble envelope and the single-precision certification: docs/plans/
 # fiddlybits-52v.7-kernels.md, section "Certification", and decision 0029. The
 # member count, the bracket it sits in, the miss rate it detects, the measured
-# amplification distribution it is sized against and the smallest injected error
-# the certification catches are in
+# amplification distribution it is sized against, the smallest injected error
+# the certification catches, and why the sampled ensemble cannot see a
+# sub-population the size of decision 0005's twelve degree-five cells, are in
 # notes/findings/2026-09-11-ulp-ensemble-member-count.md.
 
 using ..Verdicts: FAIL, OracleVerdict, PASS, refuse
@@ -143,17 +144,29 @@ struct Certification
 end
 
 """
-    divergence(a, b)
+    divergence(a, b; sites = nothing)
 
 The sum over every field and every cell of `abs(a - b)`, at `Float64`. The one
 norm rather than the largest element, because the quantity the envelope stands
 for is the operator one norm of the case's propagator, whose value is the
 largest over single-cell perturbations of exactly this sum.
+
+`sites`, when given, restricts the sum to that list of `(field, cell)` pairs
+rather than every cell: the same one norm, read over a named subset instead of
+the whole case, for a certification scoped to that subset
+(`Backends.exhaustive_envelope`, `Backends.certification`).
 """
-function divergence(a::Vector{Vector{S}}, b::Vector{Vector{T}}) where {S<:AbstractFloat,T<:AbstractFloat}
+function divergence(a::Vector{Vector{S}}, b::Vector{Vector{T}};
+                    sites::Union{Nothing,Vector{Tuple{Int,Int}}} = nothing) where {S<:AbstractFloat,T<:AbstractFloat}
     total = zero(Float64)
-    for f in eachindex(a, b), i in eachindex(a[f], b[f])
-        total += abs(Float64(a[f][i]) - Float64(b[f][i]))
+    if sites === nothing
+        for f in eachindex(a, b), i in eachindex(a[f], b[f])
+            total += abs(Float64(a[f][i]) - Float64(b[f][i]))
+        end
+    else
+        for (f, i) in sites
+            total += abs(Float64(a[f][i]) - Float64(b[f][i]))
+        end
     end
     return total
 end
@@ -247,6 +260,57 @@ function check_finite(state::Vector{Vector{T}}, s::Integer,
 end
 
 """
+    measure_envelope(case, steps, sites, all_sites, exhaustive, miss_rate, scope)
+
+The machinery `envelope` and `exhaustive_envelope` share: `sites` is perturbed
+in order, one member each, and `amplification[s]` is the largest of
+`divergence(state, base[s]; sites = scope) / delta` any member reaches at step
+`s`. `scope = nothing` scores divergence over every cell of `case`; `scope =
+sites` restricts it to the sites named. The result is packaged as an
+`Envelope` carrying `all_sites`, `exhaustive` and `miss_rate` as given, so the
+two callers state what their own count and rate mean rather than this function
+guessing.
+
+Refuses, naming `case.name`, when a member's perturbation leaves its cell
+unchanged, when the reference or a member trajectory leaves the finite range,
+and when every member stayed at zero divergence at every step, which is a case
+that does not propagate a one-ulp perturbation and so has no envelope.
+"""
+function measure_envelope(case::EnsembleCase, steps::Integer, sites::Vector{Tuple{Int,Int}},
+                          all_sites::Int, exhaustive::Bool, miss_rate::Float64,
+                          scope::Union{Nothing,Vector{Tuple{Int,Int}}})
+    base = advance(case.step, [copy(v) for v in case.fields], steps,
+                   case.name, "reference trajectory")
+    amplification = zeros(Float64, steps)
+    ulps = [field_ulp(v) for v in case.fields]
+
+    for (f, i) in sites
+        state = [copy(v) for v in case.fields]
+        v = state[f][i]
+        state[f][i] = v + ulps[f]
+        delta = state[f][i] - v
+        delta > 0 ||
+            refuse("ulp-ensemble perturbation", "Backends.envelope",
+                   "case $(case.name): adding one ulp of field $f, $(ulps[f]), to the " *
+                   "$(v) at cell $i left the value unchanged, so that member has no " *
+                   "perturbation to divide its divergence by")
+        for s in 1:steps
+            case.step(state)
+            check_finite(state, s, case.name, "member trajectory at field $f cell $i")
+            amplification[s] = max(amplification[s], divergence(state, base[s]; sites = scope) / delta)
+        end
+    end
+
+    all(iszero, amplification) &&
+        refuse("ulp-ensemble envelope", "Backends.envelope",
+               "case $(case.name): $(length(sites)) members over $(all_sites) usable sites left " *
+               "the state identical to the reference at every one of $(steps) steps, so the " *
+               "case does not propagate a one-ulp perturbation and its envelope is not measurable")
+
+    return Envelope(case.name, Int(steps), length(sites), all_sites, exhaustive, miss_rate, amplification)
+end
+
+"""
     envelope(case, steps)
 
 The ulp-ensemble divergence envelope of `case` over `steps` steps: a CPU
@@ -279,42 +343,49 @@ function envelope(case::EnsembleCase, steps::Integer)
                "case $(case.name): no field holds a finite nonzero normal scale, so no member " *
                "can be given one ulp of a field to perturb a cell with")
 
-    base = advance(case.step, [copy(v) for v in case.fields], steps,
-                   case.name, "reference trajectory")
-
     members = min(ENSEMBLE_MEMBERS, length(sites))
     exhaustive = members == length(sites)
     order = bit_reversed_order(length(sites))
-    amplification = zeros(Float64, steps)
+    chosen = [sites[order[t]] for t in 1:members]
 
-    ulps = [field_ulp(v) for v in case.fields]
+    return measure_envelope(case, steps, chosen, length(sites), exhaustive,
+                            exhaustive ? zero(Float64) : ENSEMBLE_MISS_RATE, nothing)
+end
 
-    for t in 1:members
-        f, i = sites[order[t]]
-        state = [copy(v) for v in case.fields]
-        v = state[f][i]
-        state[f][i] = v + ulps[f]
-        delta = state[f][i] - v
-        delta > 0 ||
-            refuse("ulp-ensemble perturbation", "Backends.envelope",
-                   "case $(case.name): adding one ulp of field $f, $(ulps[f]), to the " *
-                   "$(v) at cell $i left the value unchanged, so that member has no " *
-                   "perturbation to divide its divergence by")
-        for s in 1:steps
-            case.step(state)
-            check_finite(state, s, case.name, "member trajectory at field $f cell $i")
-            amplification[s] = max(amplification[s], divergence(state, base[s]) / delta)
-        end
-    end
+"""
+    exhaustive_envelope(case, steps, sites)
 
-    all(iszero, amplification) &&
-        refuse("ulp-ensemble envelope", "Backends.envelope",
-               "case $(case.name): $(members) members over $(length(sites)) usable sites left " *
-               "the state identical to the reference at every one of $(steps) steps, so the " *
-               "case does not propagate a one-ulp perturbation and its envelope is not measurable")
+The ulp-ensemble divergence envelope of `case` over `steps` steps, measured by
+perturbing every one of `sites` rather than a sampled subset, and by scoring
+each member's divergence over `sites` alone rather than every cell of `case`.
+`members == sites == length(sites)` in the returned `Envelope`, `exhaustive` is
+true, and `miss_rate` is zero, because `sites` is checked in full rather than
+sampled.
 
-    return Envelope(case.name, Int(steps), members, length(sites), exhaustive,
-                    exhaustive ? zero(Float64) : ENSEMBLE_MISS_RATE, amplification)
+Sits beside `envelope` rather than folding into it: `ENSEMBLE_MEMBERS` and the
+miss rate `envelope` declares describe the sampled draw over every usable site
+of `case`, and this function's own count is never added to them, so the
+declared miss rate keeps meaning what it says. It exists for a named
+sub-population the sampled draw is too coarse to reach, such as the twelve
+degree-five cells decision 0005 puts at every level of an icosahedral mesh,
+whose relative share falls below the declared miss rate as the mesh refines
+(notes/findings/2026-09-11-ulp-ensemble-member-count.md).
+
+Refuses when `steps` is not positive, when `sites` is empty, when a member's
+perturbation leaves its cell unchanged, when the reference or a member
+trajectory leaves the finite range, and when every member stayed at zero
+divergence at every step.
+"""
+function exhaustive_envelope(case::EnsembleCase, steps::Integer, sites::Vector{Tuple{Int,Int}})
+    steps > 0 ||
+        refuse("ulp-ensemble envelope", "Backends.exhaustive_envelope",
+               "case $(case.name): step count $(steps) is not positive, and an envelope is " *
+               "a divergence as a function of step count")
+    isempty(sites) &&
+        refuse("ulp-ensemble perturbation site", "Backends.exhaustive_envelope",
+               "case $(case.name): no site was named to check exhaustively")
+
+    return measure_envelope(case, steps, sites, length(sites), true, zero(Float64), sites)
 end
 
 """
@@ -342,7 +413,7 @@ function admissible(env::Envelope, initial::Real, roundoff::Real)
 end
 
 """
-    certification(kernel, case, envelope; roundoff)
+    certification(kernel, case, envelope; roundoff, sites = nothing)
 
 The per-step numbers and the verdict of certifying `kernel` at `Float32` against
 its own `Float64` run on `case`, over the envelope's step count.
@@ -354,10 +425,18 @@ term count and the magnitude it is built from are the caller's and the bound it
 comes from has one definition in this tree, `Reductions.error_bound`, which sits
 above this module and is read there rather than restated here.
 
+`sites`, when given, scopes `initial` and every `observed[s]` to that list of
+`(field, cell)` pairs (`divergence`'s own `sites` door) rather than every cell
+of `case`: `roundoff` and `envelope` must then be the caller's own, measured or
+declared over the same sites, or the comparison mixes two scopes. This is how
+a certification is scoped to a named sub-population, such as the sites
+`Backends.exhaustive_envelope` was measured over, rather than the whole case.
+
 Refuses when `envelope` was measured on another case, when `roundoff` is
 negative, and when either trajectory leaves the finite range.
 """
-function certification(kernel, case::EnsembleCase, env::Envelope; roundoff::Real)
+function certification(kernel, case::EnsembleCase, env::Envelope; roundoff::Real,
+                       sites::Union{Nothing,Vector{Tuple{Int,Int}}} = nothing)
     env.case == case.name ||
         refuse("certification envelope", "Backends.certification",
                "the envelope was measured on case $(env.case) and the certification is on " *
@@ -368,7 +447,7 @@ function certification(kernel, case::EnsembleCase, env::Envelope; roundoff::Real
 
     wide = [copy(v) for v in case.fields]
     narrow = [Float32.(v) for v in case.fields]
-    initial = divergence(narrow, wide)
+    initial = divergence(narrow, wide; sites = sites)
 
     observed = zeros(Float64, env.steps)
     for s in 1:env.steps
@@ -376,7 +455,7 @@ function certification(kernel, case::EnsembleCase, env::Envelope; roundoff::Real
         check_finite(wide, s, case.name, "double-precision candidate trajectory")
         kernel(narrow)
         check_finite(narrow, s, case.name, "single-precision candidate trajectory")
-        observed[s] = divergence(narrow, wide)
+        observed[s] = divergence(narrow, wide; sites = sites)
     end
 
     bound = admissible(env, initial, roundoff)
@@ -385,14 +464,15 @@ function certification(kernel, case::EnsembleCase, env::Envelope; roundoff::Real
 end
 
 """
-    certify(kernel, case, envelope; roundoff)
+    certify(kernel, case, envelope; roundoff, sites = nothing)
 
 `PASS` when `kernel` at `Float32` stays inside `envelope` at every step of
 `case` against its own `Float64` run, `FAIL` otherwise (decision 0029: a kernel
 enters a production profile at `Float32` only when it does). An `OracleVerdict`
 of decision 0025 and never a boolean; the per-step numbers behind it are
-`certification`. A case whose envelope could not be measured never reaches here,
-because `envelope` refuses.
+`certification`, including the `sites` scoping door it takes. A case whose
+envelope could not be measured never reaches here, because `envelope` refuses.
 """
-certify(kernel, case::EnsembleCase, env::Envelope; roundoff::Real) =
-    certification(kernel, case, env; roundoff = roundoff).verdict
+certify(kernel, case::EnsembleCase, env::Envelope; roundoff::Real,
+       sites::Union{Nothing,Vector{Tuple{Int,Int}}} = nothing) =
+    certification(kernel, case, env; roundoff = roundoff, sites = sites).verdict
