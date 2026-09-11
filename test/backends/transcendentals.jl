@@ -112,47 +112,56 @@ end
 "Whether `a` and `b` agree bit for bit, counting two `NaN`s as agreeing."
 bit_identical(a, b) = all(((x, y),) -> (isnan(x) && isnan(y)) || x === y, zip(a, b))
 
-# The Kepler solve of src/Orbit/kepler.jl with every multiply that feeds an add
-# routed through the bitwise-mode barrier and every transcendental through
-# Backends, so that the arithmetic and the transcendentals can be switched
-# separately. The mean anomaly arrives in [-pi, pi], so rem2pi is not reached.
+# The Kepler solve of src/Orbit/kepler.jl with every multiply that feeds an
+# add taking arith through fma_add and every transcendental through trans,
+# so that the arithmetic and the transcendentals can be switched separately.
+# fma_add is fma in bitwise mode and muladd otherwise (decision 0044).
+# barrier_mul routes a product read by more than one later expression
+# through the bitwise-mode barrier. The mean anomaly arrives in [-pi, pi],
+# so rem2pi is not reached.
+@inline fma_add(a, b, c, arith) =
+    Backends.bitwise(arith) ? fma(a, b, c) : muladd(a, b, c)
+
 @inline barrier_mul(a, b, backend) =
     Backends.bitwise(backend) ? Backends.nofuse_mul(a, b) : a * b
 
-@inline function kepler_e_minus_sin(E, trans)
+@inline kepler_poly(z, c::Tuple{Any}, arith) = c[1]
+@inline kepler_poly(z, c::Tuple{Any,Any,Vararg{Any}}, arith) =
+    fma_add(kepler_poly(z, Base.tail(c), arith), z, c[1], arith)
+
+@inline function kepler_e_minus_sin(E, arith, trans)
     if abs(E) < 0.5
         E2 = E * E
-        return E * E2 * @evalpoly(E2, 1 / 6, -1 / 120, 1 / 5040, -1 / 362880,
-                                  1 / 39916800, -1 / 6227020800, 1 / 1307674368000)
+        return E * E2 * kepler_poly(E2, (1 / 6, -1 / 120, 1 / 5040, -1 / 362880,
+                                    1 / 39916800, -1 / 6227020800, 1 / 1307674368000), arith)
     else
         return E - Backends.sine(E, trans)
     end
 end
 
 @inline kepler_residual(E, e, M, arith, trans) =
-    barrier_mul(1.0 - e, E, arith) + barrier_mul(e, kepler_e_minus_sin(E, trans), arith) - M
+    fma_add(1.0 - e, E, e * kepler_e_minus_sin(E, arith, trans), arith) - M
 
 @inline kepler_derivative(E, e, arith, trans) =
-    (1.0 - e) + barrier_mul(2 * e, abs2(Backends.sine(E / 2, trans)), arith)
+    fma_add(2 * e, abs2(Backends.sine(E / 2, trans)), 1.0 - e, arith)
 
 @inline function markley_start(M, e, arith, trans)
     pi2 = abs2(pi)
-    alpha = (barrier_mul(3.0, pi2, arith) +
-             8 * (pi2 - barrier_mul(pi, abs(M), arith)) / (5 * (1 + e))) / (pi2 - 6)
-    d = barrier_mul(3.0, 1 - e, arith) + barrier_mul(alpha, e, arith)
-    q = barrier_mul(2 * alpha * d, 1 - e, arith) - barrier_mul(M, M, arith)
-    r = barrier_mul(3 * alpha * d * (d - 1 + e), M, arith) + barrier_mul(M * M, M, arith)
-    w = Backends.cube_root(abs2(abs(r) + sqrt(barrier_mul(q * q, q, arith) +
-                                              barrier_mul(r, r, arith))), trans)
-    E1 = (2 * r * w / @evalpoly(w, q * q, q, 1.0) + M) / d
+    alpha = fma_add(3.0, pi2,
+             8 * fma_add(-pi, abs(M), pi2, arith) / (5 * (1 + e)), arith) / (pi2 - 6)
+    d = fma_add(3.0, 1 - e, alpha * e, arith)
+    q = fma_add(2 * alpha * d, 1 - e, -(M * M), arith)
+    r = fma_add(3 * alpha * d * (d - 1 + e), M, M * M * M, arith)
+    w = Backends.cube_root(abs2(abs(r) + sqrt(fma_add(q * q, q, r * r, arith))), trans)
+    E1 = (2 * r * w / kepler_poly(w, (q * q, q, 1.0), arith) + M) / d
     s, c = Backends.sine_cosine(E1, trans)
     f2 = barrier_mul(e, s, arith)
     f3 = barrier_mul(e, c, arith)
     f0 = E1 - f2 - M
     f1 = 1.0 - f3
     d3 = -f0 / (f1 - f0 * f2 / (2 * f1))
-    d4 = -f0 / @evalpoly(d3, f1, f2 / 2, f3 / 6)
-    d5 = -f0 / @evalpoly(d4, f1, f2 / 2, f3 / 6, -f2 / 24)
+    d4 = -f0 / kepler_poly(d3, (f1, f2 / 2, f3 / 6), arith)
+    d5 = -f0 / kepler_poly(d4, (f1, f2 / 2, f3 / 6, -f2 / 24), arith)
     return E1 + d5
 end
 
