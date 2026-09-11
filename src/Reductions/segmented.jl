@@ -1,7 +1,7 @@
 # Segmented sums and means: docs/plans/fiddlybits-52v.7-kernels.md, section
 # "The reductions".
 
-using ..Backends: Backend, CPU, launch!, on
+using ..Backends: Backend, CPU, launch!, on, nofuse_mul
 using ..Verdicts: refuse
 using KernelAbstractions: @kernel, @index, @Const
 
@@ -188,17 +188,62 @@ function segmented_sum_reference(::Type{A}, xs::AbstractVector,
     return segmented_sum_reference(A, xs, segmentation.starts_host)
 end
 
+@kernel function segmented_weighted_sum_kernel!(out, @Const(xs), @Const(weights), @Const(lo), @Const(hi))
+    seg = @index(Global)
+    T = eltype(out)
+    acc = zero(T)
+    for j in lo[seg]:hi[seg]
+        acc += T(nofuse_mul(xs[j], weights[j]))
+    end
+    out[seg] = acc
+end
+
+"""
+    segmented_weighted_sum(::Type{A}, xs, weights, segmentation, backend = CPU(BLOCKSIZE)) where A
+
+The per-segment fixed-order sum of `xs[j] * weights[j]`, accumulated in
+type `A`, one workgroup pass per segment: the product and the
+accumulation happen in the same loop `segmented_sum_kernel!` walks, so no
+array the size of `xs` is ever materialised. `Reductions.BLOCKSIZE`'s
+sibling rule for a segmented reduction: a reduction allocates no
+temporary the size of its input, so a later reduction fuses its own
+elementwise step into its accumulation loop the same way rather than
+asking `Backends.budget` to account for a transient. The product is
+computed through `Backends.nofuse_mul` rather than a bare `*`, so it is
+rounded once on its own before the loop's `T(...)` conversion and the add
+that follows, on both CPU and GPU, the same two roundings a materialised
+`xs .* weights` array followed by a plain summation kernel produced
+before this fusion (decision 0044): the sum this function returns is
+unchanged from that, term for term, not merely close to it. Refuses when
+`xs` and `weights` differ in length, or when `xs` does not have the
+length `segmentation` was checked against.
+"""
+function segmented_weighted_sum(::Type{A}, xs::AbstractVector, weights::AbstractVector,
+                                 segmentation::Segmentation, backend::Backend = CPU(BLOCKSIZE)) where {A<:Number}
+    require_extent(segmentation, xs, "Reductions.segmented_weighted_sum")
+    length(xs) == length(weights) ||
+        refuse("segmented weighted sum extent", "Reductions.segmented_weighted_sum",
+               "xs has length $(length(xs)), weights has length $(length(weights))")
+    out = similar(xs, A, segmentation.nseg)
+    segmentation.nseg == 0 && return out
+    launch!(segmented_weighted_sum_kernel!, backend, segmentation.nseg,
+            out, xs, weights, segmentation.lo, segmentation.hi)
+    return out
+end
+
 """
     segmented_mean(::Type{A}, xs, starts, weights, backend = CPU(BLOCKSIZE)) where A
     segmented_mean(::Type{A}, xs, segmentation, weights, backend = CPU(BLOCKSIZE)) where A
 
 The per-segment weighted mean of `xs` by `weights`, accumulated in type
-`A`: the segmented sum of `xs .* weights` divided elementwise by the
-segmented sum of `weights`, both by `segmented_sum` on `backend`. Refuses
-when `xs` and `weights` differ in length, or when any segment's total
-weight is zero, naming how many. The boundaries reach both sums once, so
-the `Segmentation` form checks them no times and the boundary-array form
-once rather than twice.
+`A`: the segmented sum of `xs[j] * weights[j]` (`segmented_weighted_sum`)
+divided elementwise by the segmented sum of `weights` (`segmented_sum`),
+both on `backend`. Neither call materialises an array the size of `xs`
+(`segmented_weighted_sum`'s own docstring states the rule this follows).
+Refuses when `xs` and `weights` differ in length, or when any segment's
+total weight is zero, naming how many. The boundaries reach both sums
+once, so the `Segmentation` form checks them no times and the
+boundary-array form once rather than twice.
 
 The result is a device array on `backend`, so nothing here reads the
 result back; the zero-weight refusal is raised on the host and pays a
@@ -215,7 +260,7 @@ function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentatio
     length(xs) == length(weights) ||
         refuse("segmented mean extent", "Reductions.segmented_mean",
                "xs has length $(length(xs)), weights has length $(length(weights))")
-    numerator = segmented_sum(A, xs .* weights, segmentation, backend)
+    numerator = segmented_weighted_sum(A, xs, weights, segmentation, backend)
     denominator = segmented_sum(A, weights, segmentation, backend)
     nzero = pairwise_sum(Int, ifelse.(iszero.(denominator), 1, 0), backend)
     nzero == 0 ||
