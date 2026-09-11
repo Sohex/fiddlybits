@@ -134,7 +134,23 @@ pairwise_sum(::Type{A}, xs, backend; blocksize)         fixed-order, fixed block
 compensated_sum(xs)                                     Kahan, FP64 accumulator regardless of eltype
 segmented_sum(::Type{A}, xs, starts, backend)           one fixed-order tree per segment
 segmented_mean(::Type{A}, xs, starts, weights, backend)
+Segmentation(xs, starts)                                a boundary array checked once
+segmented_sum(::Type{A}, xs, segmentation, backend)     the same reductions, nothing re-checked
+segmented_mean(::Type{A}, xs, segmentation, weights, backend)
 ```
+
+Every segmented reduction takes either a boundary array or a `Segmentation`. A
+boundary array is checked on every call, which on a device-resident array means it
+is copied to the host on every call. A `Segmentation` carries what the reduction
+reads from it, the checked element count, the segment count, the boundaries on the
+host and the per-segment `lo` and `hi` on the device they came from, so a caller
+that holds one pays no host read per reduction. It is constructed and never looked
+up, it holds its own copies, and it refuses at construction for exactly the four
+conditions the per-call check refuses: an empty boundary array, one that is not
+non-decreasing, one that does not begin at 1, and one that does not end at the
+element count plus one. A malformed array is therefore refused on its first use
+either way, and there is no memo that a later call could consult instead of
+checking.
 
 No atomics anywhere in the physics path, and no library reduction, because both
 reassociate. The block size is fixed and declared, not chosen from the thread count,
@@ -150,6 +166,7 @@ declaring its own, so a ledger's tolerance has one definition.
 
 ```
 segmented_quantile(xs, starts, q, backend)    bitonic sort in shared memory, 4^k segments
+segmented_quantile(xs, segmentation, q, backend)
 area_fraction_above(xs, areas, x, backend)    the exact inverse
 ```
 
