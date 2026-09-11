@@ -221,6 +221,8 @@ production mesh rather than only on a synthetic near-regular one.
 | 52v.2.7 | frontier | `src/Connectivity/`, `test/connectivity/` | `mesh.connectivity_topology_event` passes with its control firing; the topology event goes through `Events.emit` and is counted by a fixture sink |
 | 52v.2.8 | sonnet | none; reports only | all five oracles ran; verdicts by name |
 
-52v.2.3, 52v.2.4 and 52v.2.6 depend on 52v.2.2; 52v.2.5 depends on 52v.2.3 and
-52v.2.4; 52v.2.7 depends on 52v.2.6, on the fields plan's `Field`, and on
-`fiddlybits-52v.6.8` for `Events.emit`.
+52v.2.4 depends on 52v.2.2; 52v.2.3 depends on 52v.2.4, because an edge length
+needs the global edge enumeration the stencil tables carry; 52v.2.6 depends on
+52v.2.3, because the support digest covers both native measures; 52v.2.5 depends
+on 52v.2.3 and 52v.2.4; 52v.2.7 depends on 52v.2.6, on the fields plan's `Field`,
+and on `fiddlybits-52v.6.8` for `Events.emit`.
