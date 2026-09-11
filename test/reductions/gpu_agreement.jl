@@ -56,7 +56,7 @@ using Fiddlybits: Reductions, Backends
         starts_gpu = Backends.on(starts, gpu)
         gpu_result = Reductions.segmented_sum(Float64, xs_gpu, starts_gpu, gpu)
 
-        @test Array(gpu_result) == cpu_result
+        @test Backends.on(gpu_result, Backends.CPU(8)) == cpu_result
     end
 
     @testset "segmented_mean" begin
@@ -68,7 +68,7 @@ using Fiddlybits: Reductions, Backends
         weights_gpu = Backends.on(weights, gpu)
         gpu_result = Reductions.segmented_mean(Float64, xs_gpu, starts_gpu, weights_gpu, gpu)
 
-        @test Array(gpu_result) == cpu_result
+        @test Backends.on(gpu_result, Backends.CPU(8)) == cpu_result
     end
 
     @testset "positive control: a difference between the two arrays is caught" begin

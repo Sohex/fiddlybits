@@ -1,7 +1,6 @@
 using Test
-using KernelAbstractions
 using CUDA
-using Fiddlybits: Mesh, Verdicts
+using Fiddlybits: Backends, Mesh, Verdicts
 
 # The stencil acceptance of docs/plans/fiddlybits-52v.2-mesh.md, section
 # "Stencils", row 52v.2.4, and the leak check
@@ -291,20 +290,19 @@ end
         values = collect(Float64, 1:nc)
         reference = [sum(values[st.edge_neighbour[k, i]] for k in 1:3) for i in 1:nc]
 
-        backend = CPU()
+        host = Backends.CPU(64)
         out = similar(values)
-        neighbour_sum_kernel!(backend, 64)(out, values, st.edge_neighbour, ndrange = nc)
-        KernelAbstractions.synchronize(backend)
+        Backends.launch!(neighbour_sum_kernel!, host, nc, out, values, st.edge_neighbour)
+        Backends.complete!(host)
         @test out == reference
 
         if CUDA.functional()
-            d_values = CuArray(values)
-            d_edge_neighbour = CuArray(st.edge_neighbour)
+            gpu = Backends.GPU(64)
+            d_values = Backends.on(values, gpu)
+            d_edge_neighbour = Backends.on(st.edge_neighbour, gpu)
             d_out = similar(d_values)
-            gpu = CUDABackend()
-            neighbour_sum_kernel!(gpu, 64)(d_out, d_values, d_edge_neighbour, ndrange = nc)
-            KernelAbstractions.synchronize(gpu)
-            @test Array(d_out) == reference
+            Backends.launch!(neighbour_sum_kernel!, gpu, nc, d_out, d_values, d_edge_neighbour)
+            @test Backends.on(d_out, host) == reference
         else
             @info "no functional device; the device arm of the kernel launch did not run"
         end

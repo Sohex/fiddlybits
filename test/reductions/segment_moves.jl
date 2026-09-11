@@ -152,11 +152,13 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
         segmentation = Reductions.Segmentation(xs_gpu, starts_gpu)
         quartered_segmentation = Reductions.Segmentation(xs_gpu, quartered_gpu)
 
-        @test Array(Reductions.segmented_sum(Float64, xs_gpu, segmentation, gpu)) ==
+        @test Backends.on(Reductions.segmented_sum(Float64, xs_gpu, segmentation, gpu), cpu) ==
               Reductions.segmented_sum_reference(Float64, xs, starts)
-        @test Array(Reductions.segmented_mean(Float64, xs_gpu, segmentation, weights_gpu, gpu)) ==
+        @test Backends.on(Reductions.segmented_mean(Float64, xs_gpu, segmentation,
+                                                    weights_gpu, gpu), cpu) ==
               Reductions.segmented_mean(Float64, xs, starts, weights, cpu)
-        @test Array(Reductions.segmented_quantile(xs_gpu, quartered_segmentation, 0.5, gpu)) ==
+        @test Backends.on(Reductions.segmented_quantile(xs_gpu, quartered_segmentation,
+                                                         0.5, gpu), cpu) ==
               Reductions.segmented_quantile_reference(xs, quartered, 0.5)
     end
 

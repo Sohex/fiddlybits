@@ -188,7 +188,7 @@ end
         starts_gpu = Backends.on(starts, gpu)
         gpu_result = Reductions.segmented_quantile(xs_gpu, starts_gpu, 0.42, gpu)
 
-        @test Array(gpu_result) == cpu_result
+        @test Backends.on(gpu_result, Backends.CPU(8)) == cpu_result
 
         v = xs[div(seglen, 2)]
         areas_gpu = Backends.on(areas, gpu)
@@ -206,7 +206,7 @@ end
             mutated[selected_index] = maximum(segment1) + 1.0
             mutated_gpu = Backends.on(mutated, gpu)
             mutated_result = Reductions.segmented_quantile(mutated_gpu, starts_gpu, 0.42, gpu)
-            @test Array(mutated_result)[1] != cpu_result[1]
+            @test Backends.on(mutated_result, Backends.CPU(8))[1] != cpu_result[1]
         end
     end
 
