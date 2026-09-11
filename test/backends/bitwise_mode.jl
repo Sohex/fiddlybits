@@ -63,7 +63,7 @@ function run_triples(kernel, backend, a, b, c)
     out = Backends.on(similar(a), backend)
     Backends.launch!(kernel, backend, length(a), out,
                      Backends.on(a, backend), Backends.on(b, backend), Backends.on(c, backend))
-    return Array(out)
+    return Backends.on(out, Backends.CPU(1))
 end
 
 "The single-rounding value of `a * x + y` elementwise, evaluated at 256 bits."
@@ -148,13 +148,13 @@ end
                 for backend in (Backends.CPU(4; bitwise = true), Backends.GPU(4; bitwise = true))
                     y = Backends.on(copy(y0), backend)
                     Backends.axpy!(y, a, Backends.on(x, backend), backend)
-                    @test Array(y) == axpy_spec
+                    @test Backends.on(y, Backends.CPU(1)) == axpy_spec
 
                     out = Backends.on(Vector{FT}(undef, n), backend)
                     Backends.stencil_gather!(out, Backends.on(input, backend),
                                              Backends.on(neighbour, backend),
                                              Backends.on(weight, backend), backend)
-                    @test Array(out) == stencil_spec
+                    @test Backends.on(out, Backends.CPU(1)) == stencil_spec
                 end
 
                 # Decision 0027: the naive serial reference performs the same
@@ -202,7 +202,7 @@ end
         y_gpu = Backends.on(copy(y0), gpu)
         x_gpu = Backends.on(x, gpu)
         Backends.axpy!(y_gpu, a, x_gpu, gpu)
-        @test Array(y_gpu) == y_cpu
+        @test Backends.on(y_gpu, cpu) == y_cpu
 
         neighbour, weight = BackendFixtures.stencil_tables(Float64, n, nk)
         input = BackendFixtures.seeded_vector(Float64, n)
@@ -214,6 +214,6 @@ end
         neighbour_gpu = Backends.on(neighbour, gpu)
         weight_gpu = Backends.on(weight, gpu)
         Backends.stencil_gather!(out_gpu, input_gpu, neighbour_gpu, weight_gpu, gpu)
-        @test Array(out_gpu) == out_cpu
+        @test Backends.on(out_gpu, cpu) == out_cpu
     end
 end

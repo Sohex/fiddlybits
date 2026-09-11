@@ -106,7 +106,7 @@ function on_backend(f, xs, backend)
     x = Backends.on(copy(xs), backend)
     out = Backends.on(similar(xs), backend)
     Backends.launch!(transcendental_kernel!, backend, length(xs), out, x, f, backend)
-    return Array(out)
+    return Backends.on(out, Backends.CPU(1))
 end
 
 "Whether `a` and `b` agree bit for bit, counting two `NaN`s as agreeing."
@@ -212,7 +212,7 @@ function kepler_on(Ms, e, backend, arith, trans)
     x = Backends.on(copy(Ms), backend)
     out = Backends.on(similar(Ms), backend)
     Backends.launch!(kepler_kernel!, backend, length(Ms), out, x, e, arith, trans)
-    return Array(out)
+    return Backends.on(out, Backends.CPU(1))
 end
 
 @testset "polynomial transcendentals (decision 0029)" begin
