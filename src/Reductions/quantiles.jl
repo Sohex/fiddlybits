@@ -187,12 +187,16 @@ end
 """
     QUANTILE_BITONIC_NETWORK_DEVICE
 
-`(array_type(backend), k) => (partner, ascending)` on that array type, for
-every `(array_type(backend), k)` `device_bitonic_network` has built so
-far. `QUANTILE_BITONIC_NETWORK[k]` is a constant of `k` alone, so its copy
-on a given array type is built once here and reused by every later call at
-that array type and `k`, rather than rebuilt and re-copied to the device
-on every call.
+A module-level, process-lifetime cache: `(array_type(backend), k) =>
+(partner, ascending)` on that array type, for every `(array_type(backend),
+k)` `device_bitonic_network` has built so far. Keyed on the array type and
+`k` alone, never on a `backend` value, because the copy depends on neither
+the workgroup size nor the `bitwise` flag. `QUANTILE_BITONIC_NETWORK[k]` is
+a constant of `k` alone, so its copy on a given array type is built once
+here and reused by every later call at that array type and `k`, rather
+than rebuilt and re-copied to the device on every call. Entries are never
+evicted: the key space is `QUANTILE_K_MIN:QUANTILE_K_MAX` crossed with the
+array types the process actually runs on, both small and fixed.
 """
 const QUANTILE_BITONIC_NETWORK_DEVICE = Dict{Tuple{Type,Int},Any}()
 

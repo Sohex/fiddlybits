@@ -1,6 +1,6 @@
 using Test
 using CUDA
-using Fiddlybits: Reductions, Backends, Verdicts
+using Fiddlybits: Reductions, Backends, Events, Verdicts
 
 # Segmented quantiles and their exact inverse: docs/plans/fiddlybits-52v.7-
 # kernels.md, section "The reductions", decision 0005 (the 4^k segment) and
@@ -207,6 +207,54 @@ end
             mutated_gpu = Backends.on(mutated, gpu)
             mutated_result = Reductions.segmented_quantile(mutated_gpu, starts_gpu, 0.42, gpu)
             @test Array(mutated_result)[1] != cpu_result[1]
+        end
+    end
+
+    @testset "the device bitonic tables are cached per array type and k, not rebuilt" begin
+        @test CUDA.functional()
+
+        gpu = Backends.GPU(8)
+        k = Reductions.QUANTILE_K_MAX
+        partner1, ascending1 = Reductions.device_bitonic_network(gpu, k)
+        partner2, ascending2 = Reductions.device_bitonic_network(gpu, k)
+        @test partner1 === partner2
+        @test ascending1 === ascending2
+
+        @testset "positive control: a different k is a different cache entry" begin
+            other_partner, other_ascending = Reductions.device_bitonic_network(gpu, k - 1)
+            @test !(other_partner === partner1)
+            @test !(other_ascending === ascending1)
+        end
+    end
+
+    @testset "segmented_quantile reads the boundary array to the host once" begin
+        @test CUDA.functional()
+
+        k = 4
+        seglen = 4^k
+        nseg = 3
+        starts = uniform_starts(nseg, seglen)
+        xs = distinct_vector(Float64, nseg * seglen)
+
+        gpu = Backends.GPU(8)
+        xs_gpu = Backends.on(xs, gpu)
+        starts_gpu = Backends.on(starts, gpu)
+
+        log = Events.Moved[]
+        Events.sink!(rec -> push!(log, rec))
+        Reductions.segmented_quantile(xs_gpu, starts_gpu, 0.5, gpu)
+        Events.sink!(Events.noop_sink)
+
+        @test length(log) == 1
+        @test log[1].from == :gpu
+        @test log[1].to == :cpu
+
+        @testset "positive control: a host-resident boundary array records no move" begin
+            log2 = Events.Moved[]
+            Events.sink!(rec -> push!(log2, rec))
+            Reductions.segmented_quantile(xs, starts, 0.5, Backends.CPU(8))
+            Events.sink!(Events.noop_sink)
+            @test isempty(log2)
         end
     end
 end
