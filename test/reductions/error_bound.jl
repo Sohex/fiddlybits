@@ -8,12 +8,17 @@ using Fiddlybits: Reductions, Verdicts
     @test Reductions.ERROR_BOUND_K isa Integer
     @test Reductions.ERROR_BOUND_K > 0
 
-    @testset "the declared formula" begin
+    @testset "the declared formula, unmoved for ordinary arguments" begin
         n, magnitude = 37, 4.5
-        expected = Reductions.ERROR_BOUND_K * n * eps(Float64) * magnitude
-        @test Reductions.error_bound(Float64, n, magnitude) == expected
-        @test Reductions.error_bound(Float32, n, magnitude) ==
-              Reductions.ERROR_BOUND_K * n * eps(Float32) * Float32(magnitude)
+        setprecision(BigFloat, 200) do
+            for T in (Float32, Float64)
+                exact = BigFloat(Reductions.ERROR_BOUND_K) * BigFloat(n) *
+                        BigFloat(eps(T)) * BigFloat(magnitude)
+                bound = Reductions.error_bound(T, n, magnitude)
+                @test BigFloat(bound) >= exact
+                @test BigFloat(bound) <= exact + 2 * BigFloat(eps(T)) * exact
+            end
+        end
     end
 
     @testset "refuses a negative term count or magnitude" begin
@@ -28,6 +33,52 @@ using Fiddlybits: Reductions, Verdicts
     @testset "validity_limit is 2/eps(T), Higham's n*u <= 1 (eq. 2.6, discussion after eq. 3.11)" begin
         @test Reductions.validity_limit(Float32) == 2.0^24
         @test Reductions.validity_limit(Float64) == 2.0^53
+    end
+
+    @testset "refuses when the product is not finite in T, naming T, n and magnitude" begin
+        @testset "positive control: a magnitude that overflows Float32 today refuses" begin
+            n, magnitude = 10, 1e300
+            try
+                Reductions.error_bound(Float32, n, magnitude)
+                @test false
+            catch e
+                @test e isa Verdicts.Refusal
+                @test occursin("Float32", e.reason)
+                @test occursin(string(n), e.reason)
+                @test occursin(string(magnitude), e.reason)
+            end
+        end
+
+        @testset "a finite magnitude of the same shape still returns its bound" begin
+            n, magnitude = 10, 1e40
+            bound = Reductions.error_bound(Float32, n, magnitude)
+            @test isfinite(bound)
+            @test bound isa Float32
+        end
+
+        @testset "overflow also refuses at Float64, at the term count validity_limit admits" begin
+            n = Int(Reductions.validity_limit(Float64)) - 1
+            magnitude = floatmax(Float64)
+            @test_throws Verdicts.Refusal Reductions.error_bound(Float64, n, magnitude)
+        end
+    end
+
+    @testset "the returned bound satisfies exact <= bound <= exact + 2*eps(T)*exact" begin
+        setprecision(BigFloat, 200) do
+            for T in (Float32, Float64)
+                limit = Int(Reductions.validity_limit(T)) - 1
+                for n in (0, 1, 37, 1000, 65537, 1_000_000, limit)
+                    n > limit && continue
+                    for magnitude in (0.0, 1e-10, 1.0, 1e5, 1e10)
+                        exact = BigFloat(Reductions.ERROR_BOUND_K) * BigFloat(n) *
+                                BigFloat(eps(T)) * BigFloat(magnitude)
+                        bound = Reductions.error_bound(T, n, magnitude)
+                        @test BigFloat(bound) >= exact
+                        @test BigFloat(bound) <= exact + 2 * BigFloat(eps(T)) * exact
+                    end
+                end
+            end
+        end
     end
 
     @testset "refuses a term count at or beyond validity_limit(T), naming T, n and the limit" begin
