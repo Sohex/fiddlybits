@@ -5,6 +5,7 @@ module Fiddlybits
 # Nothing is re-exported: a caller names the module it reads from.
 
 include("Verdicts/Verdicts.jl")
+include("Events/Events.jl")
 include("Dimensions/Dimensions.jl")
 include("Time/Time.jl")
 include("EarthRatios/EarthRatios.jl")
