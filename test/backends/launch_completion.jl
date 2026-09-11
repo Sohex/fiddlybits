@@ -63,19 +63,36 @@ end
 
     gpu = Backends.GPU(1)
     cpu = Backends.CPU(1)
-    spins = calibrated_spins(gpu, 0.05)
+    # Long enough that the host-side scatter these checks sit in, a garbage
+    # collection or another job's turn on a shared card, stays well under the
+    # fractions of it asserted below.
+    spins = calibrated_spins(gpu, 0.2)
 
     @testset "launch! returns before the kernel has finished, complete! after" begin
         out = Backends.on(fill(SPIN_SENTINEL, 1), gpu)
         src = Backends.on([1.0], gpu)
 
-        whole = elapsed() do
-            Backends.launch!(spin_write_kernel!, gpu, 1, out, src, spins)
-            Backends.complete!(gpu)
-        end
+        # elapsed compiles a specialization for every closure it is handed,
+        # and that compilation is tens of milliseconds, longer than the kernel
+        # below. Each shape is therefore written once and run twice: once over
+        # a one-spin kernel to compile it, then over the calibrated one to
+        # measure it. Compiled between t_launch and t_complete instead, the
+        # kernel finishes while the compiler runs and the completion measures
+        # nothing.
+        held = Ref(1)
+        chain() = (Backends.launch!(spin_write_kernel!, gpu, 1, out, src, held[]);
+                   Backends.complete!(gpu))
+        queue() = Backends.launch!(spin_write_kernel!, gpu, 1, out, src, held[])
+        finish() = Backends.complete!(gpu)
 
-        t_launch = elapsed(() -> Backends.launch!(spin_write_kernel!, gpu, 1, out, src, spins))
-        t_complete = elapsed(() -> Backends.complete!(gpu))
+        elapsed(chain)
+        elapsed(queue)
+        elapsed(finish)
+
+        held[] = spins
+        whole = elapsed(chain)
+        t_launch = elapsed(queue)
+        t_complete = elapsed(finish)
 
         @test t_launch < whole / 10
         @test t_complete > whole / 2

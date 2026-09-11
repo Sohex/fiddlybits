@@ -65,6 +65,9 @@ adapt_for(x, backend)        Adapt.adapt_structure through to the device
 launch!(kernel, backend, n)  one launch, workgroup size from the backend, queued
 complete!(backend | array)   the wait, and the only wait in this module
 queued(backend)              the kernels launched and not yet waited for
+handoff(backend)             a point in this task's queue, for another task
+after!(backend, handoff)     queue behind that point, waiting on the device
+order_explicitly!(array)     leave the library's per-array ordering to these
 ```
 
 **A launch queues and does not wait.** `launch!` compiles, launches and returns;
@@ -81,9 +84,16 @@ launch is what decision 0038 rejects, and reintroducing one here would undo that
 path-by-path argument for every route from a kernel to a read, marked where it is
 checked and where it rests on the platform, is
 `notes/findings/2026-09-11-a-launch-that-queues-and-a-completion-that-is-stated.md`.
-Two tasks sharing a device array are ordered by the library's per-array stream
-ownership and not by anything this module states; `fiddlybits-52v.7.52` carries the
-explicit door.
+
+**Two tasks are ordered by `handoff` and `after!` and by nothing else.** The
+producing task takes a `handoff`, which is an event recorded on the stream it queues
+on; the consuming task calls `after!` with it before its own launch, which waits on
+the device and returns on the host at once. `order_explicitly!` takes an array out of
+the library's per-array ownership bookkeeping, which would otherwise order the two
+tasks by stopping the host inside the consumer's launch for the whole of the
+producer's kernel, and which is one ordering too many for a module that states its
+own. The measurement of both, and the race the control demonstrates, is
+`notes/findings/2026-09-11-a-cross-task-ordering-door-in-the-backends-layer.md`.
 
 Arrays are laid out cells-first, so consecutive threads touch consecutive addresses,
 with the vertical loop inside the thread. The convention is `(cells, levels)` and it
