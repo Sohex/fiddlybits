@@ -388,6 +388,45 @@ registered_at = ""
 holdout = false
 anchors = []
 
+[[oracle]]
+id = "fields.semantics_closure"
+tier = 1
+subsystem = "fields"
+dataset_or_reference = "identity"
+statistic = "every subtype of Semantics against coarsen, refine, time_reduce and remap_vector, each pair resolved to a method or to an entry in the declared refusal table"
+verdict_kind = "fail_bar"
+threshold = "exact; no pair without either, and the static pass over the component code paths reports no unresolved call (positive control: a fixture semantics type added with neither a method nor a refusal, which must fail the enumeration)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "fields.dimension_refusal"
+tier = 1
+subsystem = "fields"
+dataset_or_reference = "identity"
+statistic = "binary operations between fields whose Dim signatures differ, and the products and quotients of the dimension algebra against their SI exponent signatures"
+verdict_kind = "fail_bar"
+threshold = "exact; a mismatched operation refuses naming both signatures, and the algebra identities hold (positive control: an addition of a length to a time, which must refuse rather than promote)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "fields.adapt_roundtrip"
+tier = 1
+subsystem = "fields"
+dataset_or_reference = "identity"
+statistic = "every registered field type adapted to the device and back, compared field by field including its support, time support, dimension and provenance"
+verdict_kind = "fail_bar"
+threshold = "unchanged in every member (positive control: a struct whose adapt rule drops its support, which must be caught rather than returning a field that compares equal on its data alone)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
 # ---------------------------------------------------------------- tier 1: ledgers
 
 [[oracle]]
