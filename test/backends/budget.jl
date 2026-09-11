@@ -29,7 +29,7 @@ end
     @test_nowarn Backends.refuse_over(declarations, estimated_bytes + 1000)
 end
 
-@testset "refuse_over names fields in descending size when rejecting" begin
+@testset "refuse_over names fields in descending size with byte counts when rejecting" begin
     declarations = [
         ("small_field", Float32, 10),
         ("large_field", Float64, 100),
@@ -52,6 +52,11 @@ end
         @test occursin("large_field", err.reason)
         @test occursin("medium_field", err.reason)
         @test occursin("small_field", err.reason)
+
+        # Verify byte counts are included
+        @test occursin("800 bytes", err.reason)
+        @test occursin("200 bytes", err.reason)
+        @test occursin("40 bytes", err.reason)
 
         # Verify the order: large_field should appear before medium_field before small_field
         pos_large = findfirst("large_field", err.reason)
@@ -90,4 +95,47 @@ end
     for (decls, expected) in test_cases
         @test Backends.budget(decls) == expected
     end
+end
+
+@testset "budget refuses negative extent: positive control fires" begin
+    # Negative extent cancels a real field and buys false headroom
+    @test_throws Verdicts.Refusal Backends.budget([("field", Float64, -1000)])
+
+    try
+        Backends.budget([("field", Float64, -1000)])
+    catch err
+        @test err isa Verdicts.Refusal
+        @test occursin("field", err.reason)
+        @test occursin("-1000", err.reason)
+        @test occursin("non-negative", err.reason)
+    end
+
+    # Positive control: valid declaration of same shape does not refuse
+    @test_nowarn Backends.budget([("field", Float64, 1000)])
+    @test Backends.budget([("field", Float64, 1000)]) == 8000
+end
+
+@testset "budget refuses when extent is negative and another field is valid" begin
+    # Negative extent anywhere in the declaration must refuse before checking
+    @test_throws Verdicts.Refusal Backends.budget([
+        ("field_a", Float64, 1000),
+        ("field_b", Float64, -2000),
+    ])
+
+    try
+        Backends.budget([
+            ("field_a", Float64, 1000),
+            ("field_b", Float64, -2000),
+        ])
+    catch err
+        @test err isa Verdicts.Refusal
+        @test occursin("field_b", err.reason)
+        @test occursin("-2000", err.reason)
+    end
+
+    # Positive control: all valid extents do not refuse
+    @test_nowarn Backends.budget([
+        ("field_a", Float64, 1000),
+        ("field_b", Float64, 2000),
+    ])
 end
