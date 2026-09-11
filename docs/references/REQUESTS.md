@@ -55,6 +55,11 @@ registry, not here.
 
 ## Ocean, sea ice and marine ecosystem (B3, M6)
 
+Added 2026-09-10 by the CliMA survey's seawater review
+(`docs/imports/seawaterpolynomials-jl.md`). One fetch attempt against the
+publisher returned HTML, no mirrors tried.
+
+- Defining a Simplified yet "Realistic" Equation of State for Seawater -- Roquet, F., Madec, G., Brodeau, L., Nycander, J. (2015). Journal of Physical Oceanography 45 (10), 2564-2579. DOI: 10.1175/JPO-D-15-0080.1. Anchors: 0017, the second-order equation-of-state form and its six coefficient sets. Suggested filename: roquet2015a-defining-simplified-realistic-equation-state-seawater.pdf
 
 ## Managed biosphere (B10, F4, M11)
 
