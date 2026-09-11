@@ -498,16 +498,18 @@ plus `amplification[s - j] * roundoff` summed over the steps `j` at which the
 candidate injects another roundoff, with an amplification of one at zero steps.
 `roundoff` is the divergence one step of the candidate injects, in the same one
 norm `divergence` returns.
+
+The injected sum is one running accumulation over the step count, carried from
+`s` to `s + 1` rather than re-summed at every step, in fixed ascending order:
+`gain(0)` first, `gain(env.steps - 1)` last.
 """
 function admissible(env::Envelope, initial::Real, roundoff::Real)
     gain(k::Int) = k == 0 ? one(Float64) : env.amplification[k]
     bound = zeros(Float64, env.steps)
+    injected = zero(Float64)
     for s in 1:env.steps
+        injected += gain(s - 1)
         carried = gain(s) * Float64(initial)
-        injected = zero(Float64)
-        for j in 1:s
-            injected += gain(s - j)
-        end
         bound[s] = carried + injected * Float64(roundoff)
     end
     return bound
