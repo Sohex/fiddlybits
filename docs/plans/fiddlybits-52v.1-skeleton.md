@@ -56,6 +56,7 @@ and says nothing about groups.
 | group | submodule | holds | filled by |
 | --- | --- | --- | --- |
 | A | `Verdicts` | the closed verdict vocabularies and the refusal type | 52v.1.2 (complete here) |
+| A | `Events` | the closed journal vocabulary, typed payloads, `emit` with a no-op sink, the device-move record | 52v.6.8 |
 | A | `Dimensions` | `Dim{M,L,T,Theta,N}` and its algebra over DynamicQuantities | 52v.3 |
 | A | `Time` | `SimTime`, `Interval`, `duration`, `TimeSupport`, the `TimeSemantics` types | 52v.5 |
 | A | `EarthRatios` | the quarantined unit denominators | 52v.4 |
@@ -100,6 +101,12 @@ made to break a cycle that the row titles do not show:
 `Verdicts` is filled here rather than by an area plan because it holds no design
 judgement: its two vocabularies are transcribed from decisions 0009 and 0025, and
 every module above it raises the one refusal type it declares.
+
+`Events` sits beside it in group A for the same reason in the other direction: every
+module that emits a journal event or records a device move sits below `Provenance`,
+which writes them, so the front door is declared low and once, with a no-op sink that
+`Provenance` replaces. The plan review found three plans each declaring a hook of
+their own for this, which was three definitions of one mechanism.
 
 ### The test tree
 

@@ -45,7 +45,7 @@ first; the three-dimensional core follows on the same operators.
 | `src/ShallowWater/step.jl` | the time scheme, the derived timestep ceiling | 52v.9.3 |
 | `src/ShallowWater/cases.jl` | the standard cases as forcing structs owning their own times | 52v.9.4 |
 | `test/shallowwater/` | the case suites, the mode suites, the convergence suite | 52v.9.2 to 52v.9.4 |
-| `test/reference_arm/` | the SpeedyWeather arm and `no_defaults.jl` | 52v.9.5 |
+| `test/reference_arm/` | the SpeedyWeather arm and `no_defaults.jl`, in its own environment | 52v.9.5 |
 | `notes/findings/` | the go/no-go verdict | 52v.9.6 |
 
 `ShallowWater` is a new top-level submodule and the skeleton plan did not name it,
@@ -81,10 +81,12 @@ formulation carries the gas constant, the heat capacities, `kappa` and `epsilon`
 literals of the one atmosphere it was built for, and those literals are
 dimensionless, so `lint_literals` does not catch them. They are `Derived` from the
 declared composition through the property group of REQ-ATM-017, and the Exner
-reference pressure is a declared field of the system struct. In shallow water the
-group reduces to the reduced gravity and the layer depth, but the door it comes
-through is the same one, and using it here is what makes the three-dimensional core a
-continuation rather than a rewrite.
+reference pressure is a declared field of the system struct. Shallow water needs
+none of the property group: its two constants are the gravity, which is `System`'s
+`Derived` `g(r, phi)`, and the layer depth, which the case declares. So this plan
+does not depend on M3's property group, and the door it reads gravity through is the
+one the three-dimensional core will read `kappa` through, which is what makes that
+core a continuation rather than a rewrite.
 
 ### The step
 
@@ -116,6 +118,13 @@ SpeedyWeather.jl runs the same cases with the same `System`, compared as a dista
 report and never as a target. It is not a component, it does not run in the coupled
 system, and it restores the second implementation the predecessor lost when it
 removed its models' alternate code paths.
+
+The arm lives in its own environment, `test/reference_arm/Project.toml`, and is not
+an extra of the package. It is not a component and does not run in the coupled
+system, so it does not belong in the package's manifest, and the hosted clean-room
+job of decision 0043 does not install it: the arm runs in the local gate only,
+where the card and the data are. Its import record already exists and its heading
+resolves for the harness, should it ever enter the manifest.
 
 `test/reference_arm/no_defaults.jl` is the leak test
 `docs/imports/speedyweather-reference-arm.md` names: the arm must be driven from the
@@ -161,10 +170,12 @@ one.
 | 52v.9.2 | frontier | `src/ShallowWater/operators.jl`, `test/shallowwater/operators.jl` | `core.checkerboard_divergence_mode`, `core.hollingsworth_check` and `core.laplacian_eigenvalues` pass, each with its control firing; no thermodynamic literal in the module, asserted |
 | 52v.9.3 | frontier | `src/ShallowWater/step.jl`, `test/shallowwater/step.jl` | the scheme choice is recorded with its argument; a step above the `Derived` ceiling refuses, naming the wave speed that bound it |
 | 52v.9.4 | sonnet | `src/ShallowWater/cases.jl`, `test/shallowwater/cases.jl` | the four Williamson cases pass at Earth parameters against the published norms, and run at two other parameter sets as REPORT; each case's forcing struct owns its times and the core reads none |
-| 52v.9.5 | sonnet | `test/reference_arm/` | `core.reference_arm_distance` reports; `no_defaults.jl` passes, with a fixture arm built without the declared `System` as its control |
+| 52v.9.5 | sonnet | `test/reference_arm/` including its own `Project.toml` and `Manifest.toml` | `core.reference_arm_distance` reports; `no_defaults.jl` passes, with a fixture arm built without the declared `System` as its control; the arm's environment is separate from the package's and the clean-room job does not install it |
 | 52v.9.6 | frontier | `notes/findings/` | the go/no-go verdict is a dated finding naming every gate item, its verdict and its evidence, and the ladder rung if it is no |
 | 52v.9.8 | local | `src/Fiddlybits.jl`, `docs/plans/fiddlybits-52v.1-skeleton.md` | `ShallowWater` is added to the include order in group G and to the skeleton plan's table; `build.module_order_acyclic` still passes |
 
-52v.9.2 depends on 52v.9.7 and 52v.9.8; 52v.9.3 and 52v.9.4 depend on 52v.9.2;
+52v.9.2 depends on 52v.9.7, 52v.9.8 and on `fiddlybits-52v.4.8`, since the production
+level `core.laplacian_eigenvalues` runs at is a profile setting; 52v.9.3 and 52v.9.4
+depend on 52v.9.2;
 52v.9.5 depends on 52v.9.4; 52v.9.6 depends on all of them. The area depends on the
 mesh, fields and kernel areas entire.

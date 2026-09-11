@@ -32,7 +32,7 @@ convention restated in two places is two conventions.
 | path | holds | row |
 | --- | --- | --- |
 | `src/Dimensions/` | `Dim{M,L,T,Theta,N}`, its algebra, the DynamicQuantities door | 52v.3.2 |
-| `src/Fields/field.jl` | `Field`, the two closed vocabularies, `TimeSupport`, `Provenance` by value | 52v.3.2 |
+| `src/Fields/field.jl` | `Field`, the two closed vocabularies, `TimeSupport`, `Origin` by value | 52v.3.2 |
 | `src/Fields/reduce.jl` | `coarsen`, `refine`, `time_reduce`, the refusal table | 52v.3.3 |
 | `src/Fields/vectors.jl` | the basis lifts and projections, edge-normal support | 52v.3.5 |
 | `src/Fields/ledger.jl` | `Ledger{Q}`, `closed`, the loss inventory | 52v.3.6 |
@@ -51,8 +51,15 @@ Field{S<:Semantics, T<:TimeSemantics, D<:Dim, L, A<:AbstractArray}
     data     (ncells(L), extra...) raw floats, device or host
     support  Support{L} from Mesh; shape is never identity
     time     TimeSupport{T}, t0 and t1 in SI seconds
-    prov     Provenance, carried by value
+    origin   Origin, carried by value
 ```
+
+`Origin` is a plain value type declared here: a content key as bytes, the one writer
+as a symbol, the parameter-subset hash as bytes, and the run id. It holds no type
+from `Provenance`, which sits above this module and would close a cycle, and it is
+not named `Provenance`, because a struct sharing a name with the module that fills
+it is a reader's trap. `Provenance` computes the values and stamps them; `Fields`
+only carries them.
 
 A `Field` cannot be constructed without all four of semantics, time semantics,
 dimension and support. There is no positional constructor that takes an array alone,
@@ -109,6 +116,12 @@ positive control is a fixture semantics type added with neither, which must fail
 static analysis pass over the component code paths reports unresolved calls, and that
 pass is wired into the suite rather than run by hand.
 
+The static pass is JET.jl, which is not a dependency today and has no import record.
+It enters as a test-time extra, and the import harness checks extras, so the row that
+wires it writes `docs/imports/jet-jl.md` first with the leak test the record names.
+That makes the row a survey with judgement rather than a transcription, so it is
+sonnet tier and not local.
+
 ### Vectors
 
 Only the Cartesian basis may change support. An east-north field is lifted to
@@ -128,7 +141,13 @@ and the store refuses a field whose ledger is open.
 
 The tolerance is `k * N * eps * M`, derived from floating point and read from
 `Reductions` rather than declared here, so a ledger tolerance has one definition
-(REQ-NUM-004, REQ-SYS-103). A tolerance chosen per ledger is what let the
+(REQ-NUM-004, REQ-SYS-103).
+
+A quantity declared a reservoir is accumulated in FP64 or by compensated summation
+whatever the working precision, and a ledger given an FP32 accumulator for a
+reservoir refuses naming the quantity. The declaration is a field-level one, so the
+refusal is here and not in `Reductions`, which cannot see it; `Reductions` provides
+the choice by taking the accumulator type explicitly. A tolerance chosen per ledger is what let the
 predecessor's nitrogen closure be judged against a bar larger than the quantum of the
 column it differenced.
 
@@ -164,9 +183,9 @@ for those two dependencies.
 | --- | --- | --- | --- |
 | 52v.3.2 | sonnet | `src/Dimensions/`, `src/Fields/field.jl`, `test/dimensions/`, `test/fields/field.jl`, `test/fields/adapt_roundtrip.jl` | a `Field` cannot be constructed without all four parameters; the dimension algebra identities hold; `fields.dimension_refusal` and `fields.adapt_roundtrip` pass with their controls |
 | 52v.3.3 | sonnet | `src/Fields/reduce.jl`, `test/fields/reduce.jl` | `mesh.constant_field_reduction` passes with its control; every refusal in the table raises with its sentence |
-| 52v.3.4 | local | `test/fields/semantics_closure.jl` | `fields.semantics_closure` passes; the fixture type with neither method nor refusal fails it; the static pass is wired into the suite |
+| 52v.3.4 | sonnet | `test/fields/semantics_closure.jl`, `docs/imports/jet-jl.md`, the JET entry in `Project.toml` extras and `Manifest.toml` | `fields.semantics_closure` passes; the fixture type with neither method nor refusal fails it; the static pass is wired into the suite; JET.jl has an import record naming a leak test that exists, so `build.import_record_completeness` stays whole |
 | 52v.3.5 | sonnet | `src/Fields/vectors.jl`, `test/fields/vectors.jl` | `mesh.vector_round_trip` passes with its control; `transform` and `project` are separate names and the lossy one is never reached implicitly |
-| 52v.3.6 | sonnet | `src/Fields/ledger.jl`, `test/fields/ledger.jl` | `ledger.closure` passes; an injected leak is detected and classified a leak rather than rounding; the tolerance is read from `Reductions` and not declared here |
+| 52v.3.6 | sonnet | `src/Fields/ledger.jl`, `test/fields/ledger.jl` | `ledger.closure` passes; an injected leak is detected and classified a leak rather than rounding; the tolerance is read from `Reductions` and not declared here; an FP32 accumulator for a declared reservoir refuses naming the quantity |
 | 52v.3.7 | sonnet | none; reports only | all six oracles ran; verdicts by name |
 
 52v.3.3, 52v.3.5 and 52v.3.6 depend on 52v.3.2; 52v.3.4 depends on 52v.3.3 and

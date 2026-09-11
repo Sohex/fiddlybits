@@ -31,7 +31,7 @@ oracles for one question is the thing REQ-SYS-103 forbids.
 | path | holds | row |
 | --- | --- | --- |
 | `src/Oracles/registry.jl` | the loader, the entry type, the registration rule | 52v.8.2 |
-| `src/Oracles/run.jl` | the runner, the verdict report, the journal emission | 52v.8.3 |
+| `src/Oracles/run.jl` | the runner, the verdict report, the `oracle` event through `Events.emit` | 52v.8.3 |
 | `src/Oracles/mutate.jl` | the named mutation list and the harness that applies it | 52v.8.4 |
 | `test/oracles/` | the loader suite, the registration-rule fixtures, the mutation suite | 52v.8.2 to 52v.8.4 |
 
@@ -77,6 +77,25 @@ That last clause matters right now: every entry in the tree is provisional, so t
 rule has to say what a provisional entry can and cannot do rather than treating the
 skeleton as a violation of itself.
 
+Two of these are stated precisely enough to be checked only after the plan review,
+and the precision is the point. **The co-commit rule reads the `threshold` and
+`registered_at` fields of registered entries**: a commit that changes either on an
+entry whose `registered_at` is set, and also touches `src/` or `notes/findings/`,
+fails. A provisional entry is exempt, because the rule bites at registration and
+not before; the commit that merged the Kepler solve changed a provisional entry's
+sampling clause beside the code it judges, and that is allowed. Without that
+precision the rule would need a map from entry to result path that nothing keeps.
+
+**The anchors rule reads the registry as it is, not as the README describes it.**
+The README says every entry names a closed source kind and its anchors; the registry
+has `dataset_or_reference` as free text conflating the kind with a description, and
+47 tier-2 and tier-3 entries, every one a published bar, carry `anchors = []`. So
+`oracles.registry_wellformed` requires anchors on every tier-2 and tier-3 entry and
+a `source_kind` from the closed set on every entry, and it fails on the tree today.
+That is filed as `fiddlybits-52v.8.7` rather than papered over by a rule loose
+enough to pass: a published bar with no anchored source is exactly what registration
+exists to refuse.
+
 ### The runner
 
 ```
@@ -88,7 +107,8 @@ report(results)         the distance report: value, reference, its uncertainty,
 A verdict is `FAIL`, `REPORT` or `PASS` and never a boolean, so a metric with no bar
 that is not a preference records its distance and says `REPORT` rather than silently
 passing. Every result is emitted to the run journal as an `oracle` event carrying the
-registry id, the verdict, the statistic and the threshold, through the one emitter.
+registry id, the verdict, the statistic and the threshold, through `Events.emit`,
+which is the one front door (`fiddlybits-52v.6.8`).
 
 Every Earth metric is scored on pattern as well as on a global mean, because a model
 whose global mean is right by compensation does not carry to another rotation,
@@ -119,25 +139,28 @@ Two entries are added for the frame itself, plus `repro.mutation_run` which exis
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
-| `oracles.registry_wellformed` | every entry parses, carries every required field, and satisfies its conditional fields; every anchor resolves in the references index | a row with a missing `threshold`, and a tier-1 `system.*` row with no `instances`, both of which must be refused rather than skipped |
-| `oracles.registration_rule` | no commit touches the registry and a result the edited entries judge; no bar is narrower than its observation's uncertainty | a fixture commit doing both, which must fail; a fixture bar set below a stated observational uncertainty, which must be refused |
+| `oracles.registry_wellformed` | every entry parses, carries every required field including a closed `source_kind`, satisfies its conditional fields, has anchors if it is tier 2 or 3, and every anchor resolves in the references index | a row with a missing `threshold`, a tier-1 `system.*` row with no `instances`, and a tier-2 row with empty anchors, all of which must be refused rather than skipped |
+| `oracles.registration_rule` | no commit changes a registered entry's `threshold` or `registered_at` and also touches `src/` or `notes/findings/`; no bar is narrower than its observation's uncertainty | a fixture commit doing both on a registered entry, which must fail, and the same commit on a provisional entry, which must pass; a fixture bar set below a stated observational uncertainty, which must be refused |
 | `repro.mutation_run` | every mutation in the list is caught by at least one oracle | the list itself is the control; a mutation nothing catches files a row and the suite is not green |
 
-`oracles.registry_wellformed` runs today, against the registry as it stands, and that
-is worth stating: the skeleton has grown from its founding rows to the entries these
-M0 plans added, and nothing has checked that they parse beyond a person running
-`tomllib`.
+`oracles.registry_wellformed` runs today against the registry as it stands and fails
+on it, by design, until `fiddlybits-52v.8.7` anchors the published bars. That is
+worth stating: the skeleton has grown from its founding rows to the entries these M0
+plans added, nothing has checked them beyond a person running a parser, and the
+first real check finding 47 published bars with no source is the check working.
 
 ## Rows filed
 
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
-| 52v.8.2 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl` | `oracles.registry_wellformed` and `oracles.registration_rule` pass with every control firing; the loader refuses a malformed entry rather than skipping it |
+| 52v.8.2 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl` | `oracles.registry_wellformed` and `oracles.registration_rule` run with every control firing; the loader refuses a malformed entry rather than skipping it; the tree's own wellformed verdict is recorded, FAIL until 52v.8.7 merges |
+| 52v.8.7 | local | `docs/oracles/registry.toml`, `docs/oracles/README.md`, `docs/references/INDEX.md` | every entry carries `source_kind`; no tier-2 or tier-3 entry has empty anchors; every anchor resolves by verbatim title; `oracles.registry_wellformed` passes on the tree |
 | 52v.8.3 | sonnet | `src/Oracles/run.jl`, `test/oracles/run.jl` | a verdict is one of the three and never a boolean; every result is emitted as an `oracle` journal event through the one emitter; a tier-2 entry with only a global mean is refused at load |
 | 52v.8.4 | frontier | `src/Oracles/mutate.jl`, `test/oracles/mutate.jl` | `repro.mutation_run` runs the whole list; a mutation nothing catches files a row and the suite is not reported green |
 | 52v.8.5 | sonnet | none; re-pointed | the M0 Earth derived-quantity question is `system.derived_fields_reproduce`, carried by `fiddlybits-52v.4.5` on all five instances; this row closes as superseded rather than writing a second oracle for it |
 | 52v.8.6 | sonnet | none; reports only | all three oracles ran; verdicts by name |
 
-52v.8.3 and 52v.8.4 depend on 52v.8.2. The mutation row depends on every other area's
+52v.8.3 and 52v.8.4 depend on 52v.8.2; 52v.8.3 depends on `fiddlybits-52v.6.8`; the
+verify row depends on 52v.8.7. The mutation row depends on every other area's
 verify row, because a mutation run over a suite that does not yet exist measures
 nothing.

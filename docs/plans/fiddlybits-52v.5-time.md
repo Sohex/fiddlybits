@@ -43,9 +43,11 @@ rows follow that split rather than the area's name.
 | path | holds | row |
 | --- | --- | --- |
 | `src/Time/` | `SimTime`, `Interval`, `duration`, `TimeSupport`, the `TimeSemantics` types, forcing lists | 52v.5.2 |
-| `src/Orbit/` | the Kepler solve, anomalies, distance, declination, hour angle, the day functions, the epoch rule | 52v.5.3 |
+| `src/Orbit/kepler.jl`, `src/Orbit/Orbit.jl` | the Kepler solve and `true_anomaly`; merged and closed | 52v.10 |
+| `src/Orbit/` otherwise | distance, declination, hour angle, the day functions, the epoch rule | 52v.5.3 |
 | `src/Instellation/` | per-cell flux from every source, eclipse geometry, the reflected-light interface | 52v.5.4 |
 | `src/Render/calendar.jl` | calendar rendering, and nothing else that touches a date | 52v.5.5 |
+| `src/Render/Render.jl` | the module's includes; shared with the provenance plan's `export.jl`, each row adding its own line | 52v.5.5, 52v.6.3 |
 | `test/time/`, `test/orbit/`, `test/instellation/`, `test/render/` | one suite each | 52v.5.2 to 52v.5.5 |
 
 `Time` is below `Fields` and references only `Verdicts`: it carries the clock types
@@ -102,8 +104,18 @@ The form the measurement supports is Markley's closed form as the starting value
 which is not iterative, followed by two Newton steps on the stable residual: under one
 ulp of pi uniformly, branch-free apart from the small-angle crossover, and a fixed
 cost per lane, which is what decision 0029 wants from a kernel. `fiddlybits-52v.10`
-takes that decision and amends decision 0012; this plan reads its outcome rather than
-pre-empting it, and 52v.5.3 depends on it.
+took that decision, amended decisions 0008 and 0012, and merged the solve; it is in
+the tree and its suite passes on both backends. A second finding from that row
+changed how the oracle is sampled: a sample uniform in mean anomaly cannot reach the
+region the paper names, so `system.kepler_period` now samples the eccentric anomaly
+and derives the mean anomaly from it
+(`notes/findings/2026-09-10-sampling-the-kepler-hard-region.md`).
+
+One thing that row merged is superseded by the plan review. `Orbit.check_eccentricity`
+was placed here as the guard the `System` constructor would call, and `Systems` sits
+below `Orbit` in the include order, so it cannot. The guard is the constructor's own
+refusal (the system plan's table), and 52v.5.3 removes the function from `Orbit` and
+moves its test to `test/system/`.
 
 The same finding measured the two backends at one ulp apart on the well-conditioned
 solve and thirty-five on the ill-conditioned one, from the transcendental libraries
@@ -143,6 +155,11 @@ is a rendering choice. The reference direction for the argument of periapsis is 
 equinox of the primary where it exists and the ascending node on the orbit's
 reference plane otherwise. The pair, the offset and that direction go into every
 run's identity.
+
+The epoch reference is a declared field of `System`, in its `Numerics` block, and
+the system plan names it there; this module computes the instant of the declared
+event from the declared orbit and spin, and the equinox kind's two refusals fire in
+the `System` constructor, where a refusal has somewhere to go.
 
 ### Instellation
 
@@ -198,7 +215,7 @@ from passing.
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
 | 52v.5.2 | sonnet | `src/Time/`, `test/time/` | `system.time_encode_decode` passes; a forcing list with a gap and one with an overlap are both refused; the `TimeSemantics` enumeration is complete |
-| 52v.5.3 | frontier | `src/Orbit/`, `test/orbit/` | `system.kepler_period`, `system.epoch_event` and `system.solar_sidereal_relation` pass, each control firing; the synchronous instance returns `NotEvaluable` by name |
+| 52v.5.3 | frontier | `src/Orbit/` except `kepler.jl`, `src/Orbit/Orbit.jl` for its includes, `test/orbit/` | `system.kepler_period`'s period arm, `system.epoch_event` and `system.solar_sidereal_relation` pass, each control firing; the synchronous instance returns `NotEvaluable` by name; `check_eccentricity` is gone from `Orbit` and its test lives in `test/system/` |
 | 52v.5.4 | sonnet | `src/Instellation/`, `test/instellation/` | `system.orbit_mean_insolation` and `system.multi_source_instellation` pass with every composition arm |
 | 52v.5.5 | local | `src/Render/calendar.jl`, `test/render/` | `lint_calendar` still passes and still flags its fixture; `test/render/no_calendar.jl` exists and passes, resolving that check for the import harness |
 | 52v.5.6 | sonnet | none; reports only | all seven oracles ran; verdicts by name |

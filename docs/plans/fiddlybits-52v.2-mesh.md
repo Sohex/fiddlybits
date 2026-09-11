@@ -108,8 +108,11 @@ digit. This is a constraint on the support record rather than on any kernel, and
 is why `Support` carries the type its geometry was formed in.
 
 The radius reaches both measures through exactly one function (REQ-TER-011,
-REQ-SYS-103). A second expression of a coordinate, frame or measure anywhere is what
-`lint_index_base` and the one-geometry-constructor rule refuse.
+REQ-SYS-103). No lint decides that today, and the plan does not claim one: the check
+is the suite building one mesh at two radii and asserting each measure closes against
+its own `4 pi R^2`, which fails if any measure carried a radius of its own. The
+one-geometry-constructor rule of REQ-TER-010 is held the same way, by there being one
+constructor in the module and the suite asserting it is the only definition.
 
 ### Stencils
 
@@ -134,8 +137,10 @@ to demand identity rather than tolerance.
 step down one level at a time through transition rings of a declared minimum width in
 cells, with divergence damping inside the transition, because an abrupt 2:1 step
 reflects gravity and acoustic waves and seeds grid-scale storms at the boundary.
-Terrain, hydrology and the land column use abrupt boundaries. The ring width is a
-declared profile setting, not a constant here.
+Terrain, hydrology and the land column use abrupt boundaries. The ring width is an
+argument of the refinement API, never a constant here and never read from the
+profile here: `Mesh` does not reference `Systems`, so the caller passes the width it
+read from the profile, the same shape as the memory budget taking its ceiling.
 
 The refinement region API takes a region and a depth in levels. Invoking refinement
 from an instrument, per decision 0031's third layer, is not this plan: the sensitivity
@@ -170,8 +175,11 @@ rounded to land.
 A change in the graph's topology is an **event**, not a diagnostic. A seaway closing,
 a land bridge flooding, a basin capturing its neighbour forces a climate refresh, so
 a closure happens when it happens rather than being averaged away by the slow tier.
-The event vocabulary is the closed one of decision 0042, and this plan emits through
-the one emitter rather than writing its own.
+The event vocabulary is the closed one of decision 0042 and the front door is
+`Events.emit`, declared in group A with a no-op sink that `Provenance` installs
+(`fiddlybits-52v.6.8`). `Connectivity` sits below `Provenance`, so it could not reach
+the writer directly; it does not declare a hook of its own either, because the plan
+review found three plans doing that and consolidated them.
 
 The physics of strait exchange, the discharge coefficients and the overflow closure
 are decision 0031's second layer and belong to the ocean milestone. This plan builds
@@ -208,10 +216,11 @@ production mesh rather than only on a synthetic near-regular one.
 | 52v.2.2 | sonnet | `src/Mesh/hierarchy.jl`, `test/mesh/hierarchy.jl` | `parent(children(i)) == i` at every level of the declared range; the cell, edge and vertex counts; `CellId` refuses arithmetic; the renormalised midpoint sits at rounding |
 | 52v.2.3 | sonnet | `src/Mesh/geometry.jl`, `test/mesh/area_closure.jl`, `test/mesh/nesting_identity.jl` | `mesh.area_closure` and `mesh.nesting_identity` pass at their derived absolute thresholds, both arms agreeing; the unrenormalised control fails both |
 | 52v.2.4 | sonnet | `src/Mesh/stencils.jl`, `test/mesh/stencil_valence.jl` | every cell has three edge neighbours; twelve vertex neighbours except the sixty base-vertex cells at eleven, padded with self at zero weight; the tables are symmetric and dense |
-| 52v.2.5 | frontier | `src/Mesh/refinement.jl`, `test/mesh/refinement_balance.jl` | `mesh.refinement_balance` passes with its control firing; a graded region steps one level per ring and the ring width is read from the profile |
+| 52v.2.5 | frontier | `src/Mesh/refinement.jl`, `test/mesh/refinement_balance.jl` | `mesh.refinement_balance` passes with its control firing; a graded region steps one level per ring and the ring width is an argument, with `Mesh` reaching no profile |
 | 52v.2.6 | sonnet | `src/Mesh/identity.jl`, `test/mesh/identity.jl` | `mesh.support_identity` passes with its control firing; the mismatch refusal names both identities |
-| 52v.2.7 | frontier | `src/Connectivity/`, `test/connectivity/` | `mesh.connectivity_topology_event` passes with its control firing; the topology event goes through the one emitter of decision 0042 |
+| 52v.2.7 | frontier | `src/Connectivity/`, `test/connectivity/` | `mesh.connectivity_topology_event` passes with its control firing; the topology event goes through `Events.emit` and is counted by a fixture sink |
 | 52v.2.8 | sonnet | none; reports only | all five oracles ran; verdicts by name |
 
 52v.2.3, 52v.2.4 and 52v.2.6 depend on 52v.2.2; 52v.2.5 depends on 52v.2.3 and
-52v.2.4; 52v.2.7 depends on 52v.2.6 and on the fields plan's `Field`.
+52v.2.4; 52v.2.7 depends on 52v.2.6, on the fields plan's `Field`, and on
+`fiddlybits-52v.6.8` for `Events.emit`.

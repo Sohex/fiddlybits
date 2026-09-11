@@ -34,14 +34,24 @@ disposability.
 | `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal | 52v.6.3 |
 | `src/Provenance/plan.jl` | `plan`, `worthless`, the purge command | 52v.6.4 |
 | `src/Provenance/rng.jl` | the counter-based generator | 52v.6.5 |
-| `src/Provenance/journal.jl` | the closed vocabulary, the one emitter, the payload schemas | 52v.6.7 |
+| `src/Events/` | the closed vocabulary, the typed payloads, `emit` with its no-op sink, `moved` | 52v.6.8 |
+| `src/Provenance/journal.jl` | the sink that appends to the file, the path constant, installing the sink | 52v.6.7 |
 | `src/Render/export.jl` | NetCDF export with declared geometry, and nothing else | 52v.6.3 |
 | `test/provenance/` | one suite per row, including `key_stability.jl` | 52v.6.2 to 52v.6.7 |
 | `test/io/` | `index_roundtrip.jl`, which `docs/imports/zarr.md` names | 52v.6.3 |
 
-`Provenance` references `Fields`, `Mesh`, `Systems`, `Time` and `Verdicts`. Five rows
-write into `src/Provenance/`, so every file is named on exactly one row and a row that
-finds work in another's file files a row rather than widening.
+`Provenance` references `Fields`, `Mesh`, `Systems`, `Time`, `Coupling` for `Ladder`,
+`Events` for the sink it installs, and `Verdicts`. Five rows write into
+`src/Provenance/`, so every file is named on exactly one row and a row that finds work
+in another's file files a row rather than widening.
+
+`Events` is a group A submodule and the plan review's one structural change. The
+kernels plan, the coupling plan and the mesh plan each declared a hook of their own
+for something this module fills, which was three definitions of one mechanism. Every
+emitter sits below `Provenance`, so the front door is declared once and low: the ten
+kinds as singleton types closed by a subtype check, a payload struct per kind, `emit`
+handing to an installed sink, `moved` for the device-move record of decision 0010,
+and a no-op default that is what inertness requires.
 
 ## Types and functions
 
@@ -53,8 +63,9 @@ CodeVersion   with a dirty flag
 RunID         a UUID
 ```
 
-The declared parameter subset comes from the component's declaration, which
-`fiddlybits-52v.4.6` makes a measured property rather than a claim. That is the whole
+The declared parameter subset comes from the component's declaration, which is the
+coupling layer's (`fiddlybits-52v.11.1`), and which `fiddlybits-52v.4.6`'s tracking
+makes a measured property rather than a claim. That is the whole
 mechanism behind "changing one field changes the keys of exactly the artifacts whose
 components declared it": the key reads the declaration, and the tracking test is what
 keeps the declaration honest.
@@ -142,10 +153,11 @@ diagnostic series, and a series belongs in the store as a field with its own sup
 and semantics. That rule is what keeps the journal bounded: its length scales with
 the number of decisions a run took, not with its step count.
 
-**One emitter, and the lint decides it.** One function appends one event and no
+**One writer, and the lint decides it.** The front door is `Events.emit`; the one
+function that appends to the file is the sink this row writes and installs, and no
 component writes the file. `lint_journal_emitter` already exists and refuses any
-other file naming the path constant; this row adds the constant and the emitter, and
-the lint then has something to protect.
+other file naming the path constant; this row adds the constant and the sink, and the
+lint then has something to protect.
 
 **It is inert.** No component reads it, nothing branches on it, and it is in no
 content key. A run with journaling switched off produces bitwise identical artifacts,
@@ -177,9 +189,12 @@ inert record that nonetheless entered a key would not be inert.
 | 52v.6.3 | sonnet | `src/Provenance/store.jl`, `src/Render/export.jl`, `test/provenance/store.jl`, `test/io/` | `provenance.store_refuses_incomplete` and `provenance.index_roundtrip` pass, every attribute dropped in turn refusing; a NetCDF export carries its declared geometry |
 | 52v.6.4 | sonnet | `src/Provenance/plan.jl`, `test/provenance/plan.jl` | `plan` computes a run's key set without running it and the set matches what running produces; `worthless` is the set difference; purge prints before removing anything |
 | 52v.6.5 | sonnet | `src/Provenance/rng.jl`, `test/provenance/rng.jl` | `repro.stochastic_identity` passes on both arms; the generator runs inside a kernel on both backends |
-| 52v.6.7 | sonnet | `src/Provenance/journal.jl`, `test/provenance/journal.jl` | `provenance.journal_is_inert` and `provenance.event_vocabulary_closed` pass; `lint_journal_emitter` now has a constant to protect and still decides |
+| 52v.6.8 | sonnet | `src/Events/`, `test/events/`, the `Events` include in `src/Fiddlybits.jl` | the ten kinds enumerate and close with a fixture eleventh reported; a payload with a field missing refuses; `emit` with no sink is a no-op and with a fixture sink delivers one event per call |
+| 52v.6.7 | sonnet | `src/Provenance/journal.jl`, `test/provenance/journal.jl` | `provenance.journal_is_inert` and `provenance.event_vocabulary_closed` pass; the sink installs into `Events` and is the only sink the tree installs; `lint_journal_emitter` now has a constant to protect and still decides |
 | 52v.6.6 | sonnet | none; reports only | all six oracles ran; verdicts by name |
 
-52v.6.3, 52v.6.4 and 52v.6.7 depend on 52v.6.2; 52v.6.4 depends on 52v.6.3. The area
+52v.6.3, 52v.6.4 and 52v.6.7 depend on 52v.6.2; 52v.6.4 depends on 52v.6.3 and on the
+coupling plan's `Ladder`; 52v.6.7 depends on 52v.6.8, which depends only on the
+skeleton. The area
 depends on the fields plan for the ledger and on the system plan for the declared
 parameter subset.

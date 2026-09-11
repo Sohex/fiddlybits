@@ -49,14 +49,14 @@ which arm it ran.
 
 | path | holds | row |
 | --- | --- | --- |
-| `src/Coupling/Coupling.jl` | the module and the journal hook with its no-op default | 52v.11.1 |
+| `src/Coupling/Coupling.jl` | the module and its includes | 52v.11.1 |
 | `src/Coupling/state.jl` | `WorldState`, the component declaration, `assemble` | 52v.11.1 |
 | `src/Coupling/exchange.jl` | `Exchange`, `exchange!`, the residual classifier | 52v.11.2 |
 | `src/Coupling/loops.jl` | `FixedPointLoop`, `Ladder`, the exit verdicts, the finalizer | 52v.11.3 |
 | `test/coupling/` | the fixture components, the surrogate trajectories, the suites | 52v.11.1 to 52v.11.3 |
 
 `Coupling` enters `src/Fiddlybits.jl` in group F, **before `Provenance`**, which reads
-`Ladder`. It references `Fields`, `Mesh`, `Systems`, `Time` and `Verdicts`.
+`Ladder`. It references `Fields`, `Mesh`, `Systems`, `Time`, `Events` and `Verdicts`.
 
 Two rows now add an include to `src/Fiddlybits.jl`: this one and `fiddlybits-52v.9.8`,
 which adds `ShallowWater`. They add different lines to one file, so whichever merges
@@ -66,10 +66,16 @@ second rebases onto the first; neither widens into the other's module directory,
 It does not reference `Provenance`, and the reason is the cycle that would otherwise
 close: the store reads `Ladder`, so the loops cannot read the store. Decision 0042
 sends a `verdict`, a `refusal` and a `ledger_open` to the run journal, all three of
-which are emitted from here. They go through a hook declared in this module with a
-no-op default that `Provenance` fills, which is the pattern the kernel layer already
-uses for recording a device move. The no-op default is also what decision 0042's
-inertness requires, so the hook is not a workaround but the shape the record asks for.
+which are emitted from here through `Events.emit`, the one front door declared in
+group A with a no-op sink that `Provenance` installs (`fiddlybits-52v.6.8`). This
+plan first declared a hook of its own for that, as did the kernels plan and the mesh
+plan; the plan review found the three and consolidated them, because three hooks for
+one mechanism is three definitions of one quantity.
+
+The component declaration is this module's and no other's. The system plan first
+named a `declares(component)` beside its tracking wrapper, which would have been a
+second declaration site; it now takes the declared graph as plain data, and this
+module is what builds that data from `declare`.
 
 ## Types and functions
 
@@ -196,11 +202,11 @@ is a dependency between two M0 areas rather than a convenience.
 
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
-| 52v.11.1 | frontier | `src/Coupling/Coupling.jl`, `src/Coupling/state.jl`, `test/coupling/state.jl`, the `Coupling` include in `src/Fiddlybits.jl` | `coupling.assembly_refusals` passes with all four refusals firing and the lagged triad assembling; a device disagreement at a boundary refuses |
+| 52v.11.1 | frontier | `src/Coupling/Coupling.jl`, `src/Coupling/state.jl`, `test/coupling/state.jl`, the `Coupling` include in `src/Fiddlybits.jl` | `coupling.assembly_refusals` passes with all four refusals firing and the lagged triad assembling; a device disagreement at a boundary refuses; the declared graph handed to `Systems.affected` is built here and nowhere else |
 | 52v.11.2 | sonnet | `src/Coupling/exchange.jl`, `test/coupling/exchange.jl` | `ledger.closure` passes on the exchange arm with the double-count control classified a leak; a component that cannot report a stock refuses at assembly rather than being credited zero |
 | 52v.11.3 | frontier | `src/Coupling/loops.jl`, `test/coupling/loops.jl` | `coupling.loop_finalizer`, `loop.exit_criteria_on_a_known_surrogate` and `loop.drift_against_its_own_scatter` all run; an absolute tolerance is refused at construction |
 | 52v.11.4 | sonnet | none; reports only | all five oracles ran; verdicts by name; the arm each ran on recorded, since the fixture arm decides the machinery and the coupled arm at M7 decides the physics |
 
 52v.11.2 and 52v.11.3 depend on 52v.11.1; 52v.11.3 depends on the counter-based
-generator. The area depends on the fields plan for the ledger and on the system plan
+generator; 52v.11.1 depends on `fiddlybits-52v.6.8` for `Events.emit`. The area depends on the fields plan for the ledger and on the system plan
 for `Profile`, which holds the exit brackets.

@@ -58,8 +58,7 @@ abstract type Backend end
 struct CPU <: Backend   ...
 struct GPU <: Backend   ...
 
-device(component)            the backend a component declares
-on(array, backend)           move, recording the move
+on(array, backend)           move, recording it through Events.moved
 adapt_for(x, backend)        Adapt.adapt_structure through to the device
 launch!(kernel, backend, n)  one launch, workgroup size from the backend
 ```
@@ -69,10 +68,15 @@ with the vertical loop inside the thread. The convention is `(cells, levels)` an
 is a declared constant of this module, read by `Fields` rather than restated there,
 because a layout restated in two places is two conventions.
 
-`on` records every move. A move is a thing that happened to a field, and decision
-0010 puts it in the provenance record, so the recording hook is declared here and
-`Provenance` fills it; the hook's default is a no-op and the no-op is what the
-inertness of decision 0042 requires.
+`on` records every move through `Events.moved`, which is declared in group A with a
+no-op sink that `Provenance` installs (`fiddlybits-52v.6.8`). A move is a thing that
+happened to a field and decision 0010 puts it in the provenance record; this module
+does not declare a hook of its own, because the plan review found three plans each
+declaring one and that is three definitions of one mechanism.
+
+There is no `device(component)` here. Which backend a component runs on is part of
+the component declaration, which is the coupling layer's and sits above this module;
+the declaration holds a `Backend` value and this module only defines the type.
 
 **The bitwise mode** is a backend property, not a flag read from the environment.
 In bitwise mode both backends use the same pure-Julia arithmetic with no fast-math,
@@ -81,11 +85,19 @@ needed, and the same reduction trees. A difference in this mode is a kernel defe
 and not roundoff, which is what makes it the debugging oracle rather than a
 tolerance.
 
+The transcendentals are a row of their own, `fiddlybits-52v.7.8`, and the cost of not
+having them is measured rather than supposed: the Kepler solve differs between the
+processor and the device by 1.0 to 1.5 ulps of pi on a well-conditioned solve and
+by 35 on an ill-conditioned one, from the libraries alone
+(`notes/findings/2026-09-10-sampling-the-kepler-hard-region.md`). Until that row
+lands, bitwise mode is bitwise for arithmetic and stencils and not for anything
+that calls `sin`, and 52v.7.2's acceptance says so rather than claiming more.
+
 `ClimaComms.device()` reads environment variables when called with no argument, and
-decision 0012 refuses that package partly for it. This layer takes the same lesson:
-`device` is a function of the component's declaration, there is no zero-argument
-form, and `lint_no_env_device` is not needed here because no such call exists to
-lint. The control is that `device()` with no argument is a `MethodError`.
+decision 0012 refuses that package partly for it. This layer takes the same lesson
+one step further: there is no `device` function at all, so there is nothing to call
+bare and nothing for `lint_no_env_device` to lint. The control is that no name
+`device` is exported or defined in `Backends`, asserted by the suite.
 
 ### The reductions
 
@@ -123,7 +135,7 @@ inverts is two definitions of one quantity.
 
 ```
 envelope(case, steps)              the ulp-ensemble divergence envelope per step
-certify(kernel, case, envelope)    PASS, FAIL or NotEvaluable, by name
+certify(kernel, case, envelope)    PASS or FAIL from Verdicts, or a Refusal
 ```
 
 `envelope` runs a CPU ensemble whose members each have one field perturbed by one ulp
@@ -131,16 +143,21 @@ in one cell, and measures the divergence as a function of step count. A pair is 
 an ensemble: the member count is declared and the registry states the miss rate that
 count can detect, because a stochastic property tested by a pair is not tested.
 
-`certify` returns the verdict vocabulary of `Verdicts`, never a boolean, so a case
-whose envelope could not be measured says `NotEvaluable` rather than passing.
+`certify` returns an `OracleVerdict`, never a boolean. A case whose envelope could
+not be measured is a `Refusal` naming what could not be measured, not a verdict:
+`NotEvaluable` is a loop verdict and does not belong to this vocabulary, and a
+certification that cannot be evaluated must not be readable as a pass.
 
 A kernel enters a production profile at FP32 only when its FP32 output stays inside
 the envelope of its FP64 self. Ledgers, accumulated reservoirs and global reductions
 run in FP64 accumulators or compensated summation whatever the working precision,
 because a reservoir accumulating small increments at FP32 stagnates: the increment
-falls below the ulp of the stock and is dropped in silence. That is a refusal here,
-not a warning: `Reductions` refuses an FP32 accumulator for a quantity declared a
-reservoir.
+falls below the ulp of the stock and is dropped in silence. Which quantities are
+reservoirs is a field-level declaration this module cannot see, so the refusal of an
+FP32 accumulator for a reservoir lives in the fields plan's ledger
+(`fiddlybits-52v.3.6`). What this module provides is the choice: `compensated_sum`
+always accumulates in FP64, and `pairwise_sum` takes its accumulator type as an
+explicit argument rather than inferring it from the element type.
 
 ### The budget
 
@@ -168,9 +185,11 @@ tier 1, all provisional.
 | `kernels.memory_budget` | the budget equals the sum of declared field sizes, and a declaration over the ceiling refuses before allocation | a ceiling one byte below the estimate, which must refuse |
 
 `repro.thread_count_bitwise` and `repro.backend_ulp_envelope` name the short coupled
-case, which does not exist until a later milestone. Until it does, both run on the
-largest case this milestone has, a stencil sweep over a refined mesh, and the verify
-row records that the case is a stand-in and which oracle rows still await theirs.
+case, which does not exist until a later milestone. Until it does, both run on a
+stand-in this area can build without the mesh, which sits above it: a segmented
+reduction over a synthetic `4^k` layout with a stencil-shaped gather over flat index
+tables. The verify row records that the case is a stand-in and which oracle rows
+still await theirs.
 That is REPORT rather than PASS, and the distinction is the point: a bitwise claim
 evidenced on arithmetic alone is not the claim the registry row states.
 
@@ -182,12 +201,14 @@ from floating point, inside the row that writes both.
 
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
-| 52v.7.2 | sonnet | `src/Backends/` except `certify.jl` and `budget.jl`, `test/backends/` | the same kernel is bitwise identical on CPU at 1 and 16 threads; CPU and GPU agree elementwise for pure arithmetic; bitwise mode is bitwise across backends; `device()` with no argument is a `MethodError` |
-| 52v.7.3 | sonnet | `src/Reductions/` except `quantiles.jl`, `test/reductions/` | `kernels.reduction_partition_independent` passes with both controls firing; an FP32 accumulator for a declared reservoir refuses |
-| 52v.7.4 | frontier | `src/Backends/certify.jl`, `test/certify/` | a correct FP32 kernel certifies; a kernel with an injected error fails; an unmeasurable envelope returns `NotEvaluable` by name; the ensemble member count and its detectable miss rate are declared |
+| 52v.7.2 | sonnet | `src/Backends/` except `certify.jl`, `budget.jl` and `transcendentals.jl`, `test/backends/` except `budget.jl` and `transcendentals.jl` | the same kernel is bitwise identical on CPU at 1 and 16 threads; CPU and GPU agree elementwise for pure arithmetic; bitwise mode is bitwise across backends for arithmetic and stencils; no name `device` is defined in the module; `on` records through `Events.moved` |
+| 52v.7.8 | frontier | `src/Backends/transcendentals.jl`, `test/backends/transcendentals.jl` | each function bitwise between backends over a declared grid; each function's error against a 300-bit reference recorded with the argument for its bound; the Kepler solve bitwise between backends in bitwise mode, and not in fast mode, which is the control |
+| 52v.7.3 | sonnet | `src/Reductions/` except `quantiles.jl`, `test/reductions/` | `kernels.reduction_partition_independent` passes with both controls firing; `pairwise_sum` takes its accumulator type explicitly and `compensated_sum` accumulates in FP64 whatever the element type |
+| 52v.7.4 | frontier | `src/Backends/certify.jl`, `test/certify/` | a correct FP32 kernel certifies; a kernel with an injected error fails; an unmeasurable envelope is a `Refusal` naming what could not be measured, never a verdict; the ensemble member count and its detectable miss rate are declared |
 | 52v.7.5 | sonnet | `src/Reductions/quantiles.jl`, `test/reductions/quantiles.jl` | `kernels.segmented_quantile_exact` passes with its control firing |
 | 52v.7.6 | local | `src/Backends/budget.jl`, `test/backends/budget.jl` | `kernels.memory_budget` passes; the refusal names the fields in descending size |
 | 52v.7.7 | sonnet | none; reports only | all six oracles ran; verdicts by name; the two that ran on a stand-in case recorded as REPORT with the case named |
 
-52v.7.3 and 52v.7.6 depend on 52v.7.2; 52v.7.5 depends on 52v.7.3; 52v.7.4 depends on
-52v.7.2 and 52v.7.3.
+52v.7.3, 52v.7.6 and 52v.7.8 depend on 52v.7.2; 52v.7.5 depends on 52v.7.3; 52v.7.4
+depends on 52v.7.2 and 52v.7.3; 52v.7.2 depends on `fiddlybits-52v.6.8` for
+`Events.moved`.
