@@ -1,0 +1,34 @@
+module Fiddlybits
+
+# The include order is a topological order of the inter-module reference graph.
+# build.module_order_acyclic checks it against the graph recovered from the source.
+# Nothing is re-exported: a caller names the module it reads from.
+
+include("Verdicts/Verdicts.jl")
+include("Dimensions/Dimensions.jl")
+include("Time/Time.jl")
+include("EarthRatios/EarthRatios.jl")
+include("Dispositions/Dispositions.jl")
+include("Backends/Backends.jl")
+include("Systems/Systems.jl")
+include("Reductions/Reductions.jl")
+include("Orbit/Orbit.jl")
+include("Mesh/Mesh.jl")
+include("Fields/Fields.jl")
+include("Instellation/Instellation.jl")
+include("Connectivity/Connectivity.jl")
+include("Provenance/Provenance.jl")
+include("Oracles/Oracles.jl")
+include("Render/Render.jl")
+
+using PrecompileTools: @setup_workload, @compile_workload
+
+# The workload is what a run actually does, added by each area as it gains code.
+@setup_workload begin
+    @compile_workload begin
+        Verdicts.loop_verdicts()
+        Verdicts.oracle_verdicts()
+    end
+end
+
+end # module Fiddlybits
