@@ -12,17 +12,18 @@ date = 2026-09-10
 
 This plan builds the package that every other M0 plan writes into: the manifest of
 pinned dependencies, the one top-level module and the submodule files it includes,
-the test tree, the benchmark tree, the precompilation workload, and the three checks
-that guard the boundary between this project and its dependencies. It fixes the
-submodule set and the include order, and it fixes them as a testable property rather
-than as a convention, because the include order of a Julia module is its dependency
-order and nothing in the language enforces that the two agree.
+the test tree and how a suite joins it, the benchmark tree, the precompilation
+workload, and the checks that guard the boundary between this project and its
+dependencies. It fixes the submodule set and the include order, and it fixes them as
+a testable property rather than as a convention, because the include order of a
+Julia module is its dependency order and nothing in the language enforces that the
+two agree.
 
 It does not write physics, geometry, fields or constants. Every submodule this plan
 creates is a module declaration with nothing in it; the area plan named against each
 one fills it. A submodule whose area has no M0 plan is not created here.
 
-Two things are deliberately left:
+Three things are deliberately left:
 
 - **The coupling layer of decision 0009** (`WorldState`, `assemble`, `Exchange`,
   `FixedPointLoop`, `Ladder`) has no row anywhere on the board and no submodule here.
@@ -33,15 +34,21 @@ Two things are deliberately left:
 - **The two adopt candidacies of decision 0012**, ClimaTimeSteppers.jl and
   RootSolvers.jl, are not dependencies until their own decisions are taken, so
   neither appears in `Project.toml` here. `fiddlybits-52v.10` takes the second.
+- **Where the per-commit gate runs**, and the benchmark bed decision 0029 wants
+  beside it. The backend oracles need a device and a hosted runner has none, so this
+  is a decision with alternatives. Carried by `fiddlybits-52v.1.6`. `bench/` holds
+  the bed's entry point and no case until that row registers one.
 
 ## Module boundaries
 
 One top-level module, `Fiddlybits`, in `src/Fiddlybits.jl`, which contains nothing
-but its includes. Each submodule is one directory under `src/` with a file of the
-same name as its entry point.
+but its includes and the precompilation workload. Each submodule is one directory
+under `src/` with a file of the same name as its entry point.
 
-The include order below is a topological order of the reference graph. Modules
-within one group do not reference each other, and their relative order is free.
+The include order below is a topological order of the reference graph. The groups
+are the plan's reading of which modules are independent; the oracle checks only that
+every reference points at an earlier include, which is what a topological order is,
+and says nothing about groups.
 
 | group | submodule | holds | filled by |
 | --- | --- | --- | --- |
@@ -62,6 +69,10 @@ within one group do not reference each other, and their relative order is free.
 | G | `Oracles` | the registry loader, the identity oracles, the mutation harness | 52v.8 |
 | G | `Render` | calendar rendering and NetCDF export, and nothing else | 52v.5, 52v.6 |
 
+A submodule references another only by the relative form `..Name`; that is the form
+the oracle recovers, and a reference written any other way is invisible to it. The
+oracle reads the source as text rather than parsing it, so the form is the contract.
+
 Three of these boundaries are decisions rather than transcriptions, and each is
 made to break a cycle that the row titles do not show:
 
@@ -81,19 +92,24 @@ made to break a cycle that the row titles do not show:
   is no reference; the area identity against `4 pi R^2` at more than one radius is
   what makes the absence mean something, and belongs to `fiddlybits-52v.2`.
 
-`Verdicts` is filled here rather than by an area plan because the lint suite and the
-import harness are the first callers that must refuse, and every later module raises
-the same refusal type.
+`Verdicts` is filled here rather than by an area plan because it holds no design
+judgement: its two vocabularies are transcribed from decisions 0009 and 0025, and
+every module above it raises the one refusal type it declares.
 
 ### The test tree
 
-`test/runtests.jl` includes one file per group below. A test file lives beside the
-area it tests, and the leak tests the import records name are the paths those
-records already carry.
+Each test directory is a suite with its own entry point, `test/<dir>/runtests.jl`,
+and `test/runtests.jl` discovers and includes every such entry point in sorted
+order. A row adding a suite therefore touches only its own directory, which is what
+keeps `test/runtests.jl` outside every implementation row's boundary. A directory
+under `test/` with no entry point fails the run rather than being skipped; `fixtures`
+directories are the exception, since they hold inputs and not tests.
 
 | path | holds |
 | --- | --- |
-| `test/lint/` | the source lints, their fixtures, and the manifest check |
+| `test/build/` | the module-order check |
+| `test/verdicts/` | the closed-set check on the two vocabularies |
+| `test/lint/` | the source lints, their fixtures, the word and exclusion lists, and the manifest check |
 | `test/imports/` | the import-record harness |
 | `test/<area>/` | the area suites, one directory per submodule, created by its own row |
 | `test/planets/` | the system test instances (`fiddlybits-52v.4.5`) |
@@ -103,62 +119,98 @@ carries, so a record and a suite name one file. The records are live documents a
 the review is repeated when a pin moves, so a path that moves is rewritten in the
 record rather than recorded beside it.
 
+`Test` is a test-time dependency in `[extras]` and `[targets]`, not a runtime one in
+`[deps]`, so that `using Fiddlybits` loads nothing a run does not use; one
+`Manifest.toml` still resolves both, and it is tracked because the environment
+manifest is part of the run identity (decision 0029).
+
 ## Types and functions
 
 `src/Fiddlybits.jl` declares `module Fiddlybits`, includes each submodule file in
-the order of the table, and declares nothing else. No submodule is re-exported: a
-caller names the module it reads from, so that a quantity has one door and the door
-says where it leads.
+the order of the table, and declares the PrecompileTools workload. No submodule is
+re-exported: a caller names the module it reads from, so that a quantity has one
+door and the door says where it leads. `Verdicts.Bracketed` and
+`Dispositions.Bracketed` are two names for two things, and that is why.
 
-`Verdicts` declares, as closed sets with no fallback constructor:
+`Verdicts` declares:
 
-- `LoopVerdict`: `Converged`, `Bracketed`, `Refused`, `NotEvaluable`, `BudgetExhausted`
-  (decision 0009).
-- `OracleVerdict`: `FAIL`, `REPORT`, `PASS` (decision 0025).
-- `Refusal`, carrying the quantity, the reading site and the reason, and
-  `refuse(reason, site)` which raises it. A refusal names what was read and where;
-  it never carries a substitute value.
+- `LoopVerdict`, with the singleton subtypes `Converged`, `Bracketed`, `Refused`,
+  `NotEvaluable`, `BudgetExhausted` (decision 0009), enumerated by `loop_verdicts()`.
+- `OracleVerdict`, with the singleton subtypes `FAIL`, `REPORT`, `PASS` (decision
+  0025), enumerated by `oracle_verdicts()`.
+- `Refusal(quantity, site, reason)`, an exception naming what was read, where, and
+  why it was refused, and `refuse(quantity, site, reason)` which raises it. A
+  refusal never carries a substitute value.
+
+The vocabularies are closed by a test rather than by the language: `test/verdicts/`
+asserts that the subtypes of each abstract type are exactly the enumeration, so a
+subtype added anywhere fails the suite until the enumeration and the decision that
+declares it move together.
 
 `test/lint/` declares one function per lint, each taking a root path and returning
 the offending sites, so that a lint is called on a fixture and on the tree by the
-same function. A lint that returns sites on the clean fixture, or none on the dirty
-one, fails the suite. The lints:
+same function. The suite carries a table of lints, each with a dirty fixture and a
+clean fixture; a lint that returns sites on its clean fixture, or none on its dirty
+one, fails, and a lint in the table with either fixture missing fails rather than
+passing vacuously. Word lists, literal lists, exclusion lists and exemptions are
+TOML files beside the suite, never literals in the lint. The lints:
 
-| lint | refuses | declared by |
-| --- | --- | --- |
-| `lint_earth` | a named physical constant of the DynamicQuantities registry, and any member of `EarthRatios`, outside `EarthRatios` and `Render` | REQ-SYS-101, `docs/imports/dynamicquantities.md` |
-| `lint_literals` | an untyped float literal in a kernel or a physics module | REQ-NUM-001, `docs/imports/julia-1.12.md` |
-| `lint_index_base` | `+ 1` or `- 1` applied to a cell index, at the host boundary or in a kernel | `docs/imports/kernelabstractions.md` |
-| `lint_calendar` | any `Dates` type reaching a physics module or the store writer | REQ-SYS-102, `docs/imports/ncdatasets.md` |
-| `lint_journal_emitter` | a write to the run journal path from outside `src/Provenance/journal.jl` | decision 0042 |
-| `lint_effort` | schedule, person-week, line-count or MVP framing anywhere under `docs/` | `docs/practice.md` |
-| `lint_front_matter` | a record under `docs/` whose header is not TOML, or lacks a required key | decision 0036 |
-| `lint_manifest` | a package named in the exclusion list appearing anywhere in the resolved `Manifest.toml` | `docs/imports/fastpower-jl.md` |
+| lint | refuses | how it sees | declared by |
+| --- | --- | --- | --- |
+| `lint_earth` | any name from the DynamicQuantities constants registry, any member of `EarthRatios`, and any literal from the A3 list of `docs/imports/README.md`, in `src/` outside `EarthRatios` and `Render` | the name and literal lists are TOML beside the suite; the A3 list is copied there and the copy is checked against the record's table | REQ-SYS-101, `docs/imports/dynamicquantities.md` |
+| `lint_literals` | an untyped float literal inside a `@kernel` body or a physics submodule | a literal not wrapped in `FT(...)` or an equivalent typed constructor | REQ-NUM-001, `docs/imports/julia-1.12.md` |
+| `lint_index_base` | `+ 1` or `- 1` applied to a name bound by `@index` inside a `@kernel` body, and to any `CellId` at the host boundary | the bound names are read from the kernel's own `@index` lines | `docs/imports/kernelabstractions.md` |
+| `lint_calendar` | `using Dates`, `import Dates` or a qualified `Dates.` name in any `src/` submodule other than `Render` | textual | REQ-SYS-102, `docs/imports/ncdatasets.md` |
+| `lint_journal_emitter` | any open, write or append against the journal path outside `src/Provenance/journal.jl` | the path is the one constant `Provenance` declares for it, and the lint reads that constant's name from the source rather than carrying its own | decision 0042 |
+| `lint_effort` | a word from the effort list under `docs/` and in `README.md` | the list is TOML beside the suite; a record that states the rule is exempted in the same file by path with its reason, and today those are `docs/practice.md` and decision 0034 | `docs/practice.md` |
+| `lint_front_matter` | a record under `docs/decisions/`, `docs/requirements/` or `docs/plans/` whose header does not parse as TOML between `+++` fences, or lacks a key its directory requires | the required keys per directory are TOML beside the suite; `README.md`, `INDEX.md` and `TEMPLATE.md` are not records | decision 0036 |
+| `lint_manifest` | a package named in the exclusion list appearing anywhere in the resolved `Manifest.toml` | the exclusion list is TOML beside the suite, one entry per package naming the import record that excluded it; an entry with no record fails | `docs/imports/fastpower-jl.md` |
 
 `lint_manifest` reads the dependency graph rather than the source, because the
-hazard it catches arrives transitively and no call site would show it. Its exclusion
-list is a TOML file beside the suite, one entry per excluded package naming the
-import record that excluded it; an entry with no record fails.
+hazard it catches arrives transitively and no call site would show it.
+
+`lint_effort` is a word lint over prose and cannot tell framing from mention, which
+is why its exemptions carry reasons: the practice book states the rule in the words
+the rule forbids, and decision 0034 records the rejected alternative by its name.
 
 `test/imports/` declares `import_records()`, which reads the non-stdlib entries of
-`Project.toml`, and asserts of each that a record exists at
-`docs/imports/<name>.md`, that the record names a leak test, and that the named
-test file exists and runs. The direction matters: the check reads the dependency
-list and looks for records, never the reverse, because `docs/imports/` also holds
-records of packages that were surveyed and refused, and those have nothing to test.
+`Project.toml` and matches each against the first-line heading of the records in
+`docs/imports/`, with a trailing `.jl` dropped, so the match is by the package's
+name and not by a file name. Of each it asserts that a record exists, that the
+record names at least one leak check, and that every named check resolves: a path
+under `test/` that exists, or an oracle id present in `docs/oracles/registry.toml`,
+since some records catch their leak with an oracle rather than a file. The
+direction matters: the check reads the dependency list and looks for records, never
+the reverse, because `docs/imports/` also holds records of packages that were
+surveyed and refused, and those have nothing to test.
+
+Most of the leak tests the adopted records name are written by the area rows, not
+here, because they test the area's code. The harness therefore passes in full only
+once those rows have merged, and the verify row of this plan depends on their verify
+rows for exactly that reason. The named tests and their owners:
+
+| named check | record | owner |
+| --- | --- | --- |
+| `test/lint/lint_index_base.jl`, `test/lint/lint_earth.jl`, `test/lint/lint_literals.jl` | kernelabstractions, dynamicquantities, julia-1.12 | 52v.1.3 |
+| `test/mesh/stencil_valence.jl` | kernelabstractions | 52v.2 |
+| `test/fields/dimension_refusal.jl`, `test/fields/adapt_roundtrip.jl` | dynamicquantities, adapt | 52v.3 |
+| `test/render/no_calendar.jl` | ncdatasets | 52v.5 |
+| `test/io/index_roundtrip.jl` | zarr | 52v.6 |
+| `repro.backend_ulp_envelope` | cuda | 52v.7 |
+| `build.load_latency` | precompiletools | 52v.1.5 |
 
 ## Oracles
 
-Five entries, added to `docs/oracles/registry.toml` by this plan under a new
-`build` subsystem, all tier 1, all provisional until this plan's rows merge.
+Five entries in `docs/oracles/registry.toml` under the `build` subsystem, all tier
+1, all provisional until this plan's verify row runs them on the merged result.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
-| `build.module_order_acyclic` | the include order of `src/Fiddlybits.jl` is a topological order of the actual inter-module reference graph, recovered by parsing each submodule for references to the others | a fixture pair of modules with a back reference, which must be refused |
-| `build.import_record_completeness` | every non-stdlib entry of `Project.toml` has a record naming a leak test that exists and runs | a fixture project entry with no record, and a record naming a test file that does not exist |
+| `build.module_order_acyclic` | the include order of `src/Fiddlybits.jl` is a topological order of the inter-module reference graph recovered from the source | a fixture pair of modules with a back reference, which must be reported; a clean fixture with a forward reference, which must not, so the check is non-vacuous in both directions |
+| `build.import_record_completeness` | every non-stdlib entry of `Project.toml` has a record naming at least one leak check, and every named check resolves | a fixture project entry with no record, and a fixture record naming a test file that does not exist |
 | `build.manifest_exclusions` | no excluded package name appears in the resolved `Manifest.toml` | a fixture manifest containing an excluded name, which must be refused |
-| `build.lint_positive_controls` | every lint flags its dirty fixture and passes its clean fixture | a lint whose dirty fixture is removed, which must fail rather than pass vacuously |
-| `build.load_latency` | `using Fiddlybits` completes inside the declared ceiling on the recorded host | the ceiling is not registered until the A/A scatter of the measurement is known (decision 0029) |
+| `build.lint_positive_controls` | every lint in the table flags its dirty fixture and passes its clean fixture | a table entry whose dirty fixture is absent, which must fail rather than pass vacuously |
+| `build.load_latency` | `using Fiddlybits` completes inside the registered ceiling on the recorded host, the load recorded beside it | the measurement judged against a ceiling below the measured value, which must FAIL |
 
 `build.load_latency` is the only one of the five that measures rather than decides,
 and it carries the registry's own rule: its threshold stays provisional until the
@@ -169,8 +221,10 @@ narrower than its instrument's scatter is refused at registration.
 
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
-| 52v.1.2 | local | `Project.toml`, `Manifest.toml`, `src/Fiddlybits.jl`, `src/<submodule>/<submodule>.jl` for each row of the table, `src/Verdicts/`, `test/runtests.jl`, `test/build/`, `bench/` | `using Fiddlybits` succeeds under the pinned Julia; the empty suite runs; `build.module_order_acyclic` passes with its fixture refused |
-| 52v.1.3 | sonnet | `test/lint/` | `build.lint_positive_controls` and `build.manifest_exclusions` pass, each fixture named |
-| 52v.1.4 | sonnet | `test/imports/` | `build.import_record_completeness` passes, both fixtures refused |
-| 52v.1.5 | sonnet | none; reports only | all five oracles ran; verdicts by name; a dated finding for `build.load_latency` |
+| 52v.1.2 | local | `Project.toml`, `Manifest.toml`, `src/Fiddlybits.jl`, `src/<submodule>/<submodule>.jl` for each row of the table, `src/Verdicts/`, `test/runtests.jl`, `test/build/`, `bench/` | `using Fiddlybits` succeeds under the pinned Julia; the empty suite runs; `build.module_order_acyclic` passes with both fixtures deciding it |
+| 52v.1.7 | local | `Project.toml`, `Manifest.toml`, `test/runtests.jl`, `test/build/`, `test/verdicts/` | the corrections of this plan's review applied to the merged skeleton: suite discovery, `Test` as an extra, the closed-set check; the suite runs green |
+| 52v.1.3 | sonnet | `test/lint/` | `build.lint_positive_controls` and `build.manifest_exclusions` pass, each fixture named; the tree passes every lint or each site it flags is filed as a row |
+| 52v.1.4 | sonnet | `test/imports/` | `build.import_record_completeness` runs with both fixtures refused; the checks that do not yet resolve are listed by name against the owner table above, and every listed one has an owning row |
+| 52v.1.5 | sonnet | none; reports only | all five oracles ran on the merged result with every area verify row it depends on closed; verdicts by name; a dated finding for `build.load_latency` with the A/A scatter and the host |
+| 52v.1.6 | frontier | the CI configuration and any runner scripts | see the row |
 | 52v.11 | frontier | filed against the epic, not this plan | see the row |
