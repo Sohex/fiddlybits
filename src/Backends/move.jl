@@ -30,7 +30,10 @@ end
 `array` moved to `backend`. Returns `array` unchanged, recording nothing,
 when it already lives on `backend`; otherwise returns a copy on `backend`
 and records the move through `Events.moved`, from the backend `array`
-lived on to `backend`'s name.
+lived on to `backend`'s name, unless `array` has no elements.
+
+An array with no elements is placed on `backend` and nothing is recorded: a
+move is bytes crossing between two devices and there are none to cross.
 
 A move off a device calls `complete!(array)` before it copies, so the copy
 reads what the kernels that wrote `array` finished writing rather than
@@ -42,7 +45,7 @@ function on(array::AbstractArray, backend::CPU)
     from = backend_of(array)
     from === :cpu && return array
     complete!(array)
-    moved(array, from, :cpu)
+    record_move(array, from, :cpu)
     return Array(array)
 end
 
@@ -50,9 +53,19 @@ function on(array::AbstractArray, backend::GPU)
     ka_backend(backend)
     from = backend_of(array)
     from === :gpu && return array
-    moved(array, from, :gpu)
+    record_move(array, from, :gpu)
     return CUDA.CuArray(array)
 end
+
+"""
+    record_move(array, from, to)
+
+Record `array`'s move from backend `from` to backend `to` through
+`Events.moved`, and record nothing when `array` has no elements. This is the
+one place `on` decides what counts as a move.
+"""
+record_move(array::AbstractArray, from, to) =
+    isempty(array) ? nothing : moved(array, from, to)
 
 """
     adapt_for(x, backend::Backend)
