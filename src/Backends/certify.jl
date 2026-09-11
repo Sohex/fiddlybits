@@ -127,9 +127,13 @@ sampled draw is too coarse to reach declares `Obligation[]` at its construction
 site, and the emptiness is then a statement the case makes rather than a value
 this module supplied on its behalf.
 
-Refuses at construction on an obligation that names no site, that repeats
-another obligation's name, or that names a field or a cell the case does not
-have.
+Refuses at construction on an obligation that names no site, that names one of
+its own sites twice, that repeats another obligation's name, or that names a
+field or a cell the case does not have. Two different obligations naming the
+same site is not refused: `exhaustive_envelope` and `divergence` run on one
+obligation's site list at a time, so an overlap between two obligations never
+sums or perturbs a site twice the way a repeat within one obligation's own
+list does.
 """
 struct EnsembleCase{S}
     name::String
@@ -148,8 +152,9 @@ end
     check_obligations(name, fields, obligations)
 
 Refuses, naming the case and the obligation, when an obligation names no site,
-repeats an earlier obligation's name, or names a field or a cell outside
-`fields`.
+names one of its own sites twice, repeats an earlier obligation's name, or
+names a field or a cell outside `fields`. Two different obligations naming the
+same site is not refused.
 """
 function check_obligations(name::AbstractString, fields::Vector{Vector{Float64}},
                            obligations::Vector{Obligation})
@@ -164,7 +169,14 @@ function check_obligations(name::AbstractString, fields::Vector{Vector{Float64}}
                    "case $(name): obligation $(ob.name) is declared twice, so naming it in a " *
                    "result would not say which of the two was covered")
         push!(seen, ob.name)
+        own_sites = Set{Tuple{Int,Int}}()
         for (f, i) in ob.sites
+            (f, i) in own_sites &&
+                refuse("certification obligation", "Backends.EnsembleCase",
+                       "case $(name): obligation $(ob.name) names field $f cell $i twice, so " *
+                       "divergence would sum it twice and the exhaustive envelope would " *
+                       "perturb it twice")
+            push!(own_sites, (f, i))
             (1 <= f <= length(fields) && 1 <= i <= length(fields[f])) ||
                 refuse("certification obligation", "Backends.EnsembleCase",
                        "case $(name): obligation $(ob.name) names field $f cell $i, which the " *
