@@ -136,9 +136,18 @@ value: a quantity that is a function of the declared composition is `Derived`
 - IAPWS R1-76(2014). *Revised Release on Surface Tension of Ordinary Water
   Substance.* No DOI. The condensable's surface tension as a function of
   temperature.
-- Chase, M. W. (1998). *NIST-JANAF Thermochemical Tables, Fourth Edition.* J. Phys.
-  Chem. Ref. Data Monograph 9. DOI: to confirm. Per-gas heat capacities with
-  temperature dependence.
+- McBride, B. J., Zehe, M. J., Gordon, S. (2002). *NASA Glenn Coefficients for
+  Calculating Thermodynamic Properties of Individual Species.* NASA/TP-2002-211556.
+  Per-gas heat capacity, enthalpy and entropy as polynomial fits with declared
+  temperature intervals; the dataset is manifested at
+  `docs/inputs/data/nasa-cea-thermo.toml` and every record there names the volume
+  behind it.
+- Goos, E., Burcat, A., Ruscic, B. *Extended Third Millennium Ideal Gas and Condensed
+  Phase Thermochemical Database for Combustion and Air Pollution, with updates from
+  Active Thermochemical Tables.* Argonne National Laboratory ANL-05/20 and Technion
+  TAE 960. The second source, read for a species the first lacks or an Active
+  Thermochemical Tables enthalpy that beats it; manifested at
+  `docs/inputs/data/burcat-ruscic-thermochemical.toml`.
 - Lemmon, E. W., Jacobsen, R. T. (2004). *Viscosity and Thermal Conductivity
   Equations for Nitrogen, Oxygen, Argon, and Air.* Int. J. Thermophys. 25(1),
   21-69. DOI: 10.1023/B:IJOT.0000022327.04529.f3. Per-gas viscosity and

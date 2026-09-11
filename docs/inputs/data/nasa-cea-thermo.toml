@@ -25,7 +25,7 @@ condensed = 761   # phase index 1 to 5, so a polymorph is its own record: 338, 2
 per_record = "every record names its source and page in the comment and carries a six-character reference-date code, so a constant taken from here cites the record and the volume behind it, not the file"
 tpis = 1206   # Thermodynamic Properties of Individual Substances, Gurvich
 g = 513       # calculated at Glenn Research Center
-j = 214       # NIST-JANAF Thermochemical Tables, Chase 1998; the published monograph, not a file this repository holds
+j = 214       # NIST-JANAF Thermochemical Tables, Chase 1998
 n = 39        # TRC Thermodynamic Tables, NIST
 coda = 28
 srd = 21
@@ -45,6 +45,6 @@ intervals = "coefficients are per temperature interval and are not continuous ac
 "chapman1970-mathematical-theory-non-uniform-gases.pdf" = "the transport coefficients its tables carry are here machine-readable over a wider range with their own sources; the book stays for the Chapman-Enskog theory, which is what it is actually held for, and its 37 OCR'd table pages are not a data path"
 
 [oracle]
-note = "214 records here carry a j code, meaning the value came from the NIST-JANAF fourth edition. That scan is no longer held (2026-09-10), so there is no by-eye check against a printed table and no JANAF-specific audit; a j-coded record is checked the way every other record here is, against Burcat and Ruscic in docs/inputs/data/burcat-ruscic-thermochemical.toml where the species overlaps"
+note = "a record here is checked against docs/inputs/data/burcat-ruscic-thermochemical.toml for every species the two share: both give the same quantities as polynomial fits, so the comparison is machine-readable on both sides and runs over the whole overlap rather than a sample"
 
 anchors = []   # filled when the first Sourced constant names a record in this file

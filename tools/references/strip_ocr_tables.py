@@ -5,14 +5,11 @@ stay as a marker, so retrieval can still find the table and the reader opens the
     strip_ocr_tables.py                 # dry run over every OCR-read source in references/text
     strip_ocr_tables.py --apply
 
-Why: OCR prose comes back faithful and OCR tables do not. On the one source whose columns check each other,
-the NIST-JANAF fourth edition, 493 of 1071 table pages were silently wrong; across the corpus the reader
-invented 255 tables by reading values off figures (notes/findings/2026-09-09-janaf-table-identities.md,
-notes/findings/2026-09-09-tables-invented-from-figures.md). A re-read at a higher pixel budget fixed some and
-left the rest unverifiable, and a number that cannot be verified must not be quotable with a page citation.
-Sources with a real text layer are not touched: their tables were never OCR'd.
+Only sources whose manifest entry names an OCR engine are touched; one with a real text layer is left alone.
+Runs as the last step of tools/references/ocr_read_chain.sh.
 
-Runs as the last step of tools/references/ocr_read_chain.sh so a fresh read cannot reintroduce them.
+The rule this enforces, and the measurements behind it: decision 0016 and
+notes/findings/2026-09-09-tables-invented-from-figures.md.
 """
 import argparse, json, pathlib, re
 

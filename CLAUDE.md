@@ -38,6 +38,9 @@ Arguments live in `docs/practice.md` and `docs/decisions/`; findings in
 - Physics is not a knob: a process is in the model because it exists.
 - A check that cannot fail is not a check; every oracle has a positive control.
 - No current values in prose; no effort estimates anywhere; ASCII punctuation.
+- A comment says what the code does, never why it is right (decision 0039). Arguments go
+  to `docs/decisions/`, measurements and dates to `notes/findings/`; a comment may name
+  one by path and never summarise it.
 - TOML for every configuration, manifest, registry and record header; never YAML or JSON for anything a person edits.
 - Findings, decisions and tasks are kept apart: `notes/findings/`, `docs/decisions/`, `bd`.
 - A filing is not an end state: a finding, a row or a proposal is on the way to the change

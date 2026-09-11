@@ -10,12 +10,10 @@ For each PDF: render every page, OCR it, write references/text/<stem>/<page>.txt
 {file, engine: chandra-ocr-2, method, pages, sha256} to references/text/manifest.jsonl so extract_text.py leaves the
 file alone. A file is written only when all its pages are done; --resume skips files already recorded as chandra.
 
-Pages are turned upright before they are read. Chandra does read sideways text, but on a rotated wide table it
-drops columns and rows silently: on one JANAF page the sideways read lost the enthalpy column of every row and
-one row entirely, while the same page turned upright matched the printed table (measured 2026-09-09,
-notes/findings/2026-09-09-chandra-page-orientation.md). Orientation comes from tesseract's own detector, applied
-from the quarter turn tesseract reads most confidently, snapped to the file's own majority where a page is
-undecided, and --no-orient skips the step.
+Pages are turned upright before they are read, because a rotated wide table loses columns and rows silently.
+Orientation comes from tesseract's own detector, applied from the quarter turn it reads most confidently and
+snapped to the file's own majority where a page is undecided; --no-orient skips the step. See
+notes/findings/2026-09-09-chandra-page-orientation.md.
 """
 import argparse, os, hashlib, json, pathlib, shutil, subprocess, time, tempfile
 from concurrent.futures import ThreadPoolExecutor

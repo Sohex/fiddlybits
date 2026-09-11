@@ -100,5 +100,5 @@ page. OCR'd table cells are now removed from the queryable text altogether
 (`tools/references/strip_ocr_tables.py`), which removes the hazard without buying anything. Where
 a book's *data* has a machine-readable home, that home is the input dataset and the book is a
 scan to open by eye; Carmichael's rock properties to ECOSTRESS and splib07 is the one done so far,
-and the question is asked per constant as constants are filed. NIST-JANAF was the other until
-2026-09-10: its data path is the NASA CEA polynomials and the scan is no longer held at all.
+and the question is asked per constant as constants are filed. A book whose data has such a home
+and whose text offers nothing else is not kept at all.

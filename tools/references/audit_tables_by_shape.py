@@ -1,16 +1,14 @@
 #!/usr/bin/env python
-"""A source with no internal identity cannot be audited the way JANAF was, so screen its tables on shape alone:
-a row narrower than its neighbours lost a cell, two adjacent columns that agree everywhere are one column written
-twice, a value that breaks the smoothness of an otherwise smooth column lost a digit, and a caption that says the
-numbers were estimated from a figure means there was no table on the page at all.
+"""Screen the tables of an OCR-read source on shape alone, for pages worth opening by eye.
 
     audit_tables_by_shape.py references/text/<source> [<source> ...]
 
-None of these proves damage except the last, which is conclusive: the reader invents a table of values read off a
-plot, captions it honestly, and emits it in the same markup as a transcribed one. The other three say which pages
-are worth rendering and looking at, and they are noisy: a header row with spanning cells reads as ragged, and a
-column that is not smooth in the first place says nothing when it jumps. Verify by eye before believing any of
-them (notes/findings/2026-09-09-tables-invented-from-figures.md).
+Reports four conditions per table: a row narrower than its neighbours, two adjacent columns that agree
+everywhere, a value breaking the smoothness of an otherwise smooth column, and a caption stating the numbers
+were estimated from a figure. Only the last is conclusive; the first three are noisy and say which pages to
+render and look at, not which are damaged.
+
+See notes/findings/2026-09-09-tables-invented-from-figures.md.
 """
 import collections, glob, os, re, sys
 TABLE = re.compile(r'<table.*?</table>', re.S)

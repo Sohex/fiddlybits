@@ -109,15 +109,21 @@ the tree. Datasets are the opposite: every one is physically under `oracles/data
 `inputs/data/` with a hashed manifest, because some of them are far harder to fetch
 than a model.
 
-## Sources that are held but not indexed
+## Sources whose text is a pointer
 
-A source whose data has a machine-readable home does not keep its extracted text. Its directory
-under `references/text/` holds one page naming that home and saying why, so a query for the
-quantity lands on the pointer instead of on a number a reader transcribed from a scan. The scan
-stays under `references/pdf/` and is what gets opened by eye. One so far: Carmichael's rock
-properties handbook, whose spectra are ECOSTRESS and USGS splib07. The scanned NIST-JANAF fourth
-edition was the other until 2026-09-10, when it was removed from the archive outright rather than
-kept as a by-eye check; its numbers are the NASA CEA polynomials.
+A source whose data has a machine-readable home in this repository does not keep its extracted
+text. Its directory under `references/text/` holds a single page naming that home, so a query for
+the quantity lands on the pointer and not on a number a reader transcribed from a scan. The scan
+stays under `references/pdf/` and is what gets opened by eye, for argument rather than for values.
+
+The state is recorded, not inferred. The source's line in `references/text/manifest.jsonl` carries
+`policy = "pointer"` and a `home` naming the input manifests, and `extract_text.py` leaves any such
+source alone; without that line the directory looks unextracted and the next extraction run
+overwrites the pointer. The source's row in `INDEX.md` says the same in its anchors column, and the
+retrieval index therefore holds the pointer page as the source's whole content.
+
+One source is in this state: Carmichael's rock properties handbook, whose spectra are
+`docs/inputs/data/ecostress-spectral-library.toml` and `docs/inputs/data/usgs-splib07.toml`.
 
 Every other OCR-read source keeps its prose and loses only its table cells, each table left as a
 marker with its caption, row count and page (`tools/references/strip_ocr_tables.py`). Sources with

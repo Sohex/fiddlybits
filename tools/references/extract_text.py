@@ -3,24 +3,15 @@
 with references/text/manifest.jsonl recording each PDF's sha256, page count, extraction mode and time, so a paper
 is re-extracted when its bytes change or when the mode it was extracted under is no longer the one asked for.
 
-Text comes out in reading order, not in page layout. Measured 2026-09-09 on a sample of the held papers: with
-pdftotext's -layout, 38 percent of non-empty lines on a two-column paper carry text from both columns side by side,
-so a sentence is interrupted mid-clause by an unrelated one; in reading order that figure is zero and hyphenated
-line breaks are rejoined. The flag's usual defence is that it preserves table alignment, and on these papers it does
-not: a two-column page aligns the page's columns, not the table's, so a table is interleaved with the prose beside
-it. A page whose tables matter is read by chandra_pages.py instead, which returns real table markup.
+Default mode is reading order, which rejoins hyphenated line breaks and does not interleave the columns of a
+two-column page; --mode layout and --mode raw select pdftotext's other two. A page whose tables matter is read by
+chandra_pages.py instead, which returns real table markup. See
+notes/findings/2026-09-09-text-extraction-layout.md.
 
-Files read by Chandra are never touched here: their manifest entry names the engine, and this script skips them.
-
-A source whose data has a machine-readable home keeps no extracted text, only a one-page pointer naming that home
-(docs/references/README.md, "Sources that are held but not indexed"). Those stubs are written by hand and so have no
-manifest entry, which made them look unextracted: on 2026-09-10 a run of this script overwrote both of them, one with
-1961 empty pages and one with 415 pages of the transcribed numbers the stub exists to keep out of the corpus. A
-directory whose first page begins "NOT INDEXED" is therefore skipped here, whatever the manifest says. Keep that
-marker as the first characters of the stub.
-
-This is the first instrument of the references archive: it makes
-`rg` across every held paper a page-cited search. Retrieval returns locators, never values (docs/references/README.md).
+Two manifest fields make this script leave a source alone, and both are set by whatever wrote the text:
+`engine` naming an OCR reader, and `policy = "pointer"` for a source whose text directory is maintained by hand
+(docs/references/README.md, "Sources whose text is a pointer"). Everything else is extracted, and re-extracted when
+its bytes or the requested mode change.
 """
 import argparse, hashlib, json, pathlib, subprocess, sys, time, shutil
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -43,9 +34,7 @@ def main():
         h = sha(p)
         prev = done.get(p.name, {})
         if prev.get('engine') == 'chandra-ocr-2': n_skip += 1; continue   # never overwrite a page a model read
-        stub = TXT / p.stem / '0001.txt'
-        if stub.is_file() and stub.read_text(errors='ignore').lstrip().startswith('NOT INDEXED'):
-            n_skip += 1; continue   # a deliberate pointer stub; see the docstring
+        if prev.get('policy') == 'pointer': n_skip += 1; continue   # text maintained by hand, not extracted
         if prev.get('sha256') == h and prev.get('mode') == a.mode and (TXT / p.stem).is_dir(): n_skip += 1; continue
         d = TXT / p.stem
         if d.exists(): shutil.rmtree(d)
