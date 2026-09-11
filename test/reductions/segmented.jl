@@ -58,4 +58,77 @@ using Fiddlybits: Reductions, Backends, Verdicts
         @test_throws Verdicts.Refusal Reductions.segmented_mean(Float64, xs, starts, zero_weights)
         @test_throws Verdicts.Refusal Reductions.segmented_mean_reference(Float64, xs, starts, zero_weights)
     end
+
+    @testset "a Segmentation reduces to the same answers as its boundary array" begin
+        segmentation = Reductions.Segmentation(xs, starts)
+        @test segmentation.nseg == ReductionFixtures.NSEG
+        @test segmentation.nelement == ReductionFixtures.N
+
+        @test Reductions.segmented_sum(Float64, xs, segmentation) ==
+              Reductions.segmented_sum(Float64, xs, starts)
+        @test Reductions.segmented_sum(Float64, xs, segmentation) ==
+              Reductions.segmented_sum_reference(Float64, xs, segmentation)
+        @test Reductions.segmented_mean(Float64, xs, segmentation, weights) ==
+              Reductions.segmented_mean(Float64, xs, starts, weights)
+        @test Reductions.segmented_mean(Float64, xs, segmentation, weights) ==
+              Reductions.segmented_mean_reference(Float64, xs, segmentation, weights)
+
+        @testset "block partition invariance through a Segmentation" begin
+            @test Reductions.segmented_sum(Float64, xs, segmentation, Backends.CPU(4)) ==
+                  Reductions.segmented_sum(Float64, xs, segmentation, Backends.CPU(16))
+        end
+
+        @testset "a zero-weight segment is still refused through a Segmentation" begin
+            zero_weights = zeros(length(xs))
+            @test_throws Verdicts.Refusal Reductions.segmented_mean(Float64, xs, segmentation, zero_weights)
+            @test_throws Verdicts.Refusal Reductions.segmented_mean_reference(Float64, xs, segmentation, zero_weights)
+        end
+    end
+
+    @testset "a malformed boundary array is refused when a Segmentation is built from it" begin
+        @test_throws Verdicts.Refusal Reductions.Segmentation(xs, Int[])
+        @test_throws Verdicts.Refusal Reductions.Segmentation(xs, [2, ReductionFixtures.N + 1])
+        @test_throws Verdicts.Refusal Reductions.Segmentation(xs, [1, ReductionFixtures.N])
+        @test_throws Verdicts.Refusal Reductions.Segmentation(xs, [1, 10, 5, ReductionFixtures.N + 1])
+
+        @testset "positive control: the fixture's own boundaries build one" begin
+            @test Reductions.Segmentation(xs, starts) isa Reductions.Segmentation
+        end
+
+        @testset "refused on the first call and on every call after it" begin
+            bad = [1, 10, 5, ReductionFixtures.N + 1]
+            for _ in 1:3
+                @test_throws Verdicts.Refusal Reductions.segmented_sum(Float64, xs, bad)
+            end
+        end
+    end
+
+    @testset "a Segmentation refuses an xs of a length it was not checked against" begin
+        segmentation = Reductions.Segmentation(xs, starts)
+        shorter = xs[1:(ReductionFixtures.N - 1)]
+        @test_throws Verdicts.Refusal Reductions.segmented_sum(Float64, shorter, segmentation)
+        @test_throws Verdicts.Refusal Reductions.segmented_sum_reference(Float64, shorter, segmentation)
+        @test_throws Verdicts.Refusal Reductions.segmented_mean(Float64, shorter, segmentation, weights[1:end-1])
+        @test_throws Verdicts.Refusal Reductions.segmented_mean_reference(Float64, shorter, segmentation, weights[1:end-1])
+
+        @testset "positive control: the length it was checked against does not refuse" begin
+            @test Reductions.segmented_sum(Float64, xs, segmentation) isa AbstractVector
+        end
+    end
+
+    @testset "a Segmentation holds its own copies of what it checked" begin
+        mutable_starts = copy(starts)
+        segmentation = Reductions.Segmentation(xs, mutable_starts)
+        expected = Reductions.segmented_sum(Float64, xs, segmentation)
+
+        mutable_starts[2] = mutable_starts[3]
+        @test Reductions.segmented_sum(Float64, xs, segmentation) == expected
+
+        @testset "positive control: the mutated array itself reduces differently" begin
+            mutated = Reductions.segmented_sum(Float64, xs, mutable_starts)
+            @test expected[2] != 0.0
+            @test mutated[2] == 0.0
+            @test mutated != expected
+        end
+    end
 end

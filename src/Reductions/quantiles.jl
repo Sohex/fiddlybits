@@ -229,6 +229,7 @@ end
 
 """
     segmented_quantile(xs, starts, q, backend = CPU(BLOCKSIZE))
+    segmented_quantile(xs, segmentation, q, backend = CPU(BLOCKSIZE))
 
 The `q`-quantile of each segment `starts` describes (`segment_extent`),
 selected rather than interpolated: every segment is sorted by a bitonic
@@ -242,18 +243,23 @@ must already live on `backend`; the workgroup size `backend` carries is
 replaced with the segment length regardless of what was passed in
 (`at_workgroup`), because the sort's barriers apply across exactly one
 workgroup.
+
+The `Segmentation` form takes the boundaries already checked and refuses
+when `xs` does not have the length they were checked against. A
+`Segmentation` carries no depth: `segment_depth` runs on every call over
+the host boundaries it holds, which is host work and no device-to-host
+copy.
 """
-function segmented_quantile(xs::AbstractVector, starts::AbstractVector{<:Integer}, q::Real,
+function segmented_quantile(xs::AbstractVector, segmentation::Segmentation, q::Real,
                              backend::Backend = CPU(BLOCKSIZE))
-    starts_host = starts_on_host(starts)
-    nseg = segment_extent_host(xs, starts_host)
+    require_extent(segmentation, xs, "Reductions.segmented_quantile")
+    nseg = segmentation.nseg
     out = similar(xs, nseg)
     nseg == 0 && return out
-    k = segment_depth_host(starts_host, nseg)
+    k = segment_depth_host(segmentation.starts_host, nseg)
     seglen = 4^k
     rank = quantile_rank(seglen, q)
-    lo, _ = segment_bounds(starts)
-    base = lo .- 1
+    base = segmentation.lo .- 1
     partner, ascending = device_bitonic_network(backend, k)
     kernel = quantile_kernel(Val(k))
     launch!(kernel, at_workgroup(backend, seglen), nseg * seglen,
@@ -261,13 +267,20 @@ function segmented_quantile(xs::AbstractVector, starts::AbstractVector{<:Integer
     return out
 end
 
+function segmented_quantile(xs::AbstractVector, starts::AbstractVector{<:Integer}, q::Real,
+                             backend::Backend = CPU(BLOCKSIZE))
+    return segmented_quantile(xs, Segmentation(xs, starts), q, backend)
+end
+
 """
     segmented_quantile_reference(xs, starts, q)
+    segmented_quantile_reference(xs, segmentation, q)
 
 The naive serial reference for `segmented_quantile` (decision 0027): each
 segment's slice sorted by `Base.sort` and the element at `quantile_rank`
 read out, one segment after another. `xs` and `starts` must be host
-arrays.
+arrays. The `Segmentation` form reads the boundaries it holds and checks
+them again here.
 """
 function segmented_quantile_reference(xs::AbstractVector, starts::AbstractVector{<:Integer}, q::Real)
     nseg = segment_extent(xs, starts)
@@ -277,6 +290,11 @@ function segmented_quantile_reference(xs::AbstractVector, starts::AbstractVector
         out[s] = slice[quantile_rank(length(slice), q)]
     end
     return out
+end
+
+function segmented_quantile_reference(xs::AbstractVector, segmentation::Segmentation, q::Real)
+    require_extent(segmentation, xs, "Reductions.segmented_quantile_reference")
+    return segmented_quantile_reference(xs, segmentation.starts_host, q)
 end
 
 """
