@@ -212,6 +212,48 @@ anchors = ["The IAPWS Formulation 1995 for the Thermodynamic Properties of Ordin
 # SyntheticNonEarth() carries the CO2 bulk and SyntheticComposition2() the H2-He bulk.
 instances = ["Earth()", "SyntheticNonEarth()", "SyntheticComposition2()"]
 
+[[oracle]]
+id = "system.disposition_refusals"
+tier = 1
+subsystem = "system"
+dataset_or_reference = "identity"
+statistic = "every disposition constructed without each of its required fields in turn, and the subtypes of Disposition against the enumeration the module declares"
+verdict_kind = "fail_bar"
+threshold = "exact; every omission refuses naming the field, and the subtypes are exactly the five (positive controls: a sixth subtype declared in a fixture, which the enumeration must report; a Sourced locator built from an identifier with no table or equation; a Sourced whose identifier is marked held rather than read in docs/references/INDEX.md; a Bracketed whose value lies outside its own bracket; a Closure with a Sourced coefficient and one naming a single level)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+instances = ["Earth()", "SyntheticNonEarth()"]
+
+[[oracle]]
+id = "system.derived_fields_reproduce"
+tier = 1
+subsystem = "system"
+dataset_or_reference = "identity"
+statistic = "every Derived field of System, enumerated from the struct rather than from a list, recomputed from its own inputs and compared with the constructed value; and a caller-supplied value that disagrees"
+verdict_kind = "fail_bar"
+threshold = "roundoff on every instance, and the disagreement refusal fires; a Derived rule replaced by the Earth value it happens to equal must be caught on the synthetic instances (mutation), and a Derived field added with no identity must fail the oracle rather than be skipped by it"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+instances = ["Earth()", "SyntheticNonEarth()", "SyntheticSynchronous()", "SyntheticRetrograde()", "SyntheticComposition2()"]
+
+[[oracle]]
+id = "system.dependency_subset"
+tier = 1
+subsystem = "system"
+dataset_or_reference = "identity"
+statistic = "the read set every component records under TrackingSystem on the smallest mesh against the set it declares, and affected(field) against the components declaring that field"
+verdict_kind = "fail_bar"
+threshold = "exact; recorded is a subset of declared for every component, and affected lists exactly the declaring components (positive controls: a component reading a field it did not declare, which must fail; a declared edge removed, which affected must stop reporting). A declared edge with no recorded read is REPORT, since a component may legitimately not read a field on one configuration"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+instances = ["Earth()", "SyntheticNonEarth()"]
+
 # ---------------------------------------------------------------- tier 1: mesh
 
 [[oracle]]
