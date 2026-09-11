@@ -63,4 +63,6 @@ const B = "b" ^ 64
         out = read(`julia --startup-file=no --project=$root $(joinpath(root, "tools", "gate", "reference.jl")) --check`, String)
         @test occursin("matches", out)
     end
+
+    include("load_latency.jl")
 end
