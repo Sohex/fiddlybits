@@ -19,6 +19,12 @@ date = 2026-09-08
 ## References
 ```
 
+`INDEX.md` in this directory is generated from these headers by
+`tools/records/decisions.py` and rewritten by the pre-commit hook whenever a record is
+staged. It is not edited by hand. The same tool checks the headers, and the commit is
+refused if a check fails; `--self-test` runs every check against a fixture that must
+fail it.
+
 ## When a record changes another (decision 0040)
 
 A record that changes a prior record says so in its front matter, as data. Both keys

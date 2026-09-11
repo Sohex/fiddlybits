@@ -81,12 +81,18 @@ detail amends itself. A record overturning another's claim takes an edge.
 
 - `docs/decisions/README.md` carries the schema; it is the format spec and is edited
   in place.
-- A check belongs in the lint suite, filed against that row and named there: every
-  `record` in an edge resolves to a file that exists; every record named by a
-  `supersedes` edge has `status = "superseded"`; every record with
-  `status = "superseded"` is named by exactly one `supersedes` edge; no record
-  amends or supersedes itself; no edge points forward in time. Its positive control
-  is a fixture record superseding one that is still marked accepted.
+- `tools/records/decisions.py` checks the headers and regenerates `INDEX.md` from
+  them, and the pre-commit hook runs it whenever a record is staged, refusing the
+  commit on a failed check. `--self-test` runs every check against a fixture that must
+  fail it, and a clean fixture that must pass. The checks: the header parses and
+  carries id, title, status and date; the id matches the filename and is unique; the
+  status is in the vocabulary; the date is a bare TOML date; every edge entry carries
+  `record` and `what`; every `record` resolves; no record amends or supersedes itself;
+  no edge points at a later record; every record named by a `supersedes` edge has
+  `status = "superseded"` and is superseded by exactly one record; every record with
+  `status = "superseded"` is named by one.
+- `INDEX.md` is where the derived back-edge appears, and the only place it is written
+  down. It is generated, never edited.
 - No record in the corpus carries an edge yet, because none has needed one. The first
   will be whatever settles the water door's fallback form, which is filed.
 - A record that supersedes another does not delete it. The superseded file stays

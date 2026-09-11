@@ -31,3 +31,17 @@ if command -v bd >/dev/null 2>&1; then
   if [ $_bd_exit -ne 0 ]; then exit $_bd_exit; fi
 fi
 # --- END BEADS INTEGRATION v1.2.2 ---
+
+# --- BEGIN FIDDLYBITS RECORDS ---
+# Regenerate docs/decisions/INDEX.md from the records' front matter when a record is
+# staged, and refuse the commit if the front matter does not check out.
+# tools/records/decisions.py, decision 0040.
+if git diff --cached --name-only --diff-filter=ACMRD | grep -qE '^docs/decisions/[0-9]{4}-.*\.md$'; then
+  _fb_root=$(git rev-parse --show-toplevel)
+  if ! python "$_fb_root/tools/records/decisions.py"; then
+    echo >&2 "records: decision front matter did not check out; commit refused"
+    exit 1
+  fi
+  git add "$_fb_root/docs/decisions/INDEX.md"
+fi
+# --- END FIDDLYBITS RECORDS ---
