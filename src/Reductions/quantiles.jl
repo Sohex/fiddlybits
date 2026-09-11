@@ -215,6 +215,9 @@ const QUANTILE_BITONIC_NETWORK_DEVICE_LOCK = ReentrantLock()
 `array_type(backend)` the first time this array type and `k` are asked
 for and cached in `QUANTILE_BITONIC_NETWORK_DEVICE` under
 `(array_type(backend), k)` for every later call.
+
+The copy does not go through `Backends.on` and records no `Events.moved`:
+docs/decisions/0047-a-kernels-own-constant-table-is-not-a-device-move.md.
 """
 function device_bitonic_network(backend::Backend, k::Integer)
     AT = array_type(backend)
