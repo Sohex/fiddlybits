@@ -1,0 +1,8 @@
+include("fixtures.jl")
+include("no_device.jl")
+include("layout.jl")
+include("move_events.jl")
+include("reference_agreement.jl")
+include("backend_agreement.jl")
+include("bitwise_mode.jl")
+include("thread_bitwise.jl")
