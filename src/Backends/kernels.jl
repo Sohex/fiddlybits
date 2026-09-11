@@ -7,10 +7,10 @@ using KernelAbstractions: @kernel, @index, @Const
 """
     nofuse_mul(a, b)
 
-`a * b`, returned through a call the compiler may not inline. Bitwise mode
-(decision 0029) routes every multiply that feeds an add through this
-function; the fused kernels below do not
-(notes/findings/2026-09-11-gpucompiler-unconditional-fma-contraction.md).
+`a * b`, returned through a call the compiler may not inline, so the product
+is rounded before whatever consumes it sees it. Decision 0044 writes a
+multiply that feeds an add as `fma` and reaches for this function only where
+a separately rounded product is what the algorithm asks for.
 """
 @noinline nofuse_mul(a, b) = a * b
 
@@ -19,7 +19,8 @@ function; the fused kernels below do not
     axpy_bitwise_kernel!(y, a, x)
 
 `y[i] = a * x[i] + y[i]` at global index `i`. The fused form may compile to
-one rounding step on the GPU; the bitwise form never does.
+one rounding step on the GPU and to two on the CPU; the bitwise form is one
+rounding step on both (decision 0044).
 """
 @kernel function axpy_fused_kernel!(y, a, @Const(x))
     i = @index(Global)
@@ -28,7 +29,7 @@ end
 
 @kernel function axpy_bitwise_kernel!(y, a, @Const(x))
     i = @index(Global)
-    y[i] = nofuse_mul(a, x[i]) + y[i]
+    y[i] = fma(a, x[i], y[i])
 end
 
 """
@@ -51,7 +52,7 @@ end
     axpy_reference!(y, a, x)
 
 The naive serial reference for `axpy!` (decision 0027): the same update, one
-cell at a time in index order, with no fusion barrier of its own.
+cell at a time in index order, with a plain multiply and a plain add.
 """
 function axpy_reference!(y::AbstractVector, a::Real, x::AbstractVector)
     for i in eachindex(y, x)
@@ -66,7 +67,8 @@ end
 
 `out[i]` the fixed-order sum over `k` in `1:nk` of
 `in[neighbour[k, i]] * weight[k, i]`. The fused form may compile to one
-rounding step per term on the GPU; the bitwise form never does.
+rounding step per term on the GPU and to two on the CPU; the bitwise form is
+one rounding step per term on both (decision 0044).
 """
 @kernel function stencil_gather_fused_kernel!(out, @Const(in), @Const(neighbour), @Const(weight), nk)
     i = @index(Global)
@@ -81,7 +83,7 @@ end
     i = @index(Global)
     acc = zero(eltype(out))
     for k in 1:nk
-        acc += nofuse_mul(in[neighbour[k, i]], weight[k, i])
+        acc = fma(in[neighbour[k, i]], weight[k, i], acc)
     end
     out[i] = acc
 end
@@ -113,8 +115,8 @@ end
     stencil_gather_reference!(out, in, neighbour, weight)
 
 The naive serial reference for `stencil_gather!` (decision 0027): the same
-sum, one cell and one neighbour at a time in index order, with no fusion
-barrier of its own.
+sum, one cell and one neighbour at a time in index order, with a plain
+multiply and a plain add.
 """
 function stencil_gather_reference!(out::AbstractVector, in::AbstractVector,
                                     neighbour::AbstractMatrix, weight::AbstractMatrix)
