@@ -11,13 +11,14 @@ using Fiddlybits: Backends
             x = BackendFixtures.seeded_vector(FT, n)
             a = FT(1.3)
 
-            y_kernel = BackendFixtures.seeded_vector(FT, n) .* FT(2)
-            y_ref = copy(y_kernel)
+            y0 = BackendFixtures.seeded_vector(FT, n) .* FT(2)
+            y_kernel = copy(y0)
+            y_ref = copy(y0)
 
             Backends.axpy!(y_kernel, a, x, Backends.CPU(16))
             Backends.axpy_reference!(y_ref, a, x)
 
-            tol = BackendFixtures.fp_tolerance(FT, 2, maximum(abs, y_ref))
+            tol = BackendFixtures.fp_tolerance(FT, 2, maximum(abs.(a .* x) .+ abs.(y0)))
             @test maximum(abs.(y_kernel .- y_ref)) <= tol
             # The kernel and the reference perform the identical fixed-order
             # operation, so the observed agreement is exact.
@@ -34,7 +35,8 @@ using Fiddlybits: Backends
             Backends.stencil_gather!(out_kernel, input, neighbour, weight, Backends.CPU(16))
             Backends.stencil_gather_reference!(out_ref, input, neighbour, weight)
 
-            tol = BackendFixtures.fp_tolerance(FT, nk, maximum(abs, out_ref))
+            per_element_sums = [sum(abs.(input[neighbour[:, i]] .* weight[:, i])) for i in 1:n]
+            tol = BackendFixtures.fp_tolerance(FT, nk, maximum(per_element_sums))
             @test maximum(abs.(out_kernel .- out_ref)) <= tol
             @test out_kernel == out_ref
         end

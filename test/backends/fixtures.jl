@@ -4,13 +4,14 @@
 
 module BackendFixtures
 
+using Fiddlybits.Reductions: error_bound
+
 const N_CELLS = 4^5
 const NK = 4
 
-"The floating point error bound for a fixed-order sum of `n` terms about
-`magnitude` in absolute value (Higham 1993), derived from `T`'s own epsilon
-rather than chosen."
-fp_tolerance(::Type{T}, n::Integer, magnitude::Real) where {T} = n * eps(T) * T(magnitude)
+"The floating point error bound for a fixed-order sum of `n` terms,
+derived from `T`'s epsilon by calling Reductions.error_bound."
+fp_tolerance(::Type{T}, n::Integer, magnitude::Real) where {T} = error_bound(T, n, magnitude)
 
 "A vector of `n` values of type `T` from a fixed formula, not a random draw."
 seeded_vector(::Type{T}, n::Integer) where {T} = T[T(mod(i * 31 + 7, 97)) / T(20) - T(2) for i in 1:n]

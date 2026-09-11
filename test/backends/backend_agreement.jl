@@ -27,7 +27,7 @@ using Fiddlybits: Backends
             x_gpu = Backends.on(x, Backends.GPU(8))
             Backends.axpy!(y_gpu, a, x_gpu, Backends.GPU(8))
 
-            tol = BackendFixtures.fp_tolerance(FT, 2, maximum(abs, y_cpu))
+            tol = BackendFixtures.fp_tolerance(FT, 2, maximum(abs.(a .* x) .+ abs.(y0)))
             @test maximum(abs.(Array(y_gpu) .- y_cpu)) <= tol
         end
 
@@ -46,7 +46,8 @@ using Fiddlybits: Backends
             weight_gpu = Backends.on(weight, gpu)
             Backends.stencil_gather!(out_gpu, input_gpu, neighbour_gpu, weight_gpu, gpu)
 
-            tol = BackendFixtures.fp_tolerance(FT, nk, maximum(abs, out_cpu))
+            per_element_sums = [sum(abs.(input[neighbour[:, i]] .* weight[:, i])) for i in 1:n]
+            tol = BackendFixtures.fp_tolerance(FT, nk, maximum(per_element_sums))
             @test maximum(abs.(Array(out_gpu) .- out_cpu)) <= tol
         end
     end
@@ -64,7 +65,7 @@ using Fiddlybits: Backends
         x_gpu = Backends.on(x, gpu)
         Backends.axpy!(y_gpu, 1.3 + 1.0e-3, x_gpu, gpu)
 
-        tol = BackendFixtures.fp_tolerance(Float64, 2, maximum(abs, y_cpu))
+        tol = BackendFixtures.fp_tolerance(Float64, 2, maximum(abs.(1.3 .* x) .+ abs.(y0)))
         @test maximum(abs.(Array(y_gpu) .- y_cpu)) > tol
     end
 end
