@@ -7,7 +7,7 @@
 
 using SHA
 using TOML
-using Fiddlybits: Orbit
+using Fiddlybits: Orbit, Backends
 
 const ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RECORD = joinpath(ROOT, "bench", "reference.toml")
@@ -20,11 +20,12 @@ grid, a fixed order and no reduction, so the value is a function of the arithmet
 nothing else.
 """
 function kepler_sweep()
+    backend = Backends.CPU(1)
     out = Float64[]
     for e in (0.0, 0.5, 0.9, 0.99, 0.999, 1 - 1e-6, 1 - 1e-9, 1 - 1e-12)
         for i in 0:255
             M = -pi + 2pi * i / 256
-            push!(out, Orbit.eccentric_anomaly(M, e))
+            push!(out, Orbit.eccentric_anomaly(M, e, backend))
         end
     end
     return out
