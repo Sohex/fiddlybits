@@ -7,5 +7,6 @@ include("launch.jl")
 include("kernels.jl")
 include("transcendentals.jl")
 include("budget.jl")
+include("certify.jl")
 
 end # module Backends
