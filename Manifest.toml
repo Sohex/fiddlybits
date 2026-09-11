@@ -2,7 +2,7 @@
 
 julia_version = "1.12.7"
 manifest_format = "2.0"
-project_hash = "883da939669cfc0f6b984fd4999d340e9dcc43e0"
+project_hash = "88ed76c73ec8aea8689470746199bc4411067e69"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -313,7 +313,7 @@ uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
 version = "0.1.11"
 
 [[deps.Fiddlybits]]
-deps = ["Adapt", "CUDA", "DynamicQuantities", "KernelAbstractions", "NCDatasets", "PrecompileTools", "Zarr"]
+deps = ["Adapt", "CUDA", "DynamicQuantities", "KernelAbstractions", "LinearAlgebra", "NCDatasets", "PrecompileTools", "Random", "SHA", "SparseArrays", "TOML", "UUIDs", "Zarr"]
 path = "."
 uuid = "67e34d3d-21be-49b5-9b36-49c5a60c5153"
 version = "0.0.0"
@@ -871,11 +871,6 @@ version = "1.14.0"
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
-
-[[deps.Test]]
-deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
-uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-version = "1.11.0"
 
 [[deps.TestItems]]
 git-tree-sha1 = "a6dd904babc04670c784f81b67957a3545271610"
