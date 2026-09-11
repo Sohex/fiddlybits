@@ -104,6 +104,19 @@ end
         end
     end
 
+    @testset "building the geometry allocates within a small multiple of it" begin
+        l = AC_TOP_LEVEL
+        level = ac_level(l)
+        st = ac_stencils(l)
+        nc, nv, ne = Mesh.ncells(l), Mesh.nvertices(l), Mesh.nedges(l)
+        returned = (4 * nc + nv + 8 * ne) * sizeof(Float64)
+        Mesh.geometry(level, st)
+        GC.gc()
+        used = @allocated Mesh.geometry(level, st)
+        @info "Mesh.geometry allocation" level = l returned_bytes = returned allocated_bytes = used
+        @test used <= 2 * returned
+    end
+
     @testset "positive control: the unrenormalised bisection fails the bar" begin
         l = AC_TOP_LEVEL
         geom = AC_CONTROL_GEOMETRY[l + 1]

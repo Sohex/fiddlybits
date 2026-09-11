@@ -5,6 +5,17 @@
 # notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md.
 
 using LinearAlgebra: cross, dot, norm, normalize
+using StaticArrays: SVector
+
+"""
+    column(m, j)
+
+Column `j` of the 3 by n matrix `m` as an `SVector{3,Float64}`, so the
+arithmetic that follows stays in registers instead of allocating a result
+array per operation (docs/imports/staticarrays-jl.md).
+"""
+@inline column(m::AbstractMatrix, j::Integer) =
+    @inbounds SVector{3,Float64}(Float64(m[1, j]), Float64(m[2, j]), Float64(m[3, j]))
 
 """
     Geometry{T}
@@ -143,9 +154,9 @@ function geometry(level::Level, st::Stencils)::Geometry{Float64}
 
     for i in 1:nc
         v1, v2, v3 = cells[1, i], cells[2, i], cells[3, i]
-        p1 = @view vertices[:, v1]
-        p2 = @view vertices[:, v2]
-        p3 = @view vertices[:, v3]
+        p1 = column(vertices, v1)
+        p2 = column(vertices, v2)
+        p3 = column(vertices, v3)
 
         cell_area[i] = cell_area_vector_form(p1, p2, p3)
 
@@ -186,14 +197,14 @@ function geometry(level::Level, st::Stencils)::Geometry{Float64}
         recorded[e] = true
 
         a, b = edge_local_vertices(cells, i, k)
-        pa = @view vertices[:, a]
-        pb = @view vertices[:, b]
+        pa = column(vertices, a)
+        pb = column(vertices, b)
         primal_edge_length[e] = arc_length(pa, pb)
         edge_midpoint[:, e] .= great_circle_midpoint(pa, pb)
 
         c1, c2 = st.edge_cell[1, e], st.edge_cell[2, e]
-        cc1 = @view dual_vertex[:, c1]
-        cc2 = @view dual_vertex[:, c2]
+        cc1 = column(dual_vertex, c1)
+        cc2 = column(dual_vertex, c2)
         dual_edge_length[e] = arc_length(cc1, cc2)
 
         n = normalize(cross(pa, pb))
