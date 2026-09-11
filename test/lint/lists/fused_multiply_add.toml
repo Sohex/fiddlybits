@@ -49,9 +49,15 @@ function = "stencil_gather_reference!"
 # refused, so the table cannot go stale unnoticed.
 
 # Integer arithmetic. The contraction decision 0044 governs is the
-# floating-point fused multiply-add, and no integer expression admits one.
-# fiddlybits-52v.7.29 asks whether this reading should be structural instead
-# of an entry per site.
+# floating-point fused multiply-add, and no integer expression admits one. The
+# lint does not read integer arithmetic structurally: each such site holds an
+# entry whose reason names the type the expression is over, and a new integer
+# site is refused until one is written. Decision 0044, section "Integer
+# arithmetic is exempted by name, not by shape", settled by
+# fiddlybits-52v.7.29. The clean fixture carries Mesh/hierarchy.jl with the two
+# sites the entries below name, so a narrowing that passes an integer site
+# before this table leaves those entries unused and the lint refuses its own
+# clean fixture.
 [[exemption]]
 path = "Backends/transcendentals.jl"
 function = "cube_root_poly"

@@ -163,6 +163,73 @@ the rule this way: `fma(a, b, c)` passes both prohibitions everywhere, and
 `Backends.nofuse_mul(a, b) + c` passes the first because its operand is a call to
 `nofuse_mul` and not to `*`.
 
+### Integer arithmetic is exempted by name, not by shape
+
+The first prohibition is a test on the shape of the parsed expression, and an integer
+index computation has the shape of a contractible floating-point site exactly.
+`Mesh.children`'s `4i - 3` is a call to `-` one of whose arguments is a call to `*`,
+and so is `Backends.certify`'s `carried + injected * Float64(roundoff)`. This record
+governs the floating-point fused multiply-add, which is an operation on a floating
+format; no integer expression admits one, and none of the integer sites is a defect in
+any sense. They are the shape test reaching past the rule it stands for.
+
+They are carried by the third classifier, an `exemption` entry per site whose `reason`
+names the type the expression is over: the `Int32` exponent arithmetic of
+`cube_root_poly`, the vertex count and the child index of `Mesh/hierarchy.jl`, the
+descendant range of `Mesh/refinement.jl`, and the block offset of
+`Reductions/pairwise.jl`. **The lint does not read integer arithmetic structurally**,
+and this is a determination rather than an omission.
+
+The reason is that no structural signal available to this walker is both sound and
+worth having. The walker parses text and has no types, and it cannot get them: it is
+one function run over a directory, and the directories it is run over include fixture
+trees that are not loadable code and are not meant to be, which is what makes the same
+function decide the tree and decide the positive control. A type-directed lint would
+need the package loaded and inference run at concrete argument types, so the fixture arm
+would have to go, and with it the only check that this lint can fail. It would also
+move the rule: this record fixes the rule as a property of the source, auditable by
+reading, and a rule decided by inference is a property of a compilation.
+
+What is left is signals over the syntax, and they line up in the wrong order. The signal
+that is cheap and provably sound is that every leaf of the expression is an integer
+literal, and it matches none of the sites, because each of them multiplies a literal by
+a name. The signal that is unsound is that some operand of the multiply is an integer
+literal, and it passes `2 * x + y` over `Float64`, which is the site this record exists
+to refuse; it also reaches only the two sites that happen to write their literal
+adjacent to the multiply, leaving the rest on entries. The signal that is sound and has
+reach is that every leaf is an integer literal or a name an enclosing signature
+annotates with an integer type: it is sound, because `2 * x + y` over `Float64` cannot
+have `x` and `y` declared `::Integer`, and it retires the three sites in `Mesh`. It does
+not retire the other two, and cannot, because their integer-ness is established in a
+different function from the one the expression stands in. `cube_root_poly`'s `q` comes
+from `fld(e, Int32(3))` where `e` is the first field of what `split_exponent` returns,
+and `pairwise_block_kernel!`'s `blocksize` is a work-item argument that
+`pairwise_block_sums` passes through `Int`. Reading either needs return types across a
+call, which is inference again.
+
+So the mechanism that has reach is a scope tracker and a recursive leaf classifier over
+a whitelist of integer-preserving operators, each entry of which is its own soundness
+obligation, added to a walker that today needs neither; it would retire the sites whose
+signatures already declare what the entry says, and leave the sites that are hard. The
+entries stay.
+
+The cost of the entries is not the lines. It is that a new integer site fails the gate
+until someone adds one, and that failure is the mechanism working rather than a
+nuisance. The refusal names the file, the line and the text, and the line that answers
+it is a claim, recorded outside the file that makes it, that this particular expression
+is over an integer type. The claim can be wrong: an index computation that acquires a
+floating factor still looks like an index computation, and under a structural rule it
+would pass in silence. Under the table it is written down and reviewed. The table cannot
+go stale either way, because an entry that names nothing in a file the run reads is
+itself refused.
+
+That refusal is what makes this determination checkable. The clean fixture carries
+`Mesh/hierarchy.jl` with the two sites the entries name, so a future narrowing that
+passes an integer site before the table reaches it leaves those entries unused, and the
+lint refuses its own clean fixture. The dirty fixture carries `scale_shift!`, which is
+`2 * x + y` with `x` and `y` declared `Vector{Float64}`, so the shape the unsound
+narrowing would admit is written down where the lint has to keep refusing it.
+
 ### The running sum is the shape, not an exception to it
 
 The fused form needs the multiply and the add adjacent in source, and the objection was
@@ -258,6 +325,44 @@ same chain did.
   `fma` already gives the same bits without it. The requirement is IEEE 754's
   `fusedMultiplyAdd`, which is a language and standard guarantee rather than a hardware
   one.
+- **Exempt a product one of whose operands is an integer literal.** The narrowing that
+  comes to mind first, and the one this record has to refuse by name. It passes
+  `2 * x + y` over `Float64`, which is a bare multiply feeding a bare add in source
+  bitwise mode compiles and is precisely what the first prohibition is for. A rule
+  loosened until the defect it names walks through it is not a rule. It is also a poor
+  bargain on its own terms: it reaches only the sites that write their literal as a
+  direct operand of the multiply, so most of the entries would stay.
+- **Exempt an expression all of whose leaves are integer literals.** Sound, cheap, and
+  the exact analogue of decision 0045's Float32 round trip, which is a clause about the
+  value rather than about the name. Lost on coverage: no site in the tree is of that
+  shape, because an index computation multiplies a literal by a name. Decision 0045's
+  clause worked because a cheap sound test happened to have reach there; here the same
+  move has none, and a clause that matches nothing is a mechanism with no case.
+- **Exempt an expression all of whose leaves are integer literals or names an enclosing
+  signature annotates with an integer type.** The sound version with reach, and the
+  strongest of the losers. It cannot pass `2 * x + y` over a floating type, because that
+  needs `x` and `y` declared `::Integer`. Lost on what it buys against what it costs. It
+  retires the sites in `Mesh`, whose signatures already say `::Integer`, which is to say
+  the sites whose entries were the least informative. It cannot retire the exponent
+  arithmetic of `cube_root_poly` or the block offset of `pairwise_block_kernel!`, whose
+  operands are bound from a call's return value and from a work-item argument, so those
+  keep their entries and the table stays. Against that it adds a scope tracker for
+  annotated parameter names and a recursive leaf classifier over a whitelist of
+  integer-preserving operators to a walker that needs neither, and every operator added
+  to that whitelist is a soundness obligation carried in code rather than in a reason.
+- **Give the lint types, by loading the package and reading inference.** Lost on the
+  shape of the suite and on this record. The lint is one function over a directory and
+  the directories include fixture trees that are not loadable code, so a type-directed
+  lint has no positive control, and a check that cannot fail is not a check. It also
+  restates the rule: this record fixes it as a property of the source, and a rule
+  decided by inference is a property of a compilation instead.
+- **Scope the lint to a declared set of files, so that `Mesh` and `Reductions` are not
+  walked at all.** Lost for the reason decision 0045 gave when `lint_literals` faced it:
+  an exemption that covers every line of a file has no case it refuses and grows
+  silently, and this record's consequences say the rule reaches every multiply that
+  feeds an add in code bitwise mode compiles, including code outside `src/Backends`.
+  `Mesh/refinement.jl` holds both an exempted integer site and a floating-point site a
+  row moves onto `fma`, which is that objection in one file.
 
 ## Consequences
 
@@ -292,6 +397,18 @@ same chain did.
   carries those two assertions onto `Reductions.error_bound` in the same change.
 - The lint of `fiddlybits-52v.7.22` carries two prohibitions rather than one, and a list
   file naming the functions only fast mode reaches.
+- An integer expression whose shape is a multiply feeding an add is refused until an
+  `exemption` entry names it with the type it is over. A new one fails the gate, and the
+  line that answers the failure is the claim being written down where a reviewer reads
+  it. `fiddlybits-52v.7.29` settled this against reading integer arithmetic structurally.
+- The clean fixture of `lint_fused_multiply_add` carries `Mesh/hierarchy.jl` with the two
+  sites their entries name, so `build.lint_positive_controls` refuses the clean fixture
+  if a narrowing ever passes an integer site before the exemption table reaches it. The
+  cost is that rewriting either expression in `src` carries the fixture copy in the same
+  change, which is the entry's `found` text being exact in both places.
+- The dirty fixture carries `scale_shift!`, `2 * x + y` over a declared `Vector{Float64}`,
+  and the clean fixture carries the same function on `fma`. The pair is the trap the
+  integer-literal narrowing would fall into, written where the lint decides it.
 
 ## References
 
@@ -327,3 +444,7 @@ same chain did.
   than left implicit; the rule is stated as the two prohibitions a lint checks and the
   three exemptions that classify a site. From
   `notes/findings/2026-09-11-the-fast-arm-of-a-multiply-that-feeds-an-add.md`.
+- 2026-09-11: integer arithmetic is stated as exempted by name rather than read
+  structurally, with the sound, the unsound and the type-directed narrowings weighed and
+  refused; the determination is given a positive control in the lint's two fixtures.
+  From `fiddlybits-52v.7.29`.
