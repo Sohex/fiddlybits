@@ -1,7 +1,7 @@
 +++
 epic = "fiddlybits-52v.7"
 title = "The portable kernel layer, the partition-independent reductions, and the precision certification"
-decisions = ["0011", "0027", "0029", "0038"]
+decisions = ["0011", "0027", "0029", "0038", "0044", "0045"]
 requirements = ["REQ-NUM-001", "REQ-NUM-002", "REQ-NUM-004", "REQ-NUM-006"]
 oracles = ["repro.thread_count_bitwise", "repro.backend_ulp_envelope", "repro.fp32_kernel_certification", "kernels.reduction_partition_independent", "kernels.segmented_quantile_exact", "kernels.memory_budget"]
 status = "filed"
@@ -38,12 +38,14 @@ Two boundaries are drawn deliberately and are the plan's main decisions:
 
 | path | holds | row |
 | --- | --- | --- |
-| `src/Backends/` | the device abstraction, `Adapt`, the layout convention, `on`, the budget | 52v.7.2, 52v.7.6 |
-| `src/Backends/certify.jl` | the envelope measurement and the certification verdict | 52v.7.4 |
+| `src/Backends/` | the device abstraction, `Adapt`, the layout convention, `on`, the budget, the reference kernels of decision 0027 | 52v.7.2, 52v.7.6, 52v.7.10 |
+| `src/Backends/transcendentals.jl` | the project's own polynomial transcendentals for bitwise mode, `Float64` and `Float32` | 52v.7.8, 52v.7.13 |
+| `src/Backends/certify.jl` | the envelope measurement, the per-case obligations, and the certification verdict | 52v.7.4, 52v.7.17, 52v.7.19 |
 | `src/Reductions/` | fixed-order pairwise and compensated sums, segmented reductions, quantiles | 52v.7.3, 52v.7.5 |
-| `test/backends/` | the backend suite, the bitwise mode, the budget suite | 52v.7.2, 52v.7.6 |
+| `test/backends/` | the backend suite, the bitwise mode, the budget suite | 52v.7.2, 52v.7.6, 52v.7.10 |
+| `test/backends/transcendentals.jl` | the transcendentals suite: bitwise cross-backend grids and 300-bit reference error, both precisions | 52v.7.8, 52v.7.13 |
 | `test/reductions/` | the reduction and quantile suites with their adversarial inputs | 52v.7.3, 52v.7.5 |
-| `test/certify/` | the ulp-ensemble harness and its injected-error control | 52v.7.4 |
+| `test/certify/` | the ulp-ensemble harness, its injected-error control, and the obligation suite | 52v.7.4, 52v.7.17, 52v.7.19 |
 
 `Backends` references `Verdicts` and nothing else in the tree. `Reductions`
 references `Backends` and `Verdicts`. Neither references `Mesh`, `Fields`, `Systems`
@@ -79,19 +81,45 @@ the component declaration, which is the coupling layer's and sits above this mod
 the declaration holds a `Backend` value and this module only defines the type.
 
 **The bitwise mode** is a backend property, not a flag read from the environment.
-In bitwise mode both backends use the same pure-Julia arithmetic with no fast-math,
-no implicit fused multiply-add, the project's own polynomial transcendentals where
-needed, and the same reduction trees. A difference in this mode is a kernel defect
-and not roundoff, which is what makes it the debugging oracle rather than a
-tolerance.
+In bitwise mode both backends run the same pure-Julia arithmetic with no fast-math
+and the project's own polynomial transcendentals, and the same reduction trees. A
+difference in this mode is a kernel defect and not roundoff, which is what makes it
+the debugging oracle rather than a tolerance.
 
-The transcendentals are a row of their own, `fiddlybits-52v.7.8`, and the cost of not
-having them is measured rather than supposed: the Kepler solve differs between the
-processor and the device by 1.0 to 1.5 ulps of pi on a well-conditioned solve and
-by 35 on an ill-conditioned one, from the libraries alone
-(`notes/findings/2026-09-10-sampling-the-kepler-hard-region.md`). Until that row
-lands, bitwise mode is bitwise for arithmetic and stencils and not for anything
-that calls `sin`, and 52v.7.2's acceptance says so rather than claiming more.
+**No bare multiply feeds a bare add.** Decision 0044 amends 0029 on the mechanism:
+bitwise mode does not suppress the device's fusion, it writes the fused operation
+explicitly. Every multiply that feeds an add, including a multiply accumulated into
+a running sum, is written `fma(a, b, c)`, which is the once-rounded chain on both
+backends because the device already contracts unconditionally; holding it back to a
+barriered, twice-rounded value would only throw away accuracy the device produces
+for nothing. `Backends.axpy_bitwise_kernel!` and
+`Backends.stencil_gather_bitwise_kernel!` in `kernels.jl` are written this way.
+`Backends.nofuse_mul` is not withdrawn; its role narrows to the one case `fma`
+cannot cover, a product that has to be rounded on its own before whatever consumes
+it sees it, which `transcendentals.jl`'s `cube_root_poly` uses for its residual step
+at both precisions. `muladd` is used nowhere, because it is permitted to fuse
+rather than required to, and a bitwise mode built on it would be bitwise only on a
+target with the hardware instruction. The rule is a property of the source, checked
+today by review; an AST lint over the source is filed as `fiddlybits-52v.7.22`,
+open.
+
+**The transcendentals** are `Backends.sine`, `cosine`, `sine_cosine`, `cube_root`,
+`exponential` and `logarithm`, in `src/Backends/transcendentals.jl`
+(`fiddlybits-52v.7.8`): the project's own polynomials in bitwise mode and the
+platform library otherwise, dispatched on the argument's own type, `Float64` or
+`Float32`, with no widening between them. `fiddlybits-52v.7.13` added the `Float32`
+set beside the `Float64` one already there: two separate fits rather than one
+converted to the other, because a coefficient table and an argument-reduction split
+are bit patterns of the precision they were derived for, and a `Float64` truncation
+degree or split rounded to `Float32` is not the `Float32` member of that set. This
+is what decision 0045 turns on: the literal lint exempts these tables by naming
+each constant in a `precision_pinned` list rather than exempting the file, so a
+literal added outside a named table is still refused. Each function's measured
+error against a 300-bit reference, and the argument for why it is enough, is a
+dated finding rather than a number here:
+`notes/findings/2026-09-11-polynomial-transcendentals-for-bitwise-mode.md` for
+`Float64`, `notes/findings/2026-09-11-float32-polynomial-transcendentals.md` for
+`Float32`.
 
 `ClimaComms.device()` reads environment variables when called with no argument, and
 decision 0012 refuses that package partly for it. This layer takes the same lesson
@@ -102,10 +130,10 @@ bare and nothing for `lint_no_env_device` to lint. The control is that no name
 ### The reductions
 
 ```
-pairwise_sum(xs; blocksize)      fixed-order, fixed block size
-compensated_sum(xs)              Kahan, FP64 accumulator regardless of eltype
-segmented_sum(xs, segments)      one fixed-order tree per segment
-segmented_mean(xs, segments, weights)
+pairwise_sum(::Type{A}, xs, backend; blocksize)         fixed-order, fixed block size, accumulator type explicit
+compensated_sum(xs)                                     Kahan, FP64 accumulator regardless of eltype
+segmented_sum(::Type{A}, xs, starts, backend)           one fixed-order tree per segment
+segmented_mean(::Type{A}, xs, starts, weights, backend)
 ```
 
 No atomics anywhere in the physics path, and no library reduction, because both
@@ -121,8 +149,8 @@ count and `M` the magnitude, derived from floating point and never chosen
 declaring its own, so a ledger's tolerance has one definition.
 
 ```
-segmented_quantile(xs, segments, q)    bitonic sort in shared memory, 4^k segments
-area_fraction_above(xs, areas, x)      the exact inverse
+segmented_quantile(xs, starts, q, backend)    bitonic sort in shared memory, 4^k segments
+area_fraction_above(xs, areas, x, backend)    the exact inverse
 ```
 
 The segment count is `4^k` because that is the hierarchy's fan-out (decision 0005),
@@ -134,8 +162,13 @@ inverts is two definitions of one quantity.
 ### Certification
 
 ```
-envelope(case, steps)              the ulp-ensemble divergence envelope per step
-certify(kernel, case, envelope)    PASS or FAIL from Verdicts, or a Refusal
+envelope(case, steps)                          the sampled ulp-ensemble divergence envelope, over every usable site
+exhaustive_envelope(case, steps, sites)         the same envelope, every one of `sites` perturbed and scored, none sampled
+covers(envelope, sites, obligation)             whether envelope and a certification's own scope stand for one Obligation
+certification(kernel, case, envelope; roundoff, sites = nothing)   the per-step numbers and verdict of one arm
+certify(kernel, case, envelope; roundoff, sites = nothing)         PASS or FAIL from Verdicts, or a Refusal
+case_certification(kernel, case, steps; roundoff)   every arm the case declares: the sampled envelope and one exhaustive arm per Obligation
+certify_case(kernel, case, steps; roundoff)         PASS only when every arm case_certification runs is PASS
 ```
 
 `envelope` runs a CPU ensemble whose members each have one field perturbed by one ulp
@@ -143,10 +176,39 @@ in one cell, and measures the divergence as a function of step count. A pair is 
 an ensemble: the member count is declared and the registry states the miss rate that
 count can detect, because a stochastic property tested by a pair is not tested.
 
-`certify` returns an `OracleVerdict`, never a boolean. A case whose envelope could
-not be measured is a `Refusal` naming what could not be measured, not a verdict:
-`NotEvaluable` is a loop verdict and does not belong to this vocabulary, and a
-certification that cannot be evaluated must not be readable as a pass.
+An `EnsembleCase` carries an `Obligation` list beside its fields and its step
+function: a named sub-population of `(field, cell)` sites that a certification of
+that case must cover exhaustively, in addition to the sampled draw. `obligations`
+has no default: a case with no sub-population the sampled draw is too coarse to
+reach declares `Obligation[]` at its own construction site, so the emptiness is a
+statement the case makes rather than a value this module supplied on its behalf.
+The instance is the twelve degree-five vertices decision 0005 puts at every level of
+an icosahedral mesh: their relative share falls below the ensemble's declared miss
+rate as the mesh refines, so a sampled draw alone cannot see them
+(`notes/findings/2026-09-11-ulp-ensemble-member-count.md`, section "What the
+ensemble cannot see"), and `exhaustive_envelope` checks them in full instead
+(`fiddlybits-52v.7.17`). `covers` decides whether one `Envelope` and one
+certification's own site scope stand for a given `Obligation`: exact agreement
+between the sites the envelope perturbed, the sites it scored, the certification's
+own scope, and the obligation's own list.
+
+`certify` returns an `OracleVerdict`, never a boolean, and refuses rather than
+returning one when the envelope and scope it was given leave any of the case's
+declared obligations uncovered, naming each by `covers`: a verdict reached over
+part of a case's sites must not be read as a verdict on the case
+(`fiddlybits-52v.7.19`). A case whose envelope could not be measured is a `Refusal`
+naming what could not be measured, not a verdict, the same way: `NotEvaluable` is a
+loop verdict and does not belong to this vocabulary, and a certification that
+cannot be evaluated must not be readable as a pass.
+
+`case_certification` and `certify_case` are the door that cannot omit an
+obligation: given a case and a step count rather than a caller-built envelope, they
+run the sampled arm and the exhaustive arm of every `Obligation` the case declares,
+and the case-level verdict is `PASS` only when every arm is. The two registry rows
+this certification serves, `repro.backend_ulp_envelope` and
+`repro.fp32_kernel_certification`, now carry that requirement in their own threshold
+text (`fiddlybits-52v.7.24`): a certification of a case that declares an
+`Obligation` is not admissible from the sampled arm alone.
 
 A kernel enters a production profile at FP32 only when its FP32 output stays inside
 the envelope of its FP64 self. Ledgers, accumulated reservoirs and global reductions
@@ -162,8 +224,8 @@ explicit argument rather than inferring it from the element type.
 ### The budget
 
 ```
-budget(declarations)               bytes, from declared element type and extent
-refuse_over(budget, ceiling)       refuses before a run starts, naming the overage
+budget(declarations)                   bytes, from declared element type and extent
+refuse_over(declarations, ceiling)     refuses before a run starts, naming the overage
 ```
 
 `declarations` is a plain description of what a run will allocate, one entry per
@@ -207,8 +269,28 @@ from floating point, inside the row that writes both.
 | 52v.7.4 | frontier | `src/Backends/certify.jl`, `test/certify/` | a correct FP32 kernel certifies; a kernel with an injected error fails; an unmeasurable envelope is a `Refusal` naming what could not be measured, never a verdict; the ensemble member count and its detectable miss rate are declared |
 | 52v.7.5 | sonnet | `src/Reductions/quantiles.jl`, `test/reductions/quantiles.jl` | `kernels.segmented_quantile_exact` passes with its control firing |
 | 52v.7.6 | local | `src/Backends/budget.jl`, `test/backends/budget.jl` | `kernels.memory_budget` passes; the refusal names the fields in descending size |
+| 52v.7.10 | frontier | `src/Backends/kernels.jl`, `test/backends/bitwise_mode.jl` | decision 0044: every multiply that feeds an add in bitwise mode is an explicit `fma`; the bitwise kernels agree bit for bit with the same chain evaluated at 256 bits, with the twice-rounded chain as the control that must disagree |
+| 52v.7.13 | frontier | `src/Backends/transcendentals.jl`, `test/backends/transcendentals.jl` | a `Float32` coefficient set and reduction split beside the `Float64` one, each function bitwise between backends over a declared grid at `Float32`, each function's error against a 300-bit reference recorded with the argument for it, the `Float64` bounds already recorded unmoved |
+| 52v.7.17 | sonnet | `src/Backends/certify.jl`, `test/certify/` | a certification of a case on a real mesh perturbs every degree-five vertex beside the sampled ensemble (`exhaustive_envelope`); a defect planted at one degree-five vertex alone is caught by the scoped check and shown missed by the sampled one alone |
+| 52v.7.19 | frontier | `src/Backends/certify.jl`, `test/certify/` | a certification covering only the sampled sites cannot return `PASS` without the omission named (`Obligation`, `covers`, `certify`'s refusal, `case_certification`); the old-way positive control no longer reads as a clean pass; `test/certify/degree_five.jl` passes unchanged and the sampled envelope's own draw is unchanged |
 | 52v.7.7 | sonnet | none; reports only | all six oracles ran; verdicts by name; the two that ran on a stand-in case recorded as REPORT with the case named |
 
 52v.7.3, 52v.7.6 and 52v.7.8 depend on 52v.7.2; 52v.7.5 depends on 52v.7.3; 52v.7.4
 depends on 52v.7.2 and 52v.7.3; 52v.7.2 depends on `fiddlybits-52v.6.8` for
-`Events.moved`.
+`Events.moved`. 52v.7.10 depends on 52v.7.2, the row whose kernels it moved off the
+fusion barrier. 52v.7.17 and 52v.7.19 both extend 52v.7.4's `certify.jl` and were
+filed once it had already merged; neither carries a dependency edge of its own in
+the tracker beyond the parent epic. 52v.7.13 depends on 52v.7.15, outside this
+plan's own file boundary (`test/lint/lists/literals.toml`, decision 0045's
+`precision_pinned` entry), for the lint room its `Float32` constants need.
+
+Several rows were filed against the same epic once a defect or a design question
+turned up during implementation, and stay out of this table because they name no
+function or type this plan states and their own file boundary is not
+`src/Backends/` or `src/Reductions/`: 52v.7.14 and 52v.7.21 route
+`src/Orbit/kepler.jl` through these transcendentals and through `fma`; 52v.7.9,
+52v.7.11, 52v.7.12, 52v.7.15, 52v.7.16, 52v.7.18, 52v.7.20, 52v.7.23, 52v.7.24 and
+52v.7.26 are findings, registry text, a lint list entry, a gate call-site fix and a
+reference-index status. One of them is cited above because this plan's own prose
+still depends on what it will carry: 52v.7.22, open, is the lint that will check
+the fusion rule this plan states as decision 0044's rule.
