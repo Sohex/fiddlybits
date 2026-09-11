@@ -1,10 +1,10 @@
 +++
 epic = "fiddlybits-1cq"
 title = "Survey the CliMA ecosystem: what to adopt, what to borrow, what to refuse"
-decisions = ["0003", "0008", "0012", "0013", "0016", "0017", "0018", "0021", "0023"]
+decisions = ["0003", "0005", "0006", "0008", "0012", "0013", "0016", "0017", "0018", "0021", "0023", "0033"]
 requirements = ["REQ-ATM-017", "REQ-SYS-101", "REQ-PROC-008"]
 oracles = []
-status = "draft"
+status = "filed"
 date = 2026-09-09
 +++
 
@@ -26,7 +26,7 @@ with the reason.
 
 ## Why now
 
-Three of these packages bear on decisions that are not yet built, and the cost of
+Four of these packages bear on decisions that are not yet built, and the cost of
 learning about them after M0 is a rewrite rather than a reading:
 
 - `Thermodynamics.jl` is a parameter-struct treatment of moist thermodynamics, which
@@ -38,16 +38,21 @@ learning about them after M0 is a rewrite rather than a reading:
 - `RRTMGP.jl` is a solver whose shipped k-distributions are Earth-fitted but whose
   two-stream machinery is not; this project generates its own tables (0016), so the
   question is whether the solver can read them.
+- `CGDycore.jl` refines a triangular sphere grid by projecting edge midpoints onto
+  the unit sphere and records connectivity in explicit tables, which is where
+  decisions 0005 and 0006 sit. The organisation sweep found it after this plan's
+  first draft; it is read before the mesh module is written, not after.
 
 ## Groups, and the question each must answer
 
 | group | packages | the question |
 | --- | --- | --- |
 | thermodynamics and gas properties | Thermodynamics.jl, ClimaParams.jl | Does the parameter set generalise beyond one condensable in air, and does the read-logging design match the tracking wrapper of decision 0007? |
-| numerics and time | ClimaTimeSteppers.jl, ClimaCore.jl, ClimaComms.jl | Do the integrators depend on the discretisation, or take a tendency function? Is the communication layer separable from the cubed sphere? |
+| mesh and connectivity | CGDycore.jl | Does the triangular refinement nest exactly the way decision 0005 requires, and is connectivity a derived record or an emergent property of the loop that walks it? |
+| numerics and time | ClimaTimeSteppers.jl, ClimaCore.jl, ClimaComms.jl, RootSolvers.jl | Do the integrators depend on the discretisation, or take a tendency function? Is the communication layer separable from the cubed sphere? Does the scalar solve run inside a device kernel without allocating, and what does its automatic-differentiation dependency imply for decision 0033? |
 | radiation | RRTMGP.jl | Can the solver read k-distributions generated here for an arbitrary spectrum and composition, or does it require the shipped Earth data? |
 | surface and column | SurfaceFluxes.jl, CloudMicrophysics.jl, ClimaLand.jl | Are the universal functions and microphysics parameterised by struct, and what is dimensionless against what is fitted at one gravity and one air density? |
-| ocean and ice | Oceananigans.jl, ClimaOcean.jl, ClimaSeaIce.jl | Beyond the grid verdict already recorded, what of the operator and boundary-condition design carries to a triangle mesh, and what does the sea-ice thermodynamics assume about seawater composition? |
+| ocean and ice | Oceananigans.jl, ClimaOcean.jl, ClimaSeaIce.jl, SeawaterPolynomials.jl | Beyond the grid verdict already recorded, what of the operator and boundary-condition design carries to a triangle mesh, and what does the sea-ice thermodynamics assume about seawater composition? |
 | geometry and forcing | Insolation.jl | Is the orbital geometry general, or a Milankovitch series for one planet around one star? |
 | coupling and output | ClimaCoupler.jl, ClimaDiagnostics.jl, ClimaAnalysis.jl, ClimaUtilities.jl | Does the coupling model admit one writer per quantity and closed exchange ledgers, or does it assume its own component set? |
 
@@ -77,7 +82,20 @@ The format in `docs/imports/README.md`, with these additions for this survey:
 | surface and column | frontier | docs/imports/surfacefluxes-jl.md, cloudmicrophysics-jl.md, climaland-jl.md | records complete; dimensionless separated from fitted |
 | ocean and ice | frontier | docs/imports/oceananigans-jl.md, climaocean-jl.md, climaseaice-jl.md | records complete; the existing Oceananigans idea-borrow in 0012 reconciled |
 | geometry, coupling, output | frontier | docs/imports/insolation-jl.md, climacoupler-jl.md, clima-tooling.md | records complete; out-of-scope packages listed once with the reason |
-| verdicts | frontier | docs/decisions/0012 | 0012's three lists match the records; every moved verdict carries its reason |
+| `fiddlybits-1cq.5` verdicts | frontier | docs/decisions/0012 | 0012's three lists match the records; every moved verdict carries its reason. The survey's verify row: it depends on every review above and cannot be written before they exist |
+
+Filed after the organisation sweep (`docs/imports/clima-organisation-sweep.md`), which
+read the repositories this plan's first draft did not name:
+
+| row | tier | milestone | boundary | acceptance |
+| --- | --- | --- | --- | --- |
+| `fiddlybits-1cq.2` mesh and connectivity | frontier | M0 | docs/imports/cgdycore-jl.md | record complete, read at a pinned commit; the nesting question answered from source, not from the documentation; the connectivity representation classified as derived record or emergent property |
+| `fiddlybits-1cq.3` root solvers | frontier | M0 | docs/imports/rootsolvers-jl.md | record complete; the in-kernel and allocation questions answered from source; the `ForwardDiff` implication for decision 0033 stated |
+| `fiddlybits-1cq.4` seawater properties | frontier | M6 | docs/imports/seawaterpolynomials-jl.md | record complete; the composition question answered against decision 0017's two limbs; the fitted coefficients separated from the general evaluation |
+
+The mesh and root-solver rows are timed to M0 because the mesh module and the clock
+are written there and a reading afterwards is a rewrite. The seawater row is timed to
+M6, where the ocean block is built; nothing before it reads an equation of state.
 
 ## Refusals this survey must not commit
 
