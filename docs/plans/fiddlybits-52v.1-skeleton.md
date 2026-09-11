@@ -28,12 +28,12 @@ second layout kept beside this table; `ShallowWater` arrived that way, through
 
 Three things are deliberately left:
 
-- **The coupling layer of decision 0009** (`WorldState`, `assemble`, `Exchange`,
-  `FixedPointLoop`, `Ladder`) has no row anywhere on the board and no submodule here.
-  It is an interface every component reaches, so it wants to exist before the first
-  component does, but the M0 deliverable of decision 0034 does not name it and this
-  plan does not add it to a milestone on its own authority. Carried by
-  `fiddlybits-52v.11`.
+- **The coupling layer of decision 0009** is carried by `fiddlybits-52v.11`, whose
+  plan settled the milestone question this one left open: it belongs to M0, because
+  decision 0010 states the store's central function as `plan(system, ladder, code)`
+  and `Ladder` is a coupling type, so an M0 row's signature already reads one.
+  Decision 0034 is amended accordingly, and `Coupling` joins the table above in
+  group F ahead of `Provenance`, which reads it.
 - **The two adopt candidacies of decision 0012**, ClimaTimeSteppers.jl and
   RootSolvers.jl, are not dependencies until their own decisions are taken, so
   neither appears in `Project.toml` here. `fiddlybits-52v.10` takes the second.
@@ -68,6 +68,7 @@ and says nothing about groups.
 | E | `Fields` | `Field{S,T,D,L,A}`, `Semantics`, `coarsen`, `refine`, `time_reduce`, `Ledger` | 52v.3 |
 | F | `Instellation` | per-cell flux from every declared star, eclipse geometry | 52v.5 |
 | F | `Connectivity` | the connectivity graph derived from a terrain-level field | 52v.2 |
+| F | `Coupling` | `WorldState`, `assemble`, `Exchange`, `FixedPointLoop`, `Ladder` | 52v.11 |
 | F | `Provenance` | `ArtifactKey`, `CodeVersion`, `RunID`, the Zarr store, the journal, the RNG | 52v.6 |
 | G | `ShallowWater` | the triangle C-grid discretisation, the step, the standard cases | 52v.9 |
 | G | `Oracles` | the registry loader, the runner, the mutation harness | 52v.8 |

@@ -427,6 +427,34 @@ registered_at = ""
 holdout = false
 anchors = []
 
+# ---------------------------------------------------------------- tier 1: coupling
+
+[[oracle]]
+id = "coupling.assembly_refusals"
+tier = 1
+subsystem = "coupling"
+dataset_or_reference = "identity"
+statistic = "assemble run over fixture component sets: a quantity with two declared writers, a read with no writer and no initial condition, a written quantity nothing reads, an intra-step cycle with no lagged edge, and a component whose declared device disagrees with a quantity it reads without a declared move"
+verdict_kind = "fail_bar"
+threshold = "exact; every case refuses and the cycle refusal prints the cycle (positive control: the same triad with one read declared lagged, which must assemble rather than being refused with the rest, since a cycle checker that refuses every triad is not a checker)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "coupling.loop_finalizer"
+tier = 1
+subsystem = "coupling"
+dataset_or_reference = "identity"
+statistic = "the verdict a FixedPointLoop returns under each declared monotonicity and budget, and the verdict the Ladder's finalizer returns when the artifact a predicate needs is absent or coarser than the predicate requires"
+verdict_kind = "fail_bar"
+threshold = "exact; an Antitone loop never returns Converged and its Bracketed verdict reports width and overshoot separately; a loop that reaches its cap returns BudgetExhausted, which is not a pass; a loop cannot exit before its declared run floor; an absolute tolerance is refused at construction. The finalizer returns NotEvaluable by name rather than passing (positive control: a finalizer offered a coarser artifact than its predicate needs, which must refuse to substitute it)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
 # ---------------------------------------------------------------- tier 1: ledgers
 
 [[oracle]]
