@@ -1,0 +1,8 @@
+include("fixtures.jl")
+include("error_bound.jl")
+include("pairwise.jl")
+include("compensated.jl")
+include("segmented.jl")
+include("gpu_agreement.jl")
+include("thread_bitwise.jl")
+include("partition_independent.jl")
