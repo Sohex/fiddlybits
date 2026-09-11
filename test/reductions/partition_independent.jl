@@ -13,7 +13,7 @@ using Fiddlybits: Reductions, Backends
     @testset "residual on adversarial (mixed-sign, non-monotone) input is within k*N*eps*M" begin
         xs = ReductionFixtures.seeded_vector(Float64, ReductionFixtures.N)
         exact = ReductionFixtures.exact_sum(xs)
-        tol = Reductions.error_bound(Float64, length(xs), maximum(abs, xs))
+        tol = Reductions.error_bound(Float64, length(xs), ReductionFixtures.term_magnitude(xs))
 
         @test abs(Reductions.pairwise_sum(Float64, xs) - exact) <= tol
         @test abs(Reductions.pairwise_sum_reference(Float64, xs) - exact) <= tol
@@ -21,15 +21,21 @@ using Fiddlybits: Reductions, Backends
     end
 
     @testset "positive control: a naive sum fails on alternating magnitudes, a compensated sum passes" begin
+        # increment_scale is the magnitude of the million deposits, not of
+        # the sequence including the stock (Reductions.error_bound's
+        # documented magnitude): a narrower, problem-specific tolerance for
+        # whether the deposits were captured, not the general k*N*eps*M
+        # guarantee.
         n = 1_000_000
         xs = ReductionFixtures.stock_and_increments(Float32, n)
         exact = 1.0e8 + n
+        increment_scale = 1.0
 
         naive = 0.0f0
         for x in xs
             naive += x
         end
-        tight_tol = Reductions.error_bound(Float64, n, 1.0)
+        tight_tol = Reductions.error_bound(Float64, n, increment_scale)
 
         @test abs(Float64(naive) - exact) > tight_tol
         @test abs(Reductions.compensated_sum(xs) - exact) <= tight_tol

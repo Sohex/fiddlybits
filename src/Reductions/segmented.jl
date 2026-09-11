@@ -11,20 +11,23 @@ using KernelAbstractions: @kernel, @index, @Const
 Refuses unless `starts` is a non-decreasing boundary array beginning at
 `1` and ending at `length(xs) + 1`, and otherwise returns
 `length(starts) - 1`, the segment count. Segment `s` is
-`xs[starts[s]:starts[s+1]-1]`.
+`xs[starts[s]:starts[s+1]-1]`. `starts` is read element by element for
+this check, so it is copied to the host first when it is not already
+there (a boundary array, not the reduced data, so the copy is cheap).
 """
 function segment_extent(xs::AbstractVector, starts::AbstractVector{<:Integer})
-    isempty(starts) &&
+    starts_host = starts isa Array ? starts : Array(starts)
+    isempty(starts_host) &&
         refuse("segment boundaries", "Reductions.segment_extent", "starts is empty")
-    issorted(starts) ||
+    issorted(starts_host) ||
         refuse("segment boundaries", "Reductions.segment_extent", "starts is not non-decreasing")
-    first(starts) == 1 ||
+    first(starts_host) == 1 ||
         refuse("segment boundaries", "Reductions.segment_extent",
-               "starts begins at $(first(starts)), not 1")
-    last(starts) == length(xs) + 1 ||
+               "starts begins at $(first(starts_host)), not 1")
+    last(starts_host) == length(xs) + 1 ||
         refuse("segment boundaries", "Reductions.segment_extent",
-               "starts ends at $(last(starts)), xs has length $(length(xs))")
-    return length(starts) - 1
+               "starts ends at $(last(starts_host)), xs has length $(length(xs))")
+    return length(starts_host) - 1
 end
 
 """

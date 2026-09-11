@@ -13,14 +13,14 @@ using Fiddlybits: Reductions, Backends, Verdicts
             terms = ReductionFixtures.seeded_vector(FT, ReductionFixtures.N)
             kernel = Reductions.pairwise_sum(FT, terms)
             reference = Reductions.pairwise_sum_reference(FT, terms)
-            tol = Reductions.error_bound(FT, length(terms), maximum(abs, terms))
+            tol = Reductions.error_bound(FT, length(terms), ReductionFixtures.term_magnitude(terms))
             @test abs(kernel - reference) <= tol
         end
     end
 
     @testset "residual against the exact sum is within the declared bound" begin
         result = Reductions.pairwise_sum(Float64, xs)
-        tol = Reductions.error_bound(Float64, length(xs), maximum(abs, xs))
+        tol = Reductions.error_bound(Float64, length(xs), ReductionFixtures.term_magnitude(xs))
         @test abs(result - exact) <= tol
     end
 

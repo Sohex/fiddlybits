@@ -7,21 +7,26 @@ using ..Verdicts: refuse
 """
     ERROR_BOUND_K
 
-The declared margin `k` of `error_bound`'s `k * n * eps(T) * magnitude`
-(Higham, "The accuracy of floating point summation", 1993): a fixed
-positive integer, the same for every reduction in this module, never
-widened to fit a result.
+`k` of `error_bound`'s `k * n * eps(T) * magnitude`. Sourced: 1, from
+Higham (1993, "The accuracy of floating point summation," eq. 2.6,
+`gamma_{n-1} * sum|x_i|`) by two substitutions and no other adjustment,
+`eps(T) = 2u` for Higham's unit roundoff `u` and the declared term count
+`n` for Higham's `n - 1`; derivation in
+notes/findings/2026-09-11-reduction-error-bound-derivation.md.
 """
-const ERROR_BOUND_K = 2
+const ERROR_BOUND_K = 1
 
 """
     error_bound(::Type{T}, n, magnitude) where {T<:AbstractFloat}
 
 `ERROR_BOUND_K * n * eps(T) * magnitude`: the roundoff bound for a
-fixed-order sum of `n` terms of type `T` whose magnitude is `magnitude`
-(REQ-NUM-004). The one definition of this quantity in the tree; a caller
-reads it from here rather than declaring its own. Refuses when `n` or
-`magnitude` is negative.
+fixed-order sum of `n` terms of type `T`, from Higham (1993) eq. 2.6
+(REQ-NUM-004). `magnitude` must be an upper bound on the sum of the
+terms' absolute values, `sum|x_i|`, for the bound to hold; a smaller
+number is a different, caller-declared expectation, not this guarantee.
+The one definition of this quantity in the tree; a caller reads it from
+here rather than declaring its own. Refuses when `n` or `magnitude` is
+negative.
 """
 function error_bound(::Type{T}, n::Integer, magnitude::Real) where {T<:AbstractFloat}
     n >= 0 ||

@@ -26,6 +26,11 @@ end
 `Float64`, the right answer `error_bound` is checked against."
 exact_sum(xs::AbstractVector) = Float64(sum(BigFloat.(xs; precision = 256)))
 
+"The `magnitude` `error_bound` requires (Higham 1993, eq. 2.6): the sum of
+`xs`'s entries' absolute values, an upper bound on the same sum over any
+sub-sequence of `xs`."
+term_magnitude(xs::AbstractVector) = sum(abs, xs)
+
 "A sequence of `nblocks` repeats of `(1.0e16, 1.0, -1.0e16, -1.0)`, whose
 exact sum is `0.0`: every quadruple cancels. A single running accumulator
 absorbs the `1.0` and `-1.0e16 - 1.0` in the same block, so its sequential

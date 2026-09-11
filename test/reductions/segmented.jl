@@ -13,10 +13,9 @@ using Fiddlybits: Reductions, Backends, Verdicts
         kernel = Reductions.segmented_sum(Float64, xs, starts)
         reference = Reductions.segmented_sum_reference(Float64, xs, starts)
         @test length(kernel) == ReductionFixtures.NSEG
-        for s in eachindex(kernel, reference)
-            tol = Reductions.error_bound(Float64, starts[s+1] - starts[s], maximum(abs, xs))
-            @test abs(kernel[s] - reference[s]) <= tol
-        end
+        # The kernel and the reference perform the identical fixed-order
+        # per-segment accumulation, so the observed agreement is exact.
+        @test kernel == reference
     end
 
     @testset "each segment's sum equals the exact sum of its own slice" begin
@@ -24,7 +23,7 @@ using Fiddlybits: Reductions, Backends, Verdicts
         for s in 1:ReductionFixtures.NSEG
             slice = xs[starts[s]:starts[s+1]-1]
             exact = ReductionFixtures.exact_sum(slice)
-            tol = Reductions.error_bound(Float64, length(slice), maximum(abs, slice))
+            tol = Reductions.error_bound(Float64, length(slice), ReductionFixtures.term_magnitude(slice))
             @test abs(kernel[s] - exact) <= tol
         end
     end
@@ -38,11 +37,10 @@ using Fiddlybits: Reductions, Backends, Verdicts
     @testset "segmented_mean agrees with segmented_mean_reference (decision 0027)" begin
         kernel = Reductions.segmented_mean(Float64, xs, starts, weights)
         reference = Reductions.segmented_mean_reference(Float64, xs, starts, weights)
-        for s in eachindex(kernel, reference)
-            n = starts[s+1] - starts[s]
-            tol = Reductions.error_bound(Float64, n, maximum(abs, xs)) / minimum(weights)
-            @test abs(kernel[s] - reference[s]) <= tol
-        end
+        # Both a weighted numerator and a weight total accumulated in the
+        # identical fixed order, divided by the identical operation, so the
+        # observed agreement is exact.
+        @test kernel == reference
     end
 
     @testset "refuses boundaries that do not describe xs" begin

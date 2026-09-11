@@ -10,7 +10,7 @@ using Fiddlybits: Reductions
         xs = ReductionFixtures.seeded_vector(Float64, ReductionFixtures.N)
         kernel = Reductions.compensated_sum(xs)
         reference = Reductions.compensated_sum_reference(xs)
-        tol = Reductions.error_bound(Float64, length(xs), maximum(abs, xs))
+        tol = Reductions.error_bound(Float64, length(xs), ReductionFixtures.term_magnitude(xs))
         @test abs(kernel - reference) <= tol
     end
 
@@ -18,7 +18,7 @@ using Fiddlybits: Reductions
         xs = ReductionFixtures.seeded_vector(Float64, ReductionFixtures.N)
         exact = ReductionFixtures.exact_sum(xs)
         result = Reductions.compensated_sum(xs)
-        tol = Reductions.error_bound(Float64, length(xs), maximum(abs, xs))
+        tol = Reductions.error_bound(Float64, length(xs), ReductionFixtures.term_magnitude(xs))
         @test abs(result - exact) <= tol
     end
 
