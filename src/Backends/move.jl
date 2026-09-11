@@ -31,10 +31,17 @@ end
 when it already lives on `backend`; otherwise returns a copy on `backend`
 and records the move through `Events.moved`, from the backend `array`
 lived on to `backend`'s name.
+
+A move off a device calls `complete!(array)` before it copies, so the copy
+reads what the kernels that wrote `array` finished writing rather than
+whatever they had reached. This is the only device-to-host copy in `src/`,
+and the wait is stated here rather than left to what a copy of unpinned
+memory happens to do on a particular platform.
 """
 function on(array::AbstractArray, backend::CPU)
     from = backend_of(array)
     from === :cpu && return array
+    complete!(array)
     moved(array, from, :cpu)
     return Array(array)
 end
@@ -52,5 +59,14 @@ end
 
 `x` with every array it carries moved to `backend`, through
 `Adapt.adapt_structure`.
+
+The `CPU` form completes the device first, because the arrays `x` carries may
+be arrays a kernel is still writing; it completes nothing when CUDA reports no
+functional device, there being no device work to wait for on such a host.
 """
-adapt_for(x, backend::Backend) = Adapt.adapt(array_type(backend), x)
+adapt_for(x, backend::GPU) = Adapt.adapt(array_type(backend), x)
+
+function adapt_for(x, backend::CPU)
+    CUDA.functional() && complete_on(CUDA.CUDABackend())
+    return Adapt.adapt(array_type(backend), x)
+end
