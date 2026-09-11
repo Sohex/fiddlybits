@@ -390,15 +390,12 @@ end
         @test Float64(1 / l2) === Backends.LOG2_E
         @test Float64(sqrt(big(2))) === Backends.SQRT_TWO
         @test Float64(big(2)^(big(1) / 3)) === Backends.CBRT_TWO
+        @test Float64(big(4)^(big(1) / 3)) === Backends.CBRT_FOUR
         @test ntuple(k -> Float64((-1)^k / bfactorial(2k + 1)), 8) === Backends.SIN_SERIES
         @test ntuple(k -> Float64((-1)^(k + 1) / bfactorial(2k + 2)), 8) === Backends.COS_SERIES
         @test ntuple(k -> Float64(1 / bfactorial(k + 1)), 12) === Backends.EXP_SERIES
         @test ntuple(j -> Float64(2 / big(2j + 1)), 11) === Backends.LOG_SERIES
         @test chebyshev_cube_root(6) === Backends.CBRT_START
-        # CBRT_FOUR is one ulp below the value its recorded derivation gives.
-        # It scales a starting value whose own relative error is 1.78e-6, so
-        # nothing downstream moves. fiddlybits-52v.7.26 carries the correction.
-        @test Backends.CBRT_FOUR === prevfloat(Float64(big(4)^(big(1) / 3)))
 
         @testset "positive control: a coefficient one ulp away is refused" begin
             moved = Base.setindex(Backends.SIN_SERIES, nextfloat(Backends.SIN_SERIES[1]), 1)
