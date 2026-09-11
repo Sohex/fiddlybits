@@ -1,7 +1,7 @@
 +++
 epic = "fiddlybits-52v.1"
 title = "The Julia package skeleton: submodule set and include order, the lint suite, the import harness, and the budgets"
-decisions = ["0011", "0012", "0029", "0036", "0037", "0039", "0042"]
+decisions = ["0011", "0012", "0029", "0036", "0037", "0039", "0042", "0043"]
 requirements = ["REQ-SYS-101", "REQ-SYS-102", "REQ-NUM-001", "REQ-NUM-008"]
 oracles = ["build.module_order_acyclic", "build.import_record_completeness", "build.manifest_exclusions", "build.lint_positive_controls", "build.load_latency"]
 status = "filed"
@@ -39,8 +39,11 @@ Three things are deliberately left:
   neither appears in `Project.toml` here. `fiddlybits-52v.10` takes the second.
 - **Where the per-commit gate runs**, and the benchmark bed decision 0029 wants
   beside it. The backend oracles need a device and a hosted runner has none, so this
-  is a decision with alternatives. Carried by `fiddlybits-52v.1.6`. `bench/` holds
-  the bed's entry point and no case until that row registers one.
+  was a decision with alternatives, carried by `fiddlybits-52v.1.6` and settled by
+  decision 0043: the gate runs on this machine through the scheduler, a hosted job
+  answers only whether a clean checkout stands up, and the reference-hash rule is
+  built now against the stand-in case named in `bench/reference.toml`. `bench/` holds
+  the bed's entry point and no case until a row registers one.
 
 ## Module boundaries
 
@@ -123,6 +126,7 @@ directories are the exception, since they hold inputs and not tests.
 | `test/verdicts/` | the closed-set check on the two vocabularies |
 | `test/lint/` | the source lints, their fixtures, the word and exclusion lists, and the manifest check |
 | `test/imports/` | the import-record harness |
+| `test/gate/` | the reference-hash rule of decision 0043 and the load measurement |
 | `test/<area>/` | the area suites, one directory per submodule, created by its own row |
 | `test/planets/` | the system test instances (`fiddlybits-52v.4.5`) |
 
@@ -226,7 +230,12 @@ table. The named tests and their owners:
 ## Oracles
 
 Five entries in `docs/oracles/registry.toml` under the `build` subsystem, all tier
-1, all provisional until this plan's verify row runs them on the merged result.
+1, all provisional with an empty `registered_at`. This plan's verify row runs them on
+the merged result and reports the verdicts; it does not register them. Registration is
+at the milestone that registers an entry and nowhere else (`docs/oracles/README.md`),
+and the rule that a registry edit may not share a commit with a result it judges is
+checked by `fiddlybits-52v.8.2`. A provisional entry may run and report and may not
+FAIL a milestone gate.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
@@ -239,7 +248,11 @@ Five entries in `docs/oracles/registry.toml` under the `build` subsystem, all ti
 `build.load_latency` is the only one of the five that measures rather than decides,
 and it carries the registry's own rule: its threshold stays provisional until the
 scatter of the measurement on the recorded host is a dated finding, because a bar
-narrower than its instrument's scatter is refused at registration.
+narrower than its instrument's scatter is refused at registration. That scatter is
+`notes/findings/2026-09-11-load-latency-instrument.md`, and it found a second reason
+beside the empty package: neighbours on the memory system move the number by many
+times the quiet range, so what the recorded load licenses has to be settled before a
+bar applies. That is `fiddlybits-52v.1.8`.
 
 ## Rows filed
 
@@ -251,4 +264,5 @@ narrower than its instrument's scatter is refused at registration.
 | 52v.1.4 | sonnet | `test/imports/` | `build.import_record_completeness` runs with both fixtures refused; the checks that do not yet resolve are listed by name against the owner table above, and every listed one has an owning row |
 | 52v.1.5 | sonnet | none; reports only | all five oracles ran on the merged result with every area verify row it depends on closed; verdicts by name; a dated finding for `build.load_latency` with the A/A scatter and the host |
 | 52v.1.6 | frontier | the CI configuration and any runner scripts | see the row |
+| 52v.1.8 | frontier | `docs/oracles/`, `test/gate/` | a stated rule for what the load recorded beside `build.load_latency` licenses, with its positive control; the entry carries a threshold whose condition is stated, or is declared REPORT with the argument in it |
 | 52v.11 | frontier | filed against the epic, not this plan | see the row |
