@@ -30,14 +30,25 @@ function budget(declarations)
                    "field $(name): cannot take sizeof($(element_type)): $(err)")
         end
 
-        try
-            field_bytes = Base.Checked.checked_mul(field_size, extent)
-            total = Base.Checked.checked_add(total, field_bytes)
+        field_bytes = try
+            Base.Checked.checked_mul(field_size, extent)
         catch err
             if err isa OverflowError
                 refuse("memory overflow",
                        "Backends.budget",
-                       "field $(name) with extent $(extent) exceeds representable range")
+                       "field $(name) with extent $(extent) has product that exceeds representable range")
+            else
+                rethrow(err)
+            end
+        end
+
+        total = try
+            Base.Checked.checked_add(total, field_bytes)
+        catch err
+            if err isa OverflowError
+                refuse("memory overflow",
+                       "Backends.budget",
+                       "field $(name) with $(field_bytes) bytes causes total to exceed representable range; current total is $(total)")
             else
                 rethrow(err)
             end

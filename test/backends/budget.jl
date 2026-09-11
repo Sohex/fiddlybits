@@ -165,31 +165,48 @@ end
     @test Backends.budget([("large", Float64, large_but_safe_extent)]) == safe_bytes
 end
 
-@testset "budget refuses when sum of fields overflows" begin
-    # Two fields that are individually fine but whose sum overflows.
-    # Each field = roughly typemax(Int)/2 - 100 to avoid individual overflow
-    # but their sum will overflow when added.
-    half_max = typemax(Int) ÷ 2
+@testset "budget refuses when field product overflows" begin
+    # A field whose own product overflows. This is distinct from sum overflow.
+    overflowing_extent = div(typemax(Int), 4)
+    @test_throws Verdicts.Refusal Backends.budget([("overflow_field", Float64, overflowing_extent)])
 
-    # Create two fields, each with a large extent of the same type
-    # so their individual products don't overflow but the sum does.
-    large_extent = half_max - 100
+    try
+        Backends.budget([("overflow_field", Float64, overflowing_extent)])
+    catch err
+        @test err isa Verdicts.Refusal
+        @test occursin("overflow_field", err.reason)
+        @test occursin(string(overflowing_extent), err.reason)
+        @test occursin("product", err.reason)
+    end
+end
 
-    # Using Float64 (8 bytes), each field is roughly 8 * (half_max - 100)
-    # which is less than typemax(Int) but their sum will overflow.
+@testset "budget refuses when sum of individual fields overflows" begin
+    # Two fields that are individually fine (product fits) but whose sum overflows.
+    # 625000000000000000 elements at 8 bytes = 5.0e18 bytes (fits in Int64).
+    # Two such fields: 5.0e18 + 5.0e18 = 1.0e19 (exceeds Int64 max of ~9.2e18).
+    safe_extent = 625_000_000_000_000_000
+
+    # First, verify that a single field with this extent is fine
+    @test_nowarn Backends.budget([("f1", Float64, safe_extent)])
+    single_field_bytes = Backends.budget([("f1", Float64, safe_extent)])
+
+    # Now verify that two such fields overflow the sum
     @test_throws Verdicts.Refusal Backends.budget([
-        ("field_1", Float64, large_extent),
-        ("field_2", Float64, large_extent),
+        ("f1", Float64, safe_extent),
+        ("f2", Float64, safe_extent),
     ])
 
     try
         Backends.budget([
-            ("field_1", Float64, large_extent),
-            ("field_2", Float64, large_extent),
+            ("f1", Float64, safe_extent),
+            ("f2", Float64, safe_extent),
         ])
     catch err
         @test err isa Verdicts.Refusal
-        # The refusal should name at least one field that caused the overflow
-        @test occursin("field_1", err.reason) || occursin("field_2", err.reason)
+        @test occursin("f2", err.reason)
+        # Should mention that it's a sum/total overflow, not a product overflow
+        @test occursin("total", err.reason)
+        # Should not say "product" for a sum overflow
+        @test !occursin("product", err.reason)
     end
 end
