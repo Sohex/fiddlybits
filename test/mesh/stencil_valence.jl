@@ -26,28 +26,51 @@ const VERTEX_LEVELS = 1:TOP_LEVEL
 level_at(l) = HIERARCHY.levels[l + 1]
 stencils_at(l) = STENCILS[l + 1]
 
-const BLOCK_OPEN = r"\b(function|if|for|while|let|try|do|struct|quote|begin|macro|module)\b"
-const BLOCK_CLOSE = r"\bend\b"
+const BLOCK_OPEN_WORDS = ("function", "if", "for", "while", "let", "try", "do",
+                          "struct", "quote", "begin", "macro", "module")
+const TOKEN = r"[A-Za-z_][A-Za-z0-9_!]*|\[|\]"
+
+"""
+    scan_blocks(line, brackets)
+
+The block openings and closings on `line` that sit outside any square bracket,
+and the bracket depth the line leaves behind. An `end` inside a bracket is an
+index rather than a block close, and a `for` inside one belongs to a
+comprehension, which carries no `end`.
+"""
+function scan_blocks(line::AbstractString, brackets::Integer)
+    opens = 0
+    closes = 0
+    for m in eachmatch(TOKEN, line)
+        token = m.match
+        if token == "["
+            brackets += 1
+        elseif token == "]"
+            brackets = max(brackets - 1, 0)
+        elseif brackets == 0
+            token in BLOCK_OPEN_WORDS && (opens += 1)
+            token == "end" && (closes += 1)
+        end
+    end
+    return opens, closes, brackets
+end
 
 """
     kernel_block_range(lines, start)
 
-The line range of the `function` block that opens at or after `lines[start]`,
-tracked by counting Julia's block-opening keywords against `end`. Returns
-`nothing` if the block never closes within `lines`.
+The line range of the block that opens at or after `lines[start]`, tracked by
+counting Julia's block-opening keywords against `end` outside square brackets.
+Returns `nothing` if the block never closes within `lines`.
 """
 function kernel_block_range(lines::Vector{<:AbstractString}, start::Integer)
     depth = 0
+    brackets = 0
     started = false
     for j in start:length(lines)
-        for _ in eachmatch(BLOCK_OPEN, lines[j])
-            depth += 1
-            started = true
-        end
-        for _ in eachmatch(BLOCK_CLOSE, lines[j])
-            depth -= 1
-        end
-        started && depth == 0 && return start:j
+        opens, closes, brackets = scan_blocks(lines[j], brackets)
+        opens > 0 && (started = true)
+        depth += opens - closes
+        started && depth <= 0 && return start:j
     end
     return nothing
 end
@@ -184,6 +207,18 @@ end
         end
     end
 
+    @testset "the base level pads every cell to twelve slots" begin
+        st = stencils_at(0)
+        nc = Mesh.ncells(0)
+        valence = vec(sum(st.vertex_weight, dims = 1))
+        # Every vertex of the base icosahedron is a base vertex, so no cell
+        # there reaches eleven or twelve and the padding runs deeper.
+        @test all(==(9), valence)
+        @test all(1:nc) do i
+            all(j -> st.vertex_neighbour[j, i] == i, 10:12)
+        end
+    end
+
     @testset "the tables are dense Int32 arrays of the documented shape" begin
         for l in EDGE_LEVELS
             st = stencils_at(l)
@@ -203,8 +238,18 @@ end
         flagged = lint_mesh_leak(dirty)
         passed = lint_mesh_leak(clean)
         @test !isempty(flagged)
+        @test any(s -> s.found == "vertices", flagged)
         @test isempty(passed)
         isempty(passed) || @info "lint_mesh_leak flagged its clean fixture" passed
+
+        # An end counted as a block close truncates the span and the rest of
+        # the kernel body goes unscanned. The dirty fixture indexes with end
+        # ahead of its last line for this assertion to bite.
+        text = LintSupport.strip_comments_and_strings(read(joinpath(dirty, "leak_kernel.jl"), String))
+        lines = String.(split(text, '\n'))
+        spans = kernel_spans(lines)
+        @test length(spans) == 1
+        @test findfirst(l -> occursin("out[i] = total", l), lines) in only(spans)
 
         found = lint_mesh_leak(normpath(joinpath(@__DIR__, "..", "..", "src")))
         isempty(found) || @info "lint_mesh_leak on the tree" found

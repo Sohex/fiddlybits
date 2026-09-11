@@ -20,11 +20,12 @@ across each local edge.
 
 `vertex_neighbour` is 12 by `ncells`: every cell sharing at least one vertex
 with a given cell, excluding the cell itself, which includes the three edge
-neighbours too. Every cell has twelve such neighbours except the sixty
-cells touching one of the twelve base vertices, which have eleven; the
-missing slot is padded with the cell itself and `vertex_weight` carries
-zero there and one everywhere else, so a kernel multiplies through the
-padding instead of branching on it. Neighbours are ordered ascending by
+neighbours too. From level 1 up every cell has twelve such neighbours except
+the sixty cells touching one of the twelve base vertices, which have eleven;
+on the base icosahedron itself every vertex is a base vertex and every cell
+has nine. A missing slot is padded with the cell itself and `vertex_weight`
+carries zero there and one everywhere else, so a kernel multiplies through
+the padding instead of branching on it. Neighbours are ordered ascending by
 cell index, with the padding last.
 """
 struct Stencils
