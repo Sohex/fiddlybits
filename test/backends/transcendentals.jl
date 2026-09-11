@@ -112,6 +112,34 @@ end
 "Whether `a` and `b` agree bit for bit, counting two `NaN`s as agreeing."
 bit_identical(a, b) = all(((x, y),) -> (isnan(x) && isnan(y)) || x === y, zip(a, b))
 
+# exponential_poly before fiddlybits-52v.7.38's sanitiser: clamp fed x
+# directly, so a NaN x reached unsafe_trunc as clamp(NaN, ...) is NaN. Kept
+# here, never called on a NaN, to assert the sanitiser moves no returned
+# value at a finite or infinite argument.
+@inline function exponential_poly_unsanitised(x::Float64)
+    xc = clamp(x, Backends.EXPONENTIAL_MIN, Backends.EXPONENTIAL_MAX)
+    k = round(xc * Backends.LOG2_E)
+    r = fma(-k, Backends.LN2_A, xc)
+    r = fma(-k, Backends.LN2_B, r)
+    y = fma(r * r, Backends.horner(r, Backends.EXP_SERIES), r)
+    v = Backends.scale_two(1.0 + y, unsafe_trunc(Int32, k))
+    v = ifelse(x > Backends.EXPONENTIAL_MAX, Inf, v)
+    v = ifelse(x < Backends.EXPONENTIAL_MIN, 0.0, v)
+    return v
+end
+
+@inline function exponential_poly_unsanitised(x::Float32)
+    xc = clamp(x, Backends.EXPONENTIAL_MIN_F32, Backends.EXPONENTIAL_MAX_F32)
+    k = round(xc * Backends.LOG2_E_F32)
+    r = fma(-k, Backends.LN2_A_F32, xc)
+    r = fma(-k, Backends.LN2_B_F32, r)
+    y = fma(r * r, Backends.horner(r, Backends.EXP_SERIES_F32), r)
+    v = Backends.scale_two(1.0f0 + y, unsafe_trunc(Int32, k))
+    v = ifelse(x > Backends.EXPONENTIAL_MAX_F32, Inf32, v)
+    v = ifelse(x < Backends.EXPONENTIAL_MIN_F32, 0.0f0, v)
+    return v
+end
+
 # The Kepler solve of src/Orbit/kepler.jl with every multiply that feeds an
 # add taking arith through fma_add and every transcendental through trans,
 # so that the arithmetic and the transcendentals can be switched separately.
@@ -254,6 +282,8 @@ end
         @test Backends.exponential_poly(0.0) === 1.0
         @test Backends.exponential_poly(800.0) === Inf
         @test Backends.exponential_poly(-800.0) === 0.0
+        @test Backends.exponential_poly(Inf) === Inf
+        @test Backends.exponential_poly(-Inf) === 0.0
         @test isnan(Backends.exponential_poly(NaN))
         @test Backends.logarithm_poly(1.0) === 0.0
         @test Backends.logarithm_poly(0.0) === -Inf
@@ -265,6 +295,32 @@ end
         @test Backends.cube_root_poly(-8.0) === -2.0
         @test Backends.cube_root_poly(-Inf) === -Inf
         @test isnan(Backends.cube_root_poly(NaN))
+    end
+
+    @testset "exponential_poly's NaN sanitiser (fiddlybits-52v.7.38)" begin
+        @testset "the danger the sanitiser removes" begin
+            # clamp itself still returns NaN for a NaN argument; the
+            # sanitiser is what keeps that NaN from reaching unsafe_trunc.
+            @test isnan(clamp(NaN, Backends.EXPONENTIAL_MIN, Backends.EXPONENTIAL_MAX))
+        end
+        @testset "the integer argument reaching unsafe_trunc is never NaN" begin
+            for x in (NaN, Inf, -Inf, 0.0, Backends.EXPONENTIAL_MIN, Backends.EXPONENTIAL_MAX)
+                xs = ifelse(isnan(x), 0.0, x)
+                xc = clamp(xs, Backends.EXPONENTIAL_MIN, Backends.EXPONENTIAL_MAX)
+                @test !isnan(round(xc * Backends.LOG2_E))
+            end
+        end
+        @testset "every returned value over the declared grid is unchanged" begin
+            @test all(x -> Backends.exponential_poly(x) === exponential_poly_unsanitised(x),
+                      vcat(TG.REDUCED_EXP, TG.EXP))
+        end
+        @testset "the clamp boundaries and their neighbours are unchanged" begin
+            boundary = (Backends.EXPONENTIAL_MIN, prevfloat(Backends.EXPONENTIAL_MIN),
+                        nextfloat(Backends.EXPONENTIAL_MIN), Backends.EXPONENTIAL_MAX,
+                        prevfloat(Backends.EXPONENTIAL_MAX), nextfloat(Backends.EXPONENTIAL_MAX))
+            @test all(x -> Backends.exponential_poly(x) === exponential_poly_unsanitised(x),
+                      boundary)
+        end
     end
 
     @testset "bitwise between the processor and the CUDA backend" begin
@@ -498,6 +554,8 @@ end
         @test Backends.exponential_poly(Backends.EXPONENTIAL_MAX_F32) === 3.4027985f38
         @test Backends.exponential_poly(nextfloat(Backends.EXPONENTIAL_MAX_F32)) === Inf32
         @test Backends.exponential_poly(Backends.EXPONENTIAL_MIN_F32) === 0.0f0
+        @test Backends.exponential_poly(Inf32) === Inf32
+        @test Backends.exponential_poly(-Inf32) === 0.0f0
         @test isnan(Backends.exponential_poly(NaN32))
         @test Backends.logarithm_poly(1.0f0) === 0.0f0
         @test Backends.logarithm_poly(0.0f0) === -Inf32
@@ -514,6 +572,32 @@ end
                   (Backends.sine_poly, Backends.cosine_poly, Backends.exponential_poly,
                    Backends.logarithm_poly, Backends.cube_root_poly))
         @test Backends.sine_cosine_poly(1.0f0) isa Tuple{Float32,Float32}
+    end
+
+    @testset "exponential_poly's NaN sanitiser (fiddlybits-52v.7.38)" begin
+        @testset "the danger the sanitiser removes" begin
+            @test isnan(clamp(NaN32, Backends.EXPONENTIAL_MIN_F32, Backends.EXPONENTIAL_MAX_F32))
+        end
+        @testset "the integer argument reaching unsafe_trunc is never NaN" begin
+            for x in (NaN32, Inf32, -Inf32, 0.0f0,
+                      Backends.EXPONENTIAL_MIN_F32, Backends.EXPONENTIAL_MAX_F32)
+                xs = ifelse(isnan(x), 0.0f0, x)
+                xc = clamp(xs, Backends.EXPONENTIAL_MIN_F32, Backends.EXPONENTIAL_MAX_F32)
+                @test !isnan(round(xc * Backends.LOG2_E_F32))
+            end
+        end
+        @testset "every returned value over the declared grid is unchanged" begin
+            @test all(x -> Backends.exponential_poly(x) === exponential_poly_unsanitised(x),
+                      vcat(TG.REDUCED_EXP32, TG.EXP32))
+        end
+        @testset "the clamp boundaries and their neighbours are unchanged" begin
+            boundary = (Backends.EXPONENTIAL_MIN_F32, prevfloat(Backends.EXPONENTIAL_MIN_F32),
+                        nextfloat(Backends.EXPONENTIAL_MIN_F32), Backends.EXPONENTIAL_MAX_F32,
+                        prevfloat(Backends.EXPONENTIAL_MAX_F32),
+                        nextfloat(Backends.EXPONENTIAL_MAX_F32))
+            @test all(x -> Backends.exponential_poly(x) === exponential_poly_unsanitised(x),
+                      boundary)
+        end
     end
 
     @testset "bitwise between the processor and the CUDA backend" begin

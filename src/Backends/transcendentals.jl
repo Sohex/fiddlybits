@@ -218,7 +218,8 @@ two applied by `scale_two`. Returns `Inf` above `EXPONENTIAL_MAX`, `0.0` below
 `EXPONENTIAL_MIN`, and `x` itself for `NaN`.
 """
 @inline function exponential_poly(x::Float64)
-    xc = clamp(x, EXPONENTIAL_MIN, EXPONENTIAL_MAX)
+    xs = ifelse(isnan(x), 0.0, x)
+    xc = clamp(xs, EXPONENTIAL_MIN, EXPONENTIAL_MAX)
     k = round(xc * LOG2_E)
     r = fma(-k, LN2_A, xc)
     r = fma(-k, LN2_B, r)
@@ -517,7 +518,8 @@ The exponential of a `Float32` `x`, with the reduction and the refusals of
 the `Float64` method taken at `EXPONENTIAL_MAX_F32` and `EXPONENTIAL_MIN_F32`.
 """
 @inline function exponential_poly(x::Float32)
-    xc = clamp(x, EXPONENTIAL_MIN_F32, EXPONENTIAL_MAX_F32)
+    xs = ifelse(isnan(x), 0.0f0, x)
+    xc = clamp(xs, EXPONENTIAL_MIN_F32, EXPONENTIAL_MAX_F32)
     k = round(xc * LOG2_E_F32)
     r = fma(-k, LN2_A_F32, xc)
     r = fma(-k, LN2_B_F32, r)
