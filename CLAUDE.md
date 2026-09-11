@@ -45,6 +45,10 @@ Arguments live in `docs/practice.md` and `docs/decisions/`; findings in
 - Findings, decisions and tasks are kept apart: `notes/findings/`, `docs/decisions/`, `bd`.
 - A filing is not an end state: a finding, a row or a proposal is on the way to the change
   it calls for; when the context to make the change is in hand, make it.
+- Work is invisible until it is a bead: anything not finished in the session that named it
+  is filed as a row, labelled from the closed vocabulary, given its boundary and
+  acceptance, and linked to what it depends on and what it blocks. A decision, a finding
+  or a note that calls for work names the row that carries it, and the row names it back.
 - Every law, scheme and constant is anchored to a READ primary source with a
   locator; open-access papers and datasets are fetched directly, and only paywalled
   ones are requested from the user by verbatim title and identifier.

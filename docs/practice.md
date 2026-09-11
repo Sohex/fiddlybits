@@ -187,6 +187,11 @@ that were about its own artifacts were left behind.
   registry entry added, the recipe run and its manifest written. When the context to
   make the change is in hand, make it; file a row only for what genuinely needs another
   session, another tier, or the user's decision, and say which.
+- **Work is invisible until it is a bead.** Anything not finished in the session that
+  named it is filed as a row, labelled, and linked in both directions: the row names the
+  record that called for it, and the record names the row. An intention held in a
+  session's context, a paragraph of a decision record, or a good idea in a commit message
+  is not work anybody else can find, pick up or schedule. User direction, 2026-09-10.
 - **Every merge is reviewed by a frontier model against the plan**, including
   `tier:local` rows, whose failure mode is confident wrongness.
 
