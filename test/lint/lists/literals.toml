@@ -1,8 +1,13 @@
 # lint_literals: a float literal in physics code carries a precision the caller
 # did not choose. REQ-NUM-001 makes precision a type parameter.
 
-# Submodules the lint does not scan. Render writes for people, not for physics.
-exempt = ["Render", "EarthRatios"]
+# Submodules and files the lint does not scan. Render writes for people, not for
+# physics. Backends/transcendentals.jl holds one polynomial coefficient set and
+# one argument-reduction split per precision, and both are bit patterns of the
+# precision they belong to rather than values a caller supplies a type for; its
+# Float64 set is selected by method signature and a Float32 set is a separate
+# table (fiddlybits-52v.7.13).
+exempt = ["Render", "EarthRatios", "Backends/transcendentals.jl"]
 
 # A literal is accepted when it is the argument of one of these, which take their
 # type from the caller.
