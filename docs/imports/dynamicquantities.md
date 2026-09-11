@@ -11,7 +11,7 @@ kernel; kernels see raw floats.
 
 | assumption | present | how a leak is caught |
 | --- | --- | --- |
-| Earth defaults | none in the dimension algebra; the unit registry carries symbolic constants | only SI base dimensions are used; `test/params/lint_earth.jl` forbids the registry's named constants in physics modules |
+| Earth defaults | none in the dimension algebra; the unit registry carries symbolic constants | only SI base dimensions are used; `test/lint/lint_earth.jl` forbids the registry's named constants in physics modules |
 | precision | quantity values are `Float64` by default | values never live inside quantities; dimensions only |
 | GPU | quantities are isbits but are not used on device | lint: no `Quantity` type in any `@kernel` |
 

@@ -236,5 +236,5 @@ and temperature range, `Vmr` storage rather than `VmrGM` so no gas slot is fixed
 solver and reproduces the gray analytic answer at the single-band limit),
 `test/radiation/out_of_range_refuses.jl` (a state outside the table refuses
 rather than clamping, with the positive control that an in-range state passes),
-and `test/params/lint_rrtmgp_front_doors.jl` (no call reaches `solve_gray`,
+and `test/lint/lint_rrtmgp_front_doors.jl` (no call reaches `solve_gray`,
 `solve`, `AtmosphereProfile`, `default_parameters` or `compute_relative_humidity!`).

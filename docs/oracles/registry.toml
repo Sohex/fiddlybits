@@ -16,6 +16,73 @@
 # where the published bar applies, with the spread-arm rule stated; vertical
 # diagnostics in sigma, never a fixed pressure (docs/oracles/README.md).
 
+# ---------------------------------------------------------------- tier 1: build and dependencies
+
+[[oracle]]
+id = "build.module_order_acyclic"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "identity"
+statistic = "the include order of src/Fiddlybits.jl against a topological order of the inter-module reference graph recovered by parsing each submodule for references to the others"
+verdict_kind = "fail_bar"
+threshold = "exact; the include order is a topological order of the recovered graph, and the graph has no cycle (positive control: a fixture pair of modules with a back reference, which must be refused)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "build.import_record_completeness"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "identity"
+statistic = "every non-stdlib entry of Project.toml against docs/imports: a record exists, it names a leak test, and the named test file exists and runs"
+verdict_kind = "fail_bar"
+threshold = "exact; no entry without a record and no record naming a test that does not exist (positive controls: a fixture project entry with no record, and a fixture record naming an absent test file, both of which must be refused)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "build.manifest_exclusions"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "identity"
+statistic = "the resolved Manifest.toml against the exclusion list, whose entries each name the import record that excluded the package"
+verdict_kind = "fail_bar"
+threshold = "exact; no excluded name anywhere in the resolved manifest, direct or transitive, and no exclusion entry without a record (positive control: a fixture manifest containing an excluded name, which must be refused)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "build.lint_positive_controls"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "identity"
+statistic = "each lint of the suite run against its dirty fixture and its clean fixture"
+verdict_kind = "fail_bar"
+threshold = "exact; every lint flags its dirty fixture and passes its clean one, and a lint with no dirty fixture fails the suite rather than passing vacuously (positive control: the dirty fixture of one lint removed, which must fail)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "build.load_latency"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "known quantity"
+statistic = "wall time of using Fiddlybits on the recorded host, with the load recorded beside it"
+verdict_kind = "fail_bar"
+threshold = "provisional; the ceiling is set from the measured A/A scatter of the load on the recorded host and registered only once that scatter is a dated finding, since a bar narrower than its instrument's scatter is refused at registration (decision 0029)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
 # ---------------------------------------------------------------- tier 1: system, clock and star
 
 [[oracle]]

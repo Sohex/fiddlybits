@@ -13,7 +13,7 @@ path is not relied upon.
 | assumption | present | how a leak is caught |
 | --- | --- | --- |
 | index base | 1-based arrays and ranges | decision F7 |
-| precision | `Float64` literals by default; `1/3` is `Float64` | `FT` is threaded as a type parameter; a lint refuses untyped float literals in kernels (`test/params/lint_literals.jl`) |
+| precision | `Float64` literals by default; `1/3` is `Float64` | `FT` is threaded as a type parameter; a lint refuses untyped float literals in kernels (`test/lint/lint_literals.jl`) |
 | threading | `Threads.@threads` scheduling order is not deterministic | no reduction depends on thread order; fixed-order pairwise reductions; `repro.thread_count_bitwise` |
 | mutable global state | `Random.default_rng()` is task-local and seeded at startup | never used; counter-based RNG keyed on physical identity |
 | math library | `exp`, `log`, `sin` differ by ulps between CPU and GPU implementations | the bitwise debug mode uses one pure-Julia implementation on both backends |

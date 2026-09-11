@@ -108,6 +108,6 @@ surface actually reached would be `ClimaComms.device()` for a wall-clock callbac
 and a benchmarking helper, and the mitigation is to construct the device from the
 profile and never call `device()` or `context()`, so the two environment
 variables are never read. Were that ever wanted as a named check, the test is
-`test/params/lint_no_env_device.jl`, asserting that no call to
+`test/lint/lint_no_env_device.jl`, asserting that no call to
 `ClimaComms.device()` or `ClimaComms.context()` without an explicit argument
 appears in this repository.

@@ -99,3 +99,10 @@ slow tier to the fast one, and that is the loop this machinery serves.
   `/home/cfutro/docs/world/notes/audits/closure-tolerance-under-written-precision.md`.
 - The predecessor's audit of loop exit predicates without instruments:
   `/home/cfutro/docs/world/notes/audits/loop-exit-predicates.md`.
+
+## Amendments
+
+- 2026-09-10: the interfaces this record declares are carried by `fiddlybits-52v.11`,
+  which settles first whether they belong to the M0 deliverable of decision 0034,
+  since that record does not name them. Found while writing
+  `docs/plans/fiddlybits-52v.1-skeleton.md`.
