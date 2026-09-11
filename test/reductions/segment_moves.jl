@@ -108,9 +108,9 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
             end
         end == repeats
 
-        # area_fraction_above is two pairwise_sums, each read back on its
-        # own: fiddlybits-52v.7.48 carries whether they can share one read.
-        @test moves(() -> Reductions.area_fraction_above(xs_gpu, areas_gpu, 0.0, gpu)) == 2
+        # area_fraction_above is two block-sum arrays joined on the device
+        # and read back together, so it is one read and not one per sum.
+        @test moves(() -> Reductions.area_fraction_above(xs_gpu, areas_gpu, 0.0, gpu)) == 1
         @test moves(() -> Reductions.area_fraction_above(xs, areas, 0.0, cpu)) == 0
     end
 
@@ -221,7 +221,7 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
              () -> Reductions.segmented_quantile(xs_gpu, quartered_gpu, 0.5, gpu)),
             ("segmented_quantile, Segmentation", 0,
              () -> Reductions.segmented_quantile(xs_gpu, quartered_segmentation, 0.5, gpu)),
-            ("area_fraction_above", 2,
+            ("area_fraction_above", 1,
              () -> Reductions.area_fraction_above(xs_gpu, areas_gpu, 0.0, gpu)),
         ]
 

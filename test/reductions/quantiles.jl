@@ -171,6 +171,47 @@ end
         end
     end
 
+    @testset "area_fraction_above's one read is bitwise the two reads it replaced" begin
+        # The form it replaced: each sum read back to the host on its own.
+        # Joining the two block-sum arrays on the device changes where the
+        # block sums are read from, not what they are, and combine_tree takes
+        # its shape from each half's length alone.
+        two_read(vs, as, v, backend) =
+            Reductions.area_weighted_sum(Float64, vs, as, v, backend) /
+            Reductions.pairwise_sum(Float64, as, backend)
+
+        n = 4^5
+        xs = distinct_vector(Float64, n)
+        areas = area_vector(n)
+        thresholds = (minimum(xs), xs[div(n, 3)], xs[n], maximum(xs) + 1.0)
+        cpu = Backends.CPU(8)
+
+        for v in thresholds
+            @test reinterpret(UInt64, Reductions.area_fraction_above(xs, areas, v, cpu)) ===
+                  reinterpret(UInt64, two_read(xs, areas, v, cpu))
+        end
+
+        @testset "and on the card" begin
+            @test CUDA.functional()
+            gpu = Backends.GPU(8)
+            xs_gpu = Backends.on(xs, gpu)
+            areas_gpu = Backends.on(areas, gpu)
+            for v in thresholds
+                @test reinterpret(UInt64,
+                                  Reductions.area_fraction_above(xs_gpu, areas_gpu, v, gpu)) ===
+                      reinterpret(UInt64, two_read(xs_gpu, areas_gpu, v, gpu))
+            end
+        end
+
+        @testset "positive control: the comparison separates neighbouring doubles" begin
+            # Every equality above is between two computations of the same
+            # quantity, so the check says nothing unless the comparison can
+            # tell the closest pair of distinct values apart.
+            f = Reductions.area_fraction_above(xs, areas, xs[div(n, 3)], cpu)
+            @test !(reinterpret(UInt64, f) === reinterpret(UInt64, nextfloat(f)))
+        end
+    end
+
     @testset "CPU and GPU agree bitwise for segmented_quantile, and elementwise for area_fraction_above" begin
         @test CUDA.functional()
 
