@@ -47,25 +47,32 @@ the `nc` cells, by breadth-first search over `st.edge_neighbour`.
 """
 function ring_distance(st::Stencils, seeds, nc::Integer)
     distance = fill(typemax(Int), nc)
-    frontier = Int[]
+    # Every cell enters the queue at most once, so one flat vector of the cell
+    # count holds the whole search and no ring allocates a frontier of its own.
+    queue = Vector{Int}(undef, nc)
+    head = 1
+    tail = 1
     for s in seeds
         1 <= s <= nc || refuse("refinement seed", "Mesh.ring_distance",
                                "seed $s is not a cell of a level of $nc cells")
+        distance[s] == 0 && continue
         distance[s] = 0
-        push!(frontier, Int(s))
+        queue[tail] = Int(s)
+        tail += 1
     end
-    isempty(frontier) && refuse("refinement region", "Mesh.ring_distance",
-                                "no seed cell was given, so the region the caller meant is not recoverable")
-    while !isempty(frontier)
-        next = Int[]
-        for i in frontier, k in 1:3
+    tail == 1 && refuse("refinement region", "Mesh.ring_distance",
+                        "no seed cell was given, so the region the caller meant is not recoverable")
+    while head < tail
+        i = queue[head]
+        head += 1
+        for k in 1:3
             j = Int(st.edge_neighbour[k, i])
             if distance[j] == typemax(Int)
                 distance[j] = distance[i] + 1
-                push!(next, j)
+                queue[tail] = j
+                tail += 1
             end
         end
-        frontier = next
     end
     return distance
 end

@@ -104,6 +104,28 @@ end
         end
     end
 
+    @testset "the edge midpoint of local edge k is the midpoint of the opposite vertices" begin
+        # The only assertion tying the global edge numbering of the stencil
+        # tables to the geometry the cell loop computes from its own vertices.
+        # Local edge k is opposite local vertex k, so edge 3 joins vertices 1
+        # and 2, and the two agree bitwise because addition commutes.
+        for l in AC_LEVELS
+            level = ac_level(l)
+            st = ac_stencils(l)
+            geom = ac_geometry(l)
+            vertices = Matrix{Float64}(level.vertices)
+            @test all(1:Mesh.ncells(l)) do i
+                v1, v2, v3 = level.cells[1, i], level.cells[2, i], level.cells[3, i]
+                p1 = Mesh.column(vertices, v1)
+                p2 = Mesh.column(vertices, v2)
+                p3 = Mesh.column(vertices, v3)
+                Mesh.column(geom.edge_midpoint, st.cell_edge[3, i]) == Mesh.great_circle_midpoint(p1, p2) &&
+                Mesh.column(geom.edge_midpoint, st.cell_edge[1, i]) == Mesh.great_circle_midpoint(p2, p3) &&
+                Mesh.column(geom.edge_midpoint, st.cell_edge[2, i]) == Mesh.great_circle_midpoint(p3, p1)
+            end
+        end
+    end
+
     @testset "building the geometry allocates within a small multiple of it" begin
         l = AC_TOP_LEVEL
         level = ac_level(l)
