@@ -1,0 +1,117 @@
+# lint_fused_multiply_add: decision 0044,
+# docs/decisions/0044-explicit-fma-in-bitwise-mode.md, section "What the lint
+# checks". In source compiled for bitwise mode no bare multiply feeds a bare
+# add and no call to muladd stands, because those two spellings return the
+# once-rounded value on one target and the twice-rounded value on another
+# while the source says nothing. The argument is in that record and the
+# measurements are in
+# notes/findings/2026-09-11-the-fast-arm-of-a-multiply-that-feeds-an-add.md
+# and notes/findings/2026-09-11-gpucompiler-unconditional-fma-contraction.md.
+#
+# A site is read as source bitwise mode compiles unless it stands in the false
+# arm of a conditional whose test is a call to `bitwise`, or inside a function
+# `fast_mode_only` names, or under an `exemption` entry. A conditional is the
+# `if` form, the `? :` form, and the `&&` and `||` forms, whose second operand
+# is the arm one truth value of the test reaches. A call to `bitwise` standing
+# anywhere else inside a test leaves every arm of that test unclassified, and
+# an unclassified site is refused rather than passed.
+#
+# Two shapes pass by construction and hold no entry here: `fma(a, b, c)`, and
+# `Backends.nofuse_mul(a, b) + c`, whose operand is a call to `nofuse_mul` and
+# not to `*`.
+
+# Path prefixes the lint does not read.
+exempt = []
+
+# Functions reached only by fast mode. The first two exhibit the difference
+# between what the device contracts and what the processor does not, and the
+# last two are decision 0027's naive serial references; decision 0044's
+# consequences name all four.
+[[fast_mode_only]]
+path = "Backends/kernels.jl"
+function = "axpy_fused_kernel!"
+
+[[fast_mode_only]]
+path = "Backends/kernels.jl"
+function = "stencil_gather_fused_kernel!"
+
+[[fast_mode_only]]
+path = "Backends/kernels.jl"
+function = "axpy_reference!"
+
+[[fast_mode_only]]
+path = "Backends/kernels.jl"
+function = "stencil_gather_reference!"
+
+# Sites exempted by name. An entry names the file, the function and the exact
+# text of the expression, so a second site in the same function is still
+# refused. An entry that names nothing in a file the run reads is itself
+# refused, so the table cannot go stale unnoticed.
+
+# Integer arithmetic. The contraction decision 0044 governs is the
+# floating-point fused multiply-add, and no integer expression admits one.
+# fiddlybits-52v.7.29 asks whether this reading should be structural instead
+# of an entry per site.
+[[exemption]]
+path = "Backends/transcendentals.jl"
+function = "cube_root_poly"
+found = "e - Int32(3) * q"
+reason = "Int32 exponent arithmetic, in both the Float64 and the Float32 method"
+
+[[exemption]]
+path = "Mesh/hierarchy.jl"
+function = "nvertices"
+found = "10 * 4 ^ L + 2"
+reason = "the vertex count at a level, over Integer"
+
+[[exemption]]
+path = "Mesh/hierarchy.jl"
+function = "children"
+found = "4i - 3"
+reason = "the first 1-based memory index of a cell's children, over Integer"
+
+[[exemption]]
+path = "Mesh/refinement.jl"
+function = "descendants"
+found = "4 ^ t * (i - 1) + 1"
+reason = "the first index of a descendant range, over Integer"
+
+[[exemption]]
+path = "Reductions/pairwise.jl"
+function = "pairwise_block_kernel!"
+found = "blocksize * i - blocksize"
+reason = "the first index of a block, over the kernel's integer block size"
+
+# A site whose unfused chain is what the site is for.
+[[exemption]]
+path = "Orbit/kepler.jl"
+function = "naive_kepler_residual"
+found = "E - e * sin(E)"
+reason = "the positive control of system.kepler_period: it must carry the cancellation the stable residual avoids, and a fused form would state a different chain"
+
+[[exemption]]
+path = "Reductions/segmented.jl"
+function = "segmented_mean_reference"
+found = "num += A(xs[j]) * A(weights[j])"
+reason = "decision 0027's naive serial reference, which decision 0044 keeps unfused and never on muladd"
+
+# Sites a row moves onto fma. Each is a bare multiply feeding a bare add in
+# source bitwise mode compiles, outside the file boundary of the row that
+# built this lint.
+[[exemption]]
+path = "Backends/transcendentals.jl"
+function = "cube_root_poly"
+found = "2.0t + y / (t * t)"
+reason = "the Float64 Newton steps, whose product is exactly representable per notes/findings/2026-09-11-polynomial-transcendentals-for-bitwise-mode.md; the Float32 method already writes the same step as fma and fiddlybits-52v.7.30 moves this one"
+
+[[exemption]]
+path = "Backends/certify.jl"
+function = "admissible"
+found = "carried + injected * Float64(roundoff)"
+reason = "the envelope bound's last assembly; fiddlybits-52v.7.31 moves it onto fma"
+
+[[exemption]]
+path = "Mesh/refinement.jl"
+function = "hanging_flux"
+found = "density[1] * length[1] + density[2] * length[2]"
+reason = "the two children's contributions to a coarse edge; fiddlybits-52v.7.32 moves it onto fma"
