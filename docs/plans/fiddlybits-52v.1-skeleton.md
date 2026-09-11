@@ -21,7 +21,10 @@ two agree.
 
 It does not write physics, geometry, fields or constants. Every submodule this plan
 creates is a module declaration with nothing in it; the area plan named against each
-one fills it. A submodule whose area has no M0 plan is not created here.
+one fills it. A submodule whose area has no M0 plan is not created here, and a
+submodule a later plan finds it needs is added by a row of that plan rather than by a
+second layout kept beside this table; `ShallowWater` arrived that way, through
+`fiddlybits-52v.9.8`.
 
 Three things are deliberately left:
 
@@ -66,7 +69,8 @@ and says nothing about groups.
 | F | `Instellation` | per-cell flux from every declared star, eclipse geometry | 52v.5 |
 | F | `Connectivity` | the connectivity graph derived from a terrain-level field | 52v.2 |
 | F | `Provenance` | `ArtifactKey`, `CodeVersion`, `RunID`, the Zarr store, the journal, the RNG | 52v.6 |
-| G | `Oracles` | the registry loader, the identity oracles, the mutation harness | 52v.8 |
+| G | `ShallowWater` | the triangle C-grid discretisation, the step, the standard cases | 52v.9 |
+| G | `Oracles` | the registry loader, the runner, the mutation harness | 52v.8 |
 | G | `Render` | calendar rendering and NetCDF export, and nothing else | 52v.5, 52v.6 |
 
 A submodule references another only by the relative form `..Name`; that is the form

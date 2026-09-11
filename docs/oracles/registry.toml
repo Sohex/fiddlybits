@@ -549,6 +549,32 @@ holdout = false
 anchors = []
 
 [[oracle]]
+id = "core.laplacian_eigenvalues"
+tier = 1
+subsystem = "core"
+dataset_or_reference = "analytic"
+statistic = "the discrete Laplacian's spectrum on the production mesh at the production level against the analytic spherical eigenvalues -l(l+1)/R^2, over the resolved range of degrees; and the primal-to-dual edge angle the operator rests on"
+verdict_kind = "fail_bar"
+threshold = "provisional; the relative eigenvalue error over the resolved range, bounded by the operator's designed order at that spacing (positive control: the same test run on a synthetic near-regular mesh only, which REQ-TER-011 forbids as sufficient, and which must not be accepted in place of the production mesh)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "core.reference_arm_distance"
+tier = 1
+subsystem = "core"
+dataset_or_reference = "reference arm"
+statistic = "the distance between this core and the SpeedyWeather arm on each standard case, both driven from the same declared System, reported per case as a norm and a pattern statistic"
+verdict_kind = "report"
+threshold = "no bar: the arm is an independent implementation and not a truth, and a bar against it would make it one. The arm's own control is test/reference_arm/no_defaults.jl, which must catch a package default reaching a result (positive control: a fixture arm built without the declared System)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "core.jablonowski_williamson_steady"
 tier = 1
 subsystem = "atmosphere"
