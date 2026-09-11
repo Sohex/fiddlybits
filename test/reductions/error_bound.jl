@@ -10,15 +10,15 @@ using Fiddlybits: Reductions, Verdicts
 
     @testset "the declared formula, unmoved for ordinary arguments" begin
         n, magnitude = 37, 4.5
-        expected64 = Reductions.ERROR_BOUND_K * n * eps(Float64) * magnitude
-        bound64 = Reductions.error_bound(Float64, n, magnitude)
-        @test bound64 >= expected64
-        @test isapprox(bound64, expected64; rtol = 1e-9)
-
-        expected32 = Reductions.ERROR_BOUND_K * n * eps(Float32) * Float32(magnitude)
-        bound32 = Reductions.error_bound(Float32, n, magnitude)
-        @test bound32 >= expected32
-        @test isapprox(bound32, expected32; rtol = 1e-6)
+        setprecision(BigFloat, 200) do
+            for T in (Float32, Float64)
+                exact = BigFloat(Reductions.ERROR_BOUND_K) * BigFloat(n) *
+                        BigFloat(eps(T)) * BigFloat(magnitude)
+                bound = Reductions.error_bound(T, n, magnitude)
+                @test BigFloat(bound) >= exact
+                @test BigFloat(bound) <= exact + 2 * BigFloat(eps(T)) * exact
+            end
+        end
     end
 
     @testset "refuses a negative term count or magnitude" begin
@@ -63,7 +63,7 @@ using Fiddlybits: Reductions, Verdicts
         end
     end
 
-    @testset "the returned bound is never less than the exact product" begin
+    @testset "the returned bound satisfies exact <= bound <= exact + 2*eps(T)*exact" begin
         setprecision(BigFloat, 200) do
             for T in (Float32, Float64)
                 limit = Int(Reductions.validity_limit(T)) - 1
@@ -74,6 +74,7 @@ using Fiddlybits: Reductions, Verdicts
                                 BigFloat(eps(T)) * BigFloat(magnitude)
                         bound = Reductions.error_bound(T, n, magnitude)
                         @test BigFloat(bound) >= exact
+                        @test BigFloat(bound) <= exact + 2 * BigFloat(eps(T)) * exact
                     end
                 end
             end
