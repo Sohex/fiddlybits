@@ -36,19 +36,20 @@ cannot be re-derived for another solute.
 
 **This package is the saline limb only, and it carries no pure-water limb at
 all.** That is not a gap in the package; it is a fact about what it is for. But
-it matters for how the door is built here, because setting `Sᴬ = 0` in this
-package does not give the pure-water limb. The salinity coordinate is
+it matters for how the door is built here, because setting `S_A = 0` in this
+package does not give the pure-water limb. The salinity coordinate is, with the
+source's Unicode subscripts transliterated to ASCII here and throughout,
 
-    s(Sᴬ) = sqrt((Sᴬ + ΔS) / Sₐᵤ)
+    s(S_A) = sqrt((S_A + dS) / S_au)
 
-with `ΔS = 32.0` and `Sₐᵤ = 40 * 35.16504 / 35`. At zero salinity that is
+with `dS = 32.0` and `S_au = 40 * 35.16504 / 35`. At zero salinity that is
 `sqrt(32 / 40.188)`, about 0.892, not zero: the polynomial is centred on ocean
 salinity and fresh water is an extrapolation off the end of its fitted range, not
 a limiting case of it. Anyone reaching for one package to serve both limbs would
 get a fresh-water density from a fit that was never asked to produce one.
 
 **The Reference Composition is in the coordinate transformation, not only in the
-coefficients.** The constant `35.16504` in `Sₐᵤ` is the Reference-Composition
+coefficients.** The constant `35.16504` in `S_au` is the Reference-Composition
 Absolute Salinity of Standard Seawater, the defining number of Millero et al.
 (2008), and it normalises the salinity axis before any coefficient is touched.
 `teos10_reference_heat_capacity = 3991.86795711963` J/kg/K, the conversion
@@ -155,10 +156,10 @@ reading.
 
 **Earth defaults (A2, A3).** Present but confined, and every one of them is
 seawater rather than planet. The Reference-Composition salinity `35.16504`, the
-reference heat capacity `3991.86795711963`, the normalisations `Θᵤ = 40`,
-`ΔS = 32`, `Zᵤ = 1e4`, the two reference densities, and the fitted
+reference heat capacity `3991.86795711963`, the normalisations `Theta_u = 40`,
+`dS = 32`, `Z_u = 1e4`, the two reference densities, and the fitted
 coefficients of both families. No gravity, no radius, no rotation rate, no solar constant: a grep
-for the usual Earth literals returns nothing. `Zᵤ = 1e4` metres is a depth
+for the usual Earth literals returns nothing. `Z_u = 1e4` metres is a depth
 normalisation sized to Earth's ocean and is the one constant that is about the
 planet rather than the water.
 
@@ -244,11 +245,11 @@ explicitly, matching the rule the root solver record names for tolerances.
 | --- | --- |
 | A1 day and year | clean negative; no time of any kind |
 | A2 planetary constant block | none; the constants are seawater properties, listed above |
-| A3 Earth literals | clean negative for the usual set; the Earth content is `35.16504`, `3991.86795711963`, `Zᵤ = 1e4`, the reference densities `1020` and `1024.6`, and the fitted coefficients |
+| A3 Earth literals | clean negative for the usual set; the Earth content is `35.16504`, `3991.86795711963`, `Z_u = 1e4`, the reference densities `1020` and `1024.6`, and the fitted coefficients |
 | A6 grid and index base | clean negative; pointwise scalar functions, no array |
 | B4 comment against value | comments are accurate throughout, and the file's own header comment correctly states that the TEOS-10 weights cannot be changed without editing it |
 | B5 clamps and limiters | none, which is the finding: no validity domain, no range check, no refusal |
-| C1 use site of every constant | the salinity normalisation is read in `s(Sᴬ)` before any coefficient; the reference densities are read at construction |
+| C1 use site of every constant | the salinity normalisation is read in `s(S_A)` before any coefficient; the reference densities are read at construction |
 | C3 declared against demonstrated | every coefficient set instantiated in both float types; TEOS-10 checked against published values from Roquet at one state point; no device test |
 | C4 fail-open branches | the whole package is fail-open by construction: it evaluates a polynomial wherever it is asked. Two documented keyword defaults for the reference density |
 | C5 duplicate state and second constant sets | no mutable global state; the `const` weights are unreachable rather than duplicated |

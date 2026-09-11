@@ -32,8 +32,13 @@ Adopt as infrastructure, each with an import review:
   constant, which is the split decision 0023's fast tier describes with the
   implicit linear algebra left to the caller
   (`docs/imports/climatimesteppers-jl.md`).
+- RootSolvers.jl, subject to a decision: bracketing and Newton scalar root
+  finding with no planetary content of any kind, two dependencies, and a solver
+  loop that is branch-free `ifelse` arithmetic with no exception, no I/O and no
+  allocation, which is what decision 0008's Kepler solve to rounding and the
+  column's saturation adjustment both need (`docs/imports/rootsolvers-jl.md`).
 
-ClimaTimeSteppers.jl is the CliMA survey's one adopt verdict, and it is a
+ClimaTimeSteppers.jl is the CliMA survey's first adopt verdict, and it is a
 candidacy rather than an adoption: this record does not take it, and it is not a
 dependency until a decision does. That decision has these to settle. ClimaComms.jl
 is a hard dependency of the integrators rather than a weak one, so the device and
@@ -47,6 +52,26 @@ decision has to require a checker that refuses in the verdict vocabulary of
 decision 0009. It has also to fix which tableau the fast tier uses, and to set the
 tableau's element type against the state's explicitly rather than leave a
 mixed-precision step to the default.
+
+RootSolvers.jl is the second, and it is a candidacy on the same terms. Three of
+its defaults are silent across a component boundary and the decision has to close
+all three. `find_zero` applies a `SolutionTolerance` of `1e-4` in double
+precision when none is passed, which is twelve orders short of the rounding
+decision 0008 requires; `maxiters` defaults to a thousand and exhausting it
+returns the last iterate with `converged = false` rather than refusing; and a
+bracketing call whose endpoints do not straddle a root returns the
+smaller-residual endpoint, also with `converged = false`. The last two are
+deliberate, because an exception has nowhere to go inside a kernel, and all three
+are handled by one rule the decision has to state: every call site supplies its
+tolerance and its iteration count explicitly and refuses on `converged == false`
+rather than reading the root, with a lint in the suite of decision 0037's
+skeleton row enforcing the first. The decision has also to say whether
+`ForwardDiff` entering the dependency graph as a hard dependency, rather than a
+package extension, for the one method this project would not call is acceptable,
+or whether the methods are taken without the package. And the portable-kernel
+launch is undemonstrated: the tree's device test broadcasts over a CUDA array, so
+the test that the solve compiles and runs inside a KernelAbstractions kernel on
+both backends is written here or not at all.
 
 Borrow ideas, never code:
 
@@ -92,6 +117,28 @@ Borrow ideas, never code:
   defaults, and a record of which inputs a run actually read; its regridders and
   readers assume a longitude-latitude source and a ClimaCore target
   (`docs/imports/clima-output-and-tooling.md`).
+- CGDycore.jl: the renormalised edge midpoint, `(P1 + P2) / |P1 + P2|`, which is
+  exactly the great-circle bisection decision 0005's exact-nesting argument rests
+  on and the line the other subdivision candidate lacks; and the in-place
+  refinement that reuses the parent record as the central child and splices the
+  three new faces after it, which yields decision 0005's `children(i) = 4i-3:4i`
+  sibling ordering as a consequence of the list surgery rather than of a sort.
+  Both properties are arrived at without being named, tested or used: the mesh is
+  numbered once after the last refinement pass and the hierarchy is discarded,
+  refinement is global only with no 2:1 balance or graded transition, and the
+  tree carries no test suite at all (`docs/imports/cgdycore-jl.md`).
+- SeawaterPolynomials.jl: the two-family interface, a standard fit fenced to the
+  composition it was fitted to and a fully parameterised general form behind the
+  same functions, which is the shape decision 0017's water door needs at its
+  tolerance boundary; in the general form the seven coefficients of a quadratic
+  in salinity, temperature and depth are struct fields a caller fills, and the
+  reference density is a constructor argument. The package also confirms from an
+  implementation what decision 0017 argued from the literature, that the saline
+  limb is `Irreducible`: the Reference-Composition salinity sits in the salinity
+  coordinate and in the conservative-temperature heat capacity, upstream of every
+  fitted coefficient, so a solute anomaly invalidates the variable the polynomial
+  is a function of rather than perturbing a weight
+  (`docs/imports/seawaterpolynomials-jl.md`).
 
 Do not adopt, with the reason:
 
@@ -142,6 +189,19 @@ Do not adopt, with the reason:
 - ClimaAnalysis.jl: a dimension's meaning is its English name matched against a
   fixed list with no member for an unstructured cell index, and the default
   latitude average is unweighted (`docs/imports/clima-output-and-tooling.md`).
+- CGDycore.jl: the mesh is three doubly linked lists of mutable structs converted
+  to arrays of mutable structs, each holding heap-allocated integer vectors for
+  its nodes, edges, orientations and stencil, so it is not `isbits` and does not
+  reach a device; and the radius is multiplied into the node coordinates and
+  stored on the grid object, which decision 0005 forbids in as many words,
+  foreclosing the area identity against `4 pi R^2` for any other radius
+  (`docs/imports/cgdycore-jl.md`).
+- SeawaterPolynomials.jl: it cannot refuse. There is no clamp, bounds check,
+  assertion or validity domain anywhere in its source, so it evaluates its
+  polynomial wherever it is asked, and refusal outside the Reference-Composition
+  anomaly tolerance is the whole mechanism decision 0017 relies on. Zero salinity
+  is not the fresh-water limit of the fit either, so it cannot serve the door's
+  pure-water limb (`docs/imports/seawaterpolynomials-jl.md`).
 - TrixiAtmo.jl: cubed sphere, early, no GPU.
 - Terrarium.jl: bound to Oceananigans grids, early.
 - ModelingToolkit.jl and the differential-equations stack for the columns: the
@@ -181,25 +241,34 @@ dependency, and a reader of these verdicts should meet them.
   the shape of failure decision 0009's assembly-time check exists to prevent, and
   the misspelled required-field symbol in the same package's error path is what a
   stringly-typed exchange surface costs (`docs/imports/climacoupler-jl.md`).
+- CGDycore.jl's small-planet scale factor reaches the rotation rate and not the
+  radius the command-line flag is named for. `PhysParameters` takes `ScaleFactor`
+  as a keyword, applies it to `Omega` and leaves `RadEarth` untouched; the drivers
+  then divide a separate local copy by hand and pass that to the grid
+  constructor. So on any reduced-radius run the radius the mesh is built with and
+  the radius the parameter struct reports are different numbers, with a keyword
+  default elsewhere reading the unscaled one and nothing recording which is
+  authoritative. It is the cleanest worked example the survey found of what
+  decision 0007's `Derived` refusal exists to prevent, a quantity computed from
+  its inputs and checked against any supplied value, and it is worth citing in
+  the M0 plan for `System` rather than re-deriving the argument there
+  (`docs/imports/cgdycore-jl.md`).
 
-### Open questions from the organisation sweep
+### What the organisation sweep flagged, now judged
 
 The sweep of the CliMA organisation (`docs/imports/clima-organisation-sweep.md`)
-flagged three repositories that bear on decisions being fixed now and that no
-record in this survey judges. Their verdicts are not taken here; a row is filed
-for each under the survey's epic, and a verdict follows its record.
+flagged three repositories that no record in the survey's first pass judged. All
+three now have records, read at pinned commits, and their verdicts are in the
+lists above: CGDycore.jl and SeawaterPolynomials.jl borrow ideas only,
+RootSolvers.jl is the second adopt candidacy. Two corrections the readings made
+to the sweep's own descriptions belong here, because the sweep is a dated record
+and is not rewritten:
 
-- CGDycore.jl: a triangular grid built as node, edge and face lists and refined by
-  projecting edge midpoints back onto the sphere, beside hexagonal, kite, Healpix
-  and equal-area grids, on KernelAbstractions. It is the one grid machinery in the
-  organisation not welded to the cubed sphere, and it sits where decisions 0005
-  and 0006 sit.
-- RootSolvers.jl: bracketing and Newton scalar root finding, broadcastable inside
-  a kernel, with the tolerance a type the caller supplies rather than a number the
-  package chooses, which is what decision 0008's Kepler solve to rounding needs.
-- SeawaterPolynomials.jl: polynomial approximations to the seawater equation of
-  state, general in code and fitted in coefficient to one ocean, which bears on
-  the composition fence decision 0017 carries.
+- The sweep described RootSolvers.jl as having "the tolerance a type the caller
+  supplies rather than a number the package chooses". That is right about the
+  machinery and wrong about the default: `find_zero` supplies a
+  `SolutionTolerance` of `1e-4` when the caller passes none.
+- The sweep recorded SeawaterPolynomials.jl as Apache 2.0. It is MIT.
 
 ### The reference arm
 
@@ -221,8 +290,10 @@ repeated when the pin moves.
 
 A record also states the licence, and the CliMA survey put a second licence family
 beside the MIT infrastructure listed above: the CliMA packages are Apache 2.0, with
-Oceananigans.jl and ClimaOcean.jl under MIT, and RRTMGP.jl additionally carrying
-the original RTE+RRTMGP Fortran under BSD 3-Clause. Any adoption from that
+Oceananigans.jl, ClimaOcean.jl and SeawaterPolynomials.jl under MIT, and
+RRTMGP.jl additionally carrying the original RTE+RRTMGP Fortran under BSD
+3-Clause. Both new adopt-or-borrow candidates, CGDycore.jl and RootSolvers.jl,
+are Apache 2.0. Any adoption from that
 organisation brings Apache 2.0 into the tree with the notices it requires.
 
 ## Alternatives considered
@@ -247,11 +318,13 @@ organisation brings Apache 2.0 into the tree with the notices it requires.
   (decision 0034).
 - Any future proposal to adopt a model component must show the import review and
   argue the fit against the one-mesh rule.
-- The one adopt candidate the CliMA survey produced, ClimaTimeSteppers.jl, is not
-  a dependency until its own decision is taken; until then decision 0023's fast
-  tier has no external integrator behind it.
-- The three flagged repositories carry no verdict, so these lists are incomplete
-  in exactly that respect until their records exist.
+- The two adopt candidates the CliMA survey produced, ClimaTimeSteppers.jl and
+  RootSolvers.jl, are not dependencies until their own decisions are taken; until
+  then decision 0023's fast tier has no external integrator behind it and
+  decision 0008's Kepler solve has no external root finder behind it.
+- Every repository in the organisation now carries a verdict or a recorded
+  dismissal, so these lists are complete as of the sweep's date. A repository
+  added to the organisation after 2026-09-09 is not in them.
 - Adopting anything from the CliMA organisation puts a second licence family in
   the tree.
 
@@ -274,7 +347,8 @@ organisation brings Apache 2.0 into the tree with the notices it requires.
   `rrtmgp-jl.md`, `surfacefluxes-jl.md`, `cloudmicrophysics-jl.md`,
   `climaland-jl.md`, `oceananigans-jl.md`, `climaocean-jl.md`,
   `climaseaice-jl.md`, `insolation-jl.md`, `climacoupler-jl.md`,
-  `clima-output-and-tooling.md`, `clima-organisation-sweep.md`.
+  `clima-output-and-tooling.md`, `clima-organisation-sweep.md`,
+  `cgdycore-jl.md`, `rootsolvers-jl.md`, `seawaterpolynomials-jl.md`.
 
 ## Amendments
 
@@ -285,3 +359,15 @@ clauses sharpened against their records; the survey's three findings about this
 project's own decisions and the sweep's three open questions recorded; the second
 licence family noted in the import review, from the CliMA survey
 (`docs/plans/clima-survey.md`).
+
+2026-09-10: the three repositories the organisation sweep flagged are judged and
+the open-questions section is replaced by their verdicts. RootSolvers.jl joins
+the adopt list as the survey's second candidacy, with the three silent defaults
+its decision must close and the undemonstrated portable-kernel launch stated;
+CGDycore.jl and SeawaterPolynomials.jl join the borrow and the do-not-adopt lists
+with their reasons. A fourth finding about this project's own decisions is
+recorded, CGDycore's split radius under its small-planet scale factor, as a
+worked example of what decision 0007's `Derived` refusal prevents. Two
+corrections to the sweep's descriptions are noted rather than rewritten into it,
+and the licence paragraph gains MIT for SeawaterPolynomials.jl. From
+`docs/plans/clima-survey.md`, the verdicts row.
