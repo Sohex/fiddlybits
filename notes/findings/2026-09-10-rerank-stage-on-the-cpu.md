@@ -56,7 +56,18 @@ pages as the CPU run: millero1995 pages 15-16 and sarmiento2006 pages 388-390.
 ## What is left
 
 The embedder still runs on the CPU, since 2.3 GiB free is nowhere near its 18 GiB
-threshold, and still costs about 4 s per query in load and encode. TabbyAPI already lists
-Qwen3-Embedding-8B among its models, so serving it rather than loading it per process is
-the obvious next move. The reranker chooses its device in silence, unlike the embedder,
-which is what made the CPU fallback invisible for a day.
+threshold, and still costs about 4 s per query in load and encode.
+
+It is going to stay there. The card is 24 GiB, the generator holds 18.3, and this
+embedder takes 17.6 at fp16: they do not both fit, and it makes no difference who loads
+it. That TabbyAPI lists Qwen3-Embedding-8B among its models means the file is in its
+models directory, not that it could serve it beside the generator. The reranker fits
+because it is 1.2 GB, which is the whole of why the two cases came out differently.
+
+What is actually wrong there is the reload rather than the device. A query encodes one
+short string, 0.36 s of work, and pays 3.7 s to bring up a 15 GB model to do it; a build
+embeds the whole archive in one process and already runs when the card is free. The fix
+is residency, not hardware, and at 4 s of a 31 s query it is not urgent.
+
+The reranker chose its device in silence, unlike the embedder, which is what made the CPU
+fallback invisible for a day. It says so now.
