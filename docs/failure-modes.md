@@ -518,6 +518,14 @@ rather than returning an ordinary number. The old sub-case of a refusal outlivin
 profile is met by every result carrying its profile in its identity. The practice
 rule: work out what the effect is worth in the instrument's own units before reading
 the number.
+
+The scatter is necessary and not sufficient, because it is measured on one bed and
+the bar judges results taken on another. An instrument can repeat to a part in a
+hundred and still move by more than half its own value when the machine around it is
+busy, and a bar set from the quiet scatter then fires on a neighbour rather than on
+the thing it names. A bar therefore states the condition its bed was held to, and a
+result taken outside that condition is `REPORT`. Measured for the load instrument in
+`notes/findings/2026-09-11-load-latency-instrument.md`.
 Argument: old file, class 34.
 
 ### 35. Identity covers what was read, so a refactor of the unread changes nothing
@@ -714,3 +722,4 @@ Entries whose old mechanism is not carried, with only a residual form kept: D, 1
 ## Amendments
 
 - 2026-09-08: three classes added to the expected list (a cadence declared in periods a configuration lacks; a Derived field validated on one configuration; a bar in another configuration's units), from notes/findings/2026-09-08-implicit-earth-audit.md.
+- 2026-09-11: class 34 gains its second half, that an A/A scatter measured on a quiet bed does not license a bar unless the bar states the condition the bed was held to, from notes/findings/2026-09-11-load-latency-instrument.md.
