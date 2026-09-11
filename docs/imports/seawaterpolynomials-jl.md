@@ -62,14 +62,36 @@ composition is upstream of the fit, not inside it.
 
 **The Roquet coefficient sets are Earth twice over.** The docstring is explicit
 that the six sets are "optimized for the 'current' oceanic temperature and
-salinity distribution", and that the optimisation minimises the error in the
-horizontal density gradient estimated from climatological temperature and
-salinity fields against full TEOS-10. So they carry Earth's ocean composition and
-Earth's present-day ocean state. A world with the same solute inventory but a
-different temperature range is outside the fit on the second count even if it
-passes on the first. That distinction is worth keeping: the anomaly tolerance
-decision 0017 names is a composition tolerance, and these particular coefficients
-would need a state tolerance too.
+salinity distribution". The source paper, now held, names the data: the cost
+function is the root-mean-square error on climatological horizontal density
+gradients, and the climatology is the Polar Science Center Hydrographic
+Climatology 3.0 of Steele et al. (2001), itself the World Ocean Atlas refined in
+the Arctic, remapped onto the ORCA2 tripolar mesh. So the coefficients carry
+Earth's ocean composition and a particular observational estimate of Earth's
+present-day ocean state. A world with the same solute inventory but a different
+temperature range is outside the fit on the second count even if it passes on the
+first. That distinction is worth keeping: the anomaly tolerance decision 0017
+names is a composition tolerance, and these particular coefficients would need a
+state tolerance too.
+
+**The transcription is faithful, checked against the source.** All seven
+coefficients of the package's `:SecondOrder` set match the `2order` row of the
+paper's Table 3 term for term, and the five sets `:Linear`, `:Cabbeling`,
+`:CabbelingThermobaricity`, `:Freezing` and `:SecondOrder` are that table's five
+rows. The sixth, `:SimplestRealistic`, is the paper's equation (17) rather than a
+table row, which the package's own docstring states, along with the constant term
+it drops as having no effect on the dynamics.
+
+**And the paper carries a result this project needs, independent of the
+package.** Its conclusion is that "it is simply impossible to obtain a realistic
+thermohaline circulation from a linear EOS": the nonlinear terms, a quadratic in
+temperature for cabbeling and a temperature-pressure product for thermobaricity,
+determine the static stability below the mixed layer and so the rate of exchange
+between surface and interior. Four coefficients suffice; one does not. That bears
+directly on decision 0017's general-composition branch. If the water door falls
+back to a declared polynomial outside the Reference-Composition tolerance, a
+linear fallback is known-wrong rather than merely approximate, and this is the
+anchor for saying so.
 
 ## Are the coefficients supplied by the caller? Two different answers
 
@@ -269,9 +291,14 @@ explicitly, matching the rule the root solver record names for tolerances.
   beyond the tolerance), decision 0012 (the adopt, borrow and reject lists this
   verdict feeds).
 - Roquet, F., et al. "Accurate polynomial expressions for the density and
-  specific volume of seawater using the TEOS-10 standard." Ocean Modelling (2015),
-  the source of the 55-term fit, and "Defining a Simplified yet 'Realistic'
-  Equation of State for Seawater." Journal of Physical Oceanography (2015), the
-  source of the six second-order coefficient sets. The first is held in
-  `docs/references/INDEX.md`; the second is not, and is filed for ingest. The
-  fence in decision 0017 rests on Millero et al. (2008), which is held.
+  specific volume of seawater using the TEOS-10 standard." Ocean Modelling (2015).
+  DOI: 10.1016/j.ocemod.2015.04.002. The source of the 55-term fit; held as
+  `roquet2015-accurate-polynomial-expressions-density-specific.pdf`.
+- Roquet, F., Madec, G., Brodeau, L., Nycander, J. "Defining a Simplified Yet
+  'Realistic' Equation of State for Seawater." Journal of Physical Oceanography 45
+  (2015), 2564-2579. DOI: 10.1175/JPO-D-15-0080.1. The source of the second-order
+  coefficient sets, of the climatology they are fitted to, and of the result that
+  a linear equation of state cannot produce a realistic thermohaline circulation;
+  held as `roquet2015a-defining-simplified-realistic-equation-state-seawater.pdf`,
+  Table 3 at page 2569 and equation (17) in the discussion.
+- The fence in decision 0017 rests on Millero et al. (2008), which is held.
