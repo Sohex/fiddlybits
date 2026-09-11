@@ -10,7 +10,16 @@ line breaks are rejoined. The flag's usual defence is that it preserves table al
 not: a two-column page aligns the page's columns, not the table's, so a table is interleaved with the prose beside
 it. A page whose tables matter is read by chandra_pages.py instead, which returns real table markup.
 
-Files read by Chandra are never touched here: their manifest entry names the engine, and this script skips them. This is the first instrument of the references archive: it makes
+Files read by Chandra are never touched here: their manifest entry names the engine, and this script skips them.
+
+A source whose data has a machine-readable home keeps no extracted text, only a one-page pointer naming that home
+(docs/references/README.md, "Sources that are held but not indexed"). Those stubs are written by hand and so have no
+manifest entry, which made them look unextracted: on 2026-09-10 a run of this script overwrote both of them, one with
+1961 empty pages and one with 415 pages of the transcribed numbers the stub exists to keep out of the corpus. A
+directory whose first page begins "NOT INDEXED" is therefore skipped here, whatever the manifest says. Keep that
+marker as the first characters of the stub.
+
+This is the first instrument of the references archive: it makes
 `rg` across every held paper a page-cited search. Retrieval returns locators, never values (docs/references/README.md).
 """
 import argparse, hashlib, json, pathlib, subprocess, sys, time, shutil
@@ -34,6 +43,9 @@ def main():
         h = sha(p)
         prev = done.get(p.name, {})
         if prev.get('engine') == 'chandra-ocr-2': n_skip += 1; continue   # never overwrite a page a model read
+        stub = TXT / p.stem / '0001.txt'
+        if stub.is_file() and stub.read_text(errors='ignore').lstrip().startswith('NOT INDEXED'):
+            n_skip += 1; continue   # a deliberate pointer stub; see the docstring
         if prev.get('sha256') == h and prev.get('mode') == a.mode and (TXT / p.stem).is_dir(): n_skip += 1; continue
         d = TXT / p.stem
         if d.exists(): shutil.rmtree(d)

@@ -40,6 +40,6 @@ what_this_adds = "3526 species against CEA's 2030, the surplus being combustion 
 what_this_lacks = "TiO, VO and several bare alkali metals, which CEA has; nothing beyond 6000 K, where CEA reaches 20000; and a licence, where CEA is Apache-2.0"
 
 [oracle]
-note = "the scanned NIST-JANAF fourth edition in references/pdf is no longer a data path. It stays as a check: a species evaluated from these coefficients is compared against the printed JANAF table read by eye, and the two arithmetic identities in tools/references/audit_janaf_tables.py hold for the evaluated values as much as for the printed ones"
+note = "the scanned NIST-JANAF fourth edition was neither a data path nor, since 2026-09-10, held at all. A species evaluated from these coefficients is checked against the NASA CEA polynomials in docs/inputs/data/nasa-cea-thermo.toml where it overlaps, which is a machine-readable comparison rather than a page read by eye"
 
 anchors = []   # filled when the first Sourced constant names a record in this file

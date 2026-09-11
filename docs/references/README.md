@@ -114,9 +114,10 @@ than a model.
 A source whose data has a machine-readable home does not keep its extracted text. Its directory
 under `references/text/` holds one page naming that home and saying why, so a query for the
 quantity lands on the pointer instead of on a number a reader transcribed from a scan. The scan
-stays under `references/pdf/` and is what gets opened by eye. Two so far: the NIST-JANAF fourth
-edition, whose numbers are the NASA CEA polynomials, and Carmichael's rock properties handbook,
-whose spectra are ECOSTRESS and USGS splib07.
+stays under `references/pdf/` and is what gets opened by eye. One so far: Carmichael's rock
+properties handbook, whose spectra are ECOSTRESS and USGS splib07. The scanned NIST-JANAF fourth
+edition was the other until 2026-09-10, when it was removed from the archive outright rather than
+kept as a by-eye check; its numbers are the NASA CEA polynomials.
 
 Every other OCR-read source keeps its prose and loses only its table cells, each table left as a
 marker with its caption, row count and page (`tools/references/strip_ocr_tables.py`). Sources with
