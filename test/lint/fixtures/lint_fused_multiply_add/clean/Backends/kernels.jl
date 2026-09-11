@@ -56,4 +56,18 @@ the text `a * b + c` stand in this docstring and are not calls.
 """
 compensated(a, b, c) = nofuse_mul(a, b) + c
 
+"""
+    scale_shift!(y, x)
+
+`y` set to `2 * x + y` at every element over a declared `Float64`, written as
+`fma`. The counterpart in the dirty fixture writes the same shape as a bare
+multiply and a bare add.
+"""
+function scale_shift!(y::Vector{Float64}, x::Vector{Float64})
+    for i in eachindex(y, x)
+        y[i] = fma(2.0, x[i], y[i])
+    end
+    return y
+end
+
 end

@@ -50,4 +50,17 @@ function stencil_gather_reference!(out, in, weight, nk)
     return out
 end
 
+"""
+    scale_shift!(y, x)
+
+`y` set to `2 * x + y` at every element over a declared `Float64`, with an
+integer literal as the multiply's first operand.
+"""
+function scale_shift!(y::Vector{Float64}, x::Vector{Float64})
+    for i in eachindex(y, x)
+        y[i] = 2 * x[i] + y[i]
+    end
+    return y
+end
+
 end
