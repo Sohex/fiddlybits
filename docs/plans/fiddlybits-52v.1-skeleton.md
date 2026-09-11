@@ -169,7 +169,7 @@ narrower than its instrument's scatter is refused at registration.
 
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
-| 52v.1.2 | local | `Project.toml`, `Manifest.toml`, `src/Fiddlybits.jl`, `src/<submodule>/<submodule>.jl` for each row of the table, `src/Verdicts/`, `test/runtests.jl`, `bench/` | `using Fiddlybits` succeeds under the pinned Julia; the empty suite runs; `build.module_order_acyclic` passes with its fixture refused |
+| 52v.1.2 | local | `Project.toml`, `Manifest.toml`, `src/Fiddlybits.jl`, `src/<submodule>/<submodule>.jl` for each row of the table, `src/Verdicts/`, `test/runtests.jl`, `test/build/`, `bench/` | `using Fiddlybits` succeeds under the pinned Julia; the empty suite runs; `build.module_order_acyclic` passes with its fixture refused |
 | 52v.1.3 | sonnet | `test/lint/` | `build.lint_positive_controls` and `build.manifest_exclusions` pass, each fixture named |
 | 52v.1.4 | sonnet | `test/imports/` | `build.import_record_completeness` passes, both fixtures refused |
 | 52v.1.5 | sonnet | none; reports only | all five oracles ran; verdicts by name; a dated finding for `build.load_latency` |
