@@ -2,13 +2,25 @@
 # did not choose. REQ-NUM-001 makes precision a type parameter.
 
 # Submodules and files the lint does not scan. Render writes for people, not for
-# physics. Backends/transcendentals.jl holds one polynomial coefficient set and
-# one argument-reduction split per precision, and both are bit patterns of the
-# precision they belong to rather than values a caller supplies a type for; its
-# Float64 set is selected by method signature and a Float32 set is a separate
-# table (fiddlybits-52v.7.13).
-exempt = ["Render", "EarthRatios", "Backends/transcendentals.jl"]
+# physics.
+exempt = ["Render", "EarthRatios"]
 
 # A literal is accepted when it is the argument of one of these, which take their
 # type from the caller.
 typed_constructors = ["FT", "T", "eltype"]
+
+# Files whose precision is fixed by method signature rather than by a type
+# parameter. Inside one, a literal is accepted when it stands in the right-hand
+# side of one of the constants named here, or when a round trip through Float32
+# returns its value unchanged; every other literal is refused as it is elsewhere.
+# The scope of this reach is the record the entry names.
+[[precision_pinned]]
+path = "Backends/transcendentals.jl"
+record = "docs/decisions/0045-precision-pinned-constants-are-named-not-whole-files.md"
+constants = [
+    "PIO2_A", "PIO2_B", "PIO2_C", "TWO_OVER_PI", "TRIG_ARGUMENT_LIMIT",
+    "SIN_SERIES", "COS_SERIES",
+    "LN2_A", "LN2_B", "LOG2_E", "EXPONENTIAL_MAX", "EXPONENTIAL_MIN", "EXP_SERIES",
+    "LOG_SERIES", "SQRT_TWO",
+    "CBRT_START", "CBRT_TWO", "CBRT_FOUR",
+]

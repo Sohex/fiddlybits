@@ -53,5 +53,6 @@ from those, and is the only place that back-edge is written down.
 | [0041](0041-fast-tier-integrator.md) | The fast tier integrates with ClimaTimeSteppers under five conditions, and the alternative is excluded by its own dependency graph | proposed | 2026-09-10 | 0012 (takes the ClimaTimeSteppers.jl candidacy it left open, and closes the four points it named for that decision) | - | - |
 | [0042](0042-run-event-journal.md) | Every run writes an append-only event journal beside its plan, from a closed event vocabulary | accepted | 2026-09-10 | 0010 (the run record gains a third element beside the plan and the system struct: an append-only event journal) | - | - |
 | [0043](0043-where-the-gate-runs.md) | The gate runs on the machine that holds the data and the card; a hosted job runs only the clean-room subset | accepted | 2026-09-10 | - | - | - |
+| [0045](0045-precision-pinned-constants-are-named-not-whole-files.md) | The literal lint is widened for named constants of a pinned precision, never for a whole file | accepted | 2026-09-11 | - | - | - |
 
-43 records; 42 accepted, 1 proposed, 0 superseded.
+44 records; 43 accepted, 1 proposed, 0 superseded.
