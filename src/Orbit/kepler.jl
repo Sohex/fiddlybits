@@ -4,17 +4,19 @@
 # derivative are Markley equations 30 to 35. Every transcendental call and every
 # multiply that feeds an add takes a `Backend` (decision 0029), per
 # notes/findings/2026-09-11-polynomial-transcendentals-for-bitwise-mode.md. The
-# multiply is `fma` in bitwise mode and a plain multiply otherwise (decision 0044).
+# multiply is `fma` in bitwise mode and `muladd` otherwise (decision 0044).
 
 using ..Backends: Backend, bitwise, sine, sine_cosine, cube_root, nofuse_mul
 
 """
     fma_add(a, b, c, backend)
 
-`fma(a, b, c)` when `backend` runs in bitwise mode and `a * b + c` otherwise
-(decision 0044).
+`fma(a, b, c)` when `backend` runs in bitwise mode and `muladd(a, b, c)`
+otherwise (decision 0044). The bitwise arm is the once-rounded operation at
+any cost; the fast arm is the once-rounded operation where the hardware
+carries it and `a * b + c` where it does not.
 """
-@inline fma_add(a, b, c, backend::Backend) = bitwise(backend) ? fma(a, b, c) : a * b + c
+@inline fma_add(a, b, c, backend::Backend) = bitwise(backend) ? fma(a, b, c) : muladd(a, b, c)
 
 """
     barrier_mul(a, b, backend)

@@ -12,8 +12,17 @@ amends = [{ record = "0029", what = "the mechanism of the bitwise mode: the two 
 pair is written as `fma(a, b, c)`. `Backends.nofuse_mul` is not withdrawn; its role
 narrows to the one its name describes, a product that has to be rounded on its own
 before whatever consumes it sees it, which is what a compensated step needs and what
-`src/Backends/transcendentals.jl`'s `cube_root` already uses it for. `muladd` is used
-nowhere.
+`src/Backends/transcendentals.jl`'s `cube_root` already uses it for. `muladd` does not
+appear in source bitwise mode compiles.
+
+**In source compiled only for fast mode, and in the fast arm of a site compiled for
+both, the pair is `muladd(a, b, c)` or a bare multiply and a bare add.** Neither is
+determined by the source and fast mode does not ask for one that is; `muladd` is the
+spelling to reach for, because it returns the once-rounded value wherever the
+compilation reaches it and the twice-rounded value otherwise, and can therefore not be
+less accurate than the bare pair. The bare pair stays where exhibiting the unfused
+chain is the point of the site. `Orbit.fma_add` is the one spelling of a site compiled
+for both modes.
 
 This is one rule with one mechanism, and it is a property of the source rather than of
 the compiler: it is auditable by reading, and by the lint the consequences name.
@@ -34,6 +43,13 @@ machines that have the instruction and not on the machines that do not, with not
 the source changed, no flag set and no error raised. That is the shape of defect the
 oracle exists to find, appearing in the oracle itself.
 
+It is not only the target that decides. The same `muladd` fuses or does not according
+to the expressions written around it, on one host, at one optimisation level, which
+`notes/findings/2026-09-11-the-fast-arm-of-a-multiply-that-feeds-an-add.md` measured:
+a plain copy of the same product a line away is enough to make the compiler share one
+multiply between them and stop contracting. So the defect is not reached only by
+changing machines; it is reached by editing a neighbouring line.
+
 `fma` is required by IEEE 754 to be the single correctly rounded operation, which is a
 statement about the value and not about the instruction. Where the instruction exists it
 is that instruction; where it does not it is emulated in software, more slowly, and
@@ -53,6 +69,99 @@ evaluated at 300 bits over a fixed triple set, on the processor and on the devic
 positive control is `Backends.nofuse_mul(a, b) + c` rather than the plain `a * b + c`,
 because the device contracts the plain form into the operation under test and a control
 that cannot fire is not a control.
+
+### The scope of the ban, and what the fast arm is
+
+The rule is not that `fma` is right and `muladd` is wrong wherever they appear. It is
+that **bitwise mode's value has to be a function of the source**, and `fma` is the only
+one of the three spellings that is. Both of the others return either the once-rounded
+or the twice-rounded value depending on something the source does not say: `muladd` on
+the target's instruction set and on its own surroundings, the bare pair on the backend,
+because the device contracts it unconditionally and the processor does not. That is
+why the bitwise-mode arm takes `fma` and takes nothing else.
+
+Fast mode claims nothing that requires a value fixed by the source. Decision 0029 gives
+it a measured envelope rather than an identity, and puts the backend and the
+environment manifest in the run identity precisely because its answer is a function of
+the platform: it already reads the platform's `sin`, `cbrt` and `exp`, and it already
+takes whatever contraction each backend applies to a bare multiply and a bare add.
+Adding the compiler's contraction decision to that list does not change the kind of
+thing fast mode's answer depends on. So the argument that refuses `muladd` has no force
+in fast mode, and the unscoped sentence this record opened with claimed more than the
+argument under it supported.
+
+What is left in fast mode is accuracy, and there the two admissible spellings are
+ordered. Each returns the once-rounded or the twice-rounded value and nothing else, and
+the once-rounded value is the correctly rounded one, so `muladd` cannot be less accurate
+than the bare pair at the same site and is more accurate wherever the compilation
+contracts it. The Kepler solve is where that was measured, in
+`notes/findings/2026-09-11-the-fast-arm-of-a-multiply-that-feeds-an-add.md`: reading
+this record's unscoped sentence literally cost the production path accuracy at the
+highest eccentricity it is sampled at, and the fast arm's `muladd` returns it and gains
+more at the lowest.
+
+The fast arm is not `fma`. Production is fast mode (decision 0029), and an `fma` on a
+target without the instruction is a software emulation whose cost this record already
+records: fast mode would then be paying for a value it never claimed. And a fast mode
+whose arithmetic is bitwise mode's arithmetic leaves bitwise mode as an oracle over
+nothing but its transcendentals and its reduction trees, which is less of an oracle
+than the one decision 0029 asked for.
+
+### The reference path, and fusion the source does not fix
+
+Decision 0027 puts a naive serial reference beside every optimised kernel and asks for
+agreement to a tolerance derived from floating point. A fast path that fuses where the
+compilation allows can therefore differ from its reference by machine, which is the
+portability defect that gets `muladd` refused in bitwise mode, appearing in the arm
+where it is tolerated. It is worth stating why it is tolerated rather than assuming it.
+
+The tolerance is derived for the unfused chain, and the unfused chain is the worst case
+over every fusion choice. Rounding a product and then rounding the sum admits an error
+in the product as well as in the sum; the fused operation rounds once and admits only
+the second, so its error is inside the bound derived for the first at every triple. A
+tolerance that admits the reference's own chain therefore admits every fused variant of
+it, and the 0027 verdict cannot flip from one machine to another on account of fusion.
+
+This is also not a new exposure. With no `muladd` anywhere in the tree, the fast kernel
+already agrees with its reference exactly on the processor and to a fraction of the
+tolerance on the device, because the device contracts the bare pair on its own; the
+numbers are in the finding. The comparison is at a tolerance because that dependence is
+already there.
+
+What fusion does break is an *exact* assertion against the reference. Two survive, in
+`test/backends/reference_agreement.jl`, and they hold because they run the fast kernel
+on the processor, where nothing contracts, against a reference that is then the same
+chain: they are statements about one backend and they stay true while those kernels
+keep a bare multiply and a bare add. That is why the fast arm is permissive and not
+mandatory. `Backends.axpy_fused_kernel!` and `Backends.stencil_gather_fused_kernel!`
+exist to exhibit the difference between what the device contracts and what the
+processor does not, and a `muladd` in them would erase the thing they measure. A row
+that moves either onto `muladd` moves those two assertions onto `Reductions.error_bound`
+in the same change. The naive reference itself is never fused and never `muladd`:
+decision 0027 fixes that and this record does not touch it.
+
+### What the lint checks
+
+The rule is a property of the source, so it is decided by walking the parsed expression
+tree of each file. Two prohibitions:
+
+1. **No bare multiply feeds a bare add in source bitwise mode compiles.** A call to `+`
+   or `-` one of whose arguments is a call to `*`, or a `+=` or `-=` whose right-hand
+   side is, fails.
+2. **No `muladd` in source bitwise mode compiles.** A call to `muladd` there fails,
+   whatever its arguments.
+
+A site is in source bitwise mode compiles unless it is one of three things: the false
+arm of a conditional whose test is a call to `bitwise`; a site inside a function the
+lint's list file names as reached only by fast mode; or a site the list file exempts by
+name with its reason. Anything the lint cannot classify is flagged, because a lint that
+guessed "fast" for a site whose mode it could not see would pass exactly the defect the
+rule exists for.
+
+Two shapes pass by construction rather than by exemption, which is the point of writing
+the rule this way: `fma(a, b, c)` passes both prohibitions everywhere, and
+`Backends.nofuse_mul(a, b) + c` passes the first because its operand is a call to
+`nofuse_mul` and not to `*`.
 
 ### The running sum is the shape, not an exception to it
 
@@ -117,6 +226,22 @@ same chain did.
   proposal this row was opened on. Lost on the hardware argument above, and on the
   shape argument: with the running sum written as a fused multiply-accumulate there is
   no "where it does not", so the mixed rule would carry a second mechanism for no case.
+- **The ban on `muladd` binds the whole tree, fast mode included.** The reading this
+  record's first draft admitted by ending a scoped paragraph with an unscoped sentence,
+  and the one `fiddlybits-52v.7.21` acted on. Lost on two counts. Its reason does not
+  reach fast mode: `muladd`'s offence is that it may or may not fuse, and fast mode
+  neither claims nor can have a value fixed by the source, since it reads the platform's
+  transcendentals and takes each backend's own contraction of a bare multiply and a bare
+  add. And it costs accuracy in the production path to buy nothing: the bare pair is
+  never more accurate than `muladd` at the same site and is measurably less accurate in
+  the Kepler solve. A rule whose reason does not reach the case it governs is a rule the
+  next reader will break for a good reason and be right to.
+- **`fma` in fast mode as well, so that one spelling covers the tree.** Simplest to
+  state and to lint, and lost on cost and on what it would do to the oracle. Fast mode
+  is production, and an emulated `fma` on a target without the instruction charges
+  production for a guarantee it never claimed. It would also leave bitwise mode
+  differing from fast mode only in its transcendentals and its reduction trees, so a
+  defect in the arithmetic would have no mode that could catch it.
 - **`fma` where the source shape allows it, the barrier where it does not.** Right about
   the operation and wrong about the exception, for the same reason: there is no case
   left for the barrier to cover, and leaving it in the rule as a fallback invites a
@@ -154,11 +279,29 @@ same chain did.
   `fiddlybits-52v.7.22` builds it.
 - A target with no hardware fused multiply-add runs bitwise mode correctly and more
   slowly. No profile's production path is affected, because production is fast mode.
+- `Orbit.fma_add`'s fast arm is `muladd`, so the fast-mode answer of every site that
+  calls it moves toward the once-rounded chain wherever the compilation contracts it.
+  The tracked reference hash of decision 0029 covers a fast-mode case and moves with it,
+  carrying the `answers:` line decision 0043 requires.
+- Fast mode's answer is a function of the compilation as well as of the source, and was
+  already a function of the platform's transcendentals. A reference hash that must be a
+  function of the source alone is a bitwise-mode case, and there is none tracked yet.
+- `Backends.axpy_fused_kernel!` and `Backends.stencil_gather_fused_kernel!` keep a bare
+  multiply and a bare add, and `test/backends/reference_agreement.jl` keeps its two
+  exact assertions against the naive reference. Either kernel moving onto `muladd`
+  carries those two assertions onto `Reductions.error_bound` in the same change.
+- The lint of `fiddlybits-52v.7.22` carries two prohibitions rather than one, and a list
+  file naming the functions only fast mode reaches.
 
 ## References
 
 - The measurements this record turns on, and the three questions it had to settle:
   `notes/findings/2026-09-11-fma-against-the-fusion-barrier-in-bitwise-mode.md`.
+- `muladd` unfusing beside a plain copy of the same product on a host that has the
+  instruction, what the fast arm's spelling does to the Kepler solve's accuracy in both
+  modes, the sample size the cross-backend control needs, and the fast kernel's distance
+  from its naive reference on each backend:
+  `notes/findings/2026-09-11-the-fast-arm-of-a-multiply-that-feeds-an-add.md`.
 - The unconditional contraction on the device, its locator in `GPUCompiler.jl`, and the
   first measurement of the barrier's cost:
   `notes/findings/2026-09-11-gpucompiler-unconditional-fma-contraction.md`.
@@ -174,3 +317,13 @@ same chain did.
 - Higham, N. J. "The accuracy of floating point summation." SIAM Journal on Scientific
   Computing 14 (1993). DOI: 10.1137/0914050. The bound
   `Reductions.error_bound` carries and the reference-path tolerance is read from.
+
+## Amendments
+
+- 2026-09-11: the refusal of `muladd` is scoped to source bitwise mode compiles, rather
+  than to the whole tree as one unscoped sentence read; the fast arm of a site compiled
+  for both modes is `muladd`, and `Orbit.fma_add` carries it; the reference-path
+  question decision 0027 raises is answered from the derivation of its tolerance rather
+  than left implicit; the rule is stated as the two prohibitions a lint checks and the
+  three exemptions that classify a site. From
+  `notes/findings/2026-09-11-the-fast-arm-of-a-multiply-that-feeds-an-add.md`.

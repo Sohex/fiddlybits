@@ -7,6 +7,6 @@
 
 [case]
 name = "kepler_sweep"
-hash = "5806877ec3c59821cfe1caba07a983fd789cc21060869877c8f4d586cb80f7a8"
+hash = "e9648e53da233a7b860eeed9c6a72ec7b5c29ea44c5a1e916f8da51b9360545b"
 recorded_at = 2026-09-11
 stands_in_for = "the short coupled case of decision 0029, which arrives with M3"
