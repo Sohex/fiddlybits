@@ -316,6 +316,293 @@ value, two Newton steps, and one final step on a residual formed exactly by
     return ifelse(ok, v, x)
 end
 
+# The Float32 set: its own fits, its own reduction splits and its own
+# truncation degrees, derived at 300 bits in
+# notes/findings/2026-09-11-float32-polynomial-transcendentals.md, which also
+# carries the dispositions, the measured bounds and the argument for them.
+
+"""
+    horner(z, coefficients)
+
+The `Float32` polynomial, read the way the `Float64` method reads its tuple.
+"""
+@inline horner(z::Float32, c::Tuple{Float32}) = c[1]
+@inline horner(z::Float32, c::Tuple{Float32,Float32,Vararg{Float32}}) =
+    fma(horner(z, Base.tail(c)), z, c[1])
+
+"""
+    two_power_f32(k)
+
+`2.0f0^k` for `k` in `-126:127`, built from the exponent field. `k` outside
+that range is clamped to it, so a caller splitting a large exponent across
+two factors gets each factor as a normal number.
+"""
+@inline function two_power_f32(k::Int32)
+    kk = clamp(k, Int32(-126), Int32(127))
+    return reinterpret(Float32, UInt32(kk + Int32(127)) << 23)
+end
+
+"""
+    scale_two(v, k)
+
+`v * 2.0f0^k` for `k` in `-252:252`, as two multiplications by normal powers
+of two. Overflows to `Inf32` and underflows through the subnormals the way a
+multiplication does.
+"""
+@inline function scale_two(v::Float32, k::Int32)
+    a = clamp(k, Int32(-126), Int32(126))
+    b = clamp(k - a, Int32(-126), Int32(126))
+    return v * two_power_f32(a) * two_power_f32(b)
+end
+
+"""
+    split_exponent(x)
+
+`(e, m)` with `x == m * 2.0f0^e` and `m` in `[1, 2)`, for finite positive `x`
+including the subnormals, read from the exponent and significand fields.
+"""
+@inline function split_exponent(x::Float32)
+    sub = (reinterpret(UInt32, x) & 0x7f800000) == 0x00000000
+    xs = ifelse(sub, x * 1.6777216f7, x)
+    shift = ifelse(sub, Int32(-24), Int32(0))
+    u = reinterpret(UInt32, xs)
+    e = Int32((u >> 23) & 0x000000ff) - Int32(127) + shift
+    m = reinterpret(Float32, (u & 0x007fffff) | 0x3f800000)
+    return e, m
+end
+
+"""
+    two_sum(a, b)
+
+`(s, e)` with `s == a + b` rounded and `e` the rounding error, at `Float32`.
+"""
+@inline function two_sum(a::Float32, b::Float32)
+    s = a + b
+    bb = s - a
+    return s, (a - (s - bb)) + (b - bb)
+end
+
+# pi/2 in four parts, the first three carrying 12 significant bits each so that
+# their products with the quadrant index are exact over the declared argument
+# range. Disposition Derived: pi/2 at 300 bits, split by taking each part in
+# turn at 12 significant bits and the last at 24.
+const PIO2_A_F32 = 1.5708008f0
+const PIO2_B_F32 = -4.4535846f-6
+const PIO2_C_F32 = -8.706138f-10
+const PIO2_D_F32 = 6.223372f-14
+const TWO_OVER_PI_F32 = 0.63661975f0
+
+"""
+    TRIG_ARGUMENT_LIMIT_F32
+
+The largest `abs(x)` the `Float32` `sine`, `cosine` and `sine_cosine` reduce.
+Above it they return `NaN32` rather than a reduced argument the four-part
+split cannot carry.
+"""
+const TRIG_ARGUMENT_LIMIT_F32 = 4096.0f0
+
+# sin(r) = r + r^3 * SIN_SERIES_F32(r^2) and
+# cos(r) = 1 - r^2/2 + r^4 * COS_SERIES_F32(r^2). Disposition Derived: the
+# Remez minimax polynomial of each correction function over abs(r) <= pi/4,
+# computed at 300 bits, rounded to Float32 from the highest degree down with
+# the free coefficients refitted after each rounding.
+const SIN_SERIES_F32 = (-0.16666667f0, 0.008333332f0, -0.00019840087f0, 2.725f-6)
+const COS_SERIES_F32 = (0.041666668f0, -0.0013888888f0, 2.4800602f-5, -2.7301013f-7)
+
+"""
+    sin_core(r, rlo)
+
+The sine of `r + rlo` at `Float32`, with the range and the assembly of the
+`Float64` method.
+"""
+@inline function sin_core(r::Float32, rlo::Float32)
+    z = r * r
+    v = z * r
+    t = fma(0.5f0, rlo, -(v * horner(z, Base.tail(SIN_SERIES_F32))))
+    return r - fma(-v, SIN_SERIES_F32[1], fma(z, t, -rlo))
+end
+
+"""
+    cos_core(r, rlo)
+
+The cosine of `r + rlo` at `Float32`, with the range and the assembly of the
+`Float64` method.
+"""
+@inline function cos_core(r::Float32, rlo::Float32)
+    z = r * r
+    hz = 0.5f0 * z
+    w = 1.0f0 - hz
+    return w + (((1.0f0 - w) - hz) + fma(-r, rlo, z * z * horner(z, COS_SERIES_F32)))
+end
+
+"""
+    quadrant_reduce(x)
+
+`(q, r, rlo)` with `q` the quadrant index `mod(round(x * 2/pi), 4)` and
+`r + rlo` the reduced argument in `[-pi/4, pi/4]`, by subtracting the four
+parts of `pi/2` in turn. The first subtraction is exact over the declared
+range, the second and third carry their rounding errors, and the fourth is
+folded into the sum of the two. Valid for
+`abs(x) <= TRIG_ARGUMENT_LIMIT_F32`.
+"""
+@inline function quadrant_reduce(x::Float32)
+    n = round(x * TWO_OVER_PI_F32)
+    r0 = fma(-n, PIO2_A_F32, x)
+    r1, e1 = two_sum(r0, -(n * PIO2_B_F32))
+    r, e2 = two_sum(r1, -(n * PIO2_C_F32))
+    return unsafe_trunc(Int32, n) & Int32(3), r, fma(-n, PIO2_D_F32, e1 + e2)
+end
+
+"""
+    sine_cosine_poly(x)
+
+`(sine, cosine)` of a `Float32` `x`, with the refusals of the `Float64`
+method taken at `TRIG_ARGUMENT_LIMIT_F32`.
+"""
+@inline function sine_cosine_poly(x::Float32)
+    inrange = abs(x) <= TRIG_ARGUMENT_LIMIT_F32
+    xr = ifelse(inrange, x, 0.0f0)
+    q, r, rlo = quadrant_reduce(xr)
+    s = sin_core(r, rlo)
+    c = cos_core(r, rlo)
+    sn = ifelse(q == Int32(0), s, ifelse(q == Int32(1), c, ifelse(q == Int32(2), -s, -c)))
+    cs = ifelse(q == Int32(0), c, ifelse(q == Int32(1), -s, ifelse(q == Int32(2), -c, s)))
+    sn = ifelse(x == 0.0f0, x, sn)
+    return ifelse(inrange, sn, NaN32), ifelse(inrange, cs, NaN32)
+end
+
+"""
+    sine_poly(x)
+
+The sine of a `Float32` `x` from the project's own polynomials.
+"""
+@inline sine_poly(x::Float32) = sine_cosine_poly(x)[1]
+
+"""
+    cosine_poly(x)
+
+The cosine of a `Float32` `x` from the project's own polynomials.
+"""
+@inline cosine_poly(x::Float32) = sine_cosine_poly(x)[2]
+
+# ln(2) in two parts, the first carrying 15 significant bits so that its
+# product with the power-of-two index is exact over the declared range.
+# Disposition Derived: ln(2) at 300 bits, the first part at 16 significant
+# bits and the second the remainder at 24.
+const LN2_A_F32 = 0.69314575f0
+const LN2_B_F32 = 1.4286068f-6
+const LOG2_E_F32 = 1.442695f0
+
+"""
+    EXPONENTIAL_MAX_F32
+    EXPONENTIAL_MIN_F32
+
+The arguments beyond which the `Float32` `exponential` returns `Inf32` and
+`0.0f0`: the largest `Float32` whose exponential is finite in `Float32`, and
+an `x` below every one whose exponential rounds to a nonzero subnormal.
+"""
+const EXPONENTIAL_MAX_F32 = 88.72283f0
+const EXPONENTIAL_MIN_F32 = -104.0f0
+
+# exp(r) = 1 + r + r^2 * EXP_SERIES_F32(r). Disposition Derived: the Remez
+# minimax polynomial of the correction function over abs(r) <= ln(2)/2,
+# computed at 300 bits and rounded the way the trigonometric sets are.
+const EXP_SERIES_F32 = (0.5f0, 0.16666667f0, 0.04166648f0, 0.008333313f0,
+                        0.0013933643f0, 0.00019907574f0)
+
+"""
+    exponential_poly(x)
+
+The exponential of a `Float32` `x`, with the reduction and the refusals of
+the `Float64` method taken at `EXPONENTIAL_MAX_F32` and `EXPONENTIAL_MIN_F32`.
+"""
+@inline function exponential_poly(x::Float32)
+    xc = clamp(x, EXPONENTIAL_MIN_F32, EXPONENTIAL_MAX_F32)
+    k = round(xc * LOG2_E_F32)
+    r = fma(-k, LN2_A_F32, xc)
+    r = fma(-k, LN2_B_F32, r)
+    y = fma(r * r, horner(r, EXP_SERIES_F32), r)
+    v = scale_two(1.0f0 + y, unsafe_trunc(Int32, k))
+    v = ifelse(x > EXPONENTIAL_MAX_F32, Inf32, v)
+    v = ifelse(x < EXPONENTIAL_MIN_F32, 0.0f0, v)
+    return ifelse(isnan(x), x, v)
+end
+
+# R(z) = z * LOG_SERIES_F32(z) with z = s^2 and s = f/(2+f). Disposition
+# Derived: the Remez minimax polynomial of (2*atanh(s) - 2s)/(s*z) over
+# abs(s) <= (sqrt(2) - 1)/(sqrt(2) + 1), computed at 300 bits and rounded the
+# way the trigonometric sets are.
+const LOG_SERIES_F32 = (0.6666667f0, 0.40000132f0, 0.2855074f0, 0.23332268f0)
+
+# sqrt(2), the crossover that puts the reduced significand in
+# [sqrt(2)/2, sqrt(2)). Disposition Derived: sqrt(2) at 300 bits, rounded once.
+const SQRT_TWO_F32 = 1.4142135f0
+
+"""
+    logarithm_poly(x)
+
+The natural logarithm of a `Float32` `x`, with the reduction, the assembly
+and the refusals of the `Float64` method.
+"""
+@inline function logarithm_poly(x::Float32)
+    xc = ifelse(x > 0.0f0, x, 1.0f0)
+    e, m = split_exponent(xc)
+    halve = m > SQRT_TWO_F32
+    mr = ifelse(halve, 0.5f0 * m, m)
+    k = Float32(e + ifelse(halve, Int32(1), Int32(0)))
+    f = mr - 1.0f0
+    s = f / (2.0f0 + f)
+    z = s * s
+    hf = 0.5f0 * f
+    rr = fma(z, horner(z, LOG_SERIES_F32), hf * f)
+    v = fma(k, LN2_A_F32, f - fma(hf, f, -fma(s, rr, k * LN2_B_F32)))
+    v = ifelse(x == 0.0f0, -Inf32, v)
+    v = ifelse(x < 0.0f0, NaN32, v)
+    v = ifelse(x == Inf32, Inf32, v)
+    return ifelse(isnan(x), x, v)
+end
+
+# The starting value for the cube root on the reduced significand: cbrt(m) for
+# m in [1, 2) as a polynomial in u = 2*(m - 1.5). Disposition Derived: the
+# degree-two Remez minimax polynomial of m^(1/3) in the relative error over
+# [1, 2], computed at 300 bits and rounded the way the series are; its maximum
+# relative error over [1, 2] is 6.3609e-4.
+const CBRT_START_F32 = (1.1449577f0, 0.12924182f0, -0.01507985f0)
+
+# 2^(1/3) and 2^(2/3), the factors that carry the starting value from the
+# reduced significand to the reduced argument. Disposition Derived: the powers
+# of two at 300 bits, rounded once.
+const CBRT_TWO_F32 = 1.2599211f0
+const CBRT_FOUR_F32 = 1.587401f0
+
+"""
+    cube_root_poly(x)
+
+The real cube root of a `Float32` `x`: a degree-two starting value, one Newton
+step, and one final step on a residual formed exactly by `fma`. Returns `x`
+itself for zero, an infinity and `NaN`.
+"""
+@inline function cube_root_poly(x::Float32)
+    a = abs(x)
+    ok = (a > 0.0f0) & (a < Inf32)
+    ac = ifelse(ok, a, 1.0f0)
+    e, m = split_exponent(ac)
+    q = fld(e, Int32(3))
+    j = e - Int32(3) * q
+    y = m * two_power_f32(j)
+    t = horner(fma(2.0f0, m, -3.0f0), CBRT_START_F32)
+    t = t * ifelse(j == Int32(0), 1.0f0, ifelse(j == Int32(1), CBRT_TWO_F32, CBRT_FOUR_F32))
+    t = fma(2.0f0, t, y / (t * t)) / 3.0f0
+    p = t * t
+    ep = fma(t, t, -p)
+    c = nofuse_mul(p, t)
+    ec = fma(p, t, -c)
+    res = (c - y) + fma(ep, t, ec)
+    t = fma(-t, res / (3.0f0 * y), t)
+    v = copysign(scale_two(t, q), x)
+    return ifelse(ok, v, x)
+end
+
 """
     sine(x, backend)
     cosine(x, backend)
@@ -327,9 +614,10 @@ end
 The trigonometric functions, the real cube root, the exponential and the
 natural logarithm of `x`, from the project's own polynomials when `backend`
 runs in bitwise mode (decision 0029) and from the platform library otherwise.
-`Float64` only: `Float32` coefficient sets are fiddlybits-52v.7.13, and a
-`Float32` argument is a `MethodError` at the call site rather than a widening
-here.
+`Float64` and `Float32`, selected by the method signature: each precision has
+its own coefficient sets, its own reduction splits and its own truncation
+degrees, and a widening never happens here. Any other type is a `MethodError`
+at the call site.
 """
 @inline sine(x::Float64, b::Backend) = bitwise(b) ? sine_poly(x) : sin(x)
 @inline cosine(x::Float64, b::Backend) = bitwise(b) ? cosine_poly(x) : cos(x)
@@ -337,3 +625,9 @@ here.
 @inline cube_root(x::Float64, b::Backend) = bitwise(b) ? cube_root_poly(x) : cbrt(x)
 @inline exponential(x::Float64, b::Backend) = bitwise(b) ? exponential_poly(x) : exp(x)
 @inline logarithm(x::Float64, b::Backend) = bitwise(b) ? logarithm_poly(x) : log(x)
+@inline sine(x::Float32, b::Backend) = bitwise(b) ? sine_poly(x) : sin(x)
+@inline cosine(x::Float32, b::Backend) = bitwise(b) ? cosine_poly(x) : cos(x)
+@inline sine_cosine(x::Float32, b::Backend) = bitwise(b) ? sine_cosine_poly(x) : sincos(x)
+@inline cube_root(x::Float32, b::Backend) = bitwise(b) ? cube_root_poly(x) : cbrt(x)
+@inline exponential(x::Float32, b::Backend) = bitwise(b) ? exponential_poly(x) : exp(x)
+@inline logarithm(x::Float32, b::Backend) = bitwise(b) ? logarithm_poly(x) : log(x)
