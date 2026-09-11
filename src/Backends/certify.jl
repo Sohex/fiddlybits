@@ -510,7 +510,7 @@ function admissible(env::Envelope, initial::Real, roundoff::Real)
     for s in 1:env.steps
         injected += gain(s - 1)
         carried = gain(s) * Float64(initial)
-        bound[s] = carried + injected * Float64(roundoff)
+        bound[s] = fma(injected, Float64(roundoff), carried)
     end
     return bound
 end
