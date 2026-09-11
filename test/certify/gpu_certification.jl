@@ -12,6 +12,7 @@ using Fiddlybits: Backends
 
     n = CertifyFixtures.N_CELLS
     gpu = Backends.GPU(64)
+    host = Backends.CPU(64)
     neighbour = Backends.on(CASE_NB, gpu)
     weight = Dict(Float64 => Backends.on(CASE_W, gpu),
                   Float32 => Backends.on(Float32.(CASE_W), gpu))
@@ -25,8 +26,8 @@ using Fiddlybits: Backends
         Backends.stencil_gather!(gu, u, neighbour, w, gpu)
         Backends.stencil_gather!(gv, v, neighbour, w, gpu)
         c = T(CertifyFixtures.COUPLING)
-        copyto!(state[1], Array(gu .+ c .* gv))
-        copyto!(state[2], Array(gv .- c .* gu))
+        copyto!(state[1], Backends.on(gu .+ c .* gv, host))
+        copyto!(state[2], Backends.on(gv .- c .* gu, host))
         return state
     end
 

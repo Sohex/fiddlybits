@@ -89,7 +89,7 @@ function eccentric_anomaly_on(Ms, e, device)
     x = Backends.on(copy(Ms), device)
     out = Backends.on(similar(Ms), device)
     Backends.launch!(eccentric_anomaly_kernel!, device, length(Ms), out, x, e, device)
-    return Array(out)
+    return Backends.on(out, Backends.CPU(1))
 end
 
 @testset "Orbit" begin
@@ -134,21 +134,18 @@ end
     @testset "the solve runs inside a portable kernel" begin
         Ms = collect(range(-3.0, 3.0, length = 64))
         e = 1 - 1e-9
-        backend = CPU()
         device = Backends.CPU(16)
         out = similar(Ms)
-        kepler_kernel!(backend, 16)(out, Ms, e, device, ndrange = length(Ms))
-        KernelAbstractions.synchronize(backend)
+        Backends.launch!(kepler_kernel!, device, length(Ms), out, Ms, e, device)
+        Backends.complete!(device)
         @test out == [Orbit.eccentric_anomaly(M, e, device) for M in Ms]
 
         if CUDA.functional()
-            d_Ms = CuArray(Ms)
-            d_out = similar(d_Ms)
-            gpu = CUDABackend()
             gpu_device = Backends.GPU(16)
-            kepler_kernel!(gpu, 16)(d_out, d_Ms, e, gpu_device, ndrange = length(Ms))
-            KernelAbstractions.synchronize(gpu)
-            device_out = Array(d_out)
+            d_Ms = Backends.on(Ms, gpu_device)
+            d_out = similar(d_Ms)
+            Backends.launch!(kepler_kernel!, gpu_device, length(Ms), d_out, d_Ms, e, gpu_device)
+            device_out = Backends.on(d_out, device)
             @test all(isfinite, device_out)
             @test maximum(abs.(device_out .- out)) / ULP <= BAR
         else
