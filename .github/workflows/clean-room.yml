@@ -1,0 +1,46 @@
+# The clean-room job of decision 0043. It answers one question the local gate
+# structurally cannot: whether the tracked tree stands up with nothing of the
+# development machine around it.
+#
+# It does not run the device oracles, which need the card, or the tier-2 and tier-3
+# oracles, which read datasets held outside this repository. Those run on the machine
+# that holds them. A check here that starts needing a dataset moves to the local gate;
+# the dataset does not move to the runner.
+
+name: clean room
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: clean-room-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-room:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+
+      - uses: julia-actions/cache@v2
+
+      - name: The manifest resolves as tracked
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+
+      - name: The package loads
+        run: julia --project=. -e 'using Fiddlybits'
+
+      - name: The device-free suite
+        run: julia --project=. -e 'using Pkg; Pkg.test()'
+        env:
+          # No card here. The suite's device arms check for one and say so when absent
+          # rather than being skipped by a flag set outside them.
+          JULIA_CUDA_SOFT_MEMORY_LIMIT: '0'

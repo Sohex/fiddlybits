@@ -10,4 +10,4 @@ function main()
     isempty(CASES) && return println("no benchmark case is registered")
 end
 
-abspath(PROGRAM_FILE) == @__FILE__ && main()
+(abspath(PROGRAM_FILE) == @__FILE__) && main()

@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+# --- BEGIN FIDDLYBITS GATE ---
+# The answers: rule of decision 0029, checked when code or the record is staged.
+# tools/gate/answers.jl, decision 0043.
+if git diff --cached --name-only --diff-filter=ACMRD \
+     | grep -qE '^(src/|Project\.toml$|Manifest\.toml$|bench/reference\.toml$)'; then
+  _fb_root=$(git rev-parse --show-toplevel)
+  if command -v julia >/dev/null 2>&1; then
+    if ! (cd "$_fb_root" && julia --startup-file=no --project=. tools/gate/answers.jl "$1"); then
+      exit 1
+    fi
+  fi
+fi
+# --- END FIDDLYBITS GATE ---

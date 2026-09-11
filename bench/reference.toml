@@ -1,0 +1,12 @@
+# The reference artifact of decision 0029. A commit that moves this hash carries an
+# `answers: <mechanism>` line and updates this file in the same commit; the commit-msg
+# hook refuses one without the other.
+#
+# The case is a stand-in until the short coupled case of M3 exists. When it does, the
+# name and the hash below change and the mechanism does not. See decision 0043.
+
+[case]
+name = "kepler_sweep"
+hash = "75e03af6d90ef43e53e32a200760173d27e12ab5520c00c7ada23b1648eeb2ee"
+recorded_at = 2026-09-10
+stands_in_for = "the short coupled case of decision 0029, which arrives with M3"
