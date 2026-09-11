@@ -60,12 +60,17 @@ end
     build_payload(T, site; kwargs...)
 
 `T` built from `kwargs`, one entry per field of `T` in field order. Refuses,
-naming the field, the first field of `T` that `kwargs` omits.
+naming it, the first keyword in `kwargs` that is not a field of `T`; refuses,
+naming it, the first field of `T` that `kwargs` omits.
 """
 function build_payload(::Type{T}, site::AbstractString; kwargs...) where {T}
     provided = Dict{Symbol,Any}(kwargs)
+    known = fieldnames(T)
+    for key in keys(provided)
+        key in known || Verdicts.refuse(String(key), site, "not a field of $(T)")
+    end
     values = Any[]
-    for field in fieldnames(T)
+    for field in known
         haskey(provided, field) || Verdicts.refuse(String(field), site, "missing required field")
         push!(values, provided[field])
     end
@@ -208,22 +213,52 @@ end
 BudgetPayload(; kwargs...) = build_payload(BudgetPayload, "BudgetPayload"; kwargs...)
 
 """
+    payload_type(kind::Kind)
+
+The payload type decision 0042 fixes for `kind`.
+"""
+payload_type(::Verdict) = VerdictPayload
+payload_type(::Refusal) = RefusalPayload
+payload_type(::LedgerOpen) = LedgerOpenPayload
+payload_type(::Refresh) = RefreshPayload
+payload_type(::TopologyChange) = TopologyChangePayload
+payload_type(::LevelChange) = LevelChangePayload
+payload_type(::Artifact) = ArtifactPayload
+payload_type(::Checkpoint) = CheckpointPayload
+payload_type(::Oracle) = OraclePayload
+payload_type(::Budget) = BudgetPayload
+
+"""
+    has_payload_type(kind)
+
+Whether `payload_type` is declared for `kind`. Lets a kind be walked against
+`payload_type` the same way `kinds()` is walked against `subtypes(Kind)`.
+"""
+has_payload_type(kind) = hasmethod(payload_type, Tuple{typeof(kind)})
+
+"""
     Event(header, payload)
     Event(kind, sequence, instant, tier, component, payload)
 
 One journal entry: the header decision 0042 fixes and its typed payload. The
 second form builds the header from its parts; `kind` must be a `Kind`, which
 is what makes a kind outside the vocabulary a type error rather than a
-runtime check.
+runtime check. It refuses, naming the kind and the payload type, unless
+`payload isa payload_type(kind)`.
 """
 struct Event
     header::Header
     payload::Any
 end
 
-Event(kind::Kind, sequence::Integer, instant::Real, tier::Symbol,
-      component::AbstractString, payload) =
-    Event(Header(Int(sequence), Float64(instant), tier, String(component), kind), payload)
+function Event(kind::Kind, sequence::Integer, instant::Real, tier::Symbol,
+               component::AbstractString, payload)
+    expected = payload_type(kind)
+    payload isa expected ||
+        Verdicts.refuse(string(typeof(payload)), "Event(:$(name(kind)))",
+                         "kind :$(name(kind)) declares payload type $(expected)")
+    return Event(Header(Int(sequence), Float64(instant), tier, String(component), kind), payload)
+end
 
 "A sink that does nothing with the record it is handed."
 noop_sink(record) = nothing
