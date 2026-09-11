@@ -109,9 +109,3 @@ path = "Backends/certify.jl"
 function = "admissible"
 found = "carried + injected * Float64(roundoff)"
 reason = "the envelope bound's last assembly; fiddlybits-52v.7.31 moves it onto fma"
-
-[[exemption]]
-path = "Mesh/refinement.jl"
-function = "hanging_flux"
-found = "density[1] * length[1] + density[2] * length[2]"
-reason = "the two children's contributions to a coarse edge; fiddlybits-52v.7.32 moves it onto fma"

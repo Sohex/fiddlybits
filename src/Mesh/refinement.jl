@@ -276,7 +276,7 @@ The flux a coarse edge receives from the two children covering it: each child's
 normal flux density times that child's own edge length.
 """
 hanging_flux(density::NTuple{2,T}, length::NTuple{2,T}) where {T} =
-    density[1] * length[1] + density[2] * length[2]
+    fma(density[1], length[1], density[2] * length[2])
 
 """
     coarse_measure_flux(density, coarse_length)
