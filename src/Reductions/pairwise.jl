@@ -99,6 +99,10 @@ every call, through `Backends.on` (decision 0011). On a device-resident
 decision 0010; it is not an event of decision 0042's journal vocabulary,
 which carries no move kind. On a host-resident `xs` the move is a no-op
 and records nothing.
+
+A device-scalar form beside this one, walking the same fixed-order tree on
+the device and returning a one-element device array, was built and measured
+in notes/findings/2026-09-11-device-scalar-reduction-contract.md.
 """
 function pairwise_sum(::Type{A}, xs::AbstractVector, backend::Backend = CPU(BLOCKSIZE);
                        blocksize::Integer = BLOCKSIZE) where {A<:Number}
