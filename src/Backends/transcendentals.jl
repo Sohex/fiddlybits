@@ -284,7 +284,7 @@ const CBRT_START = (1.144712948162971, 0.12719082281226732,
 # reduced significand to the reduced argument. Disposition Derived: the powers
 # of two at 300 bits, rounded once.
 const CBRT_TWO = 1.2599210498948732
-const CBRT_FOUR = 1.5874010519681994
+const CBRT_FOUR = 1.5874010519681996
 
 """
     cube_root_poly(x)
