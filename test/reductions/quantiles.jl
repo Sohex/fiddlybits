@@ -228,6 +228,8 @@ end
     end
 
     @testset "segmented_quantile reads the boundary array to the host once" begin
+        # A move goes to the sink Events.move_sink! installs, not the one
+        # Events.sink! installs for journal events: decision 0046.
         @test CUDA.functional()
 
         k = 4
@@ -241,9 +243,9 @@ end
         starts_gpu = Backends.on(starts, gpu)
 
         log = Events.Moved[]
-        Events.sink!(rec -> push!(log, rec))
+        Events.move_sink!(rec -> push!(log, rec))
         Reductions.segmented_quantile(xs_gpu, starts_gpu, 0.5, gpu)
-        Events.sink!(Events.noop_sink)
+        Events.move_sink!(Events.noop_sink)
 
         @test length(log) == 1
         @test log[1].from == :gpu
@@ -251,9 +253,9 @@ end
 
         @testset "positive control: a host-resident boundary array records no move" begin
             log2 = Events.Moved[]
-            Events.sink!(rec -> push!(log2, rec))
+            Events.move_sink!(rec -> push!(log2, rec))
             Reductions.segmented_quantile(xs, starts, 0.5, Backends.CPU(8))
-            Events.sink!(Events.noop_sink)
+            Events.move_sink!(Events.noop_sink)
             @test isempty(log2)
         end
     end

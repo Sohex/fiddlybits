@@ -6,22 +6,25 @@ using Fiddlybits: Backends, Events
 # actually changes device: docs/plans/fiddlybits-52v.7-kernels.md, section
 # "The device layer". A move is a thing that happened to a field; placing an
 # array on the backend it already lives on is not one.
+#
+# A move goes to the sink Events.move_sink! installs, which is not the one
+# Events.sink! installs for journal events: decision 0046.
 
 @testset "on records a move only when the device actually changes" begin
     @testset "already on the target backend: nothing recorded, same object returned" begin
         log = Events.Moved[]
-        Events.sink!(rec -> push!(log, rec))
+        Events.move_sink!(rec -> push!(log, rec))
         x = [1.0, 2.0, 3.0]
         y = Backends.on(x, Backends.CPU(1))
         @test isempty(log)
         @test y === x
-        Events.sink!(Events.noop_sink)
+        Events.move_sink!(Events.noop_sink)
     end
 
     @testset "positive control: a genuine cross-device move is recorded" begin
         @test CUDA.functional()
         log = Events.Moved[]
-        Events.sink!(rec -> push!(log, rec))
+        Events.move_sink!(rec -> push!(log, rec))
         x = [1.0, 2.0, 3.0]
         g = Backends.on(x, Backends.GPU(1))
         @test length(log) == 1
@@ -30,13 +33,13 @@ using Fiddlybits: Backends, Events
         @test g isa CuArray
         @test g !== x
         @test Array(g) == x
-        Events.sink!(Events.noop_sink)
+        Events.move_sink!(Events.noop_sink)
     end
 
     @testset "a move back is a second genuine move, also recorded" begin
         @test CUDA.functional()
         log = Events.Moved[]
-        Events.sink!(rec -> push!(log, rec))
+        Events.move_sink!(rec -> push!(log, rec))
         x = [1.0, 2.0, 3.0]
         g = Backends.on(x, Backends.GPU(1))
         h = Backends.on(g, Backends.CPU(1))
@@ -52,19 +55,19 @@ using Fiddlybits: Backends, Events
 
     @testset "a fixture sink counts every genuine move" begin
         count = Ref(0)
-        Events.sink!(ev -> (count[] += 1; nothing))
+        Events.move_sink!(ev -> (count[] += 1; nothing))
         n = 5
         for i in 1:n
             Backends.on([Float64(i)], Backends.GPU(1))
         end
         @test count[] == n
-        Events.sink!(Events.noop_sink)
+        Events.move_sink!(Events.noop_sink)
     end
 
     @testset "positive control: no sink installed counts nothing" begin
         count = Ref(0)
-        Events.sink!(ev -> (count[] += 1; nothing))
-        Events.sink!(Events.noop_sink)
+        Events.move_sink!(ev -> (count[] += 1; nothing))
+        Events.move_sink!(Events.noop_sink)
         Backends.on([1.0], Backends.GPU(1))
         @test count[] == 0
     end

@@ -9,16 +9,18 @@ using Fiddlybits: Reductions, Backends, Events, Verdicts
 # repeated reduction takes, counted through a fixture Events sink over
 # Backends.on. Every such copy in Reductions goes through Backends.on, so
 # the sink sees all of them; a copy that bypassed it would make one of the
-# counts below too low rather than too high.
+# counts below too low rather than too high. The sink a move goes to is the
+# one Events.move_sink! installs, not the one Events.sink! installs for
+# journal events: decision 0046.
 
 "The Events.Moved records `f` produces."
 function move_log(f)
     log = Events.Moved[]
-    Events.sink!(rec -> push!(log, rec))
+    Events.move_sink!(rec -> push!(log, rec))
     try
         f()
     finally
-        Events.sink!(Events.noop_sink)
+        Events.move_sink!(Events.noop_sink)
     end
     return log
 end

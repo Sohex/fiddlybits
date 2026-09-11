@@ -272,16 +272,18 @@ const SINK = Ref{Any}(noop_sink)
 """
     sink!(f)
 
-Install `f` as the callback `emit` and `moved` hand every record to,
-replacing whatever was installed before. The default sink is `noop_sink`.
+Install `f` as the callback `emit` hands every event to, replacing whatever
+was installed before. The default sink is `noop_sink`. A `Moved` record never
+reaches this sink; `move_sink!` installs the one it does reach (decision
+0046).
 """
 sink!(f) = (SINK[] = f; nothing)
 
 """
     emit(event::Event)
 
-Hand `event` to the installed sink. With no sink installed, the default sink
-is a no-op and `event` has no effect.
+Hand `event` to the installed event sink. With no sink installed, the default
+sink is a no-op and `event` has no effect.
 """
 emit(event::Event) = (SINK[](event); nothing)
 
@@ -298,13 +300,77 @@ struct Moved
     to::Any
 end
 
+const MOVE_SINK = Ref{Any}(noop_sink)
+
+"""
+    move_sink!(f)
+
+Install `f` as the callback `moved` hands every `Moved` record to, replacing
+whatever was installed before. The default sink is `noop_sink`. An `Event`
+never reaches this sink; `sink!` installs the one it does reach (decision
+0046).
+"""
+move_sink!(f) = (MOVE_SINK[] = f; nothing)
+
+const MOVE_COUNTS = Dict{Tuple{Symbol,Symbol},Int}()
+const MOVE_COUNTS_LOCK = ReentrantLock()
+
+"""
+    backend_name(name, argument)
+
+`name` as the `Symbol` it is. Refuses, naming `argument`, anything that is not
+a `Symbol`.
+"""
+backend_name(name::Symbol, argument) = name
+backend_name(name, argument) =
+    Verdicts.refuse(argument, "Events.moved",
+                     "a backend is read by name, and a name is a Symbol, not $(typeof(name))")
+
 """
     moved(array, from, to)
 
-Record that `array` moved from backend `from` to backend `to`, handing a
-`Moved` record to the installed sink. With no sink installed, the default
-sink is a no-op.
+Record that `array` moved from backend `from` to backend `to`: add one to the
+tally `move_counts` reads, under the pair `(from, to)`, then hand a `Moved`
+record to the installed move sink. With no move sink installed, the default
+sink is a no-op and the tally is the whole record. Refuses, naming the
+argument, a `from` or a `to` that is not a `Symbol`, before counting anything.
 """
-moved(array, from, to) = (SINK[](Moved(array, from, to)); nothing)
+function moved(array, from, to)
+    pair = (backend_name(from, "from"), backend_name(to, "to"))
+    lock(MOVE_COUNTS_LOCK) do
+        MOVE_COUNTS[pair] = get(MOVE_COUNTS, pair, 0) + 1
+    end
+    MOVE_SINK[](Moved(array, from, to))
+    return nothing
+end
+
+"""
+    move_counts()
+
+A copy of the device-move tally: how many moves have been recorded between
+each ordered pair of backend names since the last `reset_move_counts!`.
+"""
+move_counts() = lock(() -> copy(MOVE_COUNTS), MOVE_COUNTS_LOCK)
+
+"""
+    move_total()
+
+How many device moves have been recorded since the last
+`reset_move_counts!`, over every pair of backend names.
+"""
+move_total() = lock(() -> sum(values(MOVE_COUNTS); init = 0), MOVE_COUNTS_LOCK)
+
+"""
+    reset_move_counts!()
+
+Empty the device-move tally and return what it held.
+"""
+function reset_move_counts!()
+    lock(MOVE_COUNTS_LOCK) do
+        held = copy(MOVE_COUNTS)
+        empty!(MOVE_COUNTS)
+        return held
+    end
+end
 
 end # module Events
