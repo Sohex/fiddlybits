@@ -50,18 +50,20 @@ function write_digest!(io::IO, d::NTuple{32,UInt8})
 end
 
 """
-    write_refinement!(io, refinement)
+    digest_refinement(refinement)
 
-Writes the refinement region set to `io`: a length prefix, then each region
-as an `(Int64, Int64)` pair, in the order `refinement` iterates.
+The digest over the refinement region set: a length prefix, then each region
+as an `(Int64, Int64)` pair, in the order `refinement` iterates. A uniform
+level passes an empty set and gets the digest of that empty set.
 """
-function write_refinement!(io::IO, refinement)
+function digest_refinement(refinement)
+    io = IOBuffer()
     write_le!(io, UInt64(length(refinement)))
     for (a, b) in refinement
         write_le!(io, Int64(a))
         write_le!(io, Int64(b))
     end
-    return io
+    return Tuple(sha256(take!(io)))
 end
 
 """
@@ -142,10 +144,12 @@ consumer holding two arrays compares two identities and never two axes or
 shapes.
 
 `kind` is the family recipe symbol, `:icosahedral_bisection` for this
-hierarchy. `level` equals the type parameter `L`. `refinement` is the
-refinement region set, empty for a uniform level. `constructor_version` is
-`GEOMETRY_CONSTRUCTOR_VERSION` at the point of construction.
-`coordinate_digest` covers the finest-level vertex coordinates.
+hierarchy. `level` equals the type parameter `L`. `refinement_digest` covers
+the refinement region set, empty for a uniform level. `constructor_version`
+is `GEOMETRY_CONSTRUCTOR_VERSION`, read here rather than taken from the
+caller, so a changed geometry constructor changes every identity built after
+it and no caller can carry a stale one. `coordinate_digest` covers the
+finest-level vertex coordinates.
 `measure_digest` covers both native measures as formed at `radius`.
 `element_type` is the type the geometry was formed in. `fraction_digest`
 covers any effective fraction a field uses, empty when there is none.
@@ -154,7 +158,7 @@ covers any effective fraction a field uses, empty when there is none.
 struct Support{L}
     kind::Symbol
     level::Int
-    refinement::Vector{Tuple{Int,Int}}
+    refinement_digest::NTuple{32,UInt8}
     constructor_version::Int
     coordinate_digest::NTuple{32,UInt8}
     measure_digest::NTuple{32,UInt8}
@@ -165,37 +169,62 @@ struct Support{L}
 end
 
 """
-    Support(level_index, level, geometry; kind, refinement, constructor_version,
-            radius, element_type, fractions)
+    support_digest(; kind, level, refinement_digest, constructor_version,
+                     coordinate_digest, measure_digest, radius, element_type,
+                     fraction_digest)
 
-The `Support{level_index}` built from `level`'s coordinates and `geometry`'s
-native measures at `radius`, which reaches the measures through `at_radius`
-and nowhere else. Every keyword is required: a silent default across this
-boundary is what REQ-TER-002 is built against.
+The digest over every field of a `Support`, in the order REQ-TER-002 lists
+them. Separate from the constructor so a test can vary one field, including
+`constructor_version`, which the constructor does not take.
 """
-function Support(level_index::Integer, level::Level, geometry::Geometry;
-                  kind::Symbol, refinement, constructor_version::Int,
-                  radius::Float64, element_type::Symbol, fractions)
-    L = Int(level_index)
-    refinement_regions = Tuple{Int,Int}[(Int(a), Int(b)) for (a, b) in refinement]
-
-    coordinate_digest = digest_coordinates(level.vertices)
-    measure_digest = digest_measures(geometry, radius)
-    fraction_digest = digest_fractions(fractions)
-
+function support_digest(; kind::Symbol, level::Integer, refinement_digest::NTuple{32,UInt8},
+                          constructor_version::Integer, coordinate_digest::NTuple{32,UInt8},
+                          measure_digest::NTuple{32,UInt8}, radius::Float64,
+                          element_type::Symbol, fraction_digest::NTuple{32,UInt8})
     io = IOBuffer()
     write_symbol!(io, kind)
-    write_le!(io, Int64(L))
-    write_refinement!(io, refinement_regions)
+    write_le!(io, Int64(level))
+    write_digest!(io, refinement_digest)
     write_le!(io, Int64(constructor_version))
     write_digest!(io, coordinate_digest)
     write_digest!(io, measure_digest)
     write_le!(io, radius)
     write_symbol!(io, element_type)
     write_digest!(io, fraction_digest)
-    digest = Tuple(sha256(take!(io)))
+    return Tuple(sha256(take!(io)))
+end
 
-    return Support{L}(kind, L, refinement_regions, constructor_version,
+"""
+    Support(level_index, level, geometry; kind, refinement, radius,
+            element_type, fractions)
+
+The `Support{level_index}` built from `level`'s coordinates and `geometry`'s
+native measures at `radius`, which reaches the measures through `at_radius`
+and nowhere else. Every keyword is required: a silent default across this
+boundary is what REQ-TER-002 is built against.
+
+`constructor_version` is not a keyword. It is read from
+`GEOMETRY_CONSTRUCTOR_VERSION` here, so a caller cannot hold an identity at a
+version the geometry no longer has.
+"""
+function Support(level_index::Integer, level::Level, geometry::Geometry;
+                  kind::Symbol, refinement, radius::Float64,
+                  element_type::Symbol, fractions)
+    L = Int(level_index)
+    refinement_digest = digest_refinement(refinement)
+    coordinate_digest = digest_coordinates(level.vertices)
+    measure_digest = digest_measures(geometry, radius)
+    fraction_digest = digest_fractions(fractions)
+
+    digest = support_digest(; kind = kind, level = L,
+                             refinement_digest = refinement_digest,
+                             constructor_version = GEOMETRY_CONSTRUCTOR_VERSION,
+                             coordinate_digest = coordinate_digest,
+                             measure_digest = measure_digest, radius = radius,
+                             element_type = element_type,
+                             fraction_digest = fraction_digest)
+
+    return Support{L}(kind, L, refinement_digest, GEOMETRY_CONSTRUCTOR_VERSION,
                        coordinate_digest, measure_digest, radius, element_type,
                        fraction_digest, digest)
 end

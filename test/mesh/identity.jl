@@ -19,14 +19,30 @@ one of which a test overrides to isolate the field it is checking.
 """
 function si_support(level::Mesh.Level, geometry::Mesh.Geometry;
                      level_index = SI_LEVEL, kind = SI_KIND, refinement = (),
-                     constructor_version = SI_VERSION, radius = SI_RADIUS,
-                     element_type = SI_ELEMENT_TYPE, fractions = ())
+                     radius = SI_RADIUS, element_type = SI_ELEMENT_TYPE,
+                     fractions = ())
     return Mesh.Support(level_index, level, geometry;
                          kind = kind, refinement = refinement,
-                         constructor_version = constructor_version,
                          radius = radius, element_type = element_type,
                          fractions = fractions)
 end
+
+"""
+    si_digest(support; constructor_version)
+
+The digest of `support` recomputed with `constructor_version` put in place of
+the one it carries, which is the only door to that field: `Mesh.Support` reads
+it from `Mesh.GEOMETRY_CONSTRUCTOR_VERSION` and does not take it.
+"""
+si_digest(support; constructor_version) =
+    Mesh.support_digest(; kind = support.kind, level = support.level,
+                          refinement_digest = support.refinement_digest,
+                          constructor_version = constructor_version,
+                          coordinate_digest = support.coordinate_digest,
+                          measure_digest = support.measure_digest,
+                          radius = support.radius,
+                          element_type = support.element_type,
+                          fraction_digest = support.fraction_digest)
 
 const SI_HIERARCHY_A = Mesh.hierarchy(SI_LEVEL)
 const SI_HIERARCHY_B = Mesh.hierarchy(SI_LEVEL)
@@ -73,9 +89,14 @@ const SI_GEOMETRY_B = Mesh.geometry(SI_LEVEL_B, SI_STENCILS_B)
     end
 
     @testset "two supports that differ only in constructor version have different digests" begin
-        base = si_support(SI_LEVEL_A, SI_GEOMETRY_A; constructor_version = SI_VERSION)
-        other = si_support(SI_LEVEL_A, SI_GEOMETRY_A; constructor_version = SI_VERSION + 1)
-        @test other.digest != base.digest
+        support = si_support(SI_LEVEL_A, SI_GEOMETRY_A)
+        base = si_digest(support; constructor_version = SI_VERSION)
+        other = si_digest(support; constructor_version = SI_VERSION + 1)
+        # The constructor reads the constant rather than taking it, so a caller
+        # cannot hold an identity at a version the geometry no longer has.
+        @test support.constructor_version == Mesh.GEOMETRY_CONSTRUCTOR_VERSION
+        @test base == support.digest
+        @test other != base
     end
 
     @testset "two supports that differ only in element type have different digests" begin
