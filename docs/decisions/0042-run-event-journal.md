@@ -87,7 +87,9 @@ where the deciding happened, and the artifacts remain the only thing the model c
 
 ## Consequences
 
-- The store gains one path per run and one writer. `fiddlybits-52v.6.3` carries it.
+- The store gains one path per run and one writer. `fiddlybits-52v.6.7` carries the
+  emitter, the vocabulary and the two tests; the verify row of that epic depends on it,
+  and the one-emitter lint is in the suite at `fiddlybits-52v.1.3`.
 - Two registry entries follow: the journal's inertness, asserted by a bitwise comparison
   of a run's artifacts with and without it; and the event-vocabulary closure, an
   enumeration test in the shape decision 0006 already requires for semantics, asserting
