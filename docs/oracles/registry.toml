@@ -152,9 +152,9 @@ id = "mesh.area_closure"
 tier = 1
 subsystem = "mesh"
 dataset_or_reference = "identity"
-statistic = "sum of cell areas at every level against 4 pi R^2"
+statistic = "sum of cell areas at every level against 4 pi R^2, with the cell area taken by the vector form and by l'Huilier as a second arm"
 verdict_kind = "fail_bar"
-threshold = "roundoff, derived from cell count and eps"
+threshold = "abs(sum - 4 pi R^2) <= N eps R^2, from the per-cell absolute floor of one eps R^2 measured in notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md; the two arms agree to twice that floor"
 provisional = true
 registered_at = ""
 holdout = false
@@ -165,9 +165,9 @@ id = "mesh.nesting_identity"
 tier = 1
 subsystem = "mesh"
 dataset_or_reference = "identity"
-statistic = "children(parent(i)) contains i; child areas sum to parent area"
+statistic = "children(parent(i)) contains i; child areas sum to parent area at every level; the radial defect of every vertex after bisection"
 verdict_kind = "fail_bar"
-threshold = "exact index identity; area to roundoff"
+threshold = "index identity exact; abs(sum of child areas - parent area) <= 8 eps R^2 per parent, absolute and level-independent, from notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md; radial defect <= 4 eps R"
 provisional = true
 registered_at = ""
 holdout = false
