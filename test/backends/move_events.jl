@@ -72,3 +72,53 @@ using Fiddlybits: Backends, Events
         @test count[] == 0
     end
 end
+
+@testset "an array with no elements is placed but not recorded as a move" begin
+    @test CUDA.functional()
+    gpu = Backends.GPU(1)
+    cpu = Backends.CPU(1)
+
+    @testset "host to device: nothing recorded, an empty device array returned" begin
+        log = Events.Moved[]
+        Events.move_sink!(rec -> push!(log, rec))
+        g = Backends.on(Float64[], gpu)
+        @test isempty(log)
+        @test g isa CuArray
+        @test isempty(g)
+        Events.move_sink!(Events.noop_sink)
+    end
+
+    @testset "device to host: nothing recorded, an empty host array returned" begin
+        g = Backends.on(Float64[], gpu)
+        log = Events.Moved[]
+        Events.move_sink!(rec -> push!(log, rec))
+        h = Backends.on(g, cpu)
+        @test isempty(log)
+        @test h isa Array
+        @test isempty(h)
+        Events.move_sink!(Events.noop_sink)
+    end
+
+    @testset "the tally is unmoved by an empty array in either direction" begin
+        before = Events.move_counts()
+        g = Backends.on(Float64[], gpu)
+        Backends.on(g, cpu)
+        @test Events.move_counts() == before
+    end
+
+    @testset "positive control: the same array at one element is recorded both ways" begin
+        # The check above says nothing unless the same shape at a nonzero
+        # length still counts, in both directions and in the tally.
+        log = Events.Moved[]
+        Events.move_sink!(rec -> push!(log, rec))
+        before = Events.move_counts()
+        g = Backends.on([1.0], gpu)
+        h = Backends.on(g, cpu)
+        @test length(log) == 2
+        @test log[1].from == :cpu && log[1].to == :gpu
+        @test log[2].from == :gpu && log[2].to == :cpu
+        @test h == [1.0]
+        @test Events.move_counts() != before
+        Events.move_sink!(Events.noop_sink)
+    end
+end
