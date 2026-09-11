@@ -71,9 +71,54 @@ top of a bound that already dominates by construction, which is exactly the "cho
 margin REQ-NUM-004 and CLAUDE.md's five-disposition rule forbid. `k = 1` is what (2.6)
 gives once `eps(T)` and `n` are substituted for `u` and `n - 1`; nothing is added to it.
 
-The bound requires `n` small enough that `(n-1)*u` is itself small (Higham's `nu <= 1`
-reading), which holds for every term count this project's reductions handle (mesh
-cell counts and segment sizes are many orders below `1/u ~ 4.5e15` for `Float64`).
+The bound requires `n` small enough that `(n-1)*u` is itself small: `gamma_{n-1} =
+(n-1)*u / (1 - (n-1)*u)` is only finite and positive while `(n-1)*u < 1`, and beyond
+that `k * n * eps(T)` (linear in `n`) no longer dominates it (`gamma_{n-1}` diverges).
+This domain is not an asymptotic nicety; the first pass of this finding stated it only
+for `Float64` and, checking the number rather than assuming it, was wrong about the
+domain it was declared safe over.
+
+## The validity limit, and where it is reachable
+
+**The reading.** Higham does not restate `(n-1)*u < 1` at (2.6) itself; he writes the
+same condition, in `n` rather than `n - 1`, in the discussion directly after eq.
+(3.11): "As long as `nu <= 1`, the constant in this bound is independent of `n`." That
+is stated for the compensated-summation bound, not (2.6), but it is the same
+condition (`gamma_k`'s denominator staying positive) applied to the same quantity
+(`n` in place of `n - 1`, the same widening already used above), so it is the reading
+taken here: `error_bound` treats `n * u > 1`, i.e. `n > 1/u = 2/eps(T)`, as outside
+Higham's stated domain, and refuses at or beyond it rather than return a number
+`gamma_{n-1}` no longer bounds.
+
+**The two types this project runs.** `1/u = 2/eps(T)`:
+
+    T        eps(T)          u = eps(T)/2     1/u = 2/eps(T)
+    Float64  2^-52           2^-53            2^53  = 9007199254740992  (~9.007e15)
+    Float32  2^-23           2^-24            2^24  = 16777216          (~1.678e7)
+
+checked in Julia: `2/eps(Float64) == 2.0^53` and `2/eps(Float32) == 2.0^24`, both
+exact.
+
+**The mesh reaches the `Float32` limit.** `ncells(L) = 20 * 4^L`
+(`src/Mesh/hierarchy.jl`, `ncells`; decision 0005):
+
+    L    ncells(L)     ncells(L) / 2^24
+    9    5242880       0.3125       under
+    10   20971520      1.25         over
+    11   83886080      5.0          over, by a factor of five
+
+so a `Float32` global reduction over all cells is inside Higham's domain through level
+9 and outside it from level 10 on; decision 0011 runs production profiles at `Float32`,
+and this is a level the mesh hierarchy actually builds, not an edge case at the top of
+the range. `Float64`'s limit, `2^53`, is `2^29`, about `5.37e8` times the `Float32`
+one, and no mesh level here reaches it.
+
+**The refusal.** `error_bound(T, n, magnitude)` now refuses when `n >= 2/eps(T)`,
+naming `T`, `n` and the limit, rather than returning `k*n*eps(T)*magnitude`, a finite
+number that is no longer Higham's bound on anything past that point. `validity_limit`
+carries the `2/eps(T)` computation as its own definition; `test/reductions/
+error_bound.jl` checks the pair the finding above is stated for: a term count one over
+`validity_limit(Float32)` refuses, and the identical count at `Float64` does not.
 
 ## The magnitude argument
 
@@ -88,3 +133,7 @@ two.
 
 `Reductions.ERROR_BOUND_K = 1` is Sourced: transcribed from Higham (1993) equation
 (2.6), by the two substitutions above and no other adjustment.
+
+`Reductions.validity_limit(T) = 2/eps(T)` is Derived: computed from `eps(T)` (a
+property of `T`, not chosen) by the reading of Higham's `nu <= 1` given above; the
+rule, not a bare number, is what is carried.

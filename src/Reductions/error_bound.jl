@@ -17,6 +17,19 @@ notes/findings/2026-09-11-reduction-error-bound-derivation.md.
 const ERROR_BOUND_K = 1
 
 """
+    validity_limit(::Type{T}) where {T<:AbstractFloat}
+
+`2 / eps(T)`, i.e. `1 / u` for `T`'s unit roundoff `u = eps(T) / 2`: the
+term count above which Higham's `n * u <= 1` (1993, discussion following
+eq. 3.11) fails and `gamma_{n-1}` (eq. 2.6) is no longer a finite, positive
+bound. `error_bound` refuses at and above this count rather than return a
+number that is not a bound (derivation and the mesh levels that reach it
+at `Float32` in
+notes/findings/2026-09-11-reduction-error-bound-derivation.md).
+"""
+validity_limit(::Type{T}) where {T<:AbstractFloat} = 2 / Float64(eps(T))
+
+"""
     error_bound(::Type{T}, n, magnitude) where {T<:AbstractFloat}
 
 `ERROR_BOUND_K * n * eps(T) * magnitude`: the roundoff bound for a
@@ -26,7 +39,8 @@ terms' absolute values, `sum|x_i|`, for the bound to hold; a smaller
 number is a different, caller-declared expectation, not this guarantee.
 The one definition of this quantity in the tree; a caller reads it from
 here rather than declaring its own. Refuses when `n` or `magnitude` is
-negative.
+negative, or when `n` is at or beyond `validity_limit(T)`, naming `T`,
+`n` and the limit.
 """
 function error_bound(::Type{T}, n::Integer, magnitude::Real) where {T<:AbstractFloat}
     n >= 0 ||
@@ -34,5 +48,10 @@ function error_bound(::Type{T}, n::Integer, magnitude::Real) where {T<:AbstractF
     magnitude >= 0 ||
         refuse("reduction error bound", "Reductions.error_bound",
                "magnitude $magnitude is negative")
+    limit = validity_limit(T)
+    Float64(n) < limit ||
+        refuse("reduction error bound", "Reductions.error_bound",
+               "term count $n at type $T is at or beyond the validity limit $(limit) " *
+               "(Higham 1993 eq. 2.6 requires n * u <= 1, u = eps($T) / 2)")
     return ERROR_BOUND_K * n * eps(T) * T(magnitude)
 end

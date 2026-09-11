@@ -24,4 +24,32 @@ using Fiddlybits: Reductions, Verdicts
             @test Reductions.error_bound(Float64, 0, 0.0) == 0.0
         end
     end
+
+    @testset "validity_limit is 2/eps(T), Higham's n*u <= 1 (eq. 2.6, discussion after eq. 3.11)" begin
+        @test Reductions.validity_limit(Float32) == 2.0^24
+        @test Reductions.validity_limit(Float64) == 2.0^53
+    end
+
+    @testset "refuses a term count at or beyond validity_limit(T), naming T, n and the limit" begin
+        limit32 = Int(Reductions.validity_limit(Float32))
+
+        @test_throws Verdicts.Refusal Reductions.error_bound(Float32, limit32, 1.0)
+        @test_throws Verdicts.Refusal Reductions.error_bound(Float32, limit32 + 1, 1.0)
+        try
+            Reductions.error_bound(Float32, limit32, 1.0)
+        catch e
+            @test e isa Verdicts.Refusal
+            @test occursin("Float32", e.reason)
+            @test occursin(string(limit32), e.reason)
+            @test occursin(string(Int(Reductions.validity_limit(Float32))), e.reason)
+        end
+
+        @testset "positive control: the same term count at Float64 does not refuse" begin
+            @test Reductions.error_bound(Float64, limit32 + 1, 1.0) isa Float64
+        end
+
+        @testset "positive control: one term short of the limit does not refuse" begin
+            @test Reductions.error_bound(Float32, limit32 - 1, 1.0) isa Float32
+        end
+    end
 end
