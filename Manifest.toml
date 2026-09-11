@@ -2,7 +2,7 @@
 
 julia_version = "1.12.7"
 manifest_format = "2.0"
-project_hash = "88ed76c73ec8aea8689470746199bc4411067e69"
+project_hash = "96c9deab5e5aaecc8258055ee1ebe947f2e4e764"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -313,7 +313,7 @@ uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
 version = "0.1.11"
 
 [[deps.Fiddlybits]]
-deps = ["Adapt", "CUDA", "DynamicQuantities", "KernelAbstractions", "LinearAlgebra", "NCDatasets", "PrecompileTools", "Random", "SHA", "SparseArrays", "TOML", "UUIDs", "Zarr"]
+deps = ["Adapt", "CUDA", "DynamicQuantities", "KernelAbstractions", "LinearAlgebra", "NCDatasets", "PrecompileTools", "Random", "SHA", "SparseArrays", "StaticArrays", "TOML", "UUIDs", "Zarr"]
 path = "."
 uuid = "67e34d3d-21be-49b5-9b36-49c5a60c5153"
 version = "0.0.0"

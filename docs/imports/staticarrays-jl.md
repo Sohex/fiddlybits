@@ -107,10 +107,10 @@ and no device test.
 
 Leak tests:
 
-- **A lint over the source** refusing `MVector`, `MMatrix`, `@MVector`, `@MMatrix`,
-  `mul!` on a static operand, and the `rand`/`randn` static constructors, in any module
-  that compiles to a kernel. Same suite as the earth-constant quarantine and the
-  calendar-import lint, `fiddlybits-52v.1.3`.
+- **A lint over the source**, `test/lint/lint_static_arrays.jl`, refusing `MVector`,
+  `MMatrix`, `@MVector`, `@MMatrix`, `mul!` on a static operand, and the `rand`/`randn`
+  static constructors, in any module that compiles to a kernel. Same suite as the
+  earth-constant quarantine and the calendar-import lint, `fiddlybits-52v.1.3`.
 - **A resource assertion** on the compiled column-physics kernels: local memory is zero
   and the register count is under the declared budget, read from the compiled kernel the
   way the finding reads it. This is the test that would catch an `SVector` grown past the
@@ -129,9 +129,9 @@ Leak tests:
 | A6 grid and index base | no grid; 1-based throughout, sizes as type parameters |
 | B4 comment against value | the chunked-multiplication comment records an upstream defect as the reason for the BLAS threshold |
 | B5 clamps and limiters | none numerical; three size thresholds in matrix multiplication |
-| C1 use site of every constant | the size thresholds are the only constants that change an answer; each read at its dispatch site in `matrix_multiply_add.jl` |
+| C1 use site of every constant | the size thresholds are the only constants that change an answer; each read at its dispatch site in `src/matrix_multiply_add.jl` |
 | C3 declared against demonstrated | large upstream suite; no device test upstream, so the register and spilling behaviour is demonstrated in the finding here |
-| C4 fail-open branches | the BLAS dispatch above `14*14*14` in `mul!`; the global-RNG random constructors |
+| C4 fail-open branches | the BLAS dispatch above `14*14*14` in `mul!`; the global-RNG random constructors; caught by `test/lint/lint_static_arrays.jl` |
 | C5 duplicate state and second constant sets | `Random.GLOBAL_RNG` in the random constructors, banned here |
 | D2 boundary field by field | the boundary is a value, not an array: element type and length are type parameters and are checked by construction |
 | D4 conservation identity | not applicable; the resource assertion on the compiled kernel stands in its place |

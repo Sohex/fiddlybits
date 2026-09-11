@@ -1,0 +1,15 @@
+# lint_static_arrays: docs/imports/staticarrays-jl.md. Refuses the mutable
+# static-array forms MVector and MMatrix (bare and as the macros @MVector and
+# @MMatrix), `mul!` applied to a static operand, and the random constructors
+# that reach Random.GLOBAL_RNG, in source under root.
+
+# The mutable static-array type names. A word-boundary match on either name
+# catches both the bare constructor and the macro spelling, since the `@`
+# before a macro name is not a word character.
+mutable_types = ["MVector", "MMatrix"]
+
+# Every static-array type name this project's wrapper names, used to decide
+# whether a `mul!` call or a `rand`/`randn` call names a static operand.
+static_types = ["SVector", "SMatrix", "MVector", "MMatrix"]
+
+exempt = []

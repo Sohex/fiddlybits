@@ -19,6 +19,7 @@ include("lint_journal_emitter.jl")
 include("lint_effort.jl")
 include("lint_front_matter.jl")
 include("lint_manifest.jl")
+include("lint_static_arrays.jl")
 
 end # module Lints
 
@@ -36,6 +37,7 @@ const TABLE = (
     (name = "lint_effort",           f = Lints.lint_effort,           tree = "docs", inside = "docs"),
     (name = "lint_front_matter",     f = Lints.lint_front_matter,     tree = "docs", inside = "docs"),
     (name = "lint_manifest",         f = Lints.lint_manifest,         tree = ".",    inside = ""),
+    (name = "lint_static_arrays",    f = Lints.lint_static_arrays,    tree = "src",  inside = ""),
 )
 
 fixture(entry, kind) = joinpath(FIXTURES, entry.name, kind, entry.inside)
