@@ -1020,6 +1020,32 @@ anchors = []
 # ---------------------------------------------------------------- tier 1: reproducibility
 
 [[oracle]]
+id = "loop.exit_criteria_on_a_known_surrogate"
+tier = 1
+subsystem = "coupled loop"
+dataset_or_reference = "identity; a low-order two-timescale energy balance surrogate whose attractors and basins are known in closed form"
+statistic = "the exit predicates of decision 0023 run on three surrogate trajectories whose status is known in advance: one settled on an attractor, one oscillating tightly about it, and one crawling along a slow manifold toward a distant fixed point"
+verdict_kind = "fail_bar"
+threshold = "Converged on the settled trajectory; Converged or Bracketed on the oscillating one; not Converged on the crawling one (positive control: the crawling trajectory, which a drift-window test alone passes)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "loop.drift_against_its_own_scatter"
+tier = 1
+subsystem = "coupled loop"
+dataset_or_reference = "identity; phase-randomised surrogates of the run's own series"
+statistic = "for each exit series, the fraction of phase-randomised surrogates of that series whose drift over the exit window exceeds the observed drift, reported beside the declared dimensionless bracket; the surrogate phases come from the counter-based generator so the test is reproducible"
+verdict_kind = "report"
+threshold = "no bar: the declared bracket decides the verdict and this number is reported beside it, because a significance level is not a tolerance"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "repro.thread_count_bitwise"
 tier = 1
 subsystem = "all"
