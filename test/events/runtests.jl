@@ -27,6 +27,14 @@ module ClosedSetFixture
     whole() = (Red(), Blue())
 end
 
+# A separate hierarchy, not a subtype of Events.Kind, so exercising
+# payload_type here cannot widen Events.kinds() and break its closure test.
+module PayloadTypeFixture
+    struct WithPayload end
+    struct Missing end
+end
+Events.payload_type(::PayloadTypeFixture.WithPayload) = Int
+
 "A complete, valid keyword set for each payload, used where a test needs one
 that constructs without refusing."
 const VALID_PAYLOAD_ARGS = Dict(
@@ -69,6 +77,19 @@ const VALID_PAYLOAD_ARGS = Dict(
         @test length(VALID_PAYLOAD_ARGS) == length(Events.kinds())
     end
 
+    @testset "payload_type is declared for every kind, walked like kinds() against subtypes(Kind)" begin
+        for kind in Events.kinds()
+            @test Events.has_payload_type(kind)
+            expected = Symbol(string(nameof(typeof(kind))), "Payload")
+            @test Events.payload_type(kind) === getfield(Events, expected)
+        end
+    end
+
+    @testset "positive control: a kind lacking payload_type is reported" begin
+        @test Events.has_payload_type(PayloadTypeFixture.WithPayload())
+        @test !Events.has_payload_type(PayloadTypeFixture.Missing())
+    end
+
     @testset "a complete payload constructs" begin
         for (T, args) in VALID_PAYLOAD_ARGS
             @test T(; args...) isa T
@@ -92,6 +113,54 @@ const VALID_PAYLOAD_ARGS = Dict(
 
     @testset "a kind outside the vocabulary is a type error" begin
         @test_throws MethodError Events.Event("not-a-kind", 1, 0.0, :fast, "Test", nothing)
+    end
+
+    @testset "a payload type mismatch refuses, naming both the kind and the payload type" begin
+        mismatched = Events.BudgetPayload(; VALID_PAYLOAD_ARGS[Events.BudgetPayload]...)
+        e = try
+            Events.Event(Events.Verdict(), 1, 0.0, :fast, "Mesh", mismatched)
+        catch err
+            err
+        end
+        @test e isa Verdicts.Refusal
+        message = sprint(showerror, e)
+        @test occursin("verdict", message)
+        @test occursin(string(nameof(Events.VerdictPayload)), message)
+        @test occursin(string(nameof(Events.BudgetPayload)), message)
+
+        matching = Events.VerdictPayload(; VALID_PAYLOAD_ARGS[Events.VerdictPayload]...)
+        @test Events.Event(Events.Verdict(), 1, 0.0, :fast, "Mesh", matching) isa Events.Event
+    end
+
+    @testset "the header form refuses a payload type mismatch the same way" begin
+        header = Events.Header(1, 0.0, :fast, "Mesh", Events.Verdict())
+        mismatched = Events.BudgetPayload(; VALID_PAYLOAD_ARGS[Events.BudgetPayload]...)
+        e = try
+            Events.Event(header, mismatched)
+        catch err
+            err
+        end
+        @test e isa Verdicts.Refusal
+        message = sprint(showerror, e)
+        @test occursin("verdict", message)
+        @test occursin(string(nameof(Events.VerdictPayload)), message)
+        @test occursin(string(nameof(Events.BudgetPayload)), message)
+
+        matching = Events.VerdictPayload(; VALID_PAYLOAD_ARGS[Events.VerdictPayload]...)
+        @test Events.Event(header, matching) isa Events.Event
+    end
+
+    @testset "an unrecognised keyword refuses, naming the keyword" begin
+        args = VALID_PAYLOAD_ARGS[Events.VerdictPayload]
+        e = try
+            Events.VerdictPayload(; args..., typo = 99)
+        catch err
+            err
+        end
+        @test e isa Verdicts.Refusal
+        @test e.quantity == "typo"
+
+        @test Events.VerdictPayload(; args...) isa Events.VerdictPayload
     end
 
     @testset "emit with no sink installed is a no-op, asserted by counting" begin
