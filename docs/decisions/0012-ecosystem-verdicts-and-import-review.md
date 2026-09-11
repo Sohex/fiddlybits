@@ -371,3 +371,20 @@ worked example of what decision 0007's `Derived` refusal prevents. Two
 corrections to the sweep's descriptions are noted rather than rewritten into it,
 and the licence paragraph gains MIT for SeawaterPolynomials.jl. From
 `docs/plans/clima-survey.md`, the verdicts row.
+
+2026-09-10: the RootSolvers.jl candidacy is declined for the Kepler solve, which
+decision 0008 now answers with this project's own solve; the package is neither adopted
+nor rejected for the general scalar solve, which has no call site yet and is carried by
+`fiddlybits-52v.12`. The reason is measurement rather than preference. A package supplies
+the loop and not the residual, and the accuracy of a Kepler solve is a property of its
+residual: with the stable residual every method reaches the same place, and a bracketing
+loop then costs some eighty iterations to land further out than a closed form followed by
+two Newton steps. BracketingNonlinearSolve joins the do-not-adopt list on the same
+evidence: its solvers do not compile for a CUDA backend inside a `KernelAbstractions`
+kernel, because a logging call sits on each solver's bracket-refusal branch and a device
+compiler must compile a branch whether or not it is taken. Its interpolate-truncate-project
+loop joins the borrow list as the algorithm this project's own bracketing loop is measured
+against, when one is written. From
+`notes/findings/2026-09-10-kepler-in-a-portable-kernel.md` and
+`notes/findings/2026-09-10-sampling-the-kepler-hard-region.md`, carried by
+`fiddlybits-52v.10`.
