@@ -55,5 +55,6 @@ from those, and is the only place that back-edge is written down.
 | [0043](0043-where-the-gate-runs.md) | The gate runs on the machine that holds the data and the card; a hosted job runs only the clean-room subset | accepted | 2026-09-10 | - | - | - |
 | [0044](0044-explicit-fma-in-bitwise-mode.md) | Bitwise mode fuses on purpose: every multiply that feeds an add is an explicit fma, and the fusion barrier keeps only the role it is named for | accepted | 2026-09-11 | 0029 (the mechanism of the bitwise mode: the two backends are brought together by writing the fused operation explicitly rather than by suppressing the device's fusion, so bitwise mode is the once-rounded chain and not the twice-rounded one) | - | - |
 | [0045](0045-precision-pinned-constants-are-named-not-whole-files.md) | The literal lint is widened for named constants of a pinned precision, never for a whole file | accepted | 2026-09-11 | - | - | - |
+| [0046](0046-device-moves-are-counted-not-journalled.md) | A device move is counted, never journalled: the tally is a run-record field and the move sink is installed apart from the event sink | accepted | 2026-09-11 | 0010 (the run record gains a fourth element beside the plan, the system struct and the journal: the device-move tally), 0011 (what recording a device move means: the run record carries a count per direction, and the per-move record reaches only a sink installed for moves) | - | - |
 
-45 records; 44 accepted, 1 proposed, 0 superseded.
+46 records; 45 accepted, 1 proposed, 0 superseded.

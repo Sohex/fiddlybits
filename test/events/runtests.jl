@@ -195,14 +195,135 @@ const VALID_PAYLOAD_ARGS = Dict(
         Events.sink!(Events.noop_sink)
     end
 
-    @testset "moved records through the same sink" begin
+    @testset "moved records through the move sink, which is not the event sink" begin
         log = Any[]
-        Events.sink!(rec -> push!(log, rec))
+        Events.move_sink!(rec -> push!(log, rec))
         Events.moved([1.0, 2.0], :cpu, :gpu)
         @test length(log) == 1
         @test log[1] isa Events.Moved
         @test log[1].from == :cpu
         @test log[1].to == :gpu
+        Events.move_sink!(Events.noop_sink)
+    end
+
+    # Decision 0046: a move is counted, never journalled, and the two sinks are
+    # installed separately so a journal writer cannot be handed a Moved.
+
+    @testset "a move is counted and never reaches the event sink" begin
+        Events.reset_move_counts!()
+        seen = Any[]
+        Events.sink!(rec -> push!(seen, rec))
+        n = 7
+        for i in 1:n
+            Events.moved([Float64(i)], :gpu, :cpu)
+        end
+        @test isempty(seen)
+        @test Events.move_counts() == Dict((:gpu, :cpu) => n)
+        @test Events.move_total() == n
+
+        @testset "positive control: the same installed sink does receive an event" begin
+            Events.emit(Events.Event(Events.Budget(), 1, 0.0, :fast, "Test",
+                                      Events.BudgetPayload(; VALID_PAYLOAD_ARGS[Events.BudgetPayload]...)))
+            @test length(seen) == 1
+        end
+
         Events.sink!(Events.noop_sink)
+        Events.reset_move_counts!()
+    end
+
+    @testset "an event never reaches the move sink" begin
+        moves = Any[]
+        events = Any[]
+        Events.move_sink!(rec -> push!(moves, rec))
+        Events.sink!(ev -> push!(events, ev))
+        for i in 1:3
+            Events.emit(Events.Event(Events.Oracle(), i, 0.0, :fast, "Test",
+                                      Events.OraclePayload(; VALID_PAYLOAD_ARGS[Events.OraclePayload]...)))
+        end
+        @test isempty(moves)
+        @test length(events) == 3
+
+        @testset "positive control: the same installed move sink does receive a move" begin
+            Events.moved([1.0], :cpu, :gpu)
+            @test length(moves) == 1
+            @test length(events) == 3
+        end
+
+        Events.sink!(Events.noop_sink)
+        Events.move_sink!(Events.noop_sink)
+        Events.reset_move_counts!()
+    end
+
+    @testset "a run's journal length is its event count, whatever its move count" begin
+        journal = Events.Event[]
+        Events.sink!(ev -> push!(journal, ev))
+
+        "One fixture run: two events, and `reductions` device reads between them."
+        function fixture_run(reductions)
+            Events.emit(Events.Event(Events.LedgerOpen(), 1, 0.0, :fast, "Test",
+                                      Events.LedgerOpenPayload(; VALID_PAYLOAD_ARGS[Events.LedgerOpenPayload]...)))
+            for _ in 1:reductions
+                Events.moved([1.0], :gpu, :cpu)
+            end
+            Events.emit(Events.Event(Events.Verdict(), 2, 1.0, :fast, "Test",
+                                      Events.VerdictPayload(; VALID_PAYLOAD_ARGS[Events.VerdictPayload]...)))
+        end
+
+        for reductions in (0, 1, 10, 100)
+            empty!(journal)
+            Events.reset_move_counts!()
+            fixture_run(reductions)
+            @test length(journal) == 2
+            @test Events.move_total() == reductions
+        end
+
+        Events.sink!(Events.noop_sink)
+        Events.reset_move_counts!()
+    end
+
+    @testset "moved with no move sink installed counts the move all the same" begin
+        count = Ref(0)
+        Events.move_sink!(rec -> (count[] += 1; nothing))
+        Events.move_sink!(Events.noop_sink)
+        Events.reset_move_counts!()
+        Events.moved([1.0], :cpu, :gpu)
+        @test count[] == 0
+        @test Events.move_total() == 1
+        Events.reset_move_counts!()
+    end
+
+    @testset "the tally counts each direction on its own and resets to empty" begin
+        Events.reset_move_counts!()
+        Events.moved([1.0], :cpu, :gpu)
+        Events.moved([2.0], :cpu, :gpu)
+        Events.moved([3.0], :gpu, :cpu)
+        @test Events.move_counts() == Dict((:cpu, :gpu) => 2, (:gpu, :cpu) => 1)
+        @test Events.move_total() == 3
+
+        held = Events.reset_move_counts!()
+        @test held == Dict((:cpu, :gpu) => 2, (:gpu, :cpu) => 1)
+        @test isempty(Events.move_counts())
+        @test Events.move_total() == 0
+    end
+
+    @testset "moved refuses a backend that is not a name, and counts nothing" begin
+        Events.reset_move_counts!()
+        for (from, to, named) in (("cpu", :gpu, "from"), (:cpu, 3, "to"))
+            e = try
+                Events.moved([1.0], from, to)
+            catch err
+                err
+            end
+            @test e isa Verdicts.Refusal
+            @test e.quantity == named
+        end
+        @test isempty(Events.move_counts())
+
+        @testset "positive control: two names go through and are counted" begin
+            @test Events.moved([1.0], :cpu, :gpu) === nothing
+            @test Events.move_total() == 1
+        end
+
+        Events.reset_move_counts!()
     end
 end
