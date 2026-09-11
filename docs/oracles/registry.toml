@@ -321,6 +321,32 @@ registered_at = ""
 holdout = false
 anchors = []
 
+[[oracle]]
+id = "mesh.support_identity"
+tier = 1
+subsystem = "mesh"
+dataset_or_reference = "identity"
+statistic = "the support digest of two meshes built from one recipe; the digest after one vertex is perturbed; and a binary operation between fields on mismatched supports"
+verdict_kind = "fail_bar"
+threshold = "exact; equal recipes give equal digests, a perturbed vertex gives a different one, and the mismatched operation refuses naming both identities (positive control: a digest taken over shape alone, on which two geometries at different radii must collide)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "mesh.connectivity_topology_event"
+tier = 1
+subsystem = "mesh"
+dataset_or_reference = "identity"
+statistic = "on a synthetic terrain carrying one strait of declared sill depth and width, the graph's reported sill depth, width, land contiguity and basin terminal; and the event emitted when the strait is closed"
+verdict_kind = "fail_bar"
+threshold = "sill depth and width exact against the declared synthetic values; the topology event is emitted once through the one emitter of decision 0042 and carries the closed vocabulary's kind (positive control: a surface class decided by the sign of elevation, which must misclassify an enclosed basin lying below sea level)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
 # ---------------------------------------------------------------- tier 1: kernels and reductions
 
 [[oracle]]
