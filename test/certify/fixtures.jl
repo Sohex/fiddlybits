@@ -99,13 +99,17 @@ end
 """
     stand_in()
 
-The stand-in case, its neighbour table and its weight table.
+The stand-in case, its neighbour table and its weight table. The case declares
+no `Backends.Obligation`: its `4^k` layout has no sub-population fixed in count
+rather than in share, so nothing in it falls below the ensemble's declared miss
+rate as the case grows.
 """
 function stand_in()
     nb = neighbours(N_CELLS)
     w64 = weights(Float64, N_CELLS)
     fields = [field_u(Float64, N_CELLS), field_v(Float64, N_CELLS)]
-    return Backends.EnsembleCase("stencil-4^5", fields, make_step(N_CELLS, nb, w64)), nb, w64
+    return Backends.EnsembleCase("stencil-4^5", fields, make_step(N_CELLS, nb, w64),
+                                Backends.Obligation[]), nb, w64
 end
 
 """
@@ -154,7 +158,7 @@ function constant_case()
     fields = [field_u(Float64, FANOUT)]
     frozen = copy(fields[1])
     step!(state) = (copyto!(state[1], eltype(state[1]).(frozen)); state)
-    return Backends.EnsembleCase("constant", fields, step!)
+    return Backends.EnsembleCase("constant", fields, step!, Backends.Obligation[])
 end
 
 """
@@ -163,7 +167,8 @@ end
 A case whose only field is all zeros, so it has no field with a scale an ulp can
 be taken of.
 """
-zero_case() = Backends.EnsembleCase("zero", [zeros(Float64, FANOUT)], state -> state)
+zero_case() = Backends.EnsembleCase("zero", [zeros(Float64, FANOUT)], state -> state,
+                                    Backends.Obligation[])
 
 """
     doubling_case()
@@ -174,7 +179,7 @@ after 1024 steps and the divergence at and after that step cannot be measured.
 function doubling_case()
     fields = [fill(1.0, FANOUT)]
     step!(state) = (state[1] .*= 2; state)
-    return Backends.EnsembleCase("doubling", fields, step!)
+    return Backends.EnsembleCase("doubling", fields, step!, Backends.Obligation[])
 end
 
 """
@@ -188,7 +193,8 @@ function small_case()
     nb = neighbours(n)
     w64 = weights(Float64, n)
     fields = [field_u(Float64, n), field_v(Float64, n)]
-    return Backends.EnsembleCase("stencil-4^2", fields, make_step(n, nb, w64))
+    return Backends.EnsembleCase("stencil-4^2", fields, make_step(n, nb, w64),
+                                Backends.Obligation[])
 end
 
 end # module CertifyFixtures

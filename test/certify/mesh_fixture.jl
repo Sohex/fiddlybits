@@ -16,6 +16,11 @@ const STEPS = 20
 const COUPLING = 1 / 64
 const MAX_VALENCE = Mesh.MAX_VALENCE
 
+"The name the case's `Backends.Obligation` over the degree-five vertices
+carries, which `Backends.certify` names in its refusal and
+`Backends.case_certification` names in its result."
+const DEGREE_FIVE = "degree-five vertices"
+
 "Every term one vertex's step sums: the padded MAX_VALENCE the gather reads,
 some at zero weight, and the one the field coupling adds."
 const TERMS = MAX_VALENCE + 1
@@ -164,6 +169,11 @@ The real-mesh certification case at `LEVEL`: the `Backends.EnsembleCase`, its
 neighbour table, its weight table, its per-vertex valence, and the vertices
 of valence five decision 0005 puts at every level, identified from `valence`
 alone rather than assumed.
+
+The case declares those vertices as its one `Backends.Obligation`, named
+`DEGREE_FIVE`, over every field at each of them: twelve vertices at every
+level, so their share of the case's sites falls as the level refines while the
+ensemble's miss rate is a fixed share.
 """
 function real_mesh_case()
     hierarchy = Mesh.hierarchy(LEVEL)
@@ -173,9 +183,11 @@ function real_mesh_case()
     nv = size(level.vertices, 2)
     w64 = vertex_weights(Float64, nv, valence)
     fields = [field_u(Float64, nv), field_v(Float64, nv)]
-    case = Backends.EnsembleCase("icosahedral-mesh-level-$LEVEL", fields,
-                                 make_step(nv, neighbour, w64))
     pentagon = findall(==(Int32(5)), valence)
+    sites = Tuple{Int,Int}[(f, v) for f in eachindex(fields) for v in pentagon]
+    case = Backends.EnsembleCase("icosahedral-mesh-level-$LEVEL", fields,
+                                 make_step(nv, neighbour, w64),
+                                 [Backends.Obligation(DEGREE_FIVE, sites)])
     return case, neighbour, w64, valence, pentagon
 end
 
