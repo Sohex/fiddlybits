@@ -206,9 +206,9 @@ obligation: given a case and a step count rather than a caller-built envelope, t
 run the sampled arm and the exhaustive arm of every `Obligation` the case declares,
 and the case-level verdict is `PASS` only when every arm is. The two registry rows
 this certification serves, `repro.backend_ulp_envelope` and
-`repro.fp32_kernel_certification`, do not yet say in their own text that a result
-needs every obligation arm rather than the sampled one alone;
-`fiddlybits-52v.7.24` carries that correction and is open.
+`repro.fp32_kernel_certification`, now carry that requirement in their own threshold
+text (`fiddlybits-52v.7.24`): a certification of a case that declares an
+`Obligation` is not admissible from the sampled arm alone.
 
 A kernel enters a production profile at FP32 only when its FP32 output stays inside
 the envelope of its FP64 self. Ledgers, accumulated reservoirs and global reductions
@@ -271,7 +271,7 @@ from floating point, inside the row that writes both.
 | 52v.7.6 | local | `src/Backends/budget.jl`, `test/backends/budget.jl` | `kernels.memory_budget` passes; the refusal names the fields in descending size |
 | 52v.7.10 | frontier | `src/Backends/kernels.jl`, `test/backends/bitwise_mode.jl` | decision 0044: every multiply that feeds an add in bitwise mode is an explicit `fma`; the bitwise kernels agree bit for bit with the same chain evaluated at 256 bits, with the twice-rounded chain as the control that must disagree |
 | 52v.7.13 | frontier | `src/Backends/transcendentals.jl`, `test/backends/transcendentals.jl` | a `Float32` coefficient set and reduction split beside the `Float64` one, each function bitwise between backends over a declared grid at `Float32`, each function's error against a 300-bit reference recorded with the argument for it, the `Float64` bounds already recorded unmoved |
-| 52v.7.17 | sonnet | `src/Backends/certify.jl`, `test/certify/` | a certification of a case on a real mesh perturbs every degree-five cell beside the sampled ensemble (`exhaustive_envelope`); a defect planted at one degree-five cell alone is caught by the scoped check and shown missed by the sampled one alone |
+| 52v.7.17 | sonnet | `src/Backends/certify.jl`, `test/certify/` | a certification of a case on a real mesh perturbs every degree-five vertex beside the sampled ensemble (`exhaustive_envelope`); a defect planted at one degree-five vertex alone is caught by the scoped check and shown missed by the sampled one alone |
 | 52v.7.19 | frontier | `src/Backends/certify.jl`, `test/certify/` | a certification covering only the sampled sites cannot return `PASS` without the omission named (`Obligation`, `covers`, `certify`'s refusal, `case_certification`); the old-way positive control no longer reads as a clean pass; `test/certify/degree_five.jl` passes unchanged and the sampled envelope's own draw is unchanged |
 | 52v.7.7 | sonnet | none; reports only | all six oracles ran; verdicts by name; the two that ran on a stand-in case recorded as REPORT with the case named |
 
@@ -289,9 +289,8 @@ turned up during implementation, and stay out of this table because they name no
 function or type this plan states and their own file boundary is not
 `src/Backends/` or `src/Reductions/`: 52v.7.14 and 52v.7.21 route
 `src/Orbit/kepler.jl` through these transcendentals and through `fma`; 52v.7.9,
-52v.7.11, 52v.7.12, 52v.7.15, 52v.7.16, 52v.7.18, 52v.7.20, 52v.7.23 and 52v.7.26
-are findings, registry text, a lint list entry, a gate call-site fix and a
-reference-index status. Two of them are cited above because this plan's own prose
-now depends on what they carry: 52v.7.22, open, is the lint that will check the
-fusion rule this plan states as decision 0044's rule; 52v.7.24, open, is the
-registry text correction the Certification section names directly.
+52v.7.11, 52v.7.12, 52v.7.15, 52v.7.16, 52v.7.18, 52v.7.20, 52v.7.23, 52v.7.24 and
+52v.7.26 are findings, registry text, a lint list entry, a gate call-site fix and a
+reference-index status. One of them is cited above because this plan's own prose
+still depends on what it will carry: 52v.7.22, open, is the lint that will check
+the fusion rule this plan states as decision 0044's rule.
