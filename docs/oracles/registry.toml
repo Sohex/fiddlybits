@@ -261,9 +261,9 @@ id = "mesh.area_closure"
 tier = 1
 subsystem = "mesh"
 dataset_or_reference = "identity"
-statistic = "sum of cell areas at every level against 4 pi R^2, with the cell area taken by the vector form and by l'Huilier as a second arm"
+statistic = "sum of primal cell areas and sum of dual cell areas, each at every level against 4 pi R^2, with the primal cell area taken by the vector form and by l'Huilier as a second arm"
 verdict_kind = "fail_bar"
-threshold = "abs(sum - 4 pi R^2) <= N eps R^2, from the per-cell absolute floor of one eps R^2 measured in notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md; the two arms agree to twice that floor"
+threshold = "primal: abs(sum - 4 pi R^2) <= N eps R^2, from the per-cell absolute floor of one eps R^2 measured in notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md; the two arms agree to twice that floor. dual: abs(sum - 4 pi R^2) <= 6 N eps R^2, the same per-piece floor times the six sub-triangles a dual cell takes from each primal cell, measured in notes/findings/2026-09-11-mesh-measure-floors-at-working-precision.md; the six pieces are evaluated independently, and a sixth taken as the remainder against the primal area makes this arm unable to fail"
 provisional = true
 registered_at = ""
 holdout = false
