@@ -2,7 +2,7 @@
 # section "The hierarchy". The renormalisation below is measured in
 # notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md.
 
-using LinearAlgebra: norm, cross, dot
+using LinearAlgebra: cross, dot
 
 """
     CellId
@@ -16,6 +16,11 @@ struct CellId
     value::Int
     CellId(i::Integer) = new(Int(i))
 end
+
+# A struct with no iterate method would otherwise be collected by the default
+# broadcastable, which raises on length rather than on the arithmetic this type
+# refuses.
+Base.broadcastable(c::CellId) = Ref(c)
 
 """
     memory_index(c::CellId)
@@ -161,14 +166,21 @@ edge_key(a::Int32, b::Int32) = a < b ? (a, b) : (b, a)
 """
     midpoint(vertices, a, b, project)
 
-The chord midpoint of vertices `a` and `b`, renormalised to the unit sphere
-unless `project` is false, which leaves it at the chord midpoint
+The three components of the chord midpoint of vertices `a` and `b`,
+renormalised to the unit sphere unless `project` is false, which leaves it at
+the chord midpoint
 (notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md).
+
+Returned as a tuple rather than a column, so bisection allocates nothing per
+edge.
 """
-function midpoint(vertices::AbstractMatrix{T}, a::Int32, b::Int32, project::Bool) where {T}
-    m = (vertices[:, a] .+ vertices[:, b]) ./ 2
-    project || return m
-    return m ./ norm(m)
+@inline function midpoint(vertices::AbstractMatrix{T}, a::Int32, b::Int32, project::Bool) where {T}
+    @inbounds mx = (vertices[1, a] + vertices[1, b]) / 2
+    @inbounds my = (vertices[2, a] + vertices[2, b]) / 2
+    @inbounds mz = (vertices[3, a] + vertices[3, b]) / 2
+    project || return (mx, my, mz)
+    n = sqrt(mx^2 + my^2 + mz^2)
+    return (mx / n, my / n, mz / n)
 end
 
 """
@@ -183,7 +195,10 @@ function get_or_create_midpoint!(vertices::Matrix{T}, cache::Dict{Tuple{Int32,In
     key = edge_key(a, b)
     haskey(cache, key) && return cache[key]
     idx = counter[]
-    vertices[:, idx] = midpoint(vertices, a, b, project)
+    mx, my, mz = midpoint(vertices, a, b, project)
+    @inbounds vertices[1, idx] = mx
+    @inbounds vertices[2, idx] = my
+    @inbounds vertices[3, idx] = mz
     result = Int32(idx)
     cache[key] = result
     counter[] = idx + 1
@@ -207,7 +222,7 @@ notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md measures.
 function bisect(level::Level{T}, project::Bool) where {T}
     nv = size(level.vertices, 2)
     nc = size(level.cells, 2)
-    vertices = Matrix{T}(undef, 3, nv + 3 * nc)
+    vertices = Matrix{T}(undef, 3, nv + ((3 * nc) >> 1))
     vertices[:, 1:nv] .= level.vertices
     cells = Matrix{Int32}(undef, 3, 4 * nc)
     cache = Dict{Tuple{Int32,Int32},Int32}()
@@ -223,8 +238,7 @@ function bisect(level::Level{T}, project::Bool) where {T}
         cells[:, base + 3] .= (v2, m20, m12)
         cells[:, base + 4] .= (m01, m12, m20)
     end
-    used = counter[] - 1
-    return Level{T}(vertices[:, 1:used], cells)
+    return Level{T}(vertices, cells)
 end
 
 """

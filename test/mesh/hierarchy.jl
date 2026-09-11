@@ -12,6 +12,12 @@ const FORMULA_LEVELS = 0:8
 const HIERARCHY = Mesh.hierarchy(TOP_LEVEL)
 const CONTROL = Mesh.hierarchy(TOP_LEVEL; project = false)
 
+"The bytes one `Mesh.midpoint` call allocates, measured after a warm-up call."
+function midpoint_allocations(vertices)
+    Mesh.midpoint(vertices, Int32(1), Int32(2), true)
+    return @allocated Mesh.midpoint(vertices, Int32(1), Int32(2), true)
+end
+
 "The worst `abs(1 - norm(v))` over every column of `vertices`."
 worst_radial_defect(vertices) = maximum(abs(1 - norm(view(vertices, :, i))) for i in axes(vertices, 2))
 
@@ -51,6 +57,17 @@ worst_radial_defect(vertices) = maximum(abs(1 - norm(view(vertices, :, i))) for 
         @test_throws MethodError c + 1
         @test_throws MethodError c - 1
         @test_throws MethodError 1 + c
+    end
+
+    @testset "CellId is a scalar under broadcast" begin
+        @test Mesh.memory_index.(Mesh.CellId(3)) == 4
+        @test tuple.(1:2, Mesh.CellId(7)) == [(1, Mesh.CellId(7)), (2, Mesh.CellId(7))]
+        @test Mesh.memory_index.([Mesh.CellId(0), Mesh.CellId(5)]) == [1, 6]
+    end
+
+    @testset "bisection allocates nothing per edge" begin
+        vertices = HIERARCHY.levels[1].vertices
+        @test midpoint_allocations(vertices) == 0
     end
 
     @testset "CellId round trip, both ways" begin
