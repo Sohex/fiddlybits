@@ -4,11 +4,13 @@ using Fiddlybits: Backends
 
 # Bitwise mode is a backend property (decision 0029): pure Julia arithmetic,
 # no fast-math, no implicit fused multiply-add, the same on both backends.
-# The project's own polynomial transcendentals are fiddlybits-52v.7.8's; until
-# that row lands this claim covers arithmetic and stencils only, never a
-# function that calls sin, cos, sincos, cbrt, exp or log.
+# The project's own polynomial transcendentals live in transcendentals.jl and
+# are covered by test/backends/transcendentals.jl; every other file in the
+# module reaches a transcendental through them and never through the platform
+# library, which is what the search below asserts.
 
 const BACKENDS_SRC = normpath(joinpath(@__DIR__, "..", "..", "src", "Backends"))
+const TRANSCENDENTALS_SRC = joinpath(BACKENDS_SRC, "transcendentals.jl")
 const TRANSCENDENTAL_CALL = r"\b(?:sin|cos|sincos|cbrt|exp|log)\b"
 
 "`text` with every `#`-comment blanked, so a match cannot land inside one."
@@ -24,10 +26,12 @@ function jl_files(dir::AbstractString)
     return sort(out)
 end
 
-"Every match of `pattern` across the `.jl` files under `dir`, comments blanked first."
+"Every match of `pattern` across the `.jl` files under `dir` other than
+`transcendentals.jl`, comments blanked first."
 function grep_jl(dir::AbstractString, pattern::Regex)
     found = Tuple{String,Int,String}[]
     for path in jl_files(dir)
+        path == TRANSCENDENTALS_SRC && continue
         text = strip_hash_comments(read(path, String))
         for (i, line) in enumerate(split(text, '\n'))
             for m in eachmatch(pattern, line)
@@ -39,8 +43,7 @@ function grep_jl(dir::AbstractString, pattern::Regex)
 end
 
 @testset "bitwise mode (decision 0029)" begin
-    @testset "no transcendental is in this module's scope yet" begin
-        # The gap this leaves is fiddlybits-52v.7.8's, not claimed here.
+    @testset "no transcendental call outside transcendentals.jl" begin
         sites = grep_jl(BACKENDS_SRC, TRANSCENDENTAL_CALL)
         @test isempty(sites)
 
