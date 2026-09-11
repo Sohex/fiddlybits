@@ -79,6 +79,35 @@ const FINDING_INITIAL = 4.253610957849485e-5
             @test occursin("declared twice", caught.reason)
         end
 
+        @testset "an obligation naming one of its own sites twice" begin
+            caught = try
+                Backends.EnsembleCase("repeated-site", fields, step!,
+                                      [Backends.Obligation("dup", [(1, 3), (1, 3)])])
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "certification obligation"
+            @test occursin("dup", caught.reason)
+            @test occursin("field 1 cell 3", caught.reason)
+            @test occursin("twice", caught.reason)
+
+            @testset "positive control: the same duplicate list construct today, and must not" begin
+                @test_throws Verdicts.Refusal Backends.EnsembleCase("repeated-site", fields, step!,
+                                                                    [Backends.Obligation("dup",
+                                                                     [(1, 3), (1, 3)])])
+            end
+        end
+
+        @testset "two different obligations naming the same site" begin
+            ok = Backends.EnsembleCase("shared-site", fields, step!,
+                                       [Backends.Obligation("first", [(1, 3)]),
+                                        Backends.Obligation("second", [(1, 3), (1, 4)])])
+            @test length(ok.obligations) == 2
+            @test ok.obligations[1].sites == [(1, 3)]
+            @test ok.obligations[2].sites == [(1, 3), (1, 4)]
+        end
+
         @testset "positive control: a well-formed obligation constructs" begin
             ok = Backends.EnsembleCase("well-formed", fields, step!,
                                        [Backends.Obligation("corner", [(1, 1), (1, 4)])])
