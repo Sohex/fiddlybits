@@ -29,18 +29,11 @@ at_workgroup(backend::CPU, workgroup::Integer) = CPU(workgroup; bitwise = bitwis
 at_workgroup(backend::GPU, workgroup::Integer) = GPU(workgroup; bitwise = bitwise(backend))
 
 """
-    segment_depth(starts, nseg)
+    segment_depth_host(starts_host, nseg)
 
-The hierarchy depth `k` (`QUANTILE_K_MIN` to `QUANTILE_K_MAX`) such that
-every one of the `nseg` segments `starts` describes (`segment_extent`) has
-length `4^k`. `starts` is read element by element for this check, so it is
-copied to the host first when it is not already there (a boundary array,
-not the reduced data, so the copy is cheap). Refuses when the segments are
-not all the same length, when that length is not a power of four, or when
-its `k` falls outside the declared range.
+`segment_depth`'s check, given `starts` already on the host.
 """
-function segment_depth(starts::AbstractVector{<:Integer}, nseg::Integer)
-    starts_host = starts isa Array ? starts : Array(starts)
+function segment_depth_host(starts_host::AbstractVector{<:Integer}, nseg::Integer)
     seglen = starts_host[2] - starts_host[1]
     for s in 1:nseg
         starts_host[s+1] - starts_host[s] == seglen ||
@@ -62,6 +55,21 @@ function segment_depth(starts::AbstractVector{<:Integer}, nseg::Integer)
                "segment length $seglen is depth k=$k, outside the declared range " *
                "$QUANTILE_K_MIN:$QUANTILE_K_MAX")
     return k
+end
+
+"""
+    segment_depth(starts, nseg)
+
+The hierarchy depth `k` (`QUANTILE_K_MIN` to `QUANTILE_K_MAX`) such that
+every one of the `nseg` segments `starts` describes (`segment_extent`) has
+length `4^k`. `starts` is read element by element for this check, so it is
+copied to the host first when it is not already there (a boundary array,
+not the reduced data, so the copy is cheap). Refuses when the segments are
+not all the same length, when that length is not a power of four, or when
+its `k` falls outside the declared range.
+"""
+function segment_depth(starts::AbstractVector{<:Integer}, nseg::Integer)
+    return segment_depth_host(starts_on_host(starts), nseg)
 end
 
 """
@@ -177,6 +185,45 @@ for k in QUANTILE_K_MIN:QUANTILE_K_MAX
 end
 
 """
+    QUANTILE_BITONIC_NETWORK_DEVICE
+
+`(array_type(backend), k) => (partner, ascending)` on that array type, for
+every `(array_type(backend), k)` `device_bitonic_network` has built so
+far. `QUANTILE_BITONIC_NETWORK[k]` is a constant of `k` alone, so its copy
+on a given array type is built once here and reused by every later call at
+that array type and `k`, rather than rebuilt and re-copied to the device
+on every call.
+"""
+const QUANTILE_BITONIC_NETWORK_DEVICE = Dict{Tuple{Type,Int},Any}()
+
+"""
+    QUANTILE_BITONIC_NETWORK_DEVICE_LOCK
+
+Guards `QUANTILE_BITONIC_NETWORK_DEVICE` against two calls populating the
+same key at once.
+"""
+const QUANTILE_BITONIC_NETWORK_DEVICE_LOCK = ReentrantLock()
+
+"""
+    device_bitonic_network(backend, k)
+
+`(partner, ascending)` from `QUANTILE_BITONIC_NETWORK[k]`, copied to
+`array_type(backend)` the first time this array type and `k` are asked
+for and cached in `QUANTILE_BITONIC_NETWORK_DEVICE` under
+`(array_type(backend), k)` for every later call.
+"""
+function device_bitonic_network(backend::Backend, k::Integer)
+    AT = array_type(backend)
+    key = (AT, Int(k))
+    return lock(QUANTILE_BITONIC_NETWORK_DEVICE_LOCK) do
+        get!(QUANTILE_BITONIC_NETWORK_DEVICE, key) do
+            partner, ascending = QUANTILE_BITONIC_NETWORK[k]
+            (AT(partner), AT(ascending))
+        end
+    end
+end
+
+"""
     segmented_quantile(xs, starts, q, backend = CPU(BLOCKSIZE))
 
 The `q`-quantile of each segment `starts` describes (`segment_extent`),
@@ -194,19 +241,19 @@ workgroup.
 """
 function segmented_quantile(xs::AbstractVector, starts::AbstractVector{<:Integer}, q::Real,
                              backend::Backend = CPU(BLOCKSIZE))
-    nseg = segment_extent(xs, starts)
+    starts_host = starts_on_host(starts)
+    nseg = segment_extent_host(xs, starts_host)
     out = similar(xs, nseg)
     nseg == 0 && return out
-    k = segment_depth(starts, nseg)
+    k = segment_depth_host(starts_host, nseg)
     seglen = 4^k
     rank = quantile_rank(seglen, q)
     lo, _ = segment_bounds(starts)
     base = lo .- 1
-    partner, ascending = QUANTILE_BITONIC_NETWORK[k]
-    AT = array_type(backend)
+    partner, ascending = device_bitonic_network(backend, k)
     kernel = quantile_kernel(Val(k))
     launch!(kernel, at_workgroup(backend, seglen), nseg * seglen,
-            out, xs, base, rank, AT(partner), AT(ascending))
+            out, xs, base, rank, partner, ascending)
     return out
 end
 
