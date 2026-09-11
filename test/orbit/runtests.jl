@@ -163,11 +163,31 @@ end
         @test Orbit.check_eccentricity(0.5, "test") === 0.5
     end
 
+    @testset "the two arms of Orbit.fma_add (decision 0044)" begin
+        fast = Backends.CPU(1)
+        exact = Backends.CPU(1; bitwise = true)
+        # The denominator is prime, so no product in the sample is exact and the
+        # two rounding chains have somewhere to differ.
+        n = 4093
+        sample = [(a, b, -(a * b) * (1 + i / 2n))
+                  for (i, (a, b)) in enumerate((1 + 3i / n, 1 + mod(7i, n) / n)
+                                               for i in 1:n)]
+        @test all(Orbit.fma_add(a, b, c, exact) === fma(a, b, c) for (a, b, c) in sample)
+        @test all(Orbit.fma_add(a, b, c, fast) === muladd(a, b, c) for (a, b, c) in sample)
+
+        @testset "positive control: the sample reaches triples the two chains disagree on" begin
+            @test any(fma(a, b, c) !== a * b + c for (a, b, c) in sample)
+            @test any(Orbit.fma_add(a, b, c, exact) !== a * b + c for (a, b, c) in sample)
+        end
+    end
+
+    # The sample size is set in
+    # notes/findings/2026-09-11-the-fast-arm-of-a-multiply-that-feeds-an-add.md.
     @testset "Orbit.eccentric_anomaly in bitwise mode is bitwise between the processor and the CUDA backend" begin
         @test CUDA.functional()
         for e in ECCENTRICITIES
             @testset "eccentricity $e" begin
-                Ms = Float64[M for (M, _) in hard_region(e, 256)]
+                Ms = Float64[M for (M, _) in hard_region(e, 4096)]
                 cpu = eccentric_anomaly_on(Ms, e, Backends.CPU(64; bitwise = true))
                 gpu = eccentric_anomaly_on(Ms, e, Backends.GPU(64; bitwise = true))
                 @test cpu == gpu
