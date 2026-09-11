@@ -157,21 +157,25 @@ TOML files beside the suite, never literals in the lint. The lints:
 
 | lint | refuses | how it sees | declared by |
 | --- | --- | --- | --- |
-| `lint_earth` | any name from the DynamicQuantities constants registry, any member of `EarthRatios`, and any literal from the A3 list of `docs/imports/README.md`, in `src/` outside `EarthRatios` and `Render` | the name and literal lists are TOML beside the suite; the A3 list is copied there and the copy is checked against the record's table | REQ-SYS-101, `docs/imports/dynamicquantities.md` |
+| `lint_earth` | an import of the DynamicQuantities constants registry or a qualified reference into it, a read of `EarthRatios` outside `EarthRatios` and `Render`, and any literal from the A3 list of `docs/imports/README.md` | the door, not the name: the registry's constants include `c`, `e`, `h`, `R`, `F`, `G` and `u`, which collide with ordinary variables, so a bare-name lint would be noise and the import is what it watches. A constant still enters only through a `Sourced` disposition. The A3 list is copied into TOML beside the suite and the copy is checked against the record's table | REQ-SYS-101, `docs/imports/dynamicquantities.md` |
 | `lint_literals` | an untyped float literal inside a `@kernel` body or a physics submodule | a literal not wrapped in `FT(...)` or an equivalent typed constructor | REQ-NUM-001, `docs/imports/julia-1.12.md` |
 | `lint_index_base` | `+ 1` or `- 1` applied to a name bound by `@index` inside a `@kernel` body, and to any `CellId` at the host boundary | the bound names are read from the kernel's own `@index` lines | `docs/imports/kernelabstractions.md` |
 | `lint_calendar` | `using Dates`, `import Dates` or a qualified `Dates.` name in any `src/` submodule other than `Render` | textual | REQ-SYS-102, `docs/imports/ncdatasets.md` |
 | `lint_journal_emitter` | any open, write or append against the journal path outside `src/Provenance/journal.jl` | the path is the one constant `Provenance` declares for it, and the lint reads that constant's name from the source rather than carrying its own | decision 0042 |
-| `lint_effort` | a word from the effort list under `docs/` and in `README.md` | the list is TOML beside the suite; a record that states the rule is exempted in the same file by path with its reason, and today those are `docs/practice.md` and decision 0034 | `docs/practice.md` |
+| `lint_effort` | a phrase from the effort list under `docs/` | the list is TOML beside the suite and holds only phrases with no other sense in this tree; `schedule` is not among them, because the tree carries a checkpointing schedule, a damping schedule and the machine's job scheduler, and a lint cannot tell those from a plan with dates. A record that states the rule is exempted by path with its reason, and the suite checks the exempted record still contains a listed phrase | `docs/practice.md` |
 | `lint_front_matter` | a record under `docs/decisions/`, `docs/requirements/` or `docs/plans/` whose header does not parse as TOML between `+++` fences, or lacks a key its directory requires | the required keys per directory are TOML beside the suite; `README.md`, `INDEX.md` and `TEMPLATE.md` are not records | decision 0036 |
 | `lint_manifest` | a package named in the exclusion list appearing anywhere in the resolved `Manifest.toml` | the exclusion list is TOML beside the suite, one entry per package naming the import record that excluded it; an entry with no record fails | `docs/imports/fastpower-jl.md` |
 
 `lint_manifest` reads the dependency graph rather than the source, because the
 hazard it catches arrives transitively and no call site would show it.
 
-`lint_effort` is a word lint over prose and cannot tell framing from mention, which
-is why its exemptions carry reasons: the practice book states the rule in the words
-the rule forbids, and decision 0034 records the rejected alternative by its name.
+`lint_effort` cannot tell framing from mention, which is why its exemptions carry
+reasons: the practice book states the rule in the words the rule forbids, and
+decision 0034 records the rejected alternative by its name. What a lint can decide
+it decides, and the rest is the reviewer's.
+
+Every tree run asserts what its root holds before asserting the lint finds nothing
+in it, so a lint pointed at a directory that has moved fails rather than passing.
 
 `test/imports/` declares `import_records()`, which reads the non-stdlib entries of
 `Project.toml` and matches each against the first-line heading of the records in
