@@ -10,8 +10,8 @@ Total bytes from a plain description of what a run will allocate, one entry
 per field with its element type and extent. `declarations` is a vector of
 tuples `(name::String, element_type, extent::Integer)` where `element_type`
 is a concrete type whose `sizeof` is known. Refuses at the point of reading
-when a field is malformed: negative extent, or an element type whose size
-cannot be taken.
+when a field is malformed: negative extent, an element type whose size
+cannot be taken, or when the total exceeds the representable range.
 """
 function budget(declarations)
     total = 0
@@ -21,13 +21,37 @@ function budget(declarations)
                    "Backends.budget",
                    "field $(name) has negative extent $(extent); extent must be non-negative")
         end
-        try
-            field_bytes = sizeof(element_type) * extent
-            total += field_bytes
+
+        field_size = try
+            sizeof(element_type)
         catch err
             refuse("element type",
                    "Backends.budget",
                    "field $(name): cannot take sizeof($(element_type)): $(err)")
+        end
+
+        field_bytes = try
+            Base.Checked.checked_mul(field_size, extent)
+        catch err
+            if err isa OverflowError
+                refuse("memory overflow",
+                       "Backends.budget",
+                       "field $(name) with extent $(extent) has product that exceeds representable range")
+            else
+                rethrow(err)
+            end
+        end
+
+        total = try
+            Base.Checked.checked_add(total, field_bytes)
+        catch err
+            if err isa OverflowError
+                refuse("memory overflow",
+                       "Backends.budget",
+                       "field $(name) with $(field_bytes) bytes causes total to exceed representable range; current total is $(total)")
+            else
+                rethrow(err)
+            end
         end
     end
     return total
