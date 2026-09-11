@@ -2,7 +2,7 @@
 # kernels.md, section "The reductions", decision 0005 (the 4^k segment) and
 # decision 0027 (reference path).
 
-using ..Backends: Backend, CPU, GPU, launch!, bitwise, array_type
+using ..Backends: Backend, CPU, GPU, launch!, bitwise, array_type, on
 using ..Verdicts: refuse
 using KernelAbstractions: @kernel, @index, @Const, @localmem, @synchronize
 
@@ -297,14 +297,61 @@ function segmented_quantile_reference(xs::AbstractVector, segmentation::Segmenta
     return segmented_quantile_reference(xs, segmentation.starts_host, q)
 end
 
+@kernel function area_weighted_block_kernel!(partials, @Const(xs), @Const(areas), x, blocksize, n)
+    i = @index(Global)
+    base = blocksize * i
+    lo = base - blocksize + 1
+    hi = min(i * blocksize, n)
+    T = eltype(partials)
+    acc = zero(T)
+    for j in lo:hi
+        acc += T(ifelse(xs[j] >= x, areas[j], zero(eltype(areas))))
+    end
+    partials[i] = acc
+end
+
+"""
+    area_weighted_sum(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
+
+The fixed-order sum, accumulated in type `A`, of `areas` at the indices
+where `xs` is at or above `x`, and zero elsewhere: the same blocked,
+fixed-order pass `pairwise_block_sums` walks, with the indicator selected
+and folded into the block accumulation instead of read from a
+materialised array the size of `xs`. `Reductions.segmented_weighted_sum`'s
+sibling for this rule: a reduction allocates no temporary the size of its
+input. `ifelse` is a select, not a multiply feeding an add, so no fusion
+barrier is needed to keep this the same two-step rounding (the select,
+then the `T(...)` conversion the block sum's add reads) a materialised
+`ifelse.(xs .>= x, areas, zero(eltype(areas)))` array followed by a plain
+summation kernel produced before this fusion. `xs` and `areas` must
+already live on `backend` and have the same length; the block sums are
+combined on the host through `combine_fixed_order`, the same door
+`pairwise_sum` uses. Refuses when `blocksize` is not positive.
+"""
+function area_weighted_sum(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
+                            backend::Backend = CPU(BLOCKSIZE); blocksize::Integer = BLOCKSIZE) where {A<:Number}
+    blocksize > 0 ||
+        refuse("pairwise blocksize", "Reductions.area_weighted_sum",
+               "blocksize $blocksize is not positive")
+    n = length(xs)
+    nb = cld(n, blocksize)
+    partials = similar(areas, A, nb)
+    if nb > 0
+        launch!(area_weighted_block_kernel!, backend, nb, partials, xs, areas, x, Int(blocksize), Int(n))
+    end
+    return combine_fixed_order(on(partials, CPU(1)))
+end
+
 """
     area_fraction_above(xs, areas, x, backend = CPU(BLOCKSIZE))
 
 The area-weighted fraction of `xs` at or above `x`: the fixed-order sum
-(`pairwise_sum`) of `areas` where `xs .>= x`, divided by the fixed-order
-sum of `areas`. The exact inverse of `segmented_quantile` rather than an
-interpolation of it: it reads back a fraction from a value with no rule of
-its own about what lies between two data points, so calling it on the
+(`area_weighted_sum`) of `areas` where `xs .>= x`, divided by the
+fixed-order sum of `areas` (`pairwise_sum`). Neither call materialises an
+array the size of `xs` (`area_weighted_sum`'s own docstring states the
+rule this follows). The exact inverse of `segmented_quantile` rather than
+an interpolation of it: it reads back a fraction from a value with no rule
+of its own about what lies between two data points, so calling it on the
 value `segmented_quantile` selected counts that element itself as being at
 or above the threshold, while calling it on any value absent from the data
 (an interpolated value, among others) does not. `xs` and `areas` must have
@@ -313,16 +360,15 @@ differ in length, or when the total area is not positive.
 
 The return is a host scalar, and the two sums are read back separately, so
 on device-resident input this is two `Events.moved` records per call, one
-per `pairwise_sum`.
+per sum.
 """
 function area_fraction_above(xs::AbstractVector, areas::AbstractVector, x::Real,
                               backend::Backend = CPU(BLOCKSIZE))
     length(xs) == length(areas) ||
         refuse("area fraction extent", "Reductions.area_fraction_above",
                "xs has length $(length(xs)), areas has length $(length(areas))")
-    above = ifelse.(xs .>= x, areas, zero(eltype(areas)))
     total = pairwise_sum(Float64, areas, backend)
-    weighted = pairwise_sum(Float64, above, backend)
+    weighted = area_weighted_sum(Float64, xs, areas, x, backend)
     total > 0 ||
         refuse("area fraction total", "Reductions.area_fraction_above",
                "total area $total is not positive")
