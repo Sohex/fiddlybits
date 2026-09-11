@@ -9,7 +9,8 @@ using KernelAbstractions: @kernel, @index, @Const
 
 `a * b`, returned through a call the compiler may not inline. Bitwise mode
 (decision 0029) routes every multiply that feeds an add through this
-function; the fused kernels below do not.
+function; the fused kernels below do not
+(notes/findings/2026-09-11-gpucompiler-unconditional-fma-contraction.md).
 """
 @noinline nofuse_mul(a, b) = a * b
 
