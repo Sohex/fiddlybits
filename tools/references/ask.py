@@ -23,7 +23,7 @@ The index manifest is generated from docs/references/INDEX.md so citations carry
 identifier the index holds. A citation is stored with the chunks it belongs to, so a correction in INDEX.md
 reaches an already-indexed source only through --relabel, which rewrites the label and nothing else.
 """
-import argparse, asyncio, csv, hashlib, os, pathlib, re, shutil, sys, tomllib
+import argparse, asyncio, csv, hashlib, logging, os, pathlib, re, shutil, sys, tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CFG = tomllib.loads((ROOT / 'tools' / 'references' / 'paperqa.toml').read_text())
 _EMBEDDING = None   # the one embedding model of this process; see S.get_embedding_model below
@@ -164,9 +164,23 @@ def manifest(paper_dir, index_dir):
             # <file> p.<page>, and the file is what a reader opens.
             w.writerow([p.name, doi, title, citation, p.stem, KEEP])
     return mf
+def quieten_litellm():
+    """Keep litellm's banners off stdout, which belongs to the answer.
+
+    On every call it cannot price, litellm prints 'Failed to calculate cost for <model>' and then a coloured
+    'Provider List: https://...' banner, and the banner goes to STDOUT. Fourteen of them preceded the evidence
+    block of one query. --evidence-only exists to be read and diffed, so its output cannot share a stream with a
+    library's advice. The local model has no price to look up and never will: it is served from this machine.
+    """
+    import litellm
+    litellm.suppress_debug_info = True                    # the stdout banner
+    logging.getLogger('LiteLLM').setLevel(logging.ERROR)   # 'this model isn't mapped yet', on stderr
+
+
 def settings(evidence_only=False):
     from paperqa import Settings
     from paperqa.settings import AgentSettings
+    quieten_litellm()
     key = pathlib.Path.home() / '.anthropic_key'
     if CFG['llm'].startswith('anthropic/') and key.is_file(): os.environ.setdefault('ANTHROPIC_API_KEY', key.read_text().strip())
     if CFG['llm'].startswith('openai/'): os.environ.setdefault('OPENAI_API_KEY', 'local')
@@ -315,27 +329,72 @@ async def relabel():
         changed += 1
     print(f'relabelled {changed} of {len(files)} indexed sources'
           + (f'; {missing} had no manifest row or no stored record' if missing else ''))
+async def gather_and_answer(q, s, docs):
+    """Search, gather evidence, answer, in that fixed order, and nothing else.
+
+    This is what the whole instrument is: a deterministic sequence over the index, not an agent deciding what to
+    do next. PaperQA's own 'fake' agent runs the same three tools in the same order, and then asks the language
+    model to call a fourth, `complete`, whose entire effect is to set one boolean saying whether the answer
+    addresses the question. That round trip is not free and, on the pinned dependencies, it does not work at all:
+    fhaviary binds the completion function's model name positionally while fhlmi supplies a keyword-only closure,
+    so the call raises TypeError, PaperQA catches it, logs 'Trajectory failed.' and marks a finished answer FAIL.
+    The answer and its evidence are already built by then, which is why the failure was invisible except as a
+    traceback on stderr and a status nobody read.
+
+    So the flag is set here from what actually happened. An answer was either generated or it was not, and that is
+    a fact this process holds; asking a language model to tell us costs a call and can be wrong.
+    """
+    from paperqa.agents.env import PaperQAEnvironment
+    from paperqa.agents.main import litellm_get_search_query
+    from paperqa.agents.models import AgentStatus
+    from paperqa.agents.tools import PaperSearch, GatherEvidence, GenerateAnswer, Complete
+    from aviary.core import ToolCall, ToolRequestMessage
+
+    env = PaperQAEnvironment(q, s, docs)
+    obs, tools = await env.reset()
+    s.adjust_tools_for_agent_llm(tools)
+    by_name = {t.info.name: t for t in tools}
+    question = env.state.session.question
+
+    async def step(*calls):
+        await env.step(ToolRequestMessage(tool_calls=list(calls)))
+
+    status = AgentStatus.SUCCESS
+    try:
+        # The searches are the one place a language model chooses anything, and it chooses only what to look for.
+        for term in await litellm_get_search_query(question, llm=s.get_llm(), count=s.agent.search_count):
+            await step(ToolCall.from_tool(by_name[PaperSearch.TOOL_FN_NAME], query=term, min_year=None, max_year=None))
+        await step(ToolCall.from_tool(by_name[GatherEvidence.TOOL_FN_NAME], question=question))
+        await step(ToolCall.from_tool(by_name[GenerateAnswer.TOOL_FN_NAME]))
+    except Exception:
+        logging.getLogger(__name__).exception('the gather sequence failed')
+        status = AgentStatus.FAIL
+
+    answer = (env.state.session.answer or '').strip()
+    answered = bool(answer) and answer != Complete.NO_ANSWER_PHRASE
+    await step(ToolCall.from_tool(by_name[Complete.TOOL_FN_NAME], has_successful_answer=answered))
+    if status is AgentStatus.SUCCESS and not answered: status = AgentStatus.UNSURE
+    return env.state.session, status
+
+
 async def ask(q, evidence_only):
     from paperqa import Docs
+    from paperqa.agents.models import AgentStatus
     from paperqa.agents.search import get_directory_index
-    s = settings(evidence_only); idx = await get_directory_index(settings=s, build=False)
+    s = settings(evidence_only); await get_directory_index(settings=s, build=False)
     import rerank
     rr = rerank.from_config()
     docs = rerank.reranked_docs_class(rr, CFG.get('rerank_fetch_k', 50))() if rr else Docs()
-    # gather across the whole index rather than an agent loop: deterministic, cheaper, and every source is page-cited
-    from paperqa.agents.main import agent_query
-    # agent_query takes the query and the settings directly; the QueryRequest wrapper this was written against
-    # does not exist in the pinned paperqa. agent_type='fake' is what makes the comment above true: it runs
-    # search, gather and answer in that fixed order instead of letting a tool-selecting loop choose. It is also
-    # the only path that runs, because the ToolSelector agent reaches for LiteLLMModel.get_router, which the
-    # pinned fhlmi no longer has.
-    resp = await agent_query(q, settings=s, docs=docs, agent_type='fake')
-    ses = resp.session
+    ses, status = await gather_and_answer(q, s, docs)
+    if status != AgentStatus.SUCCESS:
+        print(f'(the run ended {status}; the evidence below is whatever was gathered before that)', file=sys.stderr)
     if not evidence_only:
         print('\n=== answer (a pointer to pages, not a source) ===\n'); print(ses.answer)
     print('\n=== evidence ===')
     for c in ses.contexts:
-        t = c.text; name = getattr(t.doc, 'docname', '') or getattr(t.doc, 'dockey', ''); print(f"- {t.doc.citation[:90]} | {t.name} | score {c.score}\n  {c.context[:400].strip()}\n")
+        t = c.text; print(f"- {t.doc.citation[:90]} | {t.name} | score {c.score}\n  {c.context[:400].strip()}\n")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('query', nargs='?')

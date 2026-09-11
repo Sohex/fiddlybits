@@ -39,6 +39,11 @@ class Reranker:
             from sentence_transformers import CrossEncoder
             free = torch.cuda.mem_get_info()[0] / 2**30 if torch.cuda.is_available() else 0
             self.device = 'cuda' if free > VRAM_NEEDED_GIB else 'cpu'
+            # Announced, never silent, for the reason the embedder's line exists. This stage on the CPU cost 60
+            # seconds of an 83 second query and said nothing about it, so the only symptom was a slow answer
+            # (notes/findings/2026-09-10-rerank-stage-on-the-cpu.md). Same shape as ask.py's line, deliberately.
+            print(f'rerank model on {self.device} ({free:.1f} GiB free on the card, '
+                  f'threshold {VRAM_NEEDED_GIB}; rerank_vram_gib)', file=sys.stderr, flush=True)
             dt = torch.float16 if self.device == 'cuda' else torch.bfloat16
             mk = {'torch_dtype': dt}
             if self.quant != 'none' and self.device == 'cuda':
