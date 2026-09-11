@@ -1,0 +1,4 @@
+# The dirty arm: the per-package switch turned off. PrecompileTools then builds a
+# cache with no workload in it and the load measured is a different quantity.
+[Fiddlybits]
+precompile_workload = false

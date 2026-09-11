@@ -243,7 +243,7 @@ FAIL a milestone gate.
 | `build.import_record_completeness` | every non-stdlib entry of `Project.toml` has a record naming at least one leak check, and every named check resolves | a fixture project entry with no record, and a fixture record naming a test file that does not exist |
 | `build.manifest_exclusions` | no excluded package name appears in the resolved `Manifest.toml` | a fixture manifest containing an excluded name, which must be refused |
 | `build.lint_positive_controls` | every lint in the table flags its dirty fixture and passes its clean fixture | a table entry whose dirty fixture is absent, which must fail rather than pass vacuously |
-| `build.load_latency` | `using Fiddlybits` completes inside the registered ceiling on the recorded host, the load recorded beside it | the measurement judged against a ceiling below the measured value, which must FAIL |
+| `build.load_latency` | `using Fiddlybits` completes inside the registered ceiling on the recorded host, the load and the preference state recorded beside it, with no preference turning the precompilation workload off and the workload landed in the image | the measurement judged against a ceiling below the measured value, which must FAIL; a preferences file turning a workload switch off, which must be refused, and one turning neither off, which must not be; a package on the load path that nothing loads, which must read as not precompiled; a method the workload does not call, which must carry no cached specialization |
 
 `build.load_latency` is the only one of the five that measures rather than decides,
 and it carries the registry's own rule: its threshold stays provisional until the
@@ -265,4 +265,5 @@ bar applies. That is `fiddlybits-52v.1.8`.
 | 52v.1.5 | sonnet | none; reports only | all five oracles ran on the merged result with every area verify row it depends on closed; verdicts by name; a dated finding for `build.load_latency` with the A/A scatter and the host |
 | 52v.1.6 | frontier | the CI configuration and any runner scripts | see the row |
 | 52v.1.8 | frontier | `docs/oracles/`, `test/gate/` | a stated rule for what the load recorded beside `build.load_latency` licenses, with its positive control; the entry carries a threshold whose condition is stated, or is declared REPORT with the argument in it |
+| 52v.1.9 | local | `test/gate/`, `docs/imports/precompiletools.md`, the workload comment in `src/Fiddlybits.jl` | `build.load_latency` performs the three checks the PrecompileTools record names it for, each with a clean and a dirty arm, and the record states what it does |
 | 52v.11 | frontier | filed against the epic, not this plan | see the row |

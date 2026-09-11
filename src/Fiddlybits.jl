@@ -24,6 +24,9 @@ include("Render/Render.jl")
 using PrecompileTools: @setup_workload, @compile_workload
 
 # The workload is what a run actually does, added by each area as it gains code.
+# test/gate/load_latency.jl reads it: a method called here carries a cached
+# specialization on a fresh load, and Verdicts.refuse, which is not called here,
+# carries none.
 @setup_workload begin
     @compile_workload begin
         Verdicts.loop_verdicts()

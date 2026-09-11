@@ -1,0 +1,4 @@
+# The clean arm: a preferences file that exists and turns neither switch off. The
+# check refuses the switch, not the file.
+[Fiddlybits]
+some_other_setting = "kept"
