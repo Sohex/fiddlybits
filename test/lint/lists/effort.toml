@@ -1,0 +1,22 @@
+# lint_effort: the practice book forbids effort and schedule framing anywhere.
+#
+# The list holds only phrases with no other sense in this tree. "schedule" is not
+# among them: the word carries a checkpointing schedule, a damping schedule and the
+# machine's job scheduler here, and a lint cannot tell those from a plan with dates.
+# What the lint can decide, it decides; the rest is the reviewer's.
+
+words = [
+  "person-week", "person-weeks", "person-month", "person-months",
+  "person-day", "person-days", "man-week", "man-month", "man-hour", "man-hours",
+  "line-count", "lines of code", "story point", "story points",
+  "MVP", "minimum viable", "first usable version",
+]
+
+# A record that states the rule has to say the words the rule forbids.
+[[exemption]]
+path = "docs/practice.md"
+reason = "states the rule against effort framing, in the words it forbids"
+
+[[exemption]]
+path = "docs/decisions/0034-build-order-and-gates.md"
+reason = "records the rejected alternative by its name, and states that no effort figure is attached"

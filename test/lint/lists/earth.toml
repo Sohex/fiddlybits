@@ -1,0 +1,18 @@
+# lint_earth: the doors through which a planet's numbers enter physics code.
+
+# The unit registry's constants are reached by opening its door, never by a bare
+# name, so the lint watches the door. Every constant this project uses carries a
+# Sourced disposition with a locator instead.
+registry_modules = ["DynamicQuantities.Constants", "Constants"]
+
+# Quarantined unit denominators. A physical use outside these two modules is the
+# failure REQ-SYS-101 names.
+quarantine_module = "EarthRatios"
+quarantine_readers = ["EarthRatios", "Render"]
+
+# Item A3 of the review method in docs/imports/README.md, copied. The suite checks
+# this list against that table; the table is the declaration.
+literals = ["9.81", "9.80665", "6.371e6", "6371", "7.2921e-5", "1361", "101325"]
+
+# The modules a quarantined ratio or a bare literal may appear in.
+exempt = ["EarthRatios", "Render"]

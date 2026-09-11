@@ -1,0 +1,9 @@
+# lint_literals: a float literal in physics code carries a precision the caller
+# did not choose. REQ-NUM-001 makes precision a type parameter.
+
+# Submodules the lint does not scan. Render writes for people, not for physics.
+exempt = ["Render", "EarthRatios"]
+
+# A literal is accepted when it is the argument of one of these, which take their
+# type from the caller.
+typed_constructors = ["FT", "T", "eltype"]

@@ -1,0 +1,10 @@
+# lint_front_matter: decision 0036 puts every record header in TOML between +++
+# fences. A record missing a key its directory requires cannot be found by it.
+
+# Documents in a record directory that are not records.
+not_records = ["README.md", "INDEX.md", "TEMPLATE.md", "not-carried.md"]
+
+[required]
+"docs/decisions" = ["id", "title", "status", "date"]
+"docs/requirements" = ["id", "title", "old_path", "old_commit", "status"]
+"docs/plans" = ["epic", "title", "decisions", "requirements", "oracles", "status", "date"]

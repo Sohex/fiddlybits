@@ -1,0 +1,6 @@
+# lint_journal_emitter: decision 0042 writes the run journal through one emitter.
+# The path constant is named here and declared in the source; a file other than
+# the emitter that names the constant at all is reaching past the emitter.
+
+path_constant = "JOURNAL_PATH"
+emitter = "Provenance/journal.jl"
