@@ -321,6 +321,47 @@ registered_at = ""
 holdout = false
 anchors = []
 
+# ---------------------------------------------------------------- tier 1: kernels and reductions
+
+[[oracle]]
+id = "kernels.reduction_partition_independent"
+tier = 1
+subsystem = "kernels"
+dataset_or_reference = "identity"
+statistic = "every reduction run at 1, 4 and 16 threads and across two block partitions, compared bitwise; and the residual of each against an exact sum on adversarial inputs"
+verdict_kind = "fail_bar"
+threshold = "bitwise across every thread count and partition, and the residual within k*N*eps*M with k the declared small integer, N the term count and M the magnitude (positive controls: an atomic accumulation substituted for the fixed-order tree, which must differ across thread counts; a sequence of alternating magnitudes that a naive sum fails and a compensated sum passes). An FP32 accumulator for a quantity declared a reservoir must refuse"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = ["Pracniques: further remarks on reducing truncation errors"]
+
+[[oracle]]
+id = "kernels.segmented_quantile_exact"
+tier = 1
+subsystem = "kernels"
+dataset_or_reference = "identity"
+statistic = "the segmented quantile over 4^k segments against the exactly sorted answer for every k in the declared range, and area_fraction_above against the quantile it inverts"
+verdict_kind = "fail_bar"
+threshold = "bitwise against the sorted answer, and the inverse identity to roundoff (positive control: a quantile interpolated rather than selected, which must break the inverse identity)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "kernels.memory_budget"
+tier = 1
+subsystem = "kernels"
+dataset_or_reference = "identity"
+statistic = "the computed high-water estimate against the sum of declared field sizes, and the refusal when the estimate exceeds the declared ceiling"
+verdict_kind = "fail_bar"
+threshold = "exact against the declared sizes, and the run refuses before allocating rather than failing partway, naming the fields in descending size (positive control: a ceiling one byte below the estimate, which must refuse)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
 # ---------------------------------------------------------------- tier 1: ledgers
 
 [[oracle]]

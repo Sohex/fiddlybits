@@ -15,6 +15,13 @@ disposition types, the `System{FT}` struct that carries them, the strip to isbit
 constants that is the one route to a device, the quarantined Earth denominators, the
 measured dependency graph, and the five test instances of the M0 deliverable.
 
+It also builds `Profile`, which the M0 deliverable of decision 0034 names and which
+no row carried: a value, never a code path, holding each component's level, ladder
+and cadence, the precision of the fast fields, the memory ceiling and every loop's
+exit bracket. It sits here rather than with the kernels because it is declared data
+with refusals, like `System`, and because the run identity of decision 0010 hashes
+both. Carried by `fiddlybits-52v.4.8`.
+
 It does not build the clock, the orbit solve or the instellation, which read `System`
 and belong to `fiddlybits-52v.5`. It does not build the gas-mixture property group of
 REQ-ATM-017: the condensable and the composition are declared fields of `System` here,
@@ -34,6 +41,7 @@ without one of the five dispositions is the failure the whole plan exists to pre
 | `src/Dispositions/` | the five types, the locator, the sweep specification, the one accessor | 52v.4.2 |
 | `src/Systems/` | `System{FT}` and its blocks, the constructor refusals, `strip` | 52v.4.3 |
 | `src/Systems/tracking.jl` | `TrackingSystem`, the declared graph, `affected` | 52v.4.6 |
+| `src/Systems/profile.jl` | `Profile`, its `Derived` cadence ceilings and their refusals | 52v.4.8 |
 | `src/EarthRatios/` | the quarantined unit denominators | 52v.4.4 |
 | `test/dispositions/` | the disposition suite and its refusal fixtures | 52v.4.2 |
 | `test/system/` | the struct suite, the derived-field identities, the graph suite | 52v.4.3, 52v.4.6 |
@@ -45,9 +53,10 @@ skeleton plan's include order. `Systems` references `Dispositions`, `Dimensions`
 `Verdicts`, and nothing below it. `EarthRatios` references `Dispositions` only, and
 is read by `Render` and by no physics module, which is what `lint_earth` decides.
 
-`src/Systems/tracking.jl` is called out as its own boundary because two rows write
-into `src/Systems/` and a row never widens into another's paths: 52v.4.3 owns every
-file there except `tracking.jl`, and 52v.4.6 owns exactly that file.
+`src/Systems/tracking.jl` and `src/Systems/profile.jl` are called out as their own
+boundaries because three rows write into `src/Systems/` and a row never widens into
+another's paths: 52v.4.6 owns `tracking.jl`, 52v.4.8 owns `profile.jl`, and 52v.4.3
+owns every other file there.
 
 ## Types and functions
 
@@ -221,6 +230,7 @@ not add a second oracle for the same question.
 | 52v.4.4 | local | `src/EarthRatios/` | every member is `Sourced` with a locator and named as a unit; `lint_earth` still passes on the tree and still flags its dirty fixture |
 | 52v.4.5 | sonnet | `test/planets/` | all five instances construct with no refusal; `system.derived_fields_reproduce` passes on all five |
 | 52v.4.6 | frontier | `src/Systems/tracking.jl`, `test/system/graph.jl` | `system.dependency_subset` passes with both controls firing |
+| 52v.4.8 | frontier | `src/Systems/profile.jl`, `test/system/profile.jl` | the cadence ceiling refuses with a control per bounding term; brackets are dimensionless; both profiles construct on all five instances |
 | 52v.4.7 | sonnet | none; reports only | all five oracles ran; verdicts by name |
 
 52v.4.5 depends on 52v.4.3 and 52v.4.4; 52v.4.6 depends on 52v.4.3; 52v.4.3 depends
