@@ -37,7 +37,11 @@ limiter path (`T_lim!` and `lim!`) is valid only under the strong-stability-pres
 constraint. `SSP333` is third order with three implicit stages, is singly diagonally
 implicit at its default parameter, and defaults to the `SSP` constraint by its own type.
 The unconstrained third-order `ARS343` is the comparison arm for the convergence-order
-oracle and for any configuration that declares no limiter. The tableau is named in the
+oracle and for any configuration that declares no limiter. Its coefficients were checked
+against Ascher, Ruuth and Spiteri section 2.7 one by one: the package builds the paper's
+two-parameter family at the paper's own choice of free parameters, every coefficient
+agrees to the ten digits the paper prints, the diagonal entry is a root of the paper's
+cubic to machine zero, and both row sums are exactly one. The tableau is named in the
 profile (decision 0014) and enters the run identity, because changing it changes the
 answer.
 
@@ -127,6 +131,8 @@ coefficients.
   tableau table has been read against the coefficients the package implements.
 - Ascher, U. M., S. J. Ruuth and R. J. Spiteri. "Implicit-explicit Runge-Kutta methods for
   time-dependent partial differential equations." Applied Numerical Mathematics 25 (1997).
-  DOI: 10.1016/S0168-9274(97)00056-1. The source of the ARS tableaux, including the
-  `ARS343` comparison arm. Paywalled, requested from the user in
-  `docs/references/REQUESTS.md`.
+  DOI: 10.1016/S0168-9274(97)00056-1. Read, and held as
+  `references/pdf/ascher1997-implicit-explicit-runge-kutta-methods.pdf`. Its section 2.7
+  is the comparison arm named in condition three: the L-stable three-stage third-order
+  DIRK and the four-stage explicit partner built to share the stability region of the
+  four-stage fourth-order explicit schemes.
