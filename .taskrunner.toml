@@ -1,0 +1,26 @@
+# Resource defaults for this repository, inherited by every worktree under it.
+# Authored against `qrun spec` on this machine; the rules are in
+# ~/.claude/CLAUDE.md and decision 0043 says why the gate runs here.
+#
+# The heavy command in this tree is the Julia suite, which reaches the card, so
+# a bare `qrun -- <command>` is sized for it and names no profile.
+#
+# Precedence here was measured with `qrun --dry-run`, not assumed:
+#   - a command-line --profile still chooses its own cpus and shards, so
+#     `qrun -p light -- <command>` takes no GPU share and stays off the card;
+#   - the keys below override whatever profile is in play;
+#   - an explicit flag beats everything in this file.
+# So a job that wants the card and nothing special says `qrun -- <command>`, a
+# job that does not want the card says `-p light`, and a job that wants more
+# than the values below passes the flag it wants.
+
+# 8 cpus, one of the card's four shares, 3G of vram.
+profile = "gpu-share"
+
+# The suite does not fit the 12G that profile carries. tools/gate/gate.sh has
+# asked for 16G since the gate moved to this machine.
+mem = "16G"
+
+# Long enough for an exhaustive sweep over a Float32 domain, short enough that a
+# job nobody is watching is not a lost day. A longer job passes -t.
+time = "01:00:00"
