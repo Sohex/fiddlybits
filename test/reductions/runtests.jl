@@ -1,8 +1,7 @@
-module Reductions
-
+include("fixtures.jl")
 include("error_bound.jl")
 include("pairwise.jl")
 include("compensated.jl")
 include("segmented.jl")
-
-end # module Reductions
+include("thread_bitwise.jl")
+include("partition_independent.jl")
