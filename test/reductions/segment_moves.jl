@@ -148,6 +148,42 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
         end
     end
 
+    @testset "the bitonic network's copy to the card is not a recorded move" begin
+        # The copy is a constant of k alone, built once per process and never
+        # read back, so it is outside the recorded path:
+        # docs/decisions/0047-a-kernels-own-constant-table-is-not-a-device-move.md.
+        AT = Backends.array_type(gpu)
+        k = Reductions.QUANTILE_K_MIN
+        key = (AT, k)
+
+        # The cache is process-lifetime, so the call that builds the copy is
+        # reached by emptying this key rather than by running first.
+        lock(Reductions.QUANTILE_BITONIC_NETWORK_DEVICE_LOCK) do
+            delete!(Reductions.QUANTILE_BITONIC_NETWORK_DEVICE, key)
+        end
+        @test !haskey(Reductions.QUANTILE_BITONIC_NETWORK_DEVICE, key)
+
+        @test moves(() -> Reductions.device_bitonic_network(gpu, k)) == 0
+        @test haskey(Reductions.QUANTILE_BITONIC_NETWORK_DEVICE, key)
+        @test moves(() -> Reductions.device_bitonic_network(gpu, k)) == 0
+
+        @testset "positive control: the same table through the door is counted" begin
+            # Both counts above are zero, so they say nothing unless the same
+            # bytes handed to Backends.on do record a move.
+            partner, _ = Reductions.QUANTILE_BITONIC_NETWORK[k]
+            @test moves(() -> Backends.on(partner, gpu)) == 1
+        end
+
+        @testset "the other half of the network is a BitMatrix the door cannot take" begin
+            # The third of decision 0047's three points. Which exception is
+            # raised here is fiddlybits-52v.7.55; that it cannot be handed to
+            # the door at all is the point.
+            _, ascending = Reductions.QUANTILE_BITONIC_NETWORK[k]
+            @test ascending isa BitMatrix
+            @test_throws Exception Backends.on(ascending, gpu)
+        end
+    end
+
     @testset "the reduction is the same one either way" begin
         segmentation = Reductions.Segmentation(xs_gpu, starts_gpu)
         quartered_segmentation = Reductions.Segmentation(xs_gpu, quartered_gpu)
