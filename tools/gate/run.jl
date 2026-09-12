@@ -103,8 +103,10 @@ function run_suites(names::Vector{String}, workers::Int, runner)
                 ok = runner(name)::Bool
                 seconds = time() - started
                 results[i] = (name, ok, seconds)
-                println(ok ? "  pass  " : "  FAIL  ", rpad(name, 12),
-                        lpad(round(seconds; digits = 1), 7), " s")
+                # One string and one write, because tasks finish while other tasks
+                # are printing.
+                println(string(ok ? "  pass  " : "  FAIL  ", rpad(name, 12),
+                               lpad(round(seconds; digits = 1), 7), " s"))
                 flush(stdout)
             finally
                 Base.release(slots)

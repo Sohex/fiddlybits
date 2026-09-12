@@ -440,7 +440,9 @@ The partition cannot reach the result: task `j` writes row `j + 1` of
 no order in which they could combine (decisions 0029 and 0038). A `Refusal`
 raised inside a task is held and rethrown after every task has finished, lowest
 injection step first, so which refusal a caller sees is a function of the case
-and not of which task happened to fail soonest.
+and not of which task happened to fail soonest. Anything else a task throws is
+not a refusal but a defect, and is left to propagate as the task failure it is,
+with the backtrace that says where it happened.
 
 The gain for an error injected at step `j` is measured on the reference state at
 step `j`, not on the candidate's own state there, which has drifted by whatever

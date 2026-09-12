@@ -8,7 +8,19 @@ using Test
 # notes/findings/2026-09-12-the-gate-in-parallel.md carries the wall times.
 
 const GATE_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
-include(joinpath(GATE_ROOT, "tools", "gate", "run.jl"))
+
+# The driver is loaded into a module of its own rather than into `Main`. It includes
+# `test/suites.jl`, and so does `test/runtests.jl`, which runs this file: loading both
+# into one namespace would define `suites` twice, which is the one thing the shared
+# file exists to prevent.
+module GateDriver
+include(joinpath(normpath(joinpath(@__DIR__, "..", "..")), "tools", "gate", "run.jl"))
+end
+
+using .GateDriver: worker_count, run_suites, report
+
+# `suites` stays qualified. `test/runtests.jl` has its own binding for it when it is
+# the door running this file, and importing a second one would be shadowed in silence.
 
 @testset "gate.parallel_driver" begin
     @testset "the worker count is stated, never inferred" begin
@@ -72,7 +84,7 @@ include(joinpath(GATE_ROOT, "tools", "gate", "run.jl"))
     end
 
     @testset "both doors discover the same suites" begin
-        found, missing = suites(joinpath(GATE_ROOT, "test"))
+        found, missing = GateDriver.suites(joinpath(GATE_ROOT, "test"))
         @test isempty(missing)
         @test "certify" in found
         @test "gate" in found
@@ -84,7 +96,7 @@ include(joinpath(GATE_ROOT, "tools", "gate", "run.jl"))
             mkdir(joinpath(scratch, "withentry"))
             touch(joinpath(scratch, "withentry", "runtests.jl"))
             mkdir(joinpath(scratch, "without"))
-            f, m = suites(scratch)
+            f, m = GateDriver.suites(scratch)
             @test f == ["withentry"]
             @test m == ["without"]
         end
