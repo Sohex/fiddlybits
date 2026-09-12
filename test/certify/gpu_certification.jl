@@ -33,7 +33,7 @@ using Fiddlybits: Backends
 
     report = Backends.certification(gpu_step!, CASE, CASE_ENVELOPE; roundoff = CASE_ROUNDOFF)
     @test report.verdict == Backends.PASS()
-    @test maximum(report.observed ./ report.bound) < 1 / 32
+    @test maximum(report.observed ./ report.admitted) < 1 / 32
 
     @testset "positive control: a Float32-only defect on the card fails" begin
         function defective!(state::Vector{Vector{T}}) where {T}

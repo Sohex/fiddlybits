@@ -79,10 +79,23 @@ and every commit it carries is already made. `bd worktree create` still writes a
 class rule it is redundant, and the two still cancel, so leave it out of every commit.
 
 Two end states only: **completed** (acceptance oracles ran and passed, named) or
-**blocked** (what would unblock it, named). Anything found outside the boundary is a
-NEW row (`bd create --parent <area> ...`), never a widening of your own. Do not
-remove the worktree until the reviewer has merged; then
-`bd worktree remove .beads/worktrees/<id>`.
+**blocked** (what would unblock it, named). Do not remove the worktree until the
+reviewer has merged; then `bd worktree remove .beads/worktrees/<id>`.
+
+**Work the row turns up is the row's work** (decision 0048). The default is to finish
+it here, not to file it and stop. File a new row (`bd create --parent <area> ...`) only
+when one of four things is true, and name which:
+
+1. it is outside the file boundary, which is the one line you may not cross on your
+   own judgement;
+2. it is a different question that happens to be adjacent, not part of this one;
+3. it has to merge before this row rather than inside it, which is a dependency edge;
+4. finishing it would put a second substantial piece of work under one review.
+
+Not foreseen when the row was written, and not named in its acceptance criteria, are
+not reasons. A row closed as completed names its acceptance oracles and, where the work
+went further, what else was finished, so a reviewer reading a wider diff knows why. A
+row closed with its subject half-true and the remainder filed is not completed.
 
 ## The planner's checklist (plan rows)
 

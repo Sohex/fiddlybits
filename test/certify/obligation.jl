@@ -18,12 +18,19 @@ using Fiddlybits: Backends, Verdicts
 
 const OBLIGATION_ROUNDOFF = scope -> CertifyMeshFixture.roundoff(MESH_CASE; sites = scope)
 
-# The stand-in case's envelope as notes/findings/2026-09-11-ulp-ensemble-member-
-# count.md recorded it, section "The certification, and the smallest defect it
-# catches".
+# The stand-in case's gains from the initial state as notes/findings/2026-09-12-
+# ulp-ensemble-amplitude-and-injection-step.md recorded them, section "The
+# stand-in case at the two amplitudes". The row is the draw's own signature: a
+# member set that moved would not reproduce it.
 const FINDING_AMPLIFICATION =
-    [3.0, 5.0, 5.75, 6.015625, 7.53125, 6.5625, 6.75, 8.5, 8.125, 11.0,
-     11.5, 13.0, 11.75, 12.75, 13.75, 15.0, 16.5, 13.75, 13.0, 14.375]
+    [1.5370733437594026, 1.49623842316214, 1.5326636934187263, 1.5908572526823264,
+     1.6080869103316218, 1.6191722891526297, 1.6264993406366557, 1.6330749358749017,
+     1.651457596803084, 1.6652258010581136, 1.6752443460281938, 1.6837054369971156,
+     1.6935136308893561, 1.7129886508919299, 1.7329219253733754, 1.7526412960141897,
+     1.7716029654257, 1.7909559129038826, 1.813414293807, 1.8346782953012735]
+
+# Unchanged by that finding: the initial divergence is the Float32 rounding of
+# the case's own initial state and no envelope enters it.
 const FINDING_INITIAL = 4.253610957849485e-5
 
 @testset "certify.obligation_is_carried_by_the_case" begin
@@ -200,8 +207,9 @@ end
                                    for v in (MESH_NV - 11):MESH_NV]
         @test length(elsewhere) == length(ob.sites)
         @test Set(elsewhere) != Set(ob.sites)
-        other = Backends.Envelope(e.case, e.steps, e.members, e.sites, e.exhaustive,
-                                  e.miss_rate, e.amplification, elsewhere, elsewhere)
+        other = Backends.Envelope(e.case, e.steps, e.precision, e.members, e.sites,
+                                  e.exhaustive, e.miss_rate, e.amplification, elsewhere,
+                                  elsewhere)
         @test !Backends.covers(other, MESH_PENTAGON_SITES, ob)
         @test !Backends.covers(other, elsewhere, ob)
     end
@@ -223,9 +231,9 @@ end
     @test report.obligated[1].verdict == Backends.PASS()
 
     @testset "the sampled arm is the same envelope the caller would have built" begin
-        @test report.sampled.bound == Backends.admissible(MESH_SAMPLED_ENVELOPE,
-                                                          report.sampled.initial,
-                                                          MESH_ROUNDOFF_DOMAIN)
+        @test report.sampled.admitted == Backends.admitted(MESH_SAMPLED_ENVELOPE,
+                                                           report.sampled.initial,
+                                                           MESH_ROUNDOFF_DOMAIN)
     end
 
     @testset "a defect at one degree-five vertex fails the case, not only the arm" begin
@@ -252,7 +260,8 @@ end
 
 @testset "certify.sampled_draw_is_unchanged" begin
     @testset "the stand-in case's envelope is what the finding recorded, bit for bit" begin
-        @test CASE_ENVELOPE.amplification == FINDING_AMPLIFICATION
+        @test [CASE_ENVELOPE.amplification[1, s] for s in 1:CertifyFixtures.STEPS] ==
+              FINDING_AMPLIFICATION
         @test CASE_ENVELOPE.members == Backends.ENSEMBLE_MEMBERS
         @test CASE_ENVELOPE.sites == 2 * CertifyFixtures.N_CELLS
         @test CASE_ENVELOPE.exhaustive == false
@@ -262,14 +271,14 @@ end
     end
 
     @testset "the members are the bit-reversed prefix, in order, over every usable site" begin
-        usable = Backends.usable_sites(CASE)
+        usable = Backends.usable_sites(CASE, Float32)
         order = Backends.bit_reversed_order(length(usable))
         @test CASE_ENVELOPE.perturbed ==
               [usable[order[t]] for t in 1:Backends.ENSEMBLE_MEMBERS]
         @test CASE_ENVELOPE.scope === nothing
 
         @testset "the real-mesh case draws the same way" begin
-            mesh_usable = Backends.usable_sites(MESH_CASE)
+            mesh_usable = Backends.usable_sites(MESH_CASE, Float32)
             mesh_order = Backends.bit_reversed_order(length(mesh_usable))
             @test MESH_SAMPLED_ENVELOPE.perturbed ==
                   [mesh_usable[mesh_order[t]] for t in 1:Backends.ENSEMBLE_MEMBERS]

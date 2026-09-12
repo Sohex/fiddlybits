@@ -22,9 +22,9 @@ using .CertifyMeshFixture
 const MESH_CASE, MESH_NEIGHBOUR, MESH_W, MESH_VALENCE, MESH_PENTAGON = CertifyMeshFixture.real_mesh_case()
 const MESH_NV = length(MESH_CASE.fields[1])
 const MESH_PENTAGON_SITES = Tuple{Int,Int}[(f, v) for f in eachindex(MESH_CASE.fields) for v in MESH_PENTAGON]
-const MESH_SAMPLED_ENVELOPE = Backends.envelope(MESH_CASE, CertifyMeshFixture.STEPS)
+const MESH_SAMPLED_ENVELOPE = Backends.envelope(MESH_CASE, CertifyMeshFixture.STEPS, Float32)
 const MESH_PENTAGON_ENVELOPE = Backends.exhaustive_envelope(MESH_CASE, CertifyMeshFixture.STEPS,
-                                                             MESH_PENTAGON_SITES)
+                                                             MESH_PENTAGON_SITES, Float32)
 const MESH_ROUNDOFF_DOMAIN = CertifyMeshFixture.roundoff(MESH_CASE)
 const MESH_ROUNDOFF_PENTAGON = CertifyMeshFixture.roundoff(MESH_CASE; sites = MESH_PENTAGON_SITES)
 const MESH_DEFECT_VERTEX = MESH_PENTAGON[1]
@@ -78,8 +78,8 @@ const MESH_DEFECT_RELATIVE = 1.0e-2
                                           sites = MESH_PENTAGON_SITES)
         @test domain.verdict == Backends.PASS()
         @test pentagon.verdict == Backends.PASS()
-        @test all(domain.observed .<= domain.bound)
-        @test all(pentagon.observed .<= pentagon.bound)
+        @test all(domain.observed .<= domain.admitted)
+        @test all(pentagon.observed .<= pentagon.admitted)
     end
 
     @testset "a defect planted at one degree-five cell alone is caught" begin
@@ -91,7 +91,7 @@ const MESH_DEFECT_RELATIVE = 1.0e-2
                                         roundoff = MESH_ROUNDOFF_PENTAGON,
                                         sites = MESH_PENTAGON_SITES)
         @test report.verdict == Backends.FAIL()
-        @test any(report.observed .> report.bound)
+        @test any(report.observed .> report.admitted)
 
         @testset "the verdict is an OracleVerdict and never a boolean" begin
             verdict = Backends.certify(defect, MESH_CASE, MESH_PENTAGON_ENVELOPE;
@@ -105,7 +105,7 @@ const MESH_DEFECT_RELATIVE = 1.0e-2
             missed = Backends.certification(defect, MESH_CASE, MESH_SAMPLED_ENVELOPE;
                                             roundoff = MESH_ROUNDOFF_DOMAIN)
             @test missed.verdict == Backends.PASS()
-            @test all(missed.observed .<= missed.bound)
+            @test all(missed.observed .<= missed.admitted)
         end
     end
 end

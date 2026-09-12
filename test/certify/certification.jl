@@ -10,8 +10,8 @@ using Fiddlybits: Backends, Verdicts
 @testset "certify.correct_fp32_certifies" begin
     report = Backends.certification(CASE.step, CASE, CASE_ENVELOPE; roundoff = CASE_ROUNDOFF)
     @test report.verdict == Backends.PASS()
-    @test all(report.observed .<= report.bound)
-    @test maximum(report.observed ./ report.bound) < 1 / 32
+    @test all(report.observed .<= report.admitted)
+    @test maximum(report.observed ./ report.admitted) < 1 / 32
     @test report.initial > 0
 
     @testset "the verdict is an OracleVerdict and never a boolean" begin
@@ -27,7 +27,7 @@ end
         candidate = CertifyFixtures.injected(CASE_NB, CASE_W, 1.0e-5)
         report = Backends.certification(candidate, CASE, CASE_ENVELOPE; roundoff = CASE_ROUNDOFF)
         @test report.verdict == Backends.FAIL()
-        @test any(report.observed .> report.bound)
+        @test any(report.observed .> report.admitted)
     end
 
     @testset "a relative defect of 1e-4 in the Float32 path alone" begin
@@ -50,9 +50,48 @@ end
     end
 end
 
+@testset "certify.later_injection_exceeds_the_initial_state_envelope" begin
+    # `growing_case` is nonlinear and its local amplification grows along its
+    # trajectory; the candidate injects a declared absolute divergence at Float32
+    # alone, and the case's initial state is exact at Float32, so `initial` is
+    # zero and the verdict rests on the propagation of the declaration alone.
+    # What this falsifies is in
+    # notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md.
+    case = CertifyFixtures.growing_case()
+    steps = CertifyFixtures.GROWING_STEPS
+    env = Backends.envelope(case, steps, Float32)
+    candidate = CertifyFixtures.growing_injection(CertifyFixtures.GROWING_INJECTION)
+    declared = CertifyFixtures.measured_roundoff(case, candidate, steps)
+
+    measured = Backends.certification(candidate, case, env; roundoff = declared)
+    @test measured.initial == 0
+    @test measured.verdict == Backends.PASS()
+    @test maximum(measured.observed ./ measured.admitted) < 1 / 2
+
+    @testset "the same candidate against gains measured at the initial state alone" begin
+        flat = Backends.certification(candidate, case,
+                                      CertifyFixtures.stationary_envelope(env);
+                                      roundoff = declared)
+        @test flat.verdict == Backends.FAIL()
+        @test maximum(flat.observed ./ flat.admitted) > 10
+        @test flat.observed == measured.observed
+        @test flat.admitted[1] == measured.admitted[1]
+    end
+
+    @testset "positive control: on a linear stationary case the two agree" begin
+        linear = CertifyFixtures.small_case()
+        linear_env = Backends.envelope(linear, 6, Float32)
+        flat = CertifyFixtures.stationary_envelope(linear_env)
+        for j in 0:5, s in (j + 1):6
+            @test isapprox(flat.amplification[j + 1, s], linear_env.amplification[j + 1, s];
+                           rtol = 1.0e-6)
+        end
+    end
+end
+
 @testset "certification refuses rather than returning a verdict it cannot stand behind" begin
     @testset "an envelope measured on another case" begin
-        other = Backends.envelope(CertifyFixtures.small_case(), 4)
+        other = Backends.envelope(CertifyFixtures.small_case(), 4, Float32)
         caught = try
             Backends.certify(CASE.step, CASE, other; roundoff = CASE_ROUNDOFF)
         catch e
@@ -75,6 +114,23 @@ end
         @testset "positive control: zero roundoff is a declaration, not a refusal" begin
             @test Backends.certify(CASE.step, CASE, CASE_ENVELOPE; roundoff = 0) isa
                   Verdicts.OracleVerdict
+        end
+    end
+
+    @testset "an envelope measured for another precision" begin
+        wide = Backends.envelope(CASE, CertifyFixtures.STEPS, Float64)
+        caught = try
+            Backends.certify(CASE.step, CASE, wide; roundoff = CASE_ROUNDOFF)
+        catch e
+            e
+        end
+        @test caught isa Verdicts.Refusal
+        @test occursin("Float64", caught.reason)
+        @test occursin("Float32", caught.reason)
+
+        @testset "positive control: the Float32 envelope of the same case is taken" begin
+            @test Backends.certify(CASE.step, CASE, CASE_ENVELOPE;
+                                   roundoff = CASE_ROUNDOFF) isa Verdicts.OracleVerdict
         end
     end
 end
