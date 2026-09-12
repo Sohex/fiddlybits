@@ -1,30 +1,18 @@
 using Test
-using InteractiveUtils: subtypes
 using Fiddlybits: Fields, Dimensions, Time, Mesh
 using Fiddlybits.Verdicts: Refusal
 using UUIDs: UUID
 
 const OTHER_RUN = UUID("9b3c0000-0000-4000-8000-000000000001")
 
-# The Field type, the closed Semantics vocabulary and Origin:
-# docs/plans/fiddlybits-52v.3-fields.md, row 52v.3.2.
+# The Field type and Origin: docs/plans/fiddlybits-52v.3-fields.md, row 52v.3.2.
+# The Semantics vocabulary is closed in test/fields/semantics_closure.jl, which the
+# docstring on Fields.Semantics names.
 
 const F = Fields
 const FX = FieldFixtures
 
 @testset "Fields.field" begin
-    @testset "the Semantics enumeration is complete and is decision 0006's set" begin
-        declared = Set(F.semantics_types())
-        present = Set(subtypes(F.Semantics))
-        @test setdiff(present, declared) |> isempty
-        @test setdiff(declared, present) |> isempty
-        @test length(F.semantics_types()) == 8
-        @test F.semantics_types() == (F.Extensive, F.Intensive, F.FluxDensity,
-                                      F.Fraction, F.CategoricalLabel,
-                                      F.CategoricalFraction, F.VectorComponent,
-                                      F.Quantiles)
-    end
-
     @testset "a field cannot be built without all four declarations" begin
         @test_throws MethodError F.Field(FX.NCELLS |> ones)
         for missing_one in (:semantics, :dimension, :data, :support, :time, :origin)

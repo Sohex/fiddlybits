@@ -1,4 +1,5 @@
 include("fixtures.jl")
+include("semantics_closure.jl")
 include("field.jl")
 include("dimension_refusal.jl")
 include("reduce.jl")
