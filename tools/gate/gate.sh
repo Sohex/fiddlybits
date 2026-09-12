@@ -16,7 +16,13 @@
 #
 # `julia --project -e 'using Pkg; Pkg.test()'` runs the same suites in one process in
 # order and stays the door a person reaches for; both read their suite list from
-# test/suites.jl.
+# test/suites.jl, and both pass --warn-overwrite=yes and --depwarn=yes so that a
+# warning reaches whichever door is run. Not --check-bounds=yes, which Pkg.test also
+# sets: it costs the gate a factor of 2.2, measured in
+# notes/findings/2026-09-12-what-the-gate-pays-for-each-of-pkg-test-s-flags.md.
+#
+# A warning no entry of tools/gate/warnings.toml accepts refuses the run, so a
+# warning is read once and then either fixed or written down with its reason.
 set -eu
 root=$(git rev-parse --show-toplevel)
 cd "$root"
