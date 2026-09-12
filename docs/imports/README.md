@@ -6,6 +6,11 @@ point of building from scratch is to stop importing conventions built for other
 concerns. Infrastructure is not exempt: an index base, a calendar type, a default
 radius or a threading model leaks as surely as a physics constant.
 
+The review method below is what a record must carry. What the executable gate checks
+is narrower: that a record exists, names a leak check, and that the check resolves.
+`fiddlybits-af0` closes the gap, by putting the reviewed surface, the version, the
+licence and a status per checklist item into TOML front matter the harness can read.
+
 ## Record format
 
 - **What it is** and **what of it is used** (the surface area we depend on).

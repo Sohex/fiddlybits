@@ -15,6 +15,17 @@
 # system-derived units; a published case's day written as its seconds on the arm
 # where the published bar applies, with the spread-arm rule stated; vertical
 # diagnostics in sigma, never a fixed pressure (docs/oracles/README.md).
+#
+# Four rows are open against this file's schema and the rule behind it, and
+# fiddlybits-52v.8.2 waits on all four so the loader is not written against a shape
+# already known to be wrong:
+#   fiddlybits-dvk  seventeen rows carry two verdict semantics under one verdict_kind
+#   fiddlybits-w7p  sweep.obliquity restates a threshold system.orbit_mean_insolation
+#                   states differently; a row needs a way to name what it depends on
+#   fiddlybits-3vq  no row names the data manifest it reads, and one manifest names an
+#                   oracle that does not exist
+#   fiddlybits-5d1  the registration rule is stated as before the artifact exists, and
+#                   decision 0025 cites a source saying before the results are seen
 
 # ---------------------------------------------------------------- tier 1: build and dependencies
 
