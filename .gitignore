@@ -47,35 +47,9 @@ Manifest.toml.bak
 
 # Pipeline work files (repair lists, markers)
 references/work/
-fiddlybits-52v.2.4/
-fiddlybits-52v.2.3/
-fiddlybits-52v.2.5/
-fiddlybits-52v.1.10/
-fiddlybits-52v.7.2/
-fiddlybits-52v.7.3/
-fiddlybits-52v.7.9/
-fiddlybits-52v.7.8/
-fiddlybits-52v.7.5/
-fiddlybits-52v.7.11/
-fiddlybits-52v.7.14/
-fiddlybits-52v.7.17/
-fiddlybits-52v.7.19/
-fiddlybits-52v.7.10/
-fiddlybits-52v.7.20/
-fiddlybits-52v.7.21/
-fiddlybits-52v.7.23/
-fiddlybits-52v.7.25/
-fiddlybits-52v.7.26/
-fiddlybits-52v.7.22/
-fiddlybits-52v.7.33/
-fiddlybits-52v.7.34/
-fiddlybits-52v.7.36/
-fiddlybits-52v.7.38/
-fiddlybits-52v.7.42/
-fiddlybits-52v.7.29/
-fiddlybits-52v.7.46/
-fiddlybits-52v.7.47/
-fiddlybits-52v.7.43/
-fiddlybits-52v.7.50/
-fiddlybits-52v.7.39/
-fiddlybits-52v.7.40/
+
+# Row worktrees. `bd worktree create <id>` puts one at ./<id> and every row id
+# carries the tracker's prefix, so the whole class is ignored here rather than a
+# line per worktree. bd still writes and removes its own entry for each one; the
+# two cancel and neither is committed.
+/fiddlybits-*/
