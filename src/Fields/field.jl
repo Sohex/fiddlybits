@@ -304,11 +304,21 @@ as a `MethodError`. A declared refusal carrying a sentence is what the refusal t
 `docs/plans/fiddlybits-52v.3-fields.md` is made of; an absent method is that table's
 failure state, not its shape.
 
-The four are checked in the order they sit on the type, so the refusal names the first
-that differs rather than all of them. The semantics and the time semantics are compared
-here; the dimension goes to `Dimensions.require_same_dim` and the support to
-`Mesh.require_same_support`, because each identity belongs to the module that declares
-it and a convention restated in two places is two conventions.
+Six things are compared, not four. The four declarations are checked in the order they
+sit on the type, so the refusal names the first that differs rather than all of them.
+The semantics and the time semantics are compared here; the dimension goes to
+`Dimensions.require_same_dim` and the support to `Mesh.require_same_support`, because
+each identity belongs to the module that declares it and a convention restated in two
+places is two conventions.
+
+The other two are where the operands sit, and they are compared because the result can
+only carry one of each. A `TimeSupport` records where a value is on the clock, and an
+`Origin`'s run records which run produced it. A result built from the left operand
+inherits both, so allowing two operands to differ in either would make an operator
+commutative in its numbers and not in what those numbers claim to be: `a + b` and
+`b + a` would carry the same data over different intervals, or name one of two runs.
+Combining across either is then a named operation whose own provenance says so, if it
+is ever wanted, rather than something that happens by accident.
 
 One method per operator rather than a matching method and a less specific one: a
 signature naming only the parameters that must agree is the same type as one naming
@@ -322,8 +332,16 @@ function require_combinable(a::Field, b::Field, site::AbstractString)
     time_semantics(a) === time_semantics(b) || refuse(
         "field combination", site,
         "$(describe(a)) and $(describe(b)) differ in time semantics")
+    a.time == b.time || refuse(
+        "field combination", site,
+        "$(describe(a)) at $(a.time) and $(describe(b)) at $(b.time) sit at different " *
+        "places on the clock, and a result carries one")
     require_same_dim(dimension(a), dimension(b), site)
     require_same_support(support(a), support(b), site)
+    a.origin.run == b.origin.run || refuse(
+        "field combination", site,
+        "the operands were written in runs $(a.origin.run) and $(b.origin.run), and a " *
+        "result carries one")
     return nothing
 end
 
