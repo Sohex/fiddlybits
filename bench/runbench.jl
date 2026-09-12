@@ -10,6 +10,10 @@
 # The rows that optimise these kernels report their before and after against these
 # cases on this bed: fiddlybits-zgh, fiddlybits-2tg, fiddlybits-3jt, fiddlybits-ool,
 # fiddlybits-9j7, fiddlybits-dn6.
+#
+# Every run records what else held the card while it ran, before the first case and
+# after the last. What that reading licenses is
+# notes/findings/2026-09-12-reduction-bench-occupancy.md.
 
 const LOAD_SECONDS = @elapsed using Fiddlybits
 
@@ -252,6 +256,73 @@ end
 median(v::AbstractVector) = (s = sort(v); n = length(s);
                              isodd(n) ? s[(n + 1) ÷ 2] : (s[n ÷ 2] + s[n ÷ 2 + 1]) / 2)
 
+"""
+    Occupancy
+
+What held the card at one instant: the scheduler's count of allocated shares out
+of the node's total, and the card's own report of its utilisation, the memory in
+use and how many compute processes it carried, this one among them once it has
+touched the card and not before. A field reads `-1` where its source did not
+answer, the way `load1` reads `NaN`.
+
+`utilisation_pc` is what the card reported at the instant of the reading, not an
+average over the run.
+
+`sole_holder` is the one derived reading, true when this job is the only holder of
+a share. The card carries processes that never asked the scheduler for anything,
+so `processes_other` is not zero on a quiet card and is not the test.
+"""
+struct Occupancy
+    shards_in_use::Int
+    shards_total::Int
+    utilisation_pc::Int
+    memory_used_mib::Int
+    processes::Int
+    processes_other::Int
+end
+
+sole_holder(o::Occupancy) = o.shards_in_use == 1
+
+"The scheduler's allocated and total share counts, from `qrun free`."
+function shard_counts()
+    try
+        m = match(r"GPU shares:\s*(\d+)/(\d+)\s+in use", read(`qrun free`, String))
+        m === nothing || return (parse(Int, m[1]), parse(Int, m[2]))
+    catch
+    end
+    return (-1, -1)
+end
+
+"The card's utilisation in per cent, its memory in use in MiB, and the compute processes it carries."
+function card_counts()
+    try
+        gpu = split(chomp(read(`nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits`, String)), ",")
+        apps = filter(!isempty, split(chomp(read(`nvidia-smi --query-compute-apps=pid --format=csv,noheader`, String)), "\n"))
+        mine = string(Base.Libc.getpid())
+        return (parse(Int, strip(gpu[1])), parse(Int, strip(gpu[2])),
+                length(apps), count(a -> strip(a) != mine, apps))
+    catch
+    end
+    return (-1, -1, -1, -1)
+end
+
+"One `Occupancy` reading, taken now."
+function occupancy()
+    in_use, total = shard_counts()
+    util, mem, procs, others = card_counts()
+    return Occupancy(in_use, total, util, mem, procs, others)
+end
+
+table(o::Occupancy) = Dict{String, Any}(
+    "shards_in_use" => o.shards_in_use,
+    "shards_total" => o.shards_total,
+    "utilisation_pc" => o.utilisation_pc,
+    "memory_used_mib" => o.memory_used_mib,
+    "processes" => o.processes,
+    "processes_other" => o.processes_other,
+    "sole_holder" => sole_holder(o),
+)
+
 host() = try chomp(read(`hostname`, String)) catch; "unknown" end
 load1() = try parse(Float64, split(read("/proc/loadavg", String))[1]) catch; NaN end
 card() = try chomp(read(`nvidia-smi --query-gpu=name --format=csv,noheader`, String)) catch; "unknown" end
@@ -279,6 +350,7 @@ function main()
 
     backend = Backends.GPU(WORKGROUP)
     startup = process_age()
+    before = occupancy()
 
     measured = Dict{String, Float64}()
     rows = Dict{String, Any}[]
@@ -299,10 +371,15 @@ function main()
         ))
     end
 
+    after = occupancy()
+
     TOML.print(stdout, Dict("bed" => Dict{String, Any}(
         "host" => host(),
         "card" => card(),
         "load" => load1(),
+        "occupancy_before" => table(before),
+        "occupancy_after" => table(after),
+        "sole_holder_throughout" => sole_holder(before) && sole_holder(after),
         "julia" => string(VERSION),
         "startup_s" => startup,
         "load_s" => LOAD_SECONDS,
