@@ -17,10 +17,20 @@ module GateDriver
 include(joinpath(normpath(joinpath(@__DIR__, "..", "..")), "tools", "gate", "run.jl"))
 end
 
-using .GateDriver: worker_count, run_suites, report
+using .GateDriver: worker_count, run_suites, report, suite_command,
+                   accepted_warnings, unaccepted_warnings, SUITE_FLAGS
 
 # `suites` stays qualified. `test/runtests.jl` has its own binding for it when it is
 # the door running this file, and importing a second one would be shadowed in silence.
+
+"""
+    quiet(f)
+
+Run `f` with stdout discarded. `report` prints, and what it prints here includes a
+warning line built for the test; under the gate that would land in this suite's own
+log, where the gate's warning scan reads it.
+"""
+quiet(f) = redirect_stdout(f, devnull)
 
 @testset "gate.parallel_driver" begin
     @testset "the worker count is stated, never inferred" begin
@@ -79,8 +89,77 @@ using .GateDriver: worker_count, run_suites, report
         allpass = [("a", true, 1.0), ("b", true, 2.0)]
         onefails = [("a", true, 1.0), ("b", false, 2.0)]
         write(joinpath(logdir, "b.log"), "what b printed")
-        @test report(allpass, logdir, 2.0) == 0
-        @test report(onefails, logdir, 2.0) == 1
+        @test quiet(() -> report(allpass, logdir, 2.0)) == 0
+        @test quiet(() -> report(onefails, logdir, 2.0)) == 1
+    end
+
+    @testset "a suite process carries the flags that make it report" begin
+        cmd = suite_command(GATE_ROOT, "events", 4)
+        for flag in ("--warn-overwrite=yes", "--depwarn=yes")
+            @test flag in cmd.exec
+            @test flag in SUITE_FLAGS.exec
+        end
+
+        @testset "and not the one that changes what is compiled" begin
+            @test !any(startswith(a, "--check-bounds") for a in cmd.exec)
+        end
+    end
+
+    @testset "a warning the record does not accept refuses the run" begin
+        accepted = accepted_warnings(GATE_ROOT)
+        # A neutral name, not the one the row was raised by: this file would then be
+        # a caller of it as far as build.one_definition_per_helper's text scan can
+        # tell, and a quotation is not a call.
+        overwritten = "WARNING: Method definition answer() in module " *
+                      "Main at a.jl:15 overwritten at b.jl:15."
+        official = "\u250c Warning: You are using a non-official build of Julia. " *
+                   "This may cause issues with CUDA.jl."
+
+        @testset "every accepted entry says what it accepts and why" begin
+            @test !isempty(accepted)
+            for (pattern, reason) in accepted
+                @test !isempty(pattern)
+                @test !isempty(reason)
+            end
+
+            @testset "positive control: an entry with no reason is refused" begin
+                bare = joinpath(GATE_ROOT, "test", "gate", "fixtures", "warnings_no_reason")
+                @test_throws ErrorException accepted_warnings(bare)
+            end
+
+            @testset "positive control: no record at all is refused, naming the path" begin
+                caught = try
+                    accepted_warnings(mktempdir())
+                catch e
+                    e
+                end
+                @test caught isa ErrorException
+                @test occursin("warnings.toml", caught.msg)
+            end
+        end
+
+        @testset "the scan reads the head of a warning and not its detail" begin
+            text = join(["a passing line", overwritten, official,
+                         "\u2502 detail nobody scans", "\u2514 @ CUDACore x.jl:1"], "\n")
+            @test unaccepted_warnings(text, accepted) == [overwritten]
+        end
+
+        @testset "clean control: an accepted warning alone is not a refusal" begin
+            @test isempty(unaccepted_warnings(official, accepted))
+        end
+
+        @testset "a run whose suites all pass still refuses on the warning" begin
+            logdir = mktempdir()
+            passed = [("a", true, 1.0), ("b", true, 2.0)]
+            write(joinpath(logdir, "a.log"), official * "\nall good\n")
+            write(joinpath(logdir, "b.log"), official * "\n" * overwritten * "\n")
+            @test quiet(() -> report(passed, logdir, 2.0; accepted = accepted)) == 1
+
+            @testset "positive control: the same run without the warning passes" begin
+                write(joinpath(logdir, "b.log"), official * "\nall good\n")
+                @test quiet(() -> report(passed, logdir, 2.0; accepted = accepted)) == 0
+            end
+        end
     end
 
     @testset "both doors discover the same suites" begin

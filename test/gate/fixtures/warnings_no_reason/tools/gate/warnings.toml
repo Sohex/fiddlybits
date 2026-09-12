@@ -1,0 +1,5 @@
+# A record whose entry accepts a warning without saying why, which the reader of
+# tools/gate/warnings.toml has to be refused rather than handed.
+
+[[accepted]]
+pattern = "something we would rather not see"

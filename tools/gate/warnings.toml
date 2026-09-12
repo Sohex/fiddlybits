@@ -1,0 +1,14 @@
+# The warning lines the gate accepts from a suite's output. Anything else a suite
+# writes as a warning refuses the run, so a warning is read once and then either
+# fixed or written down here with the reason it stands.
+#
+# `pattern` is matched as plain text against the first line of the warning, which is
+# the line beginning `WARNING:` or the top of a `@warn` box.
+#
+# notes/findings/2026-09-12-the-overwrite-warning-reaches-one-door-of-two.md says why
+# the gate looks at all: it passes --warn-overwrite=yes and --depwarn=yes, so the
+# warnings it now raises would otherwise sit in a log nobody reads.
+
+[[accepted]]
+pattern = "You are using a non-official build of Julia"
+reason = "CUDA.jl notes the distribution's Julia on every process that loads it; the note is about the build, not about this tree, and there is nothing here to fix"

@@ -13,6 +13,8 @@
 const ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 include(joinpath(ROOT, "test", "suites.jl"))
 
+import TOML
+
 """
     worker_count(args)
 
@@ -34,6 +36,19 @@ function worker_count(args::Vector{String})
 end
 
 """
+The flags every suite process carries beyond the defaults, so that the gate and
+`Pkg.test()` report the same things. `Pkg.test()` sets both, and a suite run without
+them says nothing when a method is overwritten or a deprecated binding is used
+(notes/findings/2026-09-12-the-overwrite-warning-reaches-one-door-of-two.md).
+
+`--check-bounds=yes`, which `Pkg.test()` also sets, is not here. It is the one flag
+that changes what is compiled rather than what is reported, and it costs the gate a
+factor of 2.2 against a wall time decision 0049 bounds
+(notes/findings/2026-09-12-what-the-gate-pays-for-each-of-pkg-test-s-flags.md).
+"""
+const SUITE_FLAGS = `--warn-overwrite=yes --depwarn=yes`
+
+"""
     suite_command(root, name)
 
 The command that runs one suite in its own process: the suite's own entry point,
@@ -47,7 +62,7 @@ use them, `certify`, is the last to finish and has the machine to itself for mos
 of its run (notes/findings/2026-09-12-the-gate-in-parallel.md).
 """
 suite_command(root::AbstractString, name::AbstractString, threads::Int) =
-    `julia --startup-file=no --project=$(root) -t $(threads) -e $("include(raw\"" * joinpath(root, "test", name, "runtests.jl") * "\")")`
+    `julia --startup-file=no $(SUITE_FLAGS) --project=$(root) -t $(threads) -e $("include(raw\"" * joinpath(root, "test", name, "runtests.jl") * "\")")`
 
 """
     warm_precompile(root)
@@ -57,7 +72,7 @@ stale cache otherwise each begin precompiling and wait on each other's pidfile,
 which costs more than the one load it saves.
 """
 function warm_precompile(root::AbstractString)
-    cmd = `julia --startup-file=no --project=$(root) -e "using Fiddlybits"`
+    cmd = `julia --startup-file=no $(SUITE_FLAGS) --project=$(root) -e "using Fiddlybits"`
     seconds = @elapsed success(pipeline(cmd; stdout = devnull, stderr = devnull)) ||
         error("the package did not load; every suite would fail the same way")
     return seconds
@@ -117,17 +132,67 @@ function run_suites(names::Vector{String}, workers::Int, runner)
 end
 
 """
+    accepted_warnings(root)
+
+The `(pattern, reason)` pairs of `tools/gate/warnings.toml`: the warning lines a
+suite may write without refusing the run. A missing record, or an entry with an empty
+pattern or an empty reason, refuses: the gate cannot decide what to pass over from a
+record it cannot read, and an accepted warning that says nothing about why it stands
+is an exclusion nobody can review.
+"""
+function accepted_warnings(root::AbstractString)
+    path = joinpath(root, "tools", "gate", "warnings.toml")
+    isfile(path) ||
+        error("the gate reads the warnings it accepts from $(path), which does not " *
+              "exist; an empty [[accepted]] list there accepts none, which is a " *
+              "different thing from having no record")
+    entries = get(TOML.parsefile(path), "accepted", Dict{String,Any}[])
+    pairs = Tuple{String,String}[]
+    for e in entries
+        pattern, reason = get(e, "pattern", ""), get(e, "reason", "")
+        (isempty(pattern) || isempty(reason)) &&
+            error("every entry of $(path) needs a pattern and a reason; one has " *
+                  "pattern \"$(pattern)\" and reason \"$(reason)\"")
+        push!(pairs, (pattern, reason))
+    end
+    return pairs
+end
+
+"""
+    unaccepted_warnings(text, accepted)
+
+The warning lines in `text` that no entry of `accepted` covers. A warning is a line
+opening `WARNING:`, which is how the runtime writes one, or `\u250c Warning:`, which
+is the top of a `@warn` box; the rest of a box is its detail and is not scanned.
+"""
+function unaccepted_warnings(text::AbstractString, accepted)
+    found = String[]
+    for line in eachline(IOBuffer(text))
+        startswith(line, "WARNING:") || startswith(line, "\u250c Warning:") || continue
+        any(p -> occursin(first(p), line), accepted) && continue
+        push!(found, line)
+    end
+    return found
+end
+
+"""
     report(results, logdir, wall)
 
 Print the per-suite wall times longest first, then the total of them and the wall
-time the run actually took, then the whole output of every suite that failed.
-Returns the process status: zero when every suite passed.
+time the run actually took, then every warning no entry of `tools/gate/warnings.toml`
+accepts, then the whole output of every suite that failed. Returns the process
+status: zero when every suite passed and wrote no unaccepted warning.
+
+A warning refuses the run rather than being printed and passed over. The gate is the
+door every commit and every push goes through, and a suite that passes while writing
+a warning into a log file is the shape this reporting exists to end
+(notes/findings/2026-09-12-the-overwrite-warning-reaches-one-door-of-two.md).
 
 `logdir` is not cleaned up, so a run that passed still has each suite's whole
 output on disk to read afterwards; the path is printed when the run starts.
 """
 function report(results::Vector{Tuple{String,Bool,Float64}}, logdir::AbstractString,
-                wall::Float64)
+                wall::Float64; accepted = accepted_warnings(ROOT))
     width = maximum(length(r[1]) for r in results)
     serial = sum(r[3] for r in results)
     println()
@@ -140,13 +205,30 @@ function report(results::Vector{Tuple{String,Bool,Float64}}, logdir::AbstractStr
     println("  ", rpad("wall", width), "  ", lpad(round(wall; digits = 1), 7), " s",
             "  speedup ", round(serial / wall; digits = 2))
 
+    warned = Tuple{String,String}[]
+    for (name, _, _) in results
+        log = joinpath(logdir, name * ".log")
+        isfile(log) || continue
+        for line in unaccepted_warnings(read(log, String), accepted)
+            push!(warned, (name, line))
+        end
+    end
+    if !isempty(warned)
+        println()
+        println("=== warnings no entry of tools/gate/warnings.toml accepts ===")
+        for (name, line) in warned
+            println("  ", rpad(name, width), "  ", line)
+        end
+        println("  fix it, or add it to tools/gate/warnings.toml with the reason it stands")
+    end
+
     failed = [r[1] for r in results if !r[2]]
     for name in failed
         println()
         println("=== ", name, " failed; its whole output follows ===")
         println(read(joinpath(logdir, name * ".log"), String))
     end
-    return isempty(failed) ? 0 : 1
+    return (isempty(failed) && isempty(warned)) ? 0 : 1
 end
 
 function main(args::Vector{String})
