@@ -36,11 +36,14 @@ Manifest.toml.bak
 .julia/
 *.cov
 *.jl.mem
-# Beads: the Dolt working copy and local state; issues.jsonl is the tracked export
+# Beads: the Dolt working copy and local state. The tracker lives in Dolt and syncs
+# through refs/dolt/data on the git remote; issues.jsonl is the tracked export and
+# the interaction log is local churn.
 .beads/embeddeddolt/
 .beads/backup/
 .beads/last-touched
 .beads/export-state.json
+.beads/interactions.jsonl
 
 # Pipeline work files (repair lists, markers)
 references/work/
