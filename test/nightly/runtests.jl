@@ -14,7 +14,7 @@ module NightlyDriver
 include(joinpath(normpath(joinpath(@__DIR__, "..", "..")), "tools", "nightly", "run.jl"))
 end
 
-using .NightlyDriver: subject, write_record
+using .NightlyDriver: subject, write_record, EXTRA_FLAGS
 
 """
     run_fixture(flags)
@@ -38,6 +38,27 @@ function run_fixture(flags::Cmd)
 end
 
 @testset "nightly" begin
+    @testset "the warm-up and the suites are precompiled the same way" begin
+        # Julia caches per configuration. A warm-up under different flags warms a
+        # cache nothing reads, every worker precompiles after all, and the suite that
+        # asserts an image exists fails on the configuration it is running in. That
+        # is what the bed's own first run against main found.
+        gate = NightlyDriver.Gate
+        warm = gate.warm_command(NIGHTLY_ROOT; extra = EXTRA_FLAGS)
+        suite = gate.suite_command(NIGHTLY_ROOT, "events", 4; extra = EXTRA_FLAGS)
+
+        @test !isempty(EXTRA_FLAGS.exec)
+        for flag in EXTRA_FLAGS.exec
+            @test flag in warm.exec
+            @test flag in suite.exec
+        end
+
+        @testset "positive control: the flags are absent when they are not passed" begin
+            bare = gate.warm_command(NIGHTLY_ROOT)
+            @test !any(f in bare.exec for f in EXTRA_FLAGS.exec)
+        end
+    end
+
     @testset "the flag catches a fault the gate's configuration does not" begin
         @testset "under the gate's configuration the read stands" begin
             ok, _ = run_fixture(`--check-bounds=auto`)
