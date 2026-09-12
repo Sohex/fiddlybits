@@ -110,6 +110,18 @@ of scatter against a shift of more than tenfold. There is no intermediate regime
 to calibrate for, and no correction to apply to a contended sample. A contended sample
 is discarded.
 
+The licence is only as good as the sampling behind it, and the sampling is two
+readings, one before the first case and one after the last. A job that takes a share
+after the first reading and releases it before the last leaves both endpoints at one
+share, and the sample is recorded as clean while part of it was contended. A bed run
+measures for about 45 s, so any neighbour shorter than that is invisible to the
+check. `sole_holder_throughout` therefore means what its two readings saw and not
+what its name promises. `fiddlybits-azi` samples per case instead.
+
+A reading that fails is not a reading that passes: a share count that could not be
+read is `-1`, which is not one, so `sole_holder` is false and the sample is discarded
+rather than assumed quiet.
+
 This answers for the bed the question `fiddlybits-52v.1.8` carries for the load
 instrument: the recorded occupancy becomes a condition on the measurement rather than
 a note under it. The bed does not yet refuse a contended sample, because refusing is
