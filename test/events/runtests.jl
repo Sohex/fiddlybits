@@ -1,31 +1,16 @@
 using Test
-using InteractiveUtils: subtypes
 using Fiddlybits: Events, Verdicts
 
 # The event vocabulary is closed by this check rather than by the language: a
 # subtype added anywhere fails the suite until the enumeration and decision
 # 0042 move together.
+#
+# `closed_set` and its fixture come from `test/closure.jl`, which Verdicts and Time
+# read through the same guarded include.
 
-"""
-    closed_set(T, enumeration)
-
-`(undeclared, unreachable)`: the subtypes of `T` that `enumeration` omits, and
-the entries of `enumeration` that are not subtypes of `T`.
-"""
-function closed_set(T::Type, enumeration)
-    declared = Set(typeof(v) for v in enumeration)
-    present = Set(subtypes(T))
-    return (sort(collect(setdiff(present, declared)), by = string),
-            sort(collect(setdiff(declared, present)), by = string))
-end
-
-module ClosedSetFixture
-    abstract type Colour end
-    struct Red <: Colour end
-    struct Blue <: Colour end
-    partial() = (Red(),)
-    whole() = (Red(), Blue())
-end
+isdefined(@__MODULE__, :VocabularyClosure) ||
+    include(joinpath(@__DIR__, "..", "closure.jl"))
+using .VocabularyClosure: closed_set, Fixture
 
 # A separate hierarchy, not a subtype of Events.Kind, so exercising
 # payload_type here cannot widen Events.kinds() and break its closure test.
@@ -63,10 +48,10 @@ const VALID_PAYLOAD_ARGS = Dict(
     end
 
     @testset "positive control: an omitted subtype is reported" begin
-        undeclared, unreachable = closed_set(ClosedSetFixture.Colour, ClosedSetFixture.partial())
-        @test undeclared == [ClosedSetFixture.Blue]
+        undeclared, unreachable = closed_set(Fixture.Colour, Fixture.partial())
+        @test undeclared == [Fixture.Blue]
         @test isempty(unreachable)
-        @test closed_set(ClosedSetFixture.Colour, ClosedSetFixture.whole()) == (Any[], Any[])
+        @test closed_set(Fixture.Colour, Fixture.whole()) == (Any[], Any[])
     end
 
     @testset "every kind has a payload struct" begin
