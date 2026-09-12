@@ -54,10 +54,24 @@ cd <id>
 #   heavy work through qrun (see ~/.claude/CLAUDE.md), never directly
 julia --project -e 'using Pkg; Pkg.test()'    # the per-commit gate, once it exists
 #   run the row's acceptance oracles by name; record verdicts
-git commit -m "<what> ... answers: <mechanism>"   # the answers: line only if the reference hash moved
 bd update <id> --notes "oracles run: <names and verdicts>; blocked on: <nothing|what>"
 bd close <id> --reason "completed: <oracles passed>"   # or leave open with the blocker named
+git commit -m "<what> ... answers: <mechanism>"   # carries the tracker export; the
+                                                  # answers: line only if the hash moved
 ```
+
+**Every tracker write comes before the commit that carries it.** The `pre-commit` hook
+exports the tracker and stages `.beads/issues.jsonl`, so a `bd` call after the commit
+leaves the export behind the database and needs a commit of its own. The row's notes and
+its close are part of the unit of work, not bookkeeping after it, so they go in the
+branch's own commit with the code they describe. The same holds for a row filed for
+something found outside the boundary: file it before the commit, not after.
+
+A second commit is cheap and a second push is not. The `pre-push` hook runs the whole
+suite through the scheduler (decision 0043), so a unit of work pushes once, at the end,
+and every commit it carries is already made. The `.gitignore` entry `bd worktree create`
+writes is transient and `bd worktree remove` takes it back out, so leave it out of every
+commit and the two cancel.
 
 Two end states only: **completed** (acceptance oracles ran and passed, named) or
 **blocked** (what would unblock it, named). Anything found outside the boundary is a
@@ -80,7 +94,11 @@ remove the worktree until the reviewer has merged; then `bd worktree remove <id>
 2. The diff stays inside the file boundary.
 3. The per-commit gate passes; a moved reference hash carries an `answers:` line.
 4. The change matches the plan section it cites; a deviation is a new plan row.
-5. Merge, close the row, remove the worktree.
+5. Merge and remove the worktree. The row is already closed, in the branch's own
+   commit; a review that rejects reopens it with what it found, and that reopen rides
+   the next commit rather than standing alone.
+6. Push once, after the merge. The `pre-push` hook runs the whole suite, so a push per
+   commit runs the gate for no reason.
 
 ## Where things are
 
