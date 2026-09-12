@@ -15,7 +15,7 @@ arithmetic that follows stays in registers instead of allocating a result
 array per operation (docs/imports/staticarrays-jl.md).
 """
 @inline column(m::AbstractMatrix, j::Integer) =
-    @inbounds SVector{3,Float64}(Float64(m[1, j]), Float64(m[2, j]), Float64(m[3, j]))
+    SVector{3,Float64}(Float64(m[1, j]), Float64(m[2, j]), Float64(m[3, j]))
 
 """
     Geometry{T}

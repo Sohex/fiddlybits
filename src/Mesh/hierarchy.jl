@@ -175,9 +175,9 @@ Returned as a tuple rather than a column, so bisection allocates nothing per
 edge.
 """
 @inline function midpoint(vertices::AbstractMatrix{T}, a::Int32, b::Int32, project::Bool) where {T}
-    @inbounds mx = (vertices[1, a] + vertices[1, b]) / 2
-    @inbounds my = (vertices[2, a] + vertices[2, b]) / 2
-    @inbounds mz = (vertices[3, a] + vertices[3, b]) / 2
+    mx = (vertices[1, a] + vertices[1, b]) / 2
+    my = (vertices[2, a] + vertices[2, b]) / 2
+    mz = (vertices[3, a] + vertices[3, b]) / 2
     project || return (mx, my, mz)
     n = sqrt(mx^2 + my^2 + mz^2)
     return (mx / n, my / n, mz / n)
@@ -196,9 +196,9 @@ function get_or_create_midpoint!(vertices::Matrix{T}, cache::Dict{Tuple{Int32,In
     haskey(cache, key) && return cache[key]
     idx = counter[]
     mx, my, mz = midpoint(vertices, a, b, project)
-    @inbounds vertices[1, idx] = mx
-    @inbounds vertices[2, idx] = my
-    @inbounds vertices[3, idx] = mz
+    vertices[1, idx] = mx
+    vertices[2, idx] = my
+    vertices[3, idx] = mz
     result = Int32(idx)
     cache[key] = result
     counter[] = idx + 1
