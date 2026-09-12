@@ -59,15 +59,32 @@ none. Filled by `fiddlybits-52v.5.2`.
 ## Types and functions
 
 ```
-Field{S<:Semantics, T<:TimeSemantics, D<:Dim, L, A<:AbstractArray}
-    data     (ncells(L), extra...) raw floats, device or host
+Field{S<:Semantics, T<:TimeSemantics, D<:Dim, L, A<:AbstractArray, P}
+    data     (cells, levels, extra...) raw floats, device or host
     support  Support{L} from Mesh; shape is never identity
-    time     TimeSupport from Time, holding T and where T places it on the clock
+    time     TimeSupport{T,P} from Time, holding T and where T places it on the clock
     origin   Origin, carried by value
 ```
 
+`L` and `P` are there for one reason between them, and it is the reason decision 0006
+already carries `L`. A `Field` holds a `Support{L}` and a `TimeSupport{T,P}`, and a
+struct member whose type is not concrete is an inference hole at the centre of every
+operator, which is what the inference section below exists to prevent. `L` makes the
+first member concrete and `P` is the identical move for the second. `P` is fixed by `T`
+through `Time.time_support_kind`, so no signature names it and `Field{S,T,D,L,A}` stays
+what dispatch is written against: `coarsen(f::Field{Extensive,T,D,L}, ...)` is
+unchanged. A sixth slot rather than folding the placement into `T`, because the two
+parameters that carry almost every dispatch are the semantics and the time semantics,
+and those stay top-level and positional.
+
 `Origin` is a plain value type declared here: a content key as bytes, the one writer
-as a symbol, the parameter-subset hash as bytes, and the run id. It holds no type
+as a symbol, the parameter-subset hash as bytes, and the run id. A field an operator has
+just computed has a writer and a run and no key, so `Origin` carries its state as a
+closed pair of names, and the key and the parameter hash of an unstamped origin are
+refused rather than returned as the zeros it holds. That is where the declared absence
+with a name that `docs/imports/dimensionaldata-jl.md` argued for belongs: on the state
+that genuinely lacks a value, not at the device boundary, which turns out not to lack
+one. It holds no type
 from `Provenance`, which sits above this module and would close a cycle, and it is
 not named `Provenance`, because a struct sharing a name with the module that fills
 it is a reader's trap. `Provenance` computes the values and stamps them; `Fields`
@@ -114,12 +131,30 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 | `time_reduce(Instantaneous)` with no sampling rule | an instantaneous value has no interval to reduce over |
 | any binary operation across mismatched `Support` | `Mesh` raises it, naming both identities |
 | any binary operation across mismatched `Dim` | the dimension algebra raises it, naming both signatures |
+| any binary operation across mismatched `Semantics` | `Fields` raises it, naming what each side declares, with the parameter of a parametric one |
+| any binary operation across mismatched `TimeSemantics` | the same |
 
 `coarsen(Extensive)` is a segmented sum; `coarsen(FluxDensity)` and
 `coarsen(Fraction)` are area-weighted means so the integral is conserved;
 `coarsen(CategoricalLabel)` is a histogram into `CategoricalFraction`. Each calls
 `Reductions` and names the measure it integrates over, per REQ-TER-011: no call here
 passes an unqualified "area".
+
+**Every mismatch refuses by name; none is left to be a `MethodError`.** A declared
+refusal carrying a sentence is what this table is made of, and an absent method is the
+table's failure state rather than its shape. A binary operator therefore checks its four
+declarations in the order they sit on the type and names the first that differs, sending
+the dimension to the algebra and the support to `Mesh` because each identity belongs to
+the module that declares it.
+
+That is one method per operator with the check at the top, and not a matching method
+beside a less specific one. The two-method form was written first and does not work: a
+signature naming only the parameters that must agree describes the same type as one
+naming none, so the two carry equal specificity and the later definition wins whatever
+the intent. It sent two identical fields to the refusing method. The broadcast case in
+`docs/imports/dimensionaldata-jl.md` is genuinely different and keeps its two rules,
+because there the two are not the same type: the equal-parameter rule constrains the
+style's parameters and the unequal one does not.
 
 **Making a missing method a build failure.** The enumeration test walks every
 `Semantics` subtype against `coarsen`, `refine`, `time_reduce` and `remap_vector`,
@@ -191,6 +226,27 @@ host-side and the device needs no equivalent instrument. That behaviour is relie
 and is recorded in neither `docs/imports/cuda.md` nor `docs/imports/kernelabstractions.md`;
 `fiddlybits-52v.3.10` anchors it, and if the refusal turns out narrower than this
 argument needs, that row says so and files what changes the argument.
+
+### The device boundary, and why nothing is stripped
+
+A `Field` is a host-side wrapper. Its array may live on either device and the wrapper
+itself never enters a kernel: every kernel in this package takes bare arrays, and the
+one struct decision 0011 passes to a kernel is the stripped constant block of decision
+0007. An operator unwraps to the array at the launch, having discharged the four
+declarations at compile time, because a kernel body never branches on whether a field is
+`Extensive`.
+
+So `Adapt.adapt_structure` for a `Field` converts the array and carries every other
+member across unchanged, and `fields.adapt_roundtrip` asserts equality in every member
+rather than in a subset. Nothing is dropped, so nothing has to be declared absent.
+
+This supersedes the recommendation in `docs/imports/dimensionaldata-jl.md`, which
+reasoned about a wrapper that crosses into the kernel and proposed a device field whose
+provenance is a declared absence with a name. The reading in that record stands; the
+recommendation does not apply here because its premise does not hold. Three members of a
+`Field` could not cross in any case: `Mesh.Support` holds its kind and its element type
+as symbols, and an `Origin` holds its writer as one. The conclusion is not to strip them
+but to keep the wrapper on the host, where they cost nothing.
 
 ### Vectors
 

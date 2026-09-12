@@ -99,8 +99,20 @@ cannot use rather than refusing to adapt, so the host object stays whole and the
 object is the subset a kernel can touch. Copy the name-to-type-parameter move for the
 parts of `Provenance` that must remain identifiable on the device side. Refuse the
 silence: dropping provenance on the way to the device is exactly the kind of thing that
-should be visible, so this project's adapt returns a device field whose provenance is a
-declared absence with a name, not an empty one, and the host field keeps the full record.
+should be visible.
+
+**The conclusion drawn here for `Field` was wrong, and `fiddlybits-52v.3.2` corrected
+it.** This section assumed the wrapper crosses into the kernel, and it does not. Every
+kernel in this package takes bare arrays and the one struct decision 0011 passes to a
+kernel is the stripped constant block of decision 0007, so a `Field` is a host-side
+wrapper whose array may live on either device, its adapt rule drops nothing, and
+`fields.adapt_roundtrip` asserts equality in every member. The declared absence with a
+name is still the right instrument and it moved to the state that genuinely lacks a
+value: an `Origin` an operator has just written has no content key and says so, and the
+accessor refuses rather than returning the zeros it holds. The paragraph above stands
+for any struct that does cross, which is what `Provenance` will face; it does not stand
+for `Field`. The argument is in `docs/plans/fiddlybits-52v.3-fields.md`, section "The
+device boundary, and why nothing is stripped".
 
 ## What must not be copied
 
