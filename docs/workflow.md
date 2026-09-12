@@ -52,7 +52,11 @@ cd .beads/worktrees/<id>
 #   payload dirs (references/, oracles/data, inputs/data, store/) are read from the
 #   main checkout by absolute path and never regenerated from a worktree
 #   heavy work through qrun (see ~/.claude/CLAUDE.md), never directly
-julia --project -e 'using Pkg; Pkg.test()'    # the per-commit gate, once it exists
+./tools/gate/gate.sh                          # the per-commit gate: every suite in its
+                                              # own process, through the scheduler,
+                                              # printing each suite's wall time
+#   `julia --project -e 'using Pkg; Pkg.test()'` runs the same suites in one process in
+#   order, which is slower and is the door to reach for when reading one failure
 #   run the row's acceptance oracles by name; record verdicts
 bd update <id> --notes "oracles run: <names and verdicts>; blocked on: <nothing|what>"
 bd close <id> --reason "completed: <oracles passed>"   # or leave open with the blocker named
@@ -73,8 +77,13 @@ against a separate history. The same holds for a row filed for something found o
 the boundary: file it before the commit, not after.
 
 A second commit is cheap and a second push is not. The `pre-push` hook runs the whole
-suite through the scheduler (decision 0043), so a unit of work pushes once, at the end,
-and every commit it carries is already made. `bd worktree create` still writes a
+suite through the scheduler (decisions 0043 and 0049), so a unit of work pushes once, at
+the end, and every commit it carries is already made. That hook has to finish inside the
+window the remote leaves an idle connection open, about six minutes, because `git push`
+holds that connection for the hook's whole duration; the gate prints its per-suite wall
+times at every run so the margin is visible
+(`notes/findings/2026-09-12-a-pre-push-gate-longer-than-the-idle-timeout.md`,
+`notes/findings/2026-09-12-the-gate-in-parallel.md`). `bd worktree create` still writes a
 `.gitignore` entry of its own and `bd worktree remove` takes it back out; against the
 class rule it is redundant, and the two still cancel, so leave it out of every commit.
 

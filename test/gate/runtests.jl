@@ -65,4 +65,5 @@ const B = "b" ^ 64
     end
 
     include("load_latency.jl")
+    include("parallel_gate.jl")
 end

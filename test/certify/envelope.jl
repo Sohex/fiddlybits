@@ -148,6 +148,29 @@ using Fiddlybits: Backends, Verdicts
         end
     end
 
+    @testset "certify.envelope_does_not_depend_on_its_partition" begin
+        # Decision 0029: arrival order never reaches a result. measure_envelope runs
+        # one task per injection step, and this compares what it produced against the
+        # same rows built one at a time in this task.
+        case = CertifyFixtures.small_case()
+        steps = 5
+        env = Backends.envelope(case, steps, Float32)
+        sites = Backends.usable_sites(case, Float32)
+        base = Backends.advance(case.step, [copy(v) for v in case.fields], steps,
+                                case.name, "reference trajectory")
+        serial = zeros(Float64, steps, steps)
+        for j in 0:(steps - 1)
+            Backends.measure_injection!(serial, case, steps, sites, nothing, base, j, Float32)
+        end
+        @test serial == env.amplification
+
+        @testset "positive control: the comparison can fail" begin
+            moved = copy(serial)
+            moved[1, steps] = nextfloat(moved[1, steps])
+            @test moved != env.amplification
+        end
+    end
+
     @testset "certify.nonlinear_case_gains_grow_along_the_trajectory" begin
         # A case whose step is not linear has no propagator and no stationary
         # gain. This is the case the certification's own control runs on.

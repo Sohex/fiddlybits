@@ -16,7 +16,7 @@
 # notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md, which
 # supersedes the formula the earlier finding recorded.
 
-using ..Verdicts: FAIL, OracleVerdict, PASS, refuse
+using ..Verdicts: FAIL, OracleVerdict, PASS, Refusal, refuse
 
 """
     ENSEMBLE_MISS_RATE_RECIPROCAL
@@ -127,6 +127,12 @@ sub-populations of the case's sites a certification must cover exhaustively.
 `state` is a `Vector{Vector{T}}` shaped like `fields`, and `step` must accept
 `T` of `Float32` and of `Float64`, because `envelope` runs it at `Float64` and
 `certify` compares a candidate at both.
+
+`step` must also be safe to call concurrently on distinct states, because
+`measure_envelope` runs one task per injection step. A step that reads only its
+own `state` argument and allocates its own temporaries already is; one that
+writes a buffer captured from its construction site is not, and would have to
+allocate that buffer per call.
 
 `obligations` has no default. A case whose support has no sub-population the
 sampled draw is too coarse to reach declares `Obligation[]` at its construction
@@ -425,7 +431,16 @@ state what their own count and rate mean rather than this function guessing.
 
 The cost is the step count's triangular number rather than the step count, one
 member run from each injection step to the last, and the measured factor is in
-notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md.
+notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md. The
+injection steps run as one task each, which is why `EnsembleCase` requires a
+`step` that is safe to call concurrently on distinct states.
+
+The partition cannot reach the result: task `j` writes row `j + 1` of
+`amplification` and no other, so there is no accumulator shared across tasks and
+no order in which they could combine (decisions 0029 and 0038). A `Refusal`
+raised inside a task is held and rethrown after every task has finished, lowest
+injection step first, so which refusal a caller sees is a function of the case
+and not of which task happened to fail soonest.
 
 The gain for an error injected at step `j` is measured on the reference state at
 step `j`, not on the candidate's own state there, which has drifted by whatever
@@ -441,6 +456,40 @@ leaves the finite range, and when every member stayed at zero divergence at ever
 step, which is a case that does not propagate a one-ulp perturbation and so has
 no envelope.
 """
+function measure_injection!(amplification::Matrix{Float64}, case::EnsembleCase,
+                            steps::Integer, sites::Vector{Tuple{Int,Int}},
+                            scope::Union{Nothing,Vector{Tuple{Int,Int}}},
+                            base::Vector{Vector{Vector{Float64}}}, j::Int,
+                            ::Type{P}) where {P<:AbstractFloat}
+    origin = j == 0 ? case.fields : base[j]
+    ulps = [field_ulp(P, v) for v in origin]
+    for (f, i) in sites
+        iszero(ulps[f]) &&
+            refuse("ulp-ensemble perturbation site", "Backends.measure_envelope",
+                   "case $(case.name): field $f holds no finite nonzero normal scale at " *
+                   "step $j of the reference trajectory, so no member can be given one " *
+                   "$(P) ulp of it to perturb a cell with at the step an error is " *
+                   "injected there")
+        state = [copy(v) for v in origin]
+        v = state[f][i]
+        state[f][i] = v + ulps[f]
+        delta = state[f][i] - v
+        delta > 0 ||
+            refuse("ulp-ensemble perturbation", "Backends.measure_envelope",
+                   "case $(case.name): adding one $(P) ulp of field $f, $(ulps[f]), to " *
+                   "the $(v) at cell $i at step $j left the value unchanged, so that " *
+                   "member has no perturbation to divide its divergence by")
+        for s in (j + 1):steps
+            case.step(state)
+            check_finite(state, s, case.name,
+                         "member trajectory at field $f cell $i injected at step $j")
+            amplification[j + 1, s] = max(amplification[j + 1, s],
+                                          divergence(state, base[s]; sites = scope) / delta)
+        end
+    end
+    return nothing
+end
+
 function measure_envelope(case::EnsembleCase, steps::Integer, sites::Vector{Tuple{Int,Int}},
                           all_sites::Int, exhaustive::Bool, miss_rate::Float64,
                           scope::Union{Nothing,Vector{Tuple{Int,Int}}},
@@ -448,34 +497,20 @@ function measure_envelope(case::EnsembleCase, steps::Integer, sites::Vector{Tupl
     base = advance(case.step, [copy(v) for v in case.fields], steps,
                    case.name, "reference trajectory")
     amplification = zeros(Float64, steps, steps)
+    refused = Vector{Union{Nothing,Refusal}}(nothing, steps)
 
-    for j in 0:(steps - 1)
-        origin = j == 0 ? case.fields : base[j]
-        ulps = [field_ulp(P, v) for v in origin]
-        for (f, i) in sites
-            iszero(ulps[f]) &&
-                refuse("ulp-ensemble perturbation site", "Backends.measure_envelope",
-                       "case $(case.name): field $f holds no finite nonzero normal scale at " *
-                       "step $j of the reference trajectory, so no member can be given one " *
-                       "$(P) ulp of it to perturb a cell with at the step an error is " *
-                       "injected there")
-            state = [copy(v) for v in origin]
-            v = state[f][i]
-            state[f][i] = v + ulps[f]
-            delta = state[f][i] - v
-            delta > 0 ||
-                refuse("ulp-ensemble perturbation", "Backends.measure_envelope",
-                       "case $(case.name): adding one $(P) ulp of field $f, $(ulps[f]), to " *
-                       "the $(v) at cell $i at step $j left the value unchanged, so that " *
-                       "member has no perturbation to divide its divergence by")
-            for s in (j + 1):steps
-                case.step(state)
-                check_finite(state, s, case.name,
-                             "member trajectory at field $f cell $i injected at step $j")
-                amplification[j + 1, s] = max(amplification[j + 1, s],
-                                              divergence(state, base[s]; sites = scope) / delta)
-            end
+    Threads.@threads :dynamic for j in 0:(steps - 1)
+        try
+            measure_injection!(amplification, case, Int(steps), sites, scope, base, j, P)
+        catch err
+            err isa Refusal || rethrow()
+            refused[j + 1] = err
         end
+    end
+
+    for k in eachindex(refused)
+        r = refused[k]
+        r === nothing || throw(r)
     end
 
     all(iszero, amplification) &&
