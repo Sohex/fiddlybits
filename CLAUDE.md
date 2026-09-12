@@ -47,9 +47,11 @@ Arguments live in `docs/practice.md` and `docs/decisions/`; findings in
 - A filing is not an end state: a finding, a row or a proposal is on the way to the change
   it calls for; when the context to make the change is in hand, make it.
 - A row is worked to completion (decision 0048): work a row's own work turns up is that
-  row's work and is finished inside it. A new row only for what crosses the file
-  boundary, is a different question, must merge first, or would put a second substantial
-  piece of work under one review; name which. Filing is not progress.
+  row's work and is finished inside it. If new work is surfaced and logically extends
+  from the current row it should be worked as a part thereof. Only in rare circumstance
+  should a new row be created, for example when a wholly new question is raised,
+  when a prerequisite is identified which must merge first, or something of that nature;
+  name which. Filing is not progress.
 - Work is invisible until it is a bead: anything not finished in the session that named it
   is filed as a row, labelled from the closed vocabulary, given its boundary and
   acceptance, and linked to what it depends on and what it blocks. A decision, a finding
@@ -109,33 +111,21 @@ bd close <id>         # Complete work
 
 The managed Beads block is task-tracking guidance, not permission to override repository, user, or orchestrator instructions.
 
-- **Conservative (default)**: Use `bd` for task tracking. Do not run git commits, git pushes, or Dolt remote sync unless explicitly asked. At handoff, report changed files, validation, and suggested next commands.
-- **Minimal**: Keep tool instruction files as pointers to `bd prime`; use the same conservative git policy unless active instructions say otherwise.
-- **Team-maintainer**: Only when the repository explicitly opts in, agents may close beads, run quality gates, commit, and push as part of session close. A current "do not commit" or "do not push" instruction still wins.
+- **Conservative (default)**: Use `bd` for task tracking. At handoff, report changed files, validation, and suggested next commands.
+- **Minimal**: Keep tool instruction files as pointers to `bd prime`.
 
 ## Session Completion
 
 This protocol applies when ending a Beads implementation workflow. It is subordinate to explicit user, repository, and orchestrator instructions.
 
-1. **File issues for remaining work** - Create beads for anything that needs follow-up
+1. **File issues for remaining work** - Create beads for anything that needs follow-up unless it is a natural component of the current work, in which case work it directly.
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **Handle git/sync by active profile**:
-   ```bash
-   # Conservative/minimal/default: report status and proposed commands; wait for approval.
-   git status
-
-   # Team-maintainer opt-in only, unless current instructions forbid it:
-   git pull --rebase
-   git push
-   git status
-   ```
+4. **Handle git**:
 5. **Hand off** - Summarize changes, validation, issue status, and any blocked sync/commit/push step
 
 **Critical rules:**
 - Explicit user or orchestrator instructions override this Beads block.
-- Do not commit or push without clear authority from the active profile or the current user request.
-- If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
 
 Codex sessions: the same `bd` workflow applies; the beads skill is at `.agents/skills/beads/SKILL.md` (or `~/.agents/skills/beads/SKILL.md`), and Codex 0.129.0+ loads Beads context through its native hooks.
