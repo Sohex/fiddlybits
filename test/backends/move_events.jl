@@ -1,6 +1,6 @@
 using Test
 using CUDA
-using Fiddlybits: Backends, Events
+using Fiddlybits: Backends, Events, Verdicts
 
 # on(array, backend) records a move through Events.moved only when the array
 # actually changes device: docs/plans/fiddlybits-52v.7-kernels.md, section
@@ -120,5 +120,81 @@ end
         @test h == [1.0]
         @test Events.move_counts() != before
         Events.move_sink!(Events.noop_sink)
+    end
+end
+
+# Every array backend_of cannot name a backend for leaves through a
+# Verdicts.Refusal carrying the site and the type, rather than through the
+# error KernelAbstractions raises for an array type it has no method for:
+# fiddlybits-52v.7.55, raised by docs/decisions/0047.
+
+module ElsewhereFixture
+
+import KernelAbstractions
+
+"A KernelAbstractions backend that is neither CPU nor CUDABackend."
+struct Elsewhere <: KernelAbstractions.Backend end
+
+"An array whose KernelAbstractions backend is `Elsewhere`."
+struct ElsewhereArray{T,N} <: AbstractArray{T,N}
+    data::Array{T,N}
+end
+
+Base.size(a::ElsewhereArray) = size(a.data)
+Base.getindex(a::ElsewhereArray, i::Int...) = a.data[i...]
+KernelAbstractions.get_backend(::ElsewhereArray) = Elsewhere()
+
+end # module ElsewhereFixture
+
+@testset "backend_of names a backend or raises its own refusal" begin
+    @testset "a BitMatrix refuses, naming the site and the type" begin
+        @test_throws Verdicts.Refusal Backends.backend_of(falses(2, 3))
+        caught = try
+            Backends.backend_of(falses(2, 3))
+        catch e
+            e
+        end
+        @test caught isa Verdicts.Refusal
+        @test caught.site == "Backends.backend_of"
+        @test caught.quantity == "array backend"
+        @test occursin("BitMatrix", caught.reason)
+    end
+
+    @testset "a BitVector refuses the same way" begin
+        caught = try
+            Backends.backend_of(falses(4))
+        catch e
+            e
+        end
+        @test caught isa Verdicts.Refusal
+        @test caught.site == "Backends.backend_of"
+        @test occursin("BitVector", caught.reason)
+    end
+
+    @testset "on carries the refusal to the caller, in both directions" begin
+        @test_throws Verdicts.Refusal Backends.on(falses(2, 3), Backends.CPU(1))
+        @test_throws Verdicts.Refusal Backends.on(falses(2, 3), Backends.GPU(1))
+    end
+
+    @testset "positive control: a resolvable array type still names its backend" begin
+        @test Backends.backend_of([1.0, 2.0]) === :cpu
+        @test Backends.backend_of(Array(falses(2, 3))) === :cpu
+
+        @test CUDA.functional()
+        g = Backends.on([1.0, 2.0], Backends.GPU(1))
+        @test Backends.backend_of(g) === :gpu
+    end
+
+    @testset "positive control: an unsupported backend still refuses" begin
+        elsewhere = ElsewhereFixture.ElsewhereArray(rand(3))
+        caught = try
+            Backends.backend_of(elsewhere)
+        catch e
+            e
+        end
+        @test caught isa Verdicts.Refusal
+        @test caught.site == "Backends.backend_of"
+        @test occursin("neither CPU nor CUDABackend", caught.reason)
+        @test occursin("Elsewhere", caught.reason)
     end
 end

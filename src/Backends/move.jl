@@ -13,10 +13,18 @@ import KernelAbstractions
 The backend name `array` currently lives on, from
 `KernelAbstractions.get_backend(array)`: `:cpu` for `KernelAbstractions.CPU`,
 `:gpu` for `CUDA.CUDABackend`. Refuses for any other backend that function
-returns, and for an array type it cannot resolve to one.
+returns, and for an array type it cannot resolve to one, which that function
+reports by raising rather than by returning: a `BitArray` is such a type, and
+the raised error is carried into the refusal's reason.
 """
 function backend_of(array::AbstractArray)
-    ka = KernelAbstractions.get_backend(array)
+    ka = try
+        KernelAbstractions.get_backend(array)
+    catch err
+        refuse("array backend", "Backends.backend_of",
+               "KernelAbstractions.get_backend cannot resolve $(typeof(array)) " *
+               "to a backend: $(sprint(showerror, err))")
+    end
     ka isa KernelAbstractions.CPU && return :cpu
     ka isa CUDA.CUDABackend && return :gpu
     refuse("array backend", "Backends.backend_of",
