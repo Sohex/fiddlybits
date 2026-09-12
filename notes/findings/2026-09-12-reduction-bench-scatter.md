@@ -87,10 +87,13 @@ not. Splitting the forty samples at the median load of 1.83:
 | segmented_quantile, depth 2 | 28.296 | 28.204 | -0.33 pc | -0.15 |
 | segmented_quantile, depth 3 | 29.002 | 28.923 | -0.27 pc | -0.14 |
 
-The halves differ by under one per cent on every case, in both directions, and the
-correlation with load is near zero. A thirteen-fold range in host load moved nothing
-here, where it moved the package load by three fifths. The work is on the card and
-the host is dispatching it.
+The halves differ by under one per cent on every case, in both directions. The
+correlation with load is under 0.25 in magnitude on eleven of the twelve cases; the
+twelfth, `segmented_weighted_sum` at depth two, reaches +0.52, and it is the case
+with the smallest scatter of all, so a correlation shows there while the size of the
+effect stays at 0.19 per cent. A thirteen-fold range in host load moved every case
+by under one per cent, where it moved the package load by three fifths. The work is
+on the card and the host is dispatching it.
 
 This is a statement about the host's CPUs and not about the card. Nothing in the
 campaign recorded what else held a share of the GPU while a sample ran, so the
