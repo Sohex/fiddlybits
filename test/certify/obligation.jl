@@ -18,10 +18,10 @@ using Fiddlybits: Backends, Verdicts
 
 const OBLIGATION_ROUNDOFF = scope -> CertifyMeshFixture.roundoff(MESH_CASE; sites = scope)
 
-# The stand-in case's gains from the initial state as notes/findings/2026-09-12-
-# ulp-ensemble-amplitude-and-injection-step.md recorded them, section "The
-# stand-in case at the two amplitudes". The row is the draw's own signature: a
-# member set that moved would not reproduce it.
+# The stand-in case's gains from the initial state, at the declared draw, as
+# notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md records
+# them in full, section "The stand-in case at the two amplitudes". The vector is
+# the draw's own signature: a member set that moved would not reproduce it.
 const FINDING_AMPLIFICATION =
     [1.5370733437594026, 1.49623842316214, 1.5326636934187263, 1.5908572526823264,
      1.6080869103316218, 1.6191722891526297, 1.6264993406366557, 1.6330749358749017,

@@ -60,6 +60,16 @@ case. One `Float32` ulp of the same scale is a relative `8.5e-8`, nine orders la
 and the response clears the granularity of the `Float64` state it is read against by six
 orders.
 
+The declared draw of 766 members over the same 20 steps, injected at step zero, is the
+draw's own signature; a member set that moved would not reproduce it, and
+`certify.sampled_draw_is_unchanged` asserts it bit for bit:
+
+    1.5370733437594026, 1.49623842316214,   1.5326636934187263, 1.5908572526823264,
+    1.6080869103316218, 1.6191722891526297, 1.6264993406366557, 1.6330749358749017,
+    1.651457596803084,  1.6652258010581136, 1.6752443460281938, 1.6837054369971156,
+    1.6935136308893561, 1.7129886508919299, 1.7329219253733754, 1.7526412960141897,
+    1.7716029654257,    1.7909559129038826, 1.813414293807,     1.8346782953012735
+
 Nine orders is also the distance between the amplitude the envelope was measured at and
 the amplitude it was applied to. The `initial` and `roundoff` terms the envelope
 multiplies are both `Float32`-scale, which is where the mismatch came from.
@@ -145,10 +155,17 @@ once.
 What that buys at the gate is one testset. `certify.case_certification_runs_every_arm`
 runs both arms of the real-mesh case at level 5, 10242 vertices, two fields, 20 steps,
 twice, and takes 1m21.6s of the certify suite's 1m35s. The whole suite is 4866
-assertions in 8m51.5s through `qrun` with this repository's defaults. The mesh case's
+assertions, in 8m51.5s and 9m15.1s on two runs through `qrun` with this repository's
+defaults; the second shared the host with a 16-CPU job and the first did not, so the
+suite figure is a price to an order and not a bench number. The mesh case's
 step count and level are what the cost is in, not the member count, and neither was
 changed here: a shorter mesh case would buy the minute back and check a shorter
 trajectory, which is a coverage question this record does not settle.
+
+What the number raised is `fiddlybits-52v.1.12`: the gate runs every suite for every
+commit, so this minute is paid by a commit that touches no kernel. Whether the gate can
+be narrowed to what a branch changed, and what would make such a narrowing safe to
+trust, is that row's to decide.
 
 ## What the words can say
 
@@ -161,6 +178,14 @@ perturbation is at the certified precision, so each gain is the operator one nor
 than a reading of the rounding. The first table establishes the third, the ratio table
 establishes that the first is what the second column of it tests, and the shortfall table
 says what the second costs at the declared draw.
+
+There is a fourth thing the first condition carries that the other two do not name. The
+gains are measured on the reference trajectory, and the candidate's own state at step `j`
+has drifted by whatever it injected before then. For a linear stationary step both states
+carry the same gain and the distinction is empty, which is why it rides with the first
+condition rather than standing beside it. For any other step it is a second reason that
+same condition is the one that fails, and it cannot be measured away without running the
+candidate, which is the thing the certification is there to judge.
 
 Drop any one and the level is a comparison the case measured for itself. That is what
 decision 0025's `PASS` already means, inside a bar and never evidence of correctness, so

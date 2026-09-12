@@ -427,11 +427,19 @@ The cost is the step count's triangular number rather than the step count, one
 member run from each injection step to the last, and the measured factor is in
 notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md.
 
-Refuses, naming `case.name`, when a field holds no scale an ulp can be taken of
-at some step of the reference trajectory, when a member's perturbation leaves
-its cell unchanged, when the reference or a member trajectory leaves the finite
-range, and when every member stayed at zero divergence at every step, which is a
-case that does not propagate a one-ulp perturbation and so has no envelope.
+The gain for an error injected at step `j` is measured on the reference state at
+step `j`, not on the candidate's own state there, which has drifted by whatever
+it injected earlier. For a linear stationary step the two carry the same gain and
+the distinction is empty; for any other step it is one more reason the level
+built from this envelope is a measured comparison rather than a bound, and
+`admitted` says so.
+
+Refuses, naming `case.name`, when a field one of `sites` names holds no scale an
+ulp can be taken of at some step of the reference trajectory, when a member's
+perturbation leaves its cell unchanged, when the reference or a member trajectory
+leaves the finite range, and when every member stayed at zero divergence at every
+step, which is a case that does not propagate a one-ulp perturbation and so has
+no envelope.
 """
 function measure_envelope(case::EnsembleCase, steps::Integer, sites::Vector{Tuple{Int,Int}},
                           all_sites::Int, exhaustive::Bool, miss_rate::Float64,
@@ -583,7 +591,9 @@ candidate injects, in the same one norm `divergence` returns.
 What this level is depends on the case, and the name says only what the envelope
 admits. It is an upper bound on the divergence when three things hold together:
 the step is linear and stationary, so the response to the sum of two errors is
-the sum of the responses and the superposition is the triangle inequality; the
+the sum of the responses, the superposition is the triangle inequality, and the
+gains measured on the reference trajectory are the gains the candidate's own
+state carries; the
 ensemble is exhaustive over the case's sites, so each gain is the largest over
 the case rather than over a draw; and `env.precision` puts the perturbation
 where the response clears the rounding granularity, so each gain is the operator
