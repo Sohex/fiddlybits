@@ -34,7 +34,7 @@ convention restated in two places is two conventions.
 | --- | --- | --- |
 | `src/Dimensions/` | `Dim{M,L,T,Theta,N}`, its algebra, the DynamicQuantities door | 52v.3.2 |
 | `src/Fields/field.jl` | `Field`, the two closed vocabularies, `Origin` by value | 52v.3.2 |
-| `src/Fields/reduce.jl` | `coarsen`, `refine`, `time_reduce`, the refusal table | 52v.3.3 |
+| `src/Fields/reduce.jl` | `coarsen`, `refine`, `time_reduce`, `Measured`, the refusal table | 52v.3.3 |
 | `src/Fields/vectors.jl` | the basis lifts and projections, edge-normal support | 52v.3.5 |
 | `src/Fields/ledger.jl` | `Ledger{Q}`, `closed`, the loss inventory | 52v.3.6 |
 | `test/dimensions/` | the dimension algebra suite and the door's refusals | 52v.3.2 |
@@ -128,7 +128,9 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 | `coarsen(Quantiles)` | a quantile table is not re-aggregable; recompute from the fine field |
 | `refine(Quantiles)` | the same |
 | `refine(CategoricalFraction)` | a histogram does not carry which child held which class |
+| `refine(VectorComponent{:east_north})` | project at the destination frames instead, for the reason coarsening refuses them |
 | `time_reduce(Instantaneous)` with no sampling rule | an instantaneous value has no interval to reduce over |
+| `time_reduce(Static)` | a quantity with no time axis has no interval to reduce over, as `Time` already refuses it a duration |
 | any binary operation across mismatched `Support` | `Mesh` raises it, naming both identities |
 | any binary operation across mismatched `Dim` | the dimension algebra raises it, naming both signatures |
 | any binary operation across mismatched `Semantics` | `Fields` raises it, naming what each side declares, with the parameter of a parametric one |
@@ -136,9 +138,34 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 
 `coarsen(Extensive)` is a segmented sum; `coarsen(FluxDensity)` and
 `coarsen(Fraction)` are area-weighted means so the integral is conserved;
-`coarsen(CategoricalLabel)` is a histogram into `CategoricalFraction`. Each calls
-`Reductions` and names the measure it integrates over, per REQ-TER-011: no call here
-passes an unqualified "area".
+`coarsen(CategoricalLabel)` is a histogram into `CategoricalFraction` over the legend
+the call names. Each calls `Reductions` and names the measure it integrates over, per
+REQ-TER-011: no call here passes an unqualified "area". The naming is a type,
+`Measured{Name}`, which is a measure's values together with which measure they are,
+from a closed pair. A reduction takes one of those and never a bare vector of weights,
+so the requirement is carried by the signature rather than by a convention.
+
+**An operator takes the destination support, not a level.** Decision 0006 sketches
+`coarsen(f, ::Level{L2})`, and that cannot be built: the result is a `Field` and a
+`Field` carries a `Support`, which needs the `Level`, the `Geometry` and the radius that
+`Mesh` owns and this module does not. The destination support carries its level in its
+type, so `coarsen(f::Field{Extensive}, to::Support{L2})` dispatches exactly as the
+sketch does and the result's identity is the one the caller already built. What a
+support cannot carry is ancestry, so the crossing compares what two levels of one
+hierarchy share and `fiddlybits-52v.2.14` asks `Mesh` for a check that can.
+
+**`time_reduce` runs over a contiguous series.** It reduces a `Time.Forcing` whose
+values are fields: the contiguity of the intervals is checked where it is declared
+rather than restated here, and the single value type a `Forcing` carries is what makes
+every field in the series agree in semantics, dimension and support by construction. An
+`IntervalMean` reduces by a duration-weighted mean, an `IntervalAccumulation` by a sum,
+an `EndpointState` to the state at the last interval's end.
+
+**One value per cell, for now.** The segmented reductions take a vector, so a field
+carrying levels or components is refused by name rather than reduced along the wrong
+axis. `fiddlybits-52v.3.12` carries it, and it carries the choice that comes with it:
+a loop over columns launches one kernel per column, which at the level counts a coupled
+run uses is the launch-bound case decision 0011 warns about.
 
 **Every mismatch refuses by name; none is left to be a `MethodError`.** A declared
 refusal carrying a sentence is what this table is made of, and an absent method is the
@@ -156,7 +183,11 @@ the intent. It sent two identical fields to the refusing method. The broadcast c
 because there the two are not the same type: the equal-parameter rule constrains the
 style's parameters and the unequal one does not.
 
-**Making a missing method a build failure.** The enumeration test walks every
+**Making a missing method a build failure.** The refusal table is a tuple of entries
+keyed by operator, semantics and time semantics, and every refusing method raises the
+sentence it looks up rather than one written at the call. A method that refuses without
+an entry is itself refused, which is what stops the table being bypassed by a method
+that carries its own words. The enumeration test walks every
 `Semantics` subtype against `coarsen`, `refine`, `time_reduce` and `remap_vector`,
 and asserts each pair either has a method or appears in the refusal table. Its
 positive control is a fixture semantics type added with neither, which must fail. A
