@@ -36,20 +36,26 @@ Manifest.toml.bak
 .julia/
 *.cov
 *.jl.mem
-# Beads: the Dolt working copy and local state. The tracker lives in Dolt and syncs
-# through refs/dolt/data on the git remote; issues.jsonl is the tracked export and
-# the interaction log is local churn.
+# Beads: the Dolt working copy and every local artifact of it. The tracker lives in
+# Dolt and syncs through refs/dolt/data on the git remote, so the JSONL export and
+# the interaction log carry nothing the remote does not already have.
 .beads/embeddeddolt/
 .beads/backup/
 .beads/last-touched
 .beads/export-state.json
 .beads/interactions.jsonl
+.beads/issues.jsonl
 
 # Pipeline work files (repair lists, markers)
 references/work/
 
-# Row worktrees. `bd worktree create <id>` puts one at ./<id> and every row id
-# carries the tracker's prefix, so the whole class is ignored here rather than a
-# line per worktree. bd still writes and removes its own entry for each one; the
-# two cancel and neither is committed.
+# Row worktrees created at the repository root, before they moved under .beads.
+# This line comes out when the last one has moved.
 /fiddlybits-*/
+
+# Row worktrees, which `bd worktree create .beads/worktrees/<id>` puts here. They
+# stay under the repo root so that `.taskrunner.toml` at the root is at or above
+# each one and every worktree inherits this repository's resource defaults. bd
+# still writes and removes its own entry per worktree; against this rule those are
+# redundant, and they still cancel.
+/.beads/worktrees/

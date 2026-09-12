@@ -46,8 +46,8 @@ Every implementation row has, in the tracker (`bd show <id>`):
 bd ready -l kind:impl -l tier:sonnet          # rows of your tier with no open blockers
 bd show <id>                                  # read description, design, acceptance
 bd update <id> --claim
-bd worktree create <id> --branch <id>         # ./<id>, shares the tracker
-cd <id>
+bd worktree create .beads/worktrees/<id> --branch <id>   # shares the tracker
+cd .beads/worktrees/<id>
 #   work only inside the file boundary
 #   payload dirs (references/, oracles/data, inputs/data, store/) are read from the
 #   main checkout by absolute path and never regenerated from a worktree
@@ -56,27 +56,33 @@ julia --project -e 'using Pkg; Pkg.test()'    # the per-commit gate, once it exi
 #   run the row's acceptance oracles by name; record verdicts
 bd update <id> --notes "oracles run: <names and verdicts>; blocked on: <nothing|what>"
 bd close <id> --reason "completed: <oracles passed>"   # or leave open with the blocker named
-git commit -m "<what> ... answers: <mechanism>"   # carries the tracker export; the
-                                                  # answers: line only if the hash moved
+git commit -m "<what> ... answers: <mechanism>"   # the answers: line only if the
+                                                  # reference hash moved
 ```
 
-**Every tracker write comes before the commit that carries it.** The `pre-commit` hook
-exports the tracker and stages `.beads/issues.jsonl`, so a `bd` call after the commit
-leaves the export behind the database and needs a commit of its own. The row's notes and
-its close are part of the unit of work, not bookkeeping after it, so they go in the
-branch's own commit with the code they describe. The same holds for a row filed for
-something found outside the boundary: file it before the commit, not after.
+A worktree lives under `.beads/worktrees/` rather than at the repository root, which
+keeps it under the root and so under `.taskrunner.toml`: every `qrun` from inside it
+inherits this repository's resource defaults. `.gitignore` covers the directory as a
+class, so no worktree needs an entry of its own.
+
+**Every tracker write comes before the commit that carries it.** Nothing in git records
+the board: the tracker lives in Dolt and syncs through `refs/dolt/data`, and the JSONL
+export is ignored. What the rule buys is that a reader of one commit sees the row's
+notes and its close beside the code they describe, rather than having to date them
+against a separate history. The same holds for a row filed for something found outside
+the boundary: file it before the commit, not after.
 
 A second commit is cheap and a second push is not. The `pre-push` hook runs the whole
 suite through the scheduler (decision 0043), so a unit of work pushes once, at the end,
-and every commit it carries is already made. The `.gitignore` entry `bd worktree create`
-writes is transient and `bd worktree remove` takes it back out, so leave it out of every
-commit and the two cancel.
+and every commit it carries is already made. `bd worktree create` still writes a
+`.gitignore` entry of its own and `bd worktree remove` takes it back out; against the
+class rule it is redundant, and the two still cancel, so leave it out of every commit.
 
 Two end states only: **completed** (acceptance oracles ran and passed, named) or
 **blocked** (what would unblock it, named). Anything found outside the boundary is a
 NEW row (`bd create --parent <area> ...`), never a widening of your own. Do not
-remove the worktree until the reviewer has merged; then `bd worktree remove <id>`.
+remove the worktree until the reviewer has merged; then
+`bd worktree remove .beads/worktrees/<id>`.
 
 ## The planner's checklist (plan rows)
 
