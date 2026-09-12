@@ -301,6 +301,8 @@ tables. The verify row records that the case is a stand-in and which oracle rows
 still await theirs.
 That is REPORT rather than PASS, and the distinction is the point: a bitwise claim
 evidenced on arithmetic alone is not the claim the registry row states.
+`fiddlybits-vva` carries the re-run on the short coupled case and the registration of
+both rows.
 
 The reference path of decision 0027 is not an oracle row of its own. Every optimised
 kernel here is checked against its own naive serial version to a tolerance derived

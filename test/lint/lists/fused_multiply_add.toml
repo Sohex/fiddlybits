@@ -100,7 +100,3 @@ path = "Reductions/segmented.jl"
 function = "segmented_mean_reference"
 found = "num += A(xs[j]) * A(weights[j])"
 reason = "decision 0027's naive serial reference, which decision 0044 keeps unfused and never on muladd"
-
-# Sites a row moves onto fma. Each is a bare multiply feeding a bare add in
-# source bitwise mode compiles, outside the file boundary of the row that
-# built this lint.
