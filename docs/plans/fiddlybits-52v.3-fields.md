@@ -37,15 +37,17 @@ convention restated in two places is two conventions.
 | `src/Fields/reduce.jl` | `coarsen`, `refine`, `time_reduce`, the refusal table | 52v.3.3 |
 | `src/Fields/vectors.jl` | the basis lifts and projections, edge-normal support | 52v.3.5 |
 | `src/Fields/ledger.jl` | `Ledger{Q}`, `closed`, the loss inventory | 52v.3.6 |
-| `test/dimensions/` | the dimension suite and `dimension_refusal.jl` | 52v.3.2 |
+| `test/dimensions/` | the dimension algebra suite and the door's refusals | 52v.3.2 |
+| `test/fields/dimension_refusal.jl` | the leak test `docs/imports/dynamicquantities.md` names, at the path that record and the skeleton plan's owner table both give | 52v.3.2 |
 | `test/fields/` | the field suites, the enumeration test, `adapt_roundtrip.jl` | 52v.3.2 to 52v.3.6 |
 | `test/fields/inference.jl` | the `@inferred` walk riding the enumeration | 52v.3.4 |
 | `test/fields/static_pass.jl` | the nightly JET pass and its accepted-findings TOML | 52v.3.8 |
 | `test/gate/inference_cost.jl` | the walk's wall time and its `Dim` signature count | 52v.3.9 |
 
 `Dimensions` is its own submodule rather than a file of `Fields` because the skeleton
-plan put it in group A: it references nothing, and `Systems` reads it for the
-dimension a disposition carries. `Fields` references `Mesh`, `Backends`,
+plan put it in group A, below everything that reads it, and `Systems` reads it for the
+dimension a disposition carries. It references `Verdicts` and nothing else, which is
+what every module does for the one refusal type. `Fields` references `Mesh`, `Backends`,
 `Reductions`, `Dimensions`, `Time` and `Verdicts`.
 
 `TimeSupport` is declared in `src/Time/support.jl` and not here. It is built from
@@ -257,7 +259,7 @@ for those two dependencies.
 
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
-| 52v.3.2 | sonnet | `src/Dimensions/`, `src/Fields/field.jl`, `test/dimensions/`, `test/fields/field.jl`, `test/fields/adapt_roundtrip.jl` | a `Field` cannot be constructed without all four parameters; the dimension algebra identities hold; `fields.dimension_refusal` and `fields.adapt_roundtrip` pass with their controls; every constructor and every dimension-algebra operation returns a concrete type under `@inferred` |
+| 52v.3.2 | sonnet | `src/Dimensions/`, `src/Fields/field.jl`, `test/dimensions/`, `test/fields/field.jl`, `test/fields/dimension_refusal.jl`, `test/fields/adapt_roundtrip.jl` | a `Field` cannot be constructed without all four parameters; the dimension algebra identities hold; `fields.dimension_refusal` and `fields.adapt_roundtrip` pass with their controls; every constructor and every dimension-algebra operation returns a concrete type under `@inferred` |
 | 52v.3.3 | sonnet | `src/Fields/reduce.jl`, `test/fields/reduce.jl` | `mesh.constant_field_reduction` passes with its control; every refusal in the table raises with its sentence; every method of `coarsen`, `refine` and `time_reduce` returns a concrete type under `@inferred` |
 | 52v.3.4 | sonnet | `test/fields/semantics_closure.jl`, `test/fields/inference.jl` | `fields.semantics_closure` passes and the fixture type with neither method nor refusal fails it; `fields.inference_tight` passes on its per-commit arm and the fixture operator that picks its semantics from a runtime value fails it; both walks read the same enumeration and neither carries a hand-written list of pairs |
 | 52v.3.5 | sonnet | `src/Fields/vectors.jl`, `test/fields/vectors.jl` | `mesh.vector_round_trip` passes with its control; `transform` and `project` are separate names and the lossy one is never reached implicitly; both return concrete types under `@inferred` |
