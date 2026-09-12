@@ -209,8 +209,10 @@ inverts is two definitions of one quantity.
 ### Certification
 
 ```
-envelope(case, steps)                          the sampled ulp-ensemble divergence envelope, over every usable site
-exhaustive_envelope(case, steps, sites)         the same envelope, every one of `sites` perturbed and scored, none sampled
+envelope(case, steps, precision)               the sampled ulp-ensemble divergence envelope, over every usable site
+exhaustive_envelope(case, steps, sites, precision)   the same envelope, every one of `sites` perturbed and scored, none sampled
+gain(envelope, j, s)                            the amplification of an error injected at step j and read at step s
+admitted(envelope, initial, roundoff)           the divergence the envelope admits at each step
 covers(envelope, sites, obligation)             whether envelope and a certification's own scope stand for one Obligation
 certification(kernel, case, envelope; roundoff, sites = nothing)   the per-step numbers and verdict of one arm
 certify(kernel, case, envelope; roundoff, sites = nothing)         PASS or FAIL from Verdicts, or a Refusal
@@ -222,6 +224,24 @@ certify_case(kernel, case, steps; roundoff)         PASS only when every arm cas
 in one cell, and measures the divergence as a function of step count. A pair is not
 an ensemble: the member count is declared and the registry states the miss rate that
 count can detect, because a stochastic property tested by a pair is not tested.
+
+The ulp is one ulp at `precision`, the precision whose divergence the envelope is the
+tolerance of, and it is taken at every step an error could be injected at rather than
+at the initial state alone. Both are measured rather than chosen: at one `Float64`
+ulp the response of a member falls below one ulp of the state it is read against, so
+the member measures the rounding and not the case, and at the certified precision the
+exhaustive envelope of a linear stationary step reproduces the operator one norm of
+its propagator exactly, at every step and independently of the step an error is
+injected at (`notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md`,
+`fiddlybits-4hl`). The cost is the step count's triangular number rather than the step
+count.
+
+`admitted` superposes those gains: `gain(0, s)` on the divergence the initial state
+already carries at the candidate precision, and `gain(j, s)` on the roundoff the
+candidate injects at each step `j`. It is an upper bound only where the step is linear
+and stationary, the ensemble is exhaustive and the perturbation is at the certified
+precision; elsewhere it is a bar the case measured for itself, which is what decision
+0025's `PASS` means. The word `bound` is not used for it.
 
 An `EnsembleCase` carries an `Obligation` list beside its fields and its step
 function: a named sub-population of `(field, cell)` sites that a certification of

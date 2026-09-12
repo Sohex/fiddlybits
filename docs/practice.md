@@ -179,8 +179,14 @@ that were about its own artifacts were left behind.
 - **Acceptance is fixed before the work.** A row without named oracles in its
   acceptance field is not ready; ask the planner, do not invent a criterion.
 - **Two end states.** A row ends completed (its oracles ran and passed, reported by
-  name) or blocked (what would unblock it, named). File follow-on rows for what you
-  find; never widen your own.
+  name) or blocked (what would unblock it, named).
+- **A row is worked to completion.** Work a row's own work turns up is that row's work,
+  and the default is to finish it inside the row. A new row only for what crosses the
+  file boundary, is a different question that happens to be adjacent, must merge before
+  this row rather than inside it, or would put a second substantial piece of work under
+  one review; say which of the four. Not foreseen, and not named in the acceptance, are
+  not reasons. Filing is not progress: a board that grows a row every time work is
+  looked at closely records the looking. Decision 0048, user direction, 2026-09-12.
 - **A filing is not an end state.** Writing a finding, filing a row, or naming what
   should change is bookkeeping on the way to the work, not the work. A stream is
   complete when the tree carries the change it called for: the record amended, the

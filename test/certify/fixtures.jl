@@ -197,8 +197,139 @@ function small_case()
                                 Backends.Obligation[])
 end
 
+"""
+    GROWING_STEPS
+
+The step count of `growing_case`. Four, because the fifth step of that case
+leaves `Float32` short of the range where a per-step injection declared once
+means anything: the state grows by four orders a step, and a roundoff declared
+as one number is a statement about a case whose scale does not run away.
+"""
+const GROWING_STEPS = 4
+
+"""
+    GROWING_INJECTION
+
+The absolute divergence `growing_injection` adds to the cell after every step at
+`Float32`. Above the rounding one step of `growing_case` carries at `Float32` at
+every step of `GROWING_STEPS`, so the certification reads the propagation of a
+declared injection rather than of the case's own rounding.
+"""
+const GROWING_INJECTION = 1e-3
+
+"""
+    growing_case()
+
+A one-cell case whose step is `x -> x * x + 1` from 1.5. Nonlinear, and its local
+amplification is twice its own state, so it grows along the trajectory and an
+error injected late meets a gain the initial state does not carry
+(notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md).
+
+The initial value is exact at `Float32`, so a certification of this case has a
+zero `initial` term and its verdict rests on the propagation of the declared
+roundoff alone, which is the term the injection step is read at.
+"""
+function growing_case()
+    step!(state::Vector{Vector{T}}) where {T} = (state[1] .= state[1] .^ 2 .+ one(T); state)
+    return Backends.EnsembleCase("square-plus-one", [[1.5]], step!, Backends.Obligation[])
+end
+
+"""
+    growing_injection(d)
+
+A candidate for `growing_case` whose `Float32` path adds `d` to the cell after
+every step and whose `Float64` path does not, the way `injected` puts a defect
+in one path alone.
+"""
+function growing_injection(d::Real)
+    function candidate(state::Vector{Vector{T}}) where {T}
+        state[1] .= state[1] .^ 2 .+ one(T)
+        T === Float32 && (state[1] .+= T(d))
+        return state
+    end
+    return candidate
+end
+
+"""
+    measured_roundoff(case, candidate, steps)
+
+The largest divergence one step of `candidate` at `Float32` injects, measured
+along `case`'s own reference trajectory rather than bounded: at every step the
+reference state is advanced once by `candidate` at `Float64` and once at
+`Float32`, and the divergence between the two is taken.
+
+`Backends.certification` takes the number and not the method, so a caller whose
+candidate injects a declared defect declares it this way and a caller reading
+the roundoff of a kernel declares `Reductions.error_bound`, which is what
+`roundoff` above does for the stand-in case.
+"""
+function measured_roundoff(case::Backends.EnsembleCase, candidate, steps::Integer)
+    state = [copy(v) for v in case.fields]
+    largest = 0.0
+    for _ in 1:steps
+        wide = [copy(v) for v in state]
+        narrow = [Float32.(v) for v in state]
+        candidate(wide)
+        candidate(narrow)
+        largest = max(largest, Backends.divergence(narrow, wide))
+        case.step(state)
+    end
+    return largest
+end
+
+"""
+    operator_one_norms(case, steps, relative)
+
+The operator one norm of `case`'s propagator over each of `steps` steps, read
+the way an envelope reads it but at a perturbation of `relative` times the
+case's largest absolute value, which is far enough above the rounding of the
+state for the response to carry no quantisation of its own.
+
+For a linear step this is the quantity `Backends.envelope` stands for, and the
+right answer an envelope measured at the certified precision is checked against.
+For a nonlinear step there is no propagator and this is only the response to one
+perturbation of one size.
+"""
+function operator_one_norms(case::Backends.EnsembleCase, steps::Integer, relative::Real)
+    state = [copy(v) for v in case.fields]
+    reference = Vector{Vector{Vector{Float64}}}(undef, steps)
+    for s in 1:steps
+        case.step(state)
+        reference[s] = [copy(v) for v in state]
+    end
+    norms = zeros(Float64, steps)
+    delta = relative * maximum(maximum(abs, v) for v in case.fields)
+    for f in eachindex(case.fields), i in eachindex(case.fields[f])
+        member = [copy(v) for v in case.fields]
+        member[f][i] += delta
+        for s in 1:steps
+            case.step(member)
+            norms[s] = max(norms[s], Backends.divergence(member, reference[s]) / delta)
+        end
+    end
+    return norms
+end
+
+"""
+    stationary_envelope(env)
+
+`env` with every gain replaced by the one it measured from the initial state at
+the same lag, `amplification[j + 1, s] = env.amplification[1, s - j]`. This is
+the construction `Backends.admitted` was built on before
+notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md, kept
+here so a test can put the two side by side on one case and one candidate.
+"""
+function stationary_envelope(env::Backends.Envelope)
+    gains = zeros(Float64, env.steps, env.steps)
+    for j in 0:(env.steps - 1), s in (j + 1):env.steps
+        gains[j + 1, s] = env.amplification[1, s - j]
+    end
+    return Backends.Envelope(env.case, env.steps, env.precision, env.members, env.sites,
+                             env.exhaustive, env.miss_rate, gains, env.perturbed, env.scope)
+end
+
 end # module CertifyFixtures
 
 const CASE, CASE_NB, CASE_W = CertifyFixtures.stand_in()
-const CASE_ENVELOPE = Backends.envelope(CASE, CertifyFixtures.STEPS)
+const CASE_ENVELOPE = Backends.envelope(CASE, CertifyFixtures.STEPS, Float32)
 const CASE_ROUNDOFF = CertifyFixtures.roundoff(CASE)
