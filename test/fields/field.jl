@@ -4,6 +4,8 @@ using Fiddlybits: Fields, Dimensions, Time, Mesh
 using Fiddlybits.Verdicts: Refusal
 using UUIDs: UUID
 
+const OTHER_RUN = UUID("9b3c0000-0000-4000-8000-000000000001")
+
 # The Field type, the closed Semantics vocabulary and Origin:
 # docs/plans/fiddlybits-52v.3-fields.md, row 52v.3.2.
 
@@ -163,17 +165,58 @@ const FX = FieldFixtures
         @test occursin("time semantics", err.reason)
     end
 
-    @testset "no mismatch of the four arrives as a MethodError" begin
+    @testset "no mismatch arrives as a MethodError" begin
         base = FX.field()
         for other in (FX.field(semantics = F.Intensive()),
                       FX.field(time = FX.static_support()),
+                      FX.field(time = FX.interval_support(t1 = 7200.0)),
                       FX.field(dimension = Dimensions.TIME),
                       FX.field(support = FX.support(level_index = 3)),
-                      FX.field(support = FX.support(radius = 2.0)))
+                      FX.field(support = FX.support(radius = 2.0)),
+                      FX.field(origin = F.unstamped(:fixture, OTHER_RUN)))
             for op in (+, -)
                 @test_throws Refusal op(base, other)
             end
         end
+    end
+
+    @testset "two fields at different places on the clock are refused" begin
+        a = FX.field()
+        b = FX.field(time = FX.interval_support(t1 = 7200.0))
+        @test F.time_semantics(a) === F.time_semantics(b)
+        err = try
+            a + b
+        catch e
+            e
+        end
+        @test err isa Refusal
+        @test err.site == "Fields.+"
+        @test occursin("different places on the clock", err.reason)
+        @test occursin("3600", err.reason)
+        @test occursin("7200", err.reason)
+    end
+
+    @testset "two fields from different runs are refused naming both" begin
+        a = FX.field()
+        b = FX.field(origin = F.unstamped(:fixture, OTHER_RUN))
+        err = try
+            a - b
+        catch e
+            e
+        end
+        @test err isa Refusal
+        @test err.site == "Fields.-"
+        @test occursin(string(FX.RUN), err.reason)
+        @test occursin(string(OTHER_RUN), err.reason)
+    end
+
+    @testset "addition is commutative in every member, not only in its data" begin
+        a = FX.field(data = collect(1.0:FX.NCELLS))
+        b = FX.field(data = fill(0.5, FX.NCELLS))
+        @test a + b == b + a
+        @test F.data(a + b) == F.data(b + a)
+        @test F.time_support(a + b) == F.time_support(b + a)
+        @test F.origin(a + b) == F.origin(b + a)
     end
 
     @testset "a pair across mismatched levels is refused, not a MethodError" begin
