@@ -60,9 +60,14 @@ Every suite is given the whole thread budget rather than a share of it. A thread
 a suite does not use costs a stack and nothing else, and the one suite that does
 use them, `certify`, is the last to finish and has the machine to itself for most
 of its run (notes/findings/2026-09-12-the-gate-in-parallel.md).
+
+`extra` is what a caller adds to `SUITE_FLAGS` for its own door. The nightly bed
+passes `--check-bounds=yes` there (`tools/nightly/run.jl`), which decision 0050 keeps
+off the gate.
 """
-suite_command(root::AbstractString, name::AbstractString, threads::Int) =
-    `julia --startup-file=no $(SUITE_FLAGS) --project=$(root) -t $(threads) -e $("include(raw\"" * joinpath(root, "test", name, "runtests.jl") * "\")")`
+suite_command(root::AbstractString, name::AbstractString, threads::Int;
+              extra::Cmd = ``) =
+    `julia --startup-file=no $(SUITE_FLAGS) $(extra) --project=$(root) -t $(threads) -e $("include(raw\"" * joinpath(root, "test", name, "runtests.jl") * "\")")`
 
 """
     warm_precompile(root)
@@ -90,9 +95,11 @@ a suite's result, and it is also worth 2.4 on `certify` by itself, because a
 suite's collection cost stops being a function of what ran before it
 (notes/findings/2026-09-12-the-gate-in-parallel.md).
 """
-in_process(root::AbstractString, logdir::AbstractString, threads::Int) =
+in_process(root::AbstractString, logdir::AbstractString, threads::Int;
+           extra::Cmd = ``) =
     name -> open(joinpath(logdir, name * ".log"), "w") do io
-        success(pipeline(suite_command(root, name, threads); stdout = io, stderr = io))
+        success(pipeline(suite_command(root, name, threads; extra = extra);
+                         stdout = io, stderr = io))
     end
 
 """
