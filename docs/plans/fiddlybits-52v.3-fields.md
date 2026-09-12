@@ -32,7 +32,7 @@ convention restated in two places is two conventions.
 | path | holds | row |
 | --- | --- | --- |
 | `src/Dimensions/` | `Dim{M,L,T,Theta,N}`, its algebra, the DynamicQuantities door | 52v.3.2 |
-| `src/Fields/field.jl` | `Field`, the two closed vocabularies, `TimeSupport`, `Origin` by value | 52v.3.2 |
+| `src/Fields/field.jl` | `Field`, the two closed vocabularies, `Origin` by value | 52v.3.2 |
 | `src/Fields/reduce.jl` | `coarsen`, `refine`, `time_reduce`, the refusal table | 52v.3.3 |
 | `src/Fields/vectors.jl` | the basis lifts and projections, edge-normal support | 52v.3.5 |
 | `src/Fields/ledger.jl` | `Ledger{Q}`, `closed`, the loss inventory | 52v.3.6 |
@@ -44,13 +44,19 @@ plan put it in group A: it references nothing, and `Systems` reads it for the
 dimension a disposition carries. `Fields` references `Mesh`, `Backends`,
 `Reductions`, `Dimensions`, `Time` and `Verdicts`.
 
+`TimeSupport` is declared in `src/Time/support.jl` and not here. It is built from
+`Interval` and the `TimeSemantics` types, both of which `Time` owns, and `Time` sits
+below `Fields`, so declaring it here would be a second definition of it rather than a
+reading of the one that exists. `Fields` carries one in every `Field` and declares
+none. Filled by `fiddlybits-52v.5.2`.
+
 ## Types and functions
 
 ```
 Field{S<:Semantics, T<:TimeSemantics, D<:Dim, L, A<:AbstractArray}
     data     (ncells(L), extra...) raw floats, device or host
     support  Support{L} from Mesh; shape is never identity
-    time     TimeSupport{T}, t0 and t1 in SI seconds
+    time     TimeSupport from Time, holding T and where T places it on the clock
     origin   Origin, carried by value
 ```
 
