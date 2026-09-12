@@ -49,10 +49,6 @@ Manifest.toml.bak
 # Pipeline work files (repair lists, markers)
 references/work/
 
-# Row worktrees created at the repository root, before they moved under .beads.
-# This line comes out when the last one has moved.
-/fiddlybits-*/
-
 # Row worktrees, which `bd worktree create .beads/worktrees/<id>` puts here. They
 # stay under the repo root so that `.taskrunner.toml` at the root is at or above
 # each one and every worktree inherits this repository's resource defaults. bd
