@@ -16,6 +16,14 @@
 
 const NIGHTLY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 
+"""
+What the nightly adds to the gate's `SUITE_FLAGS`. Read by the warm-up and by every
+suite from this one binding: Julia caches per configuration, so a warm-up under
+different flags warms a cache nothing reads and every worker precompiles after all.
+`nightly` asserts the two commands carry it.
+"""
+const EXTRA_FLAGS = `--check-bounds=yes`
+
 # The gate's driver, in a module of its own: it includes `test/suites.jl`, and loading
 # it into this namespace would define `suites` twice, which is the one thing the
 # shared file exists to prevent (test/closure.jl for the same shape on the test side).
@@ -115,10 +123,10 @@ function main(args::Vector{String})
             " suites, ", workers, " at once, logs in ", logdir)
     println("nightly: --check-bounds=yes, which the gate does not carry (decision 0050)")
     println("nightly: package warm in ",
-            round(Gate.warm_precompile(NIGHTLY_ROOT); digits = 1), " s")
+            round(Gate.warm_precompile(NIGHTLY_ROOT; extra = EXTRA_FLAGS); digits = 1), " s")
 
     started = time()
-    runner = Gate.in_process(NIGHTLY_ROOT, logdir, workers; extra = `--check-bounds=yes`)
+    runner = Gate.in_process(NIGHTLY_ROOT, logdir, workers; extra = EXTRA_FLAGS)
     results = Gate.run_suites(found, workers, runner)
     wall = time() - started
     status = Gate.report(results, logdir, wall)

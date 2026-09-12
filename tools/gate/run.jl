@@ -70,14 +70,28 @@ suite_command(root::AbstractString, name::AbstractString, threads::Int;
     `julia --startup-file=no $(SUITE_FLAGS) $(extra) --project=$(root) -t $(threads) -e $("include(raw\"" * joinpath(root, "test", name, "runtests.jl") * "\")")`
 
 """
-    warm_precompile(root)
+    warm_command(root; extra)
 
 Load the package once before any worker starts. Workers that start together on a
 stale cache otherwise each begin precompiling and wait on each other's pidfile,
 which costs more than the one load it saves.
+
+`extra` is the caller's own flags and must be the same ones its suites will carry.
+Julia caches per configuration, so a warm-up under different flags warms a cache
+nothing then reads, and every worker precompiles after all. `warm_command` is split
+out so a test can read the two commands against each other rather than waiting for a
+suite to fail on a missing image.
 """
-function warm_precompile(root::AbstractString)
-    cmd = `julia --startup-file=no $(SUITE_FLAGS) --project=$(root) -e "using Fiddlybits"`
+warm_command(root::AbstractString; extra::Cmd = ``) =
+    `julia --startup-file=no $(SUITE_FLAGS) $(extra) --project=$(root) -e "using Fiddlybits"`
+
+"""
+    warm_precompile(root; extra)
+
+Run `warm_command` and return how long it took.
+"""
+function warm_precompile(root::AbstractString; extra::Cmd = ``)
+    cmd = warm_command(root; extra = extra)
     seconds = @elapsed success(pipeline(cmd; stdout = devnull, stderr = devnull)) ||
         error("the package did not load; every suite would fail the same way")
     return seconds
