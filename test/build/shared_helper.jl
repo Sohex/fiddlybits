@@ -2,9 +2,10 @@
 # and a second door reaching it neither replaces it nor takes its name in silence.
 #
 # `test/runtests.jl` includes every suite into `Main`, so a name a suite defines there
-# is visible to every later suite and a second definition of it wins, saying nothing
-# (notes/findings/2026-09-12-a-silent-method-overwrite-in-main.md). `test/closure.jl`
-# is the shared helper this is checked on; the fixtures under
+# is visible to every later suite and a second definition of it wins. It says so only
+# under `--warn-overwrite=yes`, which `Pkg.test()` passes and the gate does not
+# (notes/findings/2026-09-12-the-overwrite-warning-reaches-one-door-of-two.md).
+# `test/closure.jl` is the shared helper this is checked on; the fixtures under
 # `fixtures/shared_helper` are a stand-in for it, so what is asserted here does not
 # depend on what any vocabulary contains.
 
@@ -33,16 +34,16 @@ end
 """
     run_case(body)
 
-`(ok, stderr)` for `body` run by a fresh copy of the `julia` running this suite:
-whether it exited zero, and what it wrote to stderr. A fresh process rather than a
+`(ok, stderr)` for `body` run by a fresh copy of the `julia` running this suite, with
+`flags` added: whether it exited zero, and what it wrote to stderr. A fresh process rather than a
 fresh `Module` because a replaced module warns at the level of the runtime, below
 anything `redirect_stderr` reaches, and `Base.julia_cmd()` rather than `julia`
 because what is asserted is the behaviour of this Julia and not of whichever one
 comes first on the path.
 """
-function run_case(body::AbstractString)
+function run_case(body::AbstractString; flags::Cmd = ``)
     errfile = tempname()
-    cmd = `$(Base.julia_cmd()) --startup-file=no -e $body`
+    cmd = `$(Base.julia_cmd()) --startup-file=no $(flags) -e $body`
     ok = try
         run(pipeline(cmd; stdout = devnull, stderr = errfile))
         true
@@ -95,14 +96,16 @@ end # module SharedHelper
 using Test
 
 @testset "build.one_definition_per_helper" begin
-    @testset "the tree: closed_set is defined once and every caller imports it" begin
-        found = SharedHelper.definitions(SharedHelper.TEST_ROOT, "closed_set")
-        @test found == [joinpath(SharedHelper.TEST_ROOT, "closure.jl")]
+    @testset "the tree: each door is defined once and every caller imports it" begin
+        @testset "$(name)" for name in ("closed_type_set", "closed_set")
+            found = SharedHelper.definitions(SharedHelper.TEST_ROOT, name)
+            @test found == [joinpath(SharedHelper.TEST_ROOT, "closure.jl")]
 
-        users = SharedHelper.callers(SharedHelper.TEST_ROOT, "closed_set")
-        @test !isempty(users)
-        for file in users
-            @test occursin("VocabularyClosure", read(file, String))
+            users = SharedHelper.callers(SharedHelper.TEST_ROOT, name)
+            @test !isempty(users)
+            for file in users
+                @test occursin("VocabularyClosure", read(file, String))
+            end
         end
     end
 
@@ -124,15 +127,26 @@ using Test
         @test !isempty(strip(err))
     end
 
-    @testset "positive control: two doors defining it inline overwrite in silence" begin
-        ok, err = SharedHelper.run_case("""
+    @testset "positive control: two doors defining it inline overwrite one another" begin
+        body = """
             include(raw"$(joinpath(SharedHelper.FIXTURES, "inline_a.jl"))")
             answer() === :first || exit(3)
             include(raw"$(joinpath(SharedHelper.FIXTURES, "inline_b.jl"))")
             exit(answer() === :second ? 0 : 2)
-            """)
-        @test ok
-        @test isempty(strip(err))
+            """
+
+        @testset "the second definition is the one that answers" begin
+            ok, _ = SharedHelper.run_case(body)
+            @test ok
+        end
+
+        @testset "and says so only when asked to" begin
+            _, quiet = SharedHelper.run_case(body)
+            @test isempty(strip(quiet))
+
+            _, loud = SharedHelper.run_case(body; flags = `--warn-overwrite=yes`)
+            @test occursin("overwritten", loud)
+        end
     end
 
     @testset "positive control: a door defining the shared name is refused, not obeyed" begin
