@@ -34,17 +34,20 @@ object and Julia writes `ignoring conflicting import` to stderr for the names a
 
 ## What follows
 
-The defect the rows describe is real and is worse than they say. The collision is not
-a warning nobody reads in a passing run; on this Julia there is nothing to read. A
-change to one suite's copy of a shared helper would change the other suite's
-behaviour with no output at all, and the only reason nothing was wrong was that the
-two copies were identical byte for byte.
+The defect the two rows describe is real and is worse than they say. The collision is
+not a warning nobody reads in a passing run; on this Julia there is nothing to read.
+A change to one suite's copy of a shared helper would change the other suite's
+behaviour with no output at all, and the only reason nothing was wrong is that the
+copies were identical byte for byte.
 
-It also removes the acceptance criterion both rows lead with. "The suite runs with no
-method-overwritten warning" was already true before the work and cannot decide it.
-What decides it is that the helper has one definition, that a second door reaching it
-loads nothing, and that a door defining the name itself is refused rather than
-obeyed: Julia does raise `invalid method definition in Main: function
-VocabularyClosure.closed_set must be explicitly imported to be extended` when a name
-brought in by `using` is redefined. `build.one_definition_per_helper` asserts all
-three, with the silent overwrite as its positive control.
+One redefinition is not silent. A name brought into `Main` by `using` and then
+defined there raises, rather than taking the name:
+
+```
+ERROR: invalid method definition in Main: function VocabularyClosure.closed_set must
+be explicitly imported to be extended
+```
+
+So the acceptance criterion both rows lead with, that a run prints no
+method-overwritten warning, was already true before any work and cannot decide
+either row. `fiddlybits-52v.1.11` records what replaced it.

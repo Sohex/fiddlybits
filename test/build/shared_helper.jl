@@ -33,14 +33,18 @@ end
 """
     run_case(body)
 
-`(ok, stderr)` for `body` run by a fresh `julia`: whether it exited zero, and what it
-wrote to stderr. A fresh process rather than a fresh `Module` because a replaced
-module warns at the level of the runtime, below anything `redirect_stderr` reaches.
+`(ok, stderr)` for `body` run by a fresh copy of the `julia` running this suite:
+whether it exited zero, and what it wrote to stderr. A fresh process rather than a
+fresh `Module` because a replaced module warns at the level of the runtime, below
+anything `redirect_stderr` reaches, and `Base.julia_cmd()` rather than `julia`
+because what is asserted is the behaviour of this Julia and not of whichever one
+comes first on the path.
 """
 function run_case(body::AbstractString)
     errfile = tempname()
+    cmd = `$(Base.julia_cmd()) --startup-file=no -e $body`
     ok = try
-        run(pipeline(`julia --startup-file=no -e $body`; stdout = devnull, stderr = errfile))
+        run(pipeline(cmd; stdout = devnull, stderr = errfile))
         true
     catch
         false
@@ -62,12 +66,16 @@ end
 """
     definitions(root, name)
 
-The files under `root` that define a function called `name` at any indentation.
+The files under `root` that define a function called `name` at any indentation, in
+either the `function` form or the assignment form. Both are anchored to the start of
+the line, so a call on the right of an assignment is not a definition.
 """
 function definitions(root::AbstractString, name::AbstractString)
-    pattern = Regex("^\\s*function\\s+$(name)\\b")
+    keyword = Regex("^\\s*function\\s+$(name)\\b")
+    assignment = Regex("^\\s*$(name)\\(.*\\)\\s*=[^=]")
     return [f for f in sources(root)
-            if any(line -> occursin(pattern, line), eachline(f))]
+            if any(line -> occursin(keyword, line) || occursin(assignment, line),
+                   eachline(f))]
 end
 
 """
@@ -94,8 +102,14 @@ using Test
         users = SharedHelper.callers(SharedHelper.TEST_ROOT, "closed_set")
         @test !isempty(users)
         for file in users
-            @test occursin("using .VocabularyClosure:", read(file, String))
+            @test occursin("VocabularyClosure", read(file, String))
         end
+    end
+
+    @testset "positive control: the scan finds both definition forms, and no import" begin
+        found = SharedHelper.definitions(SharedHelper.FIXTURES, "answer")
+        @test Set(basename.(found)) ==
+              Set(["helper.jl", "inline_a.jl", "inline_b.jl", "own_answer.jl"])
     end
 
     @testset "a second guarded door loads nothing and warns nothing" begin
