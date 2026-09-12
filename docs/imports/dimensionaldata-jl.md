@@ -139,4 +139,9 @@ Recorded for the read surface, though no dependency is proposed.
   addressing), decision 0011 (the device boundary).
 - `docs/imports/adapt.md`, the mechanism this record's adapt discussion sits on.
 - The rows that consume this: `fiddlybits-52v.3.2` (the `Field` type and its parameters)
-  and `fiddlybits-52v.3.4` (the semantics-closure enumeration test).
+  and `fiddlybits-52v.3.4` (the semantics-closure enumeration test, which also carries
+  the `@inferred` assertion that turns the prototype above from a claim into a check).
+- The section of the plan that reads this record for its inference argument:
+  `docs/plans/fiddlybits-52v.3-fields.md`, "Inference, and what it costs". The refusal
+  of `strict_broadcast!` recorded here is the shape the accepted-findings rule of
+  `fiddlybits-52v.3.8` is written against.

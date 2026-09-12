@@ -71,6 +71,19 @@ holdout = false
 anchors = []
 
 [[oracle]]
+id = "build.inference_suite_cost"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "known quantity"
+statistic = "wall time of the enumerated inference walk of fields.inference_tight on the recorded host, with the load average beside it, and the count of distinct Dim signatures the walk instantiates; the walk compiles every combination it asserts on, so its time is the specialization cost of Field's four type parameters paid in one visible place"
+verdict_kind = "fail_bar"
+threshold = "provisional; no ceiling until the A/A scatter of this instrument is measured and written as a dated finding, because a bar narrower than its instrument's scatter is refused at registration (decision 0029), and because the two closed vocabularies are not the combinatorial source: Dim{M,L,T,Theta,N} carries five open integer exponents and the signature count is what a later bar would judge (fiddlybits-52v.3.9). Positive control: the measurement judged against a ceiling below the measured value must FAIL"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "build.load_latency"
 tier = 1
 subsystem = "build"
@@ -422,6 +435,19 @@ dataset_or_reference = "identity"
 statistic = "every registered field type adapted to the device and back, compared field by field including its support, time support, dimension and provenance"
 verdict_kind = "fail_bar"
 threshold = "unchanged in every member (positive control: a struct whose adapt rule drops its support, which must be caught rather than returning a field that compares equal on its data alone)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "fields.inference_tight"
+tier = 1
+subsystem = "fields"
+dataset_or_reference = "identity"
+statistic = "every operator over every enumerated (Semantics, TimeSemantics, Dim) pair the semantics-closure walk produces, its return type asserted concrete by @inferred on the per-commit gate; and the static pass in its optimization mode over the same operators on the nightly row of decision 0043, reporting runtime dispatch and any return that is not concrete"
+verdict_kind = "fail_bar"
+threshold = "exact; no operator returns a non-concrete type and the optimization pass reports nothing outside its accepted-findings list. The list is TOML beside the pass, every entry naming a reason and the row that removes it, because an unruled allowlist is state that makes a check pass without the thing being checked, which is the shape docs/imports/dimensionaldata-jl.md refused in strict_broadcast!. The Julia version is recorded beside the pass's result, which reads compiler internals. Positive controls: a fixture operator that selects its semantics from a runtime value, which must fail the @inferred arm; an accepted-findings entry carrying neither a reason nor a row, which must fail the pass; and, for the device arm, that no equivalent is needed because the GPU compiler refuses dynamic dispatch rather than falling back to it (fiddlybits-52v.3.10 anchors that refusal in the import records)"
 provisional = true
 registered_at = ""
 holdout = false
