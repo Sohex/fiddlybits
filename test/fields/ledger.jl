@@ -97,123 +97,241 @@ end
 end
 
 """
-    old_slope_against_tolerance_classify(windows, residuals, tolerances)
+    round2_classify(windows, residuals, tolerances)
 
-The pre-review `Fields.classify`: `Leak` when the least-squares slope of `residuals`
-against `windows`, times the window span, exceeds the largest of `tolerances`;
-otherwise `StockOmission` when the mean residual exceeds the mean tolerance;
-otherwise `Rounding`. Kept only to show that the new tests below fail on it.
+The second-round `Fields.classify`, kept as a fixture: `Leak` when `round2_leak_signal`,
+otherwise `Rounding` when the mean absolute residual is at most the mean tolerance and
+the lag-1 autocorrelation `r1` of the first differences satisfies
+`abs(r1 + 1/2) <= sqrt(n) / sqrt(n - 1)`, otherwise `StockOmission`.
 """
-function old_slope_against_tolerance_classify(windows, residuals, tolerances)
-    _, slope = Fields.linear_fit(windows, residuals)
-    span = maximum(windows) - minimum(windows)
-    growth = abs(slope) * span
-    growth > maximum(tolerances) && return Fields.Leak()
-    sum(abs, residuals) / length(residuals) > sum(tolerances) / length(tolerances) &&
-        return Fields.StockOmission()
-    return Fields.Rounding()
+function round2_classify(windows, residuals, tolerances)
+    round2_leak_signal(windows, residuals) && return L.Leak()
+    n = length(residuals)
+    d = diff(Float64.(residuals))
+    m = length(d)
+    dbar = sum(d) / m
+    numerator = sum((d[i] - dbar) * (d[i + 1] - dbar) for i in 1:(m - 1))
+    denominator = sum((di - dbar)^2 for di in d)
+    r1 = denominator == 0 ? 0.0 : numerator / denominator
+    band = sqrt(n) / sqrt(m)
+    mean_residual = sum(abs, residuals) / n
+    mean_tolerance = sum(tolerances) / n
+    mean_residual <= mean_tolerance && abs(r1 + 0.5) <= band && return L.Rounding()
+    return L.StockOmission()
 end
 
+"""
+    round2_leak_signal(windows, residuals)
+
+The second-round leak test: the least-squares slope's `t` statistic against
+`sqrt(n^2 * df / (df - 2))`, `df = n - 2`, `false` at `df <= 2`.
+"""
+function round2_leak_signal(windows, residuals)
+    x = Float64.(windows)
+    y = Float64.(residuals)
+    n = length(x)
+    xm = sum(x) / n
+    ym = sum(y) / n
+    sxx = sum((xi - xm)^2 for xi in x)
+    b = sum((x[i] - xm) * (y[i] - ym) for i in 1:n) / sxx
+    a = ym - b * xm
+    rss = sum((y[i] - a - b * x[i])^2 for i in 1:n)
+    rss == 0 && return b != 0
+    df = n - 2
+    df > 2 || return false
+    t = b / sqrt((rss / df) / sxx)
+    return abs(t) > sqrt(n^2 * df / (df - 2))
+end
+
+"""
+    binomial_critical_count(k, p, level)
+
+The smallest count `c` with `P(X >= c) <= level` for `X ~ Binomial(k, p)`, computed
+exactly over rational `p` and `level`.
+"""
+function binomial_critical_count(k::Integer, p::Rational, level::Rational)
+    num = big(numerator(p))
+    den = big(denominator(p))
+    bound = Rational{BigInt}(level) * den^k
+    tail = big(0)
+    c = k + 1
+    for j in k:-1:0
+        term = binomial(big(k), j) * num^j * (den - num)^(k - j)
+        tail + term <= bound || break
+        tail += term
+        c = j
+    end
+    return c
+end
+
+"`n` errors drawn uniformly within nine tenths of each tolerance of `tolerances`."
+rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolerances]
+
 @testset "Fields.classify" begin
-    @testset "the review's two adversarial series" begin
-        # docs/requirements/num/closure-tolerance-from-floating-point.md, REQ-NUM-004
-        # item 3. Every ledger here is closed (residuals within one tolerance unit)
-        # or, for the second series, an omission far past it; neither grows with the
-        # window, which the least-squares fit alone cannot see through the noise, and
-        # which is exactly what made the old rule call both series Leak.
-        windows = [10.0, 100.0, 500.0, 1200.0]
-        tolerances = fill(1.0, 4)
+    alpha = 1 // 100
+    windows = [10.0, 30.0, 100.0, 200.0, 400.0, 700.0, 1000.0, 1200.0]
+    tolerances = fill(1.0, length(windows))
 
-        rounding_like = [-0.9, -0.5, 0.5, 0.9]
-        @test old_slope_against_tolerance_classify(windows, rounding_like,
-                                                    tolerances) == L.Leak()
-        @test L.classify(windows, rounding_like, tolerances) == L.Rounding()
+    @testset "the review's two series are never Leak" begin
+        review_windows = [10.0, 100.0, 500.0, 1200.0]
+        review_tolerances = fill(1.0, 4)
+        within = [-0.9, -0.5, 0.5, 0.9]
+        offset = [4.1, 5.2, 4.7, 5.9]
 
-        stock_omission_like = [4.1, 5.2, 4.7, 5.9]
-        @test old_slope_against_tolerance_classify(windows, stock_omission_like,
-                                                    tolerances) == L.Leak()
-        @test L.classify(windows, stock_omission_like, tolerances) ==
-              L.StockOmission()
+        err = raised(() -> L.classify(review_windows, within, review_tolerances;
+                                      false_alarm = alpha))
+        @test err isa Refusal
+        @test occursin("successive-difference", err.reason)
+        @test occursin("at least 6 windows", err.reason)
+
+        err = raised(() -> L.classify(review_windows, offset, review_tolerances;
+                                      false_alarm = alpha))
+        @test err isa Refusal
+        @test occursin("trend", err.reason)
+        @test occursin("at least 6 windows", err.reason)
+
+        admitting = 1 // 8
+        @test L.exchangeable_minimum_length(admitting) == 4
+        @test L.offset_minimum_length(admitting) == 4
+        @test L.exchangeable_minimum_length(1 // 12) == 4
+        @test L.exchangeable_minimum_length(1 // 13) == 5
+        @test L.offset_minimum_length(1 // 9) == 5
+        @test L.classify(review_windows, within, review_tolerances;
+                         false_alarm = admitting) == L.Unexplained()
+        @test L.classify(review_windows, offset, review_tolerances;
+                         false_alarm = admitting) == L.StockOmission()
     end
 
-    @testset "seeded synthetic series of each class" begin
-        windows = [10.0, 210.0, 410.0, 610.0, 810.0]
-        tolerances = fill(1.0, length(windows))
-
-        @testset "rounding noise classifies Rounding, not Leak" begin
-            for seed in (1, 2, 3)
-                rng = Random.Xoshiro(seed)
-                residuals = 0.3 .* randn(rng, length(windows))
-                @test all(<=(1.0), abs.(residuals))
-                @test L.classify(windows, residuals, tolerances) == L.Rounding()
-            end
-        end
-
-        @testset "a leak under one tolerance unit at the shortest window" begin
-            # the easy wrong answer at the shortest window alone is Rounding; only
-            # the growth across the whole ladder reveals it.
-            rate = 0.9 / windows[1]
-            for seed in (1, 2, 3)
-                rng = Random.Xoshiro(seed)
-                noise = 0.15 .* randn(rng, length(windows))
-                residuals = rate .* windows .+ noise
-                @test abs(residuals[1]) < tolerances[1]
-                @test L.classify(windows, residuals, tolerances) == L.Leak()
-            end
-        end
-
-        @testset "a stock omission carrying rounding noise" begin
-            # the easy wrong answer is Leak, since the offset sits far past
-            # tolerance; only its flatness against the window rules that out.
-            offset = 5.0
-            for seed in (1, 2, 3)
-                rng = Random.Xoshiro(seed)
-                noise = 0.3 .* randn(rng, length(windows))
-                residuals = fill(offset, length(windows)) .+ noise
-                @test L.classify(windows, residuals, tolerances) == L.StockOmission()
-            end
+    @testset "a leak under one tolerance unit at the shortest window is Leak" begin
+        rate = 0.5 / windows[1]
+        for seed in (1, 2, 3)
+            rng = Random.Xoshiro(seed)
+            noise = 0.4 .* (2 .* rand(rng, length(windows)) .- 1)
+            residuals = rate .* windows .+ noise
+            @test abs(residuals[1]) < tolerances[1]
+            @test L.classify(windows, residuals, tolerances; false_alarm = alpha) ==
+                  L.Leak()
+            @test L.classify(windows, noise, tolerances; false_alarm = alpha) != L.Leak()
         end
     end
 
-    @testset "classify refuses mismatched lengths, non-increasing and too few windows" begin
-        err = raised(() -> L.classify([1.0, 2.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]))
-        @test err isa Refusal
-        @test err.site == "Fields.classify"
-
-        err = raised(() -> L.classify([1.0, 2.0, 2.0, 3.0], fill(0.0, 4), fill(1.0, 4)))
-        @test err isa Refusal
-        @test occursin("increasing", err.reason)
-
-        err = raised(() -> L.classify([1.0, 3.0, 2.0, 4.0], fill(0.0, 4), fill(1.0, 4)))
-        @test err isa Refusal
-        @test occursin("increasing", err.reason)
-
-        err = raised(() -> L.classify([1.0, 2.0, 3.0], fill(0.0, 3), fill(1.0, 3)))
-        @test err isa Refusal
-        @test occursin("4", err.reason)
+    @testset "stock omissions carrying rounding noise are StockOmission" begin
+        series = 200
+        rng = Random.Xoshiro(20)
+        classes = [L.classify(windows, 5.0 .+ rounding_noise(rng, tolerances), tolerances;
+                              false_alarm = alpha) for _ in 1:series]
+        @test all(c -> c in (L.StockOmission(), L.Leak(), L.Unexplained()), classes)
+        @test count(!=(L.StockOmission()), classes) <
+              binomial_critical_count(series, 2 * alpha, alpha)
+        @test count(==(L.Leak()), classes) < binomial_critical_count(series, alpha, alpha)
     end
 
-    @testset "lag1_autocorrelation refuses fewer than 4 values" begin
-        err = raised(() -> L.lag1_autocorrelation([1.0, 2.0, 3.0]))
-        @test err isa Refusal
-        @test err.site == "Fields.lag1_autocorrelation"
+    @testset "random walks within the quantum are told apart from rounding" begin
+        series = 200
+        rng = Random.Xoshiro(30)
+        walks = map(1:series) do _
+            walk = cumsum(randn(rng, length(windows)))
+            0.9 .* walk ./ maximum(abs, walk)
+        end
+        @test all(w -> all(abs.(w) .<= tolerances), walks)
+        new = [L.classify(windows, w, tolerances; false_alarm = alpha) for w in walks]
+        old = [round2_classify(windows, w, tolerances) for w in walks]
+        @test all(c -> c in (L.Rounding(), L.Unexplained()), new)
+        @test count(!=(L.Rounding()), new) >= binomial_critical_count(series, alpha, alpha)
+        @test count(==(L.Rounding()), old) > count(==(L.Rounding()), new)
+        @test any(i -> old[i] == L.Rounding() && new[i] != L.Rounding(), 1:series)
     end
 
-    @testset "linear_fit refuses windows that are not all distinct" begin
-        err = raised(() -> L.linear_fit([1.0, 1.0, 1.0], [1.0, 2.0, 3.0]))
+    @testset "the false-alarm rate on rounding noise is at most the declared probability" begin
+        series = 2000
+        rng = Random.Xoshiro(40)
+        alarms = count(1:series) do _
+            L.classify(windows, rounding_noise(rng, tolerances), tolerances;
+                       false_alarm = alpha) != L.Rounding()
+        end
+        @test alarms < binomial_critical_count(series, alpha, alpha)
+    end
+
+    @testset "zero residuals at zero tolerance are Rounding" begin
+        zeros_n = zeros(length(windows))
+        @test L.classify(windows, zeros_n, zeros_n; false_alarm = alpha) == L.Rounding()
+    end
+
+    @testset "minimum lengths" begin
+        @test L.exchangeable_minimum_length(alpha) == 6
+        @test L.offset_minimum_length(alpha) == 8
+        for n in 2:8
+            @test L.count_at_least(L.trend_statistic, collect(1:n)) ==
+                  (2, factorial(big(n)))
+            @test L.count_at_least(L.successive_difference_statistic, collect(1:n)) ==
+                  (2, factorial(big(n)))
+        end
+
+        err = raised(() -> L.classify(windows[1:5], zeros(5), ones(5); false_alarm = alpha))
         @test err isa Refusal
-        @test err.site == "Fields.linear_fit"
+        @test occursin("successive-difference", err.reason)
+        @test L.classify(windows[1:6], zeros(6), ones(6); false_alarm = alpha) ==
+              L.Rounding()
+
+        unordered = [5.3, 4.8, 5.9, 4.6, 5.5, 5.0, 5.7]
+        err = raised(() -> L.classify(windows[1:7], unordered, ones(7);
+                                      false_alarm = alpha))
+        @test err isa Refusal
+        @test occursin("offset", err.reason)
+        @test occursin("at least 8 windows", err.reason)
+    end
+
+    @testset "count_at_least visits every ordering once" begin
+        orderings = [[a, b, c, d] for a in 1:4, b in 1:4, c in 1:4, d in 1:4
+                     if allunique((a, b, c, d))]
+        code(v) = foldl((acc, x) -> 10 * acc + x, v; init = 0)
+        ds = [L.count_at_least(code, o)[1] for o in orderings]
+        @test sort(ds) == collect(1:24)
+    end
+
+    @testset "binomial_upper_tail counts sign patterns" begin
+        for n in 0:6, k in 0:(n + 1)
+            patterns = count(p -> count_ones(p) >= k, 0:(2^n - 1))
+            @test L.binomial_upper_tail(n, k) == patterns
+        end
+    end
+
+    @testset "doubled_midranks" begin
+        @test L.doubled_midranks([3.0, 1.0, 3.0, 2.0]) == [7, 2, 7, 4]
+    end
+
+    @testset "classify refuses malformed input and requires false_alarm" begin
+        ok = (windows, zeros(8), ones(8))
+        for bad in ((windows[1:7], zeros(8), ones(8)),
+                    (reverse(windows), zeros(8), ones(8)),
+                    (windows, [NaN; zeros(7)], ones(8)),
+                    (windows, zeros(8), [-1.0; ones(7)]))
+            err = raised(() -> L.classify(bad...; false_alarm = alpha))
+            @test err isa Refusal
+            @test err.site == "Fields.classify"
+        end
+        for a in (0, 1, NaN, -0.5, 1.5)
+            @test raised(() -> L.classify(ok...; false_alarm = a)) isa Refusal
+        end
+        @test raised(() -> L.classify(ok...)) isa UndefKeywordError
     end
 
     @testset "residual_signatures enumerates the closed set" begin
-        @test L.residual_signatures() == (L.Leak(), L.StockOmission(), L.Rounding())
+        @test L.residual_signatures() ==
+              (L.Leak(), L.StockOmission(), L.Rounding(), L.Unexplained())
     end
 
-    @testset "classify infers a concrete return type" begin
-        rt = Base.return_types(L.classify,
-                               (Vector{Float64}, Vector{Float64}, Vector{Float64}))
+    @testset "classify reads a series of ledgers" begin
+        ledgers = [L.Ledger{:mass}(Float64, 8, 10.0, 10.0, 10.0, 0.0; reservoir = false)
+                   for _ in windows]
+        @test L.classify(ledgers, windows; false_alarm = alpha) == L.Rounding()
+    end
+
+    @testset "classify infers a ResidualSignature" begin
+        rt = Base.return_types(Core.kwcall,
+                               (typeof((false_alarm = 0.01,)), typeof(L.classify),
+                                Vector{Float64}, Vector{Float64}, Vector{Float64}))
         @test length(rt) == 1
         @test rt[1] <: L.ResidualSignature
-        @test rt[1] != Any
     end
 end

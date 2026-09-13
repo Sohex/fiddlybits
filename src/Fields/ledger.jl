@@ -96,145 +96,255 @@ end
 """
     ResidualSignature
 
-The closed set a closure residual's time signature is classified into (REQ-NUM-004):
-`Leak` grows linearly with the window, `StockOmission` is flat and independent of the
-window at a magnitude the tolerance does not explain, and `Rounding` is flat within
-the tolerance. `residual_signatures()` enumerates it.
+The closed set a series of closure residuals is classified into (REQ-NUM-004):
+`Leak`, `StockOmission`, `Rounding`, and `Unexplained` for a series none of the other
+three fits. `residual_signatures()` enumerates it; `classify` states the test each
+member is decided by.
 """
 abstract type ResidualSignature end
 
-"A residual that grows with the window: a flux counted on the wrong side, twice."
+"A residual series with a trend in the window, beyond its tolerance at some window."
 struct Leak <: ResidualSignature end
 
-"A residual flat in the window at a magnitude the tolerance does not explain: a pool
-missing from the inventory."
+"A residual series with no trend, independent in level, offset beyond its tolerance."
 struct StockOmission <: ResidualSignature end
 
-"A residual flat in the window and within the tolerance: the quantisation of the
-arithmetic itself."
+"A residual series within its tolerance at every window and independent in level."
 struct Rounding <: ResidualSignature end
 
+"A residual series that `Leak`, `StockOmission` and `Rounding` do not fit."
+struct Unexplained <: ResidualSignature end
+
 "Every `ResidualSignature` singleton, in the order this module declares them."
-residual_signatures() = (Leak(), StockOmission(), Rounding())
+residual_signatures() = (Leak(), StockOmission(), Rounding(), Unexplained())
 
 """
-    linear_fit(x, y)
+    doubled_midranks(x)
 
-`(a, b)` of the least-squares line `y = a + b*x` through the points `(x, y)`.
-
-Refuses when the values of `x` are not all distinct.
+Twice the midrank of each element of `x`, as `Int`: for `x[i]`,
+`2 * count(<(x[i]), x) + count(==(x[i]), x) + 1`.
 """
-function linear_fit(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
+function doubled_midranks(x::AbstractVector{<:Real})
     n = length(x)
-    xf = Float64.(x)
-    yf = Float64.(y)
-    xm = sum(xf) / n
-    ym = sum(yf) / n
-    sxx = sum((xi - xm)^2 for xi in xf)
-    sxx > 0 ||
-        refuse("linear fit", "Fields.linear_fit",
-               "the x values are not all distinct; got $(x)")
-    sxy = sum((xf[i] - xm) * (yf[i] - ym) for i in 1:n)
-    b = sxy / sxx
-    bxm = b * xm
-    a = ym - bxm
-    return a, b
-end
-
-"""
-    fit_residuals(x, y)
-
-`(a, b, resid)`: `linear_fit(x, y)`'s intercept and slope, and `y` minus the fitted
-line's value at each `x`, as `Float64`.
-"""
-function fit_residuals(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
-    a, b = linear_fit(x, y)
-    n = length(x)
-    resid = Vector{Float64}(undef, n)
+    ranks = Vector{Int}(undef, n)
     for i in 1:n
-        term = b * Float64(x[i])
-        resid[i] = Float64(y[i]) - a - term
+        below = count(<(x[i]), x)
+        tied = count(==(x[i]), x)
+        twice_below = 2 * below
+        ranks[i] = twice_below + tied + 1
     end
-    return a, b, resid
+    return ranks
 end
 
 """
-    leak_signal(windows, residuals)
+    trend_statistic(ranks)
 
-Whether `residuals` shows significant growth against `windows`.
-
-`fit_residuals(windows, residuals)` is fit and its residual sum of squares `rss` is
-formed. When `rss` is `0`, the value is `true` exactly when the fitted slope `b` is
-nonzero. Otherwise, at `df = length(windows) - 2` residual degrees of freedom and
-`n = length(windows)`, the value is `false` when `df <= 2`; when `df > 2`, it is
-`abs(t) > sqrt(n^2 * df / (df - 2))`, `t` being `b` divided by its standard error
-`sqrt((rss / df) / sxx)`, `sxx` the sum of squared deviations of `windows` from their
-mean. `sqrt(df / (df - 2))` is the standard deviation of a `t`-distributed variable
-with `df` degrees of freedom; `n^2` scales it against the `n` windows compared.
+`abs(S)` for Kendall's `S = sum(sign(ranks[j] - ranks[i]) for i < j)`: the count of
+increasing pairs minus the count of decreasing pairs of `ranks` against position.
 """
-function leak_signal(windows::AbstractVector{<:Real}, residuals::AbstractVector{<:Real})
-    _, b, resid = fit_residuals(windows, residuals)
-    rss = sum(abs2, resid)
-    rss == 0 && return b != 0
-    n = length(windows)
-    df = n - 2
-    df > 2 || return false
-    xf = Float64.(windows)
-    xm = sum(xf) / n
-    sxx = sum((xi - xm)^2 for xi in xf)
-    s2 = rss / df
-    se_b = sqrt(s2 / sxx)
-    se_b == 0 && return b != 0
-    t = b / se_b
-    dfm2 = df - 2
-    nsq = n^2
-    return abs(t) > sqrt(nsq * df / dfm2)
+function trend_statistic(ranks::AbstractVector{Int})
+    n = length(ranks)
+    s = 0
+    for i in 1:n, j in (i + 1):n
+        s += sign(ranks[j] - ranks[i])
+    end
+    return abs(s)
 end
 
 """
-    lag1_autocorrelation(series)
+    successive_difference_statistic(ranks)
 
-`(r1, bartlett_se)`: the lag-1 autocorrelation `r1` of the first differences of
-`series`, and the Bartlett standard error `bartlett_se = 1 / sqrt(m)` of a lag-1
-sample autocorrelation of a length-`m` white-noise series, `m = length(series) - 1`
-the number of differences.
-
-Refuses when `series` has fewer than 4 elements, `m - 1 < 2`, the minimum for the
-autocorrelation's numerator to sum more than one term.
+`-sum((ranks[i + 1] - ranks[i])^2 for i in 1:(length(ranks) - 1))`: the negated sum of
+squared successive differences of `ranks`.
 """
-function lag1_autocorrelation(series::AbstractVector{<:Real})
-    n = length(series)
-    n >= 4 ||
-        refuse("lag-1 autocorrelation", "Fields.lag1_autocorrelation",
-               "$(n) values give $(max(n - 1, 0)) first differences, and at least 3 " *
-               "are needed for the numerator to sum more than one term")
-    d = diff(Float64.(series))
-    m = length(d)
-    dbar = sum(d) / m
-    numerator = sum((d[i] - dbar) * (d[i + 1] - dbar) for i in 1:(m - 1))
-    denominator = sum((di - dbar)^2 for di in d)
-    r1 = denominator == 0 ? zero(Float64) : numerator / denominator
-    return r1, 1 / sqrt(m)
+function successive_difference_statistic(ranks::AbstractVector{Int})
+    total = 0
+    for i in 1:(length(ranks) - 1)
+        total += (ranks[i + 1] - ranks[i])^2
+    end
+    return -total
 end
 
 """
-    classify(windows, residuals, tolerances)
+    count_at_least(statistic, values)
 
-The `ResidualSignature` of a closure residual measured at each window length of
-`windows`, against the residual and the tolerance measured at that window.
+`(d, total)`: `total = factorial(length(values))` as a `BigInt`, and `d` the number of
+the `total` orderings of `values` whose `statistic` is at least `statistic(values)`.
+Every ordering is visited once, each position from the first filled in turn by every
+value not yet placed.
 
-`Leak` when `leak_signal(windows, residuals)`. Otherwise, `r1, bartlett_se =
-lag1_autocorrelation(residuals)` are formed, along with the mean of `residuals` and
-the mean of `tolerances`; at `n = length(residuals)`, the value is `Rounding` when
-the mean residual is at most the mean tolerance and
-`abs(r1 - (-1 / 2)) <= sqrt(n) * bartlett_se`, and `StockOmission` otherwise.
+`d / total` is the permutation p-value `D / #G` over the full permutation group of
+Hemerik and Goeman (2018, "Exact testing with random permutations", arXiv:1411.7565,
+section 2.2), whose level is their Theorem 1.
+"""
+function count_at_least(statistic::F, values::AbstractVector{Int}) where {F}
+    observed = statistic(values)
+    work = collect(values)
+    d = orderings_at_least!(statistic, work, 1, observed)
+    return d, factorial(big(length(values)))
+end
 
-Refuses when `windows`, `residuals` and `tolerances` disagree in length, when
-`windows` is not strictly increasing, or when `windows` holds fewer than 4 values,
-what `lag1_autocorrelation` needs.
+"""
+    orderings_at_least!(statistic, work, k, observed)
+
+The number of orderings of `work` that keep `work[1:(k - 1)]` in place and have
+`statistic` at least `observed`. `work` holds its original order on return.
+"""
+function orderings_at_least!(statistic::F, work::Vector{Int}, k::Int, observed) where {F}
+    n = length(work)
+    k > n && return statistic(work) >= observed ? 1 : 0
+    d = 0
+    for j in k:n
+        work[k], work[j] = work[j], work[k]
+        d += orderings_at_least!(statistic, work, k + 1, observed)
+        work[k], work[j] = work[j], work[k]
+    end
+    return d
+end
+
+"""
+    exchangeable_minimum_length(false_alarm)
+
+The smallest `n >= 2` with `2 / factorial(n) <= false_alarm`, computed exactly: the
+series length below which `count_at_least` over `n` distinct values returns no
+`d / total` at or under `false_alarm` for `trend_statistic` or
+`successive_difference_statistic`, whose most extreme value each is reached by exactly
+the two monotone orderings.
+"""
+function exchangeable_minimum_length(false_alarm::Real)
+    a = Rational{BigInt}(false_alarm)
+    n = 2
+    while factorial(big(n)) * a < 2
+        n += 1
+    end
+    return n
+end
+
+"""
+    offset_count(residuals, tolerances)
+
+`max(above, below)`: `above` the number of `i` with `residuals[i] > tolerances[i]`, and
+`below` the number with `residuals[i] < -tolerances[i]`.
+"""
+function offset_count(residuals::AbstractVector{<:Real}, tolerances::AbstractVector{<:Real})
+    above = 0
+    below = 0
+    for i in eachindex(residuals, tolerances)
+        residuals[i] > tolerances[i] && (above += 1)
+        residuals[i] < -tolerances[i] && (below += 1)
+    end
+    return max(above, below)
+end
+
+"""
+    binomial_upper_tail(n, k)
+
+`sum(binomial(n, j) for j in k:n)` as a `BigInt`: the number of the `2^n` sign patterns
+of `n` values with at least `k` of one sign.
+"""
+function binomial_upper_tail(n::Integer, k::Integer)
+    tail = big(0)
+    for j in max(k, 0):n
+        tail += binomial(big(n), j)
+    end
+    return tail
+end
+
+"""
+    offset_minimum_length(false_alarm)
+
+The smallest `n >= 1` with `2 / 2^n <= false_alarm`, computed exactly: the series
+length below which the offset test in `classify` rejects at no count.
+"""
+function offset_minimum_length(false_alarm::Real)
+    a = Rational{BigInt}(false_alarm)
+    n = 1
+    while big(2)^n * a < 2
+        n += 1
+    end
+    return n
+end
+
+"""
+    exchangeability_rejects(statistic, test, residuals, false_alarm)
+
+Whether `count_at_least(statistic, doubled_midranks(residuals))` returns
+`d / total <= false_alarm`.
+
+Refuses naming `test` and `exchangeable_minimum_length(false_alarm)` when `residuals`
+is shorter than that length.
+"""
+function exchangeability_rejects(statistic::F, test::AbstractString,
+                                 residuals::AbstractVector{<:Real},
+                                 false_alarm::Real) where {F}
+    n = length(residuals)
+    needed = exchangeable_minimum_length(false_alarm)
+    n >= needed ||
+        refuse("residual classification", "Fields.classify",
+               "the $(test) test at false-alarm probability $(false_alarm) needs at " *
+               "least $(needed) windows; got $(n)")
+    d, total = count_at_least(statistic, doubled_midranks(residuals))
+    return d <= Rational{BigInt}(false_alarm) * total
+end
+
+"""
+    offset_rejects(residuals, tolerances, false_alarm)
+
+Whether `2 * binomial_upper_tail(n, offset_count(residuals, tolerances)) / 2^n <=
+false_alarm`, `n = length(residuals)`.
+
+Refuses naming the offset test and `offset_minimum_length(false_alarm)` when
+`residuals` is shorter than that length.
+"""
+function offset_rejects(residuals::AbstractVector{<:Real},
+                        tolerances::AbstractVector{<:Real}, false_alarm::Real)
+    n = length(residuals)
+    needed = offset_minimum_length(false_alarm)
+    n >= needed ||
+        refuse("residual classification", "Fields.classify",
+               "the offset test at false-alarm probability $(false_alarm) needs at " *
+               "least $(needed) windows; got $(n)")
+    tail = binomial_upper_tail(n, offset_count(residuals, tolerances))
+    doubled = 2 * tail
+    return doubled <= Rational{BigInt}(false_alarm) * big(2)^n
+end
+
+"""
+    classify(windows, residuals, tolerances; false_alarm)
+
+The `ResidualSignature` of closure residuals measured at the strictly increasing
+`windows`, each against the tolerance at its window, with every test run at the
+false-alarm probability `false_alarm` the caller declares.
+
+Three tests, `n = length(residuals)`:
+
+- trend: `exchangeability_rejects(trend_statistic, ...)`. Null model: the residuals
+  are exchangeable, as independent errors of one distribution about one level are.
+- successive difference: `exchangeability_rejects(successive_difference_statistic,
+  ...)`, rejecting when the ranks move by less between neighbouring windows than
+  reorderings do. Null model: the same.
+- offset: `offset_rejects(residuals, tolerances, false_alarm)`. Null model: the
+  residuals are independent and each lies above its tolerance with probability at
+  most one half and below its negated tolerance with probability at most one half, as
+  an offset within the tolerance at every window plus errors of median zero does.
+
+When `abs(residuals[i]) <= tolerances[i]` at every window, `Unexplained` when the
+successive-difference test rejects and `Rounding` otherwise. When some residual lies
+beyond its tolerance, `Leak` when the trend test rejects; otherwise `Unexplained` when
+the successive-difference test rejects; otherwise `StockOmission` when the offset test
+rejects; otherwise `Unexplained`.
+
+The trend and successive-difference tests enumerate all `factorial(n)` orderings.
+
+Refuses when `windows`, `residuals` and `tolerances` disagree in length; when `windows`
+is not strictly increasing; when a residual is not finite or a tolerance is negative
+or not finite; when `false_alarm` does not lie strictly between 0 and 1; and when a
+test is reached with fewer windows than its minimum length
+(`exchangeable_minimum_length` for the trend and successive-difference tests,
+`offset_minimum_length` for the offset test), naming the test.
 """
 function classify(windows::AbstractVector{<:Real}, residuals::AbstractVector{<:Real},
-                   tolerances::AbstractVector{<:Real})
+                  tolerances::AbstractVector{<:Real}; false_alarm::Real)
     length(windows) == length(residuals) == length(tolerances) ||
         refuse("residual classification", "Fields.classify",
                "windows, residuals and tolerances must share one length; got " *
@@ -242,27 +352,35 @@ function classify(windows::AbstractVector{<:Real}, residuals::AbstractVector{<:R
     all(w -> w > 0, diff(windows)) ||
         refuse("residual classification", "Fields.classify",
                "windows must be strictly increasing; got $(windows)")
-    length(windows) >= 4 ||
+    all(isfinite, residuals) ||
         refuse("residual classification", "Fields.classify",
-               "at least 4 windows are needed; got $(length(windows))")
+               "every residual must be finite; got $(residuals)")
+    all(t -> isfinite(t) && t >= 0, tolerances) ||
+        refuse("residual classification", "Fields.classify",
+               "every tolerance must be finite and non-negative; got $(tolerances)")
+    isfinite(false_alarm) && 0 < false_alarm < 1 ||
+        refuse("residual classification", "Fields.classify",
+               "false_alarm must lie strictly between 0 and 1; got $(false_alarm)")
 
-    leak_signal(windows, residuals) && return Leak()
-
-    r1, bartlett_se = lag1_autocorrelation(residuals)
-    n = length(residuals)
-    mean_residual = sum(abs, residuals) / n
-    mean_tolerance = sum(tolerances) / n
-    target = -1 / 2
-    band = sqrt(n) * bartlett_se
-    near_minus_half = abs(r1 - target) <= band
-    mean_residual <= mean_tolerance && near_minus_half && return Rounding()
-    return StockOmission()
+    within = all(i -> abs(residuals[i]) <= tolerances[i], eachindex(residuals, tolerances))
+    if within
+        exchangeability_rejects(successive_difference_statistic, "successive-difference",
+                                residuals, false_alarm) && return Unexplained()
+        return Rounding()
+    end
+    exchangeability_rejects(trend_statistic, "trend", residuals, false_alarm) &&
+        return Leak()
+    exchangeability_rejects(successive_difference_statistic, "successive-difference",
+                            residuals, false_alarm) && return Unexplained()
+    offset_rejects(residuals, tolerances, false_alarm) && return StockOmission()
+    return Unexplained()
 end
 
 """
-    classify(ledgers, windows)
+    classify(ledgers, windows; false_alarm)
 
 `classify` read off a series of `Ledger`s at their `windows`, one length per ledger.
 """
-classify(ledgers::AbstractVector{<:Ledger}, windows::AbstractVector{<:Real}) =
-    classify(windows, residual.(ledgers), tolerance.(ledgers))
+classify(ledgers::AbstractVector{<:Ledger}, windows::AbstractVector{<:Real};
+         false_alarm::Real) =
+    classify(windows, residual.(ledgers), tolerance.(ledgers); false_alarm = false_alarm)
