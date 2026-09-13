@@ -171,15 +171,41 @@ end
         end
     end
 
-    @testset "area_weighted_block_sums refuses a length mismatch" begin
+    @testset "area_weighted_block_sums refuses a length mismatch (decision 0051, condition 4)" begin
         xs = [1.0, 2.0, 3.0]
         areas_short = [1.0, 1.0]
         areas_long = [1.0, 1.0, 1.0, 1.0]
-        @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs, areas_short, 1.5)
-        @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs, areas_long, 1.5)
+        x = 1.5
 
-        @testset "positive control: a matched-length call does not refuse" begin
-            @test Reductions.area_weighted_block_sums(Float64, xs, [1.0, 1.0, 1.0], 1.5) isa AbstractVector
+        @testset "short areas array refuses on CPU, naming both lengths" begin
+            caught = try
+                Reductions.area_weighted_block_sums(Float64, xs, areas_short, x)
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "area weighted extent"
+            @test occursin("3", caught.reason)
+            @test occursin("2", caught.reason)
+        end
+
+        @testset "long areas array refuses on CPU, naming both lengths" begin
+            caught = try
+                Reductions.area_weighted_block_sums(Float64, xs, areas_long, x)
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "area weighted extent"
+            @test occursin("3", caught.reason)
+            @test occursin("4", caught.reason)
+        end
+
+        @testset "matched-length input does not refuse and produces correct value" begin
+            areas = [1.0, 1.0, 1.0]
+            partials = Reductions.area_weighted_block_sums(Float64, xs, areas, x)
+            result = Reductions.combine_fixed_order(partials)
+            @test result == 2.0
         end
 
         @testset "and on the card" begin
@@ -188,8 +214,8 @@ end
             xs_gpu = Backends.on(xs, gpu)
             areas_short_gpu = Backends.on(areas_short, gpu)
             areas_long_gpu = Backends.on(areas_long, gpu)
-            @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs_gpu, areas_short_gpu, 1.5, gpu)
-            @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs_gpu, areas_long_gpu, 1.5, gpu)
+            @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs_gpu, areas_short_gpu, x, gpu)
+            @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs_gpu, areas_long_gpu, x, gpu)
         end
     end
 
