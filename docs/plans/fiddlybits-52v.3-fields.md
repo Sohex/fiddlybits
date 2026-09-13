@@ -308,10 +308,33 @@ the choice by taking the accumulator type explicitly. A tolerance chosen per led
 predecessor's nitrogen closure be judged against a bar larger than the quantum of the
 column it differenced.
 
-A residual's time signature is classified rather than reported as a number: linear
-growth is a leak, a constant offset is a stock omitted from the inventory, and a
-random walk of rounding size is rounding. The three have different fixes, and the
-report names the class.
+A residual's time signature is classified rather than reported as a number: a trend in
+the window that reaches beyond the tolerance is a leak, a constant offset beyond the
+tolerance is a stock omitted from the inventory, and independent errors within the
+tolerance are rounding. The three have different fixes, and the report names the
+class. Each is a model of the series, each test runs under a stated null model at a
+false-alarm probability the caller declares, and a series too short for a test to
+reach that probability refuses naming the test. A series none of the three models
+fits, such as a random walk or a trend confined within the tolerance, is classified
+`Unexplained`, a fourth member of the closed set. Three alternatives were weighed.
+Forcing it into the nearest class names a fix the series gives no evidence for, which
+is how an accumulating walk came to be called rounding. Refusing it would make a
+measured outcome indistinguishable from an input the classifier cannot judge, and the
+ledger that produced it would stop a run instead of reporting what it found. Returning
+no signature keeps the outcome but leaves every consumer to name it separately. A
+fourth signature costs a class with no single fix and a consumer that handles four
+signatures rather than three. The successive-difference test has no exact recursion for
+its null distribution, so beyond the length at which enumerating every ordering stays
+within the permutation count its caller declares, it draws that many random orderings,
+and it reads their randomness from a counter-indexed function the caller passes rather
+than holding a generator of its own. A classification is then a pure function of its
+series and the caller's key, and the caller keys it on the ledger's identity through
+the counter-based generator of decision 0010, which sits above Fields. A seeded stream
+inside Fields was the alternative: every classification in a run would draw the same
+orderings, so an ordering set that favoured one pattern would favour it at every
+ledger, and the bits would be a stream a Julia release may change. Moving the
+generator's bijection below Fields was the other: it buys nothing the passed function
+does not, at the cost of a prerequisite row.
 
 ## Oracles
 
