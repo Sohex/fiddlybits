@@ -103,6 +103,9 @@ local position through `@index` and only ever indexes `partner` and
 `ascending` with it, never offsets it.
 """
 function bitonic_network(n::Integer)
+    ispow2(n) ||
+        refuse("bitonic network size", "Reductions.bitonic_network",
+               "n=$n is not a power of two")
     nbits = trailing_zeros(n)
     steps = Tuple{Int,Int}[]
     for stage in 1:nbits, pass in stage:-1:1

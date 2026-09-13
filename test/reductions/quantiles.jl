@@ -41,6 +41,19 @@ end
         @test Reductions.QUANTILE_K_MAX == 5
     end
 
+    @testset "bitonic_network refuses a non-power-of-two" begin
+        @test_throws Verdicts.Refusal Reductions.bitonic_network(3)
+
+        @testset "positive control: powers of two do not refuse" begin
+            for n in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
+                partner, ascending = Reductions.bitonic_network(n)
+                @test size(partner, 1) == n
+                @test size(ascending, 1) == n
+                @test size(partner, 2) == size(ascending, 2)
+            end
+        end
+    end
+
     @testset "kernels.segmented_quantile_exact: bitwise against the exactly sorted answer" begin
         for k in Reductions.QUANTILE_K_MIN:Reductions.QUANTILE_K_MAX
             seglen = 4^k
