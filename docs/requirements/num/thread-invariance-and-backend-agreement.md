@@ -45,7 +45,8 @@ matched (`/home/cfutro/docs/world/notes/audits/nlowio-collective-deadlock.md`).
 ## Why it carries
 
 This system runs the same kernels through KernelAbstractions on CPU threads and on
-GPU lanes, and the worker count is never fixed for the life of a run: the fast
+GPU lanes (a kernel with a device form under decision 0051 runs a second text on the
+GPU, held bitwise to the first there), and the worker count is never fixed for the life of a run: the fast
 profile, the full profile, the reference arm and the CI case all differ in it. If
 the answer depends on the count, no A/B is controlled, the per-commit state-hash
 gate is meaningless, and a CPU/GPU disagreement cannot be separated from a bug. The

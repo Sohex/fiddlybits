@@ -1,9 +1,9 @@
 # Fixed-order pairwise summation: docs/plans/fiddlybits-52v.7-kernels.md,
 # section "The reductions".
 
-using ..Backends: Backend, CPU, backend_of, launch!, on
+using ..Backends: Backend, CPU, GPU, backend_of, launch!, on
 using ..Verdicts: refuse
-using KernelAbstractions: @kernel, @index, @Const
+using KernelAbstractions: @kernel, @index, @Const, @localmem, @synchronize
 
 """
     BLOCKSIZE
@@ -27,13 +27,70 @@ const BLOCKSIZE = 256
 end
 
 """
+    block_width(::Val{B})
+
+`B`, the block length a shared-memory block kernel was launched with, as a
+constant its `@localmem` size is fixed by at compile time.
+"""
+block_width(::Val{B}) where {B} = B
+
+@kernel function pairwise_block_shared_kernel!(partials, @Const(xs), width, nb, lastcount)
+    block = @index(Group, Linear)
+    lane = @index(Local, Linear)
+    element = @index(Global, Linear)
+    shared = @localmem eltype(xs) (block_width(width),)
+    shared[lane] = xs[element]
+    @synchronize
+    if lane == 1
+        T = eltype(partials)
+        acc = zero(T)
+        for j in 1:(block == nb ? lastcount : block_width(width))
+            acc += T(shared[j])
+        end
+        partials[block] = acc
+    end
+end
+
+"""
+    launch_block_sums!(cpu_kernel, shared_kernel, backend, partials, n, blocksize, inputs...)
+
+Queues the block sums of `n` elements into `partials` (length
+`cld(n, blocksize)`) on `backend`. On `CPU`, `cpu_kernel` over one work
+item per block, each reading its block of `inputs` from `(i-1)*blocksize+1`
+itself. On `GPU`, `shared_kernel` over `n` work items at a workgroup of
+`blocksize` (`at_workgroup`), one workgroup per block: every lane copies
+its own element of `inputs` into the workgroup's shared memory, and after
+the barrier lane 1 accumulates that shared copy in index order. The
+GPU kernel is a device form under
+docs/decisions/0051-a-kernel-may-carry-a-device-form-beside-its-portable-one.md;
+notes/findings/2026-09-13-block-sums-in-shared-memory.md measures the two on
+the card. On `GPU` the workgroup is `blocksize`, so a
+`blocksize` above the device's threads per block raises at the launch.
+"""
+function launch_block_sums!(cpu_kernel, shared_kernel, backend::CPU, partials, n::Integer,
+                             blocksize::Integer, inputs...)
+    launch!(cpu_kernel, backend, length(partials), partials, inputs..., Int(blocksize), Int(n))
+    return partials
+end
+
+function launch_block_sums!(cpu_kernel, shared_kernel, backend::GPU, partials, n::Integer,
+                             blocksize::Integer, inputs...)
+    nb = length(partials)
+    lastcount = mod1(n, blocksize)
+    launch!(shared_kernel, at_workgroup(backend, blocksize), n,
+            partials, inputs..., Val(Int(blocksize)), Int(nb), Int(lastcount))
+    return partials
+end
+
+"""
     pairwise_block_sums(::Type{A}, xs, backend; blocksize = BLOCKSIZE) where A
 
 The `cld(length(xs), blocksize)` block sums of `xs`, accumulated in type
 `A`: block `i` the fixed-order sum of `xs[(i-1)*blocksize+1:min(i*blocksize,
-length(xs))]`, one block per launched work item, computed through
-`Backends.launch!` on `backend`. `xs` must already live on `backend`.
-Refuses when `blocksize` is not positive.
+length(xs))]`, computed through `Backends.launch!` on `backend` by
+`launch_block_sums!`: one work item per block on `CPU`, one workgroup per
+block on `GPU`. `xs` must already live on `backend`. Refuses when
+`blocksize` is not positive.
 """
 function pairwise_block_sums(::Type{A}, xs::AbstractVector, backend::Backend;
                               blocksize::Integer = BLOCKSIZE) where {A<:Number}
@@ -44,8 +101,8 @@ function pairwise_block_sums(::Type{A}, xs::AbstractVector, backend::Backend;
     nb = cld(n, blocksize)
     partials = similar(xs, A, nb)
     nb == 0 && return partials
-    launch!(pairwise_block_kernel!, backend, nb, partials, xs, Int(blocksize), Int(n))
-    return partials
+    return launch_block_sums!(pairwise_block_kernel!, pairwise_block_shared_kernel!, backend,
+                              partials, n, blocksize, xs)
 end
 
 """
