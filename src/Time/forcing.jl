@@ -15,12 +15,19 @@ pair of intervals that carries it.
 Contiguity is exact: the end of one interval and the start of the next are the same
 number, not two numbers within a tolerance. `uniform_forcing` builds a list that way,
 and any builder that computes each boundary once does the same.
+
+A `Forcing` holds its own copy of the interval list and its own copy of the value
+list, so mutating either vector passed in afterwards leaves it describing what was
+checked. The values themselves are not copied: a value holding an array shares that
+array with the caller.
 """
 struct Forcing{T<:AbstractFloat,V}
     intervals::Vector{Interval{T}}
     values::Vector{V}
 
     function Forcing(intervals::Vector{Interval{T}}, values::Vector{V}) where {T,V}
+        intervals = copy(intervals)
+        values = copy(values)
         length(intervals) == length(values) ||
             refuse("Forcing", "Time.Forcing",
                    "$(length(intervals)) intervals carry $(length(values)) values")

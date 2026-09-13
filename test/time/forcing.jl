@@ -46,6 +46,27 @@ using Fiddlybits: Time, Verdicts
         @test occursin("10.0", refusal.reason) && occursin("8.0", refusal.reason)
     end
 
+    @testset "mutating the caller's vectors afterwards does not reach the Forcing" begin
+        intervals = [Time.Interval(0.0, 10.0),
+                     Time.Interval(10.0, 25.0),
+                     Time.Interval(25.0, 30.0)]
+        values = [:a, :b, :c]
+        f = Time.Forcing(intervals, values)
+
+        reverse!(intervals)
+        push!(intervals, Time.Interval(100.0, 110.0))
+        resize!(values, 1)
+
+        @test length(f) == 3
+        @test Time.span(f) == Time.Interval(0.0, 30.0)
+        @test f[1] == (Time.Interval(0.0, 10.0), :a)
+        @test f[2] == (Time.Interval(10.0, 25.0), :b)
+        @test f[3] == (Time.Interval(25.0, 30.0), :c)
+        @test Time.index_at(f, Time.SimTime(0.0)) == 1
+        @test Time.index_at(f, Time.SimTime(24.999)) == 2
+        @test Time.index_at(f, Time.SimTime(25.0)) == 3
+    end
+
     @testset "a malformed list is refused" begin
         @test_throws Verdicts.Refusal Time.Forcing([Time.Interval(0.0, 10.0)], [:a, :b])
         @test_throws Verdicts.Refusal Time.Forcing(Time.Interval{Float64}[], Symbol[])
