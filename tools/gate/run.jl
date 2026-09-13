@@ -208,13 +208,13 @@ end
     unaccepted_warnings(text, accepted)
 
 The warning lines in `text` that no entry of `accepted` covers. A warning is a line
-opening `WARNING:`, which is how the runtime writes one, or `┌ Warning:`, which
+opening `WARNING:`, which is how the runtime writes one, or `\u250c Warning:`, which
 is the top of a `@warn` box; the rest of a box is its detail and is not scanned.
 """
 function unaccepted_warnings(text::AbstractString, accepted)
     found = String[]
     for line in eachline(IOBuffer(text))
-        startswith(line, "WARNING:") || startswith(line, "┌ Warning:") || continue
+        startswith(line, "WARNING:") || startswith(line, "\u250c Warning:") || continue
         any(p -> occursin(first(p), line), accepted) && continue
         push!(found, line)
     end

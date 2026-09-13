@@ -1,6 +1,6 @@
 +++
 id = "0055"
-title = "A kernel text may read and write under @inbounds behind a length check at its door and the edge-shape tests beside it, host code stays checked, and a change to a file that elides a check runs every suite under --check-bounds=yes before it merges"
+title = "A kernel text may read and write under @inbounds behind a length check at its door and edge-shape tests run on both backends, the CPU backend's run under --check-bounds=yes is what checks the lower bound, host code stays checked, and a change to a file that elides a check runs every suite under the flag before it merges"
 status = "accepted"
 date = 2026-09-13
 amends = [{ record = "0050", what = "the position that this tree elides no bounds check of its own: elision is admitted inside kernel texts under the conditions this record states, host code stays checked, the nightly's source assertion becomes an assertion that every elision sits inside a kernel, and the flag decision 0050 kept off the gate is carried by the gate's second pass whenever a change touches a file that elides a check" }]
@@ -8,17 +8,26 @@ amends = [{ record = "0050", what = "the position that this tree elides no bound
 
 ## Decision
 
-**`--check-bounds=yes` restores the checks inside kernels on both backends.** A
-KernelAbstractions kernel launched through `Backends.launch!` that reads one past its
+**`--check-bounds=yes` restores the upper bound check inside kernels on both backends.**
+A KernelAbstractions kernel launched through `Backends.launch!` that reads one past its
 array under `@inbounds` reads silently under the default on the CPU backend and on the
 card, and raises under the flag on both: at the launch on the CPU backend, and at
 `Backends.complete!` on the card, as a `KernelException` naming the kernel. The same
 read without `@inbounds` raises in both configurations, which is the control that the
-index is out of range. The flag reaches the card because CUDA.jl compiles a kernel in
-the process that launches it, under that process's options, and its device array
-carries the check as a `@boundscheck` block
-(`notes/findings/2026-09-13-check-bounds-reaches-kernels-on-the-card.md`). No GPUCompiler
-or CUDA.jl option is needed beside it.
+index is out of range. CUDA.jl compiles a kernel in the process that launches it, under
+that process's options, and its device array carries the check as a `@boundscheck`
+block (`notes/findings/2026-09-13-check-bounds-reaches-kernels-on-the-card.md`). No
+GPUCompiler or CUDA.jl option is needed beside it.
+
+**The card checks no lower bound, in any configuration.** The device array's check
+compares the index against the length and nothing else. A read at index 0 or below on
+the card is not refused by any check, with or without `@inbounds`, with or without the
+flag: at the start of its own allocation it faults as an illegal memory access, and
+inside a larger allocation, as index 0 of a view is and as a read one below a block or
+segment start is, it reads the neighbouring element silently. **The lower bound is
+checked on the CPU backend**, where Base checks both bounds of the array's axes under
+the flag, `@inbounds` or not. A kernel text's lower bound is therefore covered by running
+that text on the CPU backend under the flag, and by nothing on the card.
 
 **Where elision is admitted.** `@inbounds` is admitted inside the body of a
 KernelAbstractions `@kernel` function, on a read or a write whose index is bounded by
@@ -39,12 +48,18 @@ against the door.
    the work item count and its arguments reach. A length that does not hold refuses
    through `Verdicts.refuse`, naming the array and both lengths. A test carries the
    positive control: an argument one element short refuses.
-2. **Tests over the edge shapes.** The kernel is run on both backends over the shapes
+2. **Tests over the edge shapes, on both backends.** The kernel is run over the shapes
    where an index derived from a count is most likely to be wrong: a single element,
    fewer elements than one block or segment, a partial last block, every block full, a
    second block or segment length, and each element and accumulator type the function
-   accepts. Each agrees with its reference path (decision 0027). These are the shapes
-   decision 0051 already names for a device form, now required of any kernel that
+   accepts. Each agrees with its reference path (decision 0027). Every shape runs on
+   `Backends.CPU` as well as `Backends.GPU`, in a suite the gate runs, and the kernel
+   text the CPU backend runs is the one that carries the elision: a kernel with a device
+   form (decision 0051) has its device form's own edge-shape run on the card and its
+   indices derived the same way as the portable text's, so the CPU run of the portable
+   text is what checks the lower bound of both. A GPU-only edge-shape test does not meet
+   this condition, because under the flag it checks only the upper bound. These are the
+   shapes decision 0051 already names for a device form, now required of any kernel that
    elides a check whether or not it has one.
 3. **A measured gain.** The elision is an optimisation, and it is taken where a finding
    measures it on the bed its kernel is benchmarked on, cited by path from the plan or
@@ -77,11 +92,16 @@ that misses the suite a change breaks fails silently, and an out-of-range index 
 kernel is exactly the fault that shows up in a caller's suite rather than the kernel's
 own.
 
-**The backends suite holds the four cells on every run.** `test/backends/bounds_reach.jl`
+**The backends suite holds the coverage on every run.** `test/backends/bounds_reach.jl`
 runs the probe under the default and under the flag, each in its own process with its
-flag stated, and asserts the table above, including the checked-read control. A
-dependency upgrade that stopped the flag reaching the card fails the gate at the commit
-that brings it in.
+flag stated, and asserts: the markers read elided under the default and checked under
+the flag on both backends; a read past the end raises on both backends under the flag
+with `@inbounds` and under the default without it; reads at index 0, at a negative index
+and at index 0 of a view raise on the CPU backend under the flag with `@inbounds`; and
+the card reads index 0 of a view without raising under the flag. No `@inbounds` read
+leaves its array under the default. A dependency upgrade that stopped the flag reaching
+the card, or stopped the CPU backend checking the lower bound, or gave the card a lower
+bound check, fails the gate at the commit that brings it in.
 
 ## Alternatives considered
 
@@ -111,8 +131,18 @@ that brings it in.
   exactly on the pushes that carry an elision. The reviewer's checklist reads the door's
   lines in the branch's gate output, and the nightly runs every suite under the flag
   against `main` regardless.
-- **A GPUCompiler or CUDA.jl debug option for the card.** Not needed: the flag reaches
-  the card's kernels, measured.
+- **A GPUCompiler or CUDA.jl debug option for the card.** Not needed for the upper
+  bound: the flag reaches the card's kernels, measured. None exists for the lower bound:
+  the device array has no lower-bound check for an option to restore.
+- **Restore a lower-bound check on the card by overriding CUDACore's device `arrayref`
+  from this package.** Rejected: it replaces a dependency's method from outside it, so a
+  CUDA.jl upgrade that changes `arrayref` is silently shadowed, and it changes the code
+  the card runs for every array read in the tree to buy a check the CPU backend's run of
+  the same kernel text already gives. `test/backends/bounds_reach.jl` fails if CUDA.jl
+  gains one, which is when this is worth revisiting.
+- **Accept a GPU-only edge-shape test for a kernel that elides a check.** Rejected on the
+  measurement: under the flag the card checks only the upper bound, so an index one below
+  a block start would pass it silently.
 
 ## Consequences
 
@@ -122,21 +152,28 @@ that brings it in.
 - A change to a file that elides a check costs the gate a second pass of every suite
   on its branch, with both passes printed per suite. The time is measured in the
   finding; the push window is untouched, because `pre-push` runs on `main`.
+- An index below a block or segment start, in a kernel that elides a check, is caught by
+  the CPU backend's edge-shape run under the flag, in the checked pass and every night,
+  and never by the card's. A CPU backend that stopped running a kernel's portable text,
+  or a device form whose indices were derived differently from it, would remove that
+  coverage; the review checks both.
 - An out-of-range index that a change introduces without touching an eliding file,
   by changing the lengths a caller passes, is caught first by the door check, which
   refuses in every configuration, and otherwise by the nightly, a night late.
 - A kernel written inside a string, as a test's child process sometimes carries one, is
   not seen by the door; the nightly still runs it under the flag.
 - The reviewer's checklist in `docs/workflow.md` asks for the door's lines from the
-  branch's gate run, and the executor loop names them.
-- The four cells are re-measured by the backends suite on every gate run, so the claim
-  this record rests on is held rather than inherited across dependency upgrades.
+  branch's gate run and for the edge-shape tests of an eliding kernel on
+  `Backends.CPU`, and the executor loop names the door.
+- The coverage cells are re-measured by the backends suite on every gate run, so the
+  claim this record rests on is held rather than inherited across dependency upgrades.
 
 ## References
 
-- `notes/findings/2026-09-13-check-bounds-reaches-kernels-on-the-card.md`, the four
-  cells, the checked-read control, the nightly runner on the GPU suites, and the gate's
-  cost with and without the checked pass.
+- `notes/findings/2026-09-13-check-bounds-reaches-kernels-on-the-card.md`, the cells past
+  the end, at index 0, at a negative index and at index 0 of a view on both backends, the
+  checked-read controls, the nightly runner on the GPU suites, and the gate's cost with
+  and without the checked pass.
 - `notes/findings/2026-09-13-the-per-lane-block-kernel-pays-for-one-thread-s-checked-serial-reads.md`
   and `notes/findings/2026-09-13-the-segmented-kernels-shared-memory-form-is-slower-on-every-bench-case.md`,
   what the checks cost on the card.
@@ -147,5 +184,5 @@ that brings it in.
   edge shapes; decision 0027, the reference path; decision 0038, one pool rather than a
   barrier.
 - `CUDACore/src/device/array.jl`, `arrayref` and `arrayset`, the `@boundscheck` on a
-  device array's index, and `CUDACore/src/device/quirks.jl`, `throw_boundserror` as a
+  device array's index against its length only, and `CUDACore/src/device/quirks.jl`, `throw_boundserror` as a
   reported kernel exception; `KernelAbstractions/src/macros.jl`, `inbounds=true`.

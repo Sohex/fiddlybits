@@ -28,13 +28,30 @@ The arms `run_arm` knows, by name:
   that does not read 1 makes the verdict `"instrument failed"`.
 - `read_inbounds_cpu`, `read_inbounds_gpu`: a kernel over four work items reading
   `xs[i + 1]` of a four-element `xs` under `@inbounds`, so the last item reads index 5.
-- `read_checked_cpu`, `read_checked_gpu`: the same read without `@inbounds`.
+- `zero_inbounds_cpu`, `zero_inbounds_gpu`: the same kernel reading `xs[i - 1]`, so the
+  first item reads index 0.
+- `negative_inbounds_cpu`, `negative_inbounds_gpu`: the same kernel over a
+  sixteen-element `xs` reading `xs[i - 8]`, so every item reads an index from -7 to -4.
+- `view_inbounds_cpu`, `view_inbounds_gpu`: the same kernel over `view(parent, 5:8)` of
+  an eight-element `parent`, reading `xs[i - 1]`, so the first item reads index 0 of the
+  view, which is `parent[4]`.
+- `read_checked_*`, `zero_checked_*`, `negative_checked_*`, `view_checked_*`: each of
+  the four reads without `@inbounds`.
 
 A read arm's verdict is `"silent"`, `"raised at launch"` or `"raised at completion"`:
 where `Backends.launch!` and `Backends.complete!` put the error, if anywhere.
 """
-const ARMS = ("marker_cpu", "marker_gpu", "read_inbounds_cpu", "read_inbounds_gpu",
-              "read_checked_cpu", "read_checked_gpu")
+const ARMS = Tuple(vcat(["marker_cpu", "marker_gpu"],
+                        [string(kind, "_", form, "_", dev) for kind in ("read", "zero", "negative", "view")
+                         for form in ("inbounds", "checked") for dev in ("cpu", "gpu")]))
+
+"""
+The element count of the array read, the offset added to the work item's index, and
+the range of it the kernel is given as `xs` (`nothing` for the whole array), per read
+kind.
+"""
+const READS = Dict("read" => (4, 1, nothing), "zero" => (4, -1, nothing),
+                   "negative" => (16, -8, nothing), "view" => (8, -1, 5:8))
 
 @kernel function read_past_inbounds!(out, @Const(xs), offset)
     i = @index(Global)
@@ -93,11 +110,14 @@ function run_arm(arm::AbstractString)
         all(==(0.0), values) && return ("elided", detail)
         return ("instrument failed", detail)
     end
-    kernel = startswith(arm, "read_inbounds") ? read_past_inbounds! : read_past_checked!
-    xs = Backends.on([1.0, 2.0, 3.0, 4.0], backend)
+    kind, form = split(arm, "_")[1:2]
+    kernel = form == "inbounds" ? read_past_inbounds! : read_past_checked!
+    count, offset, range = READS[kind]
+    whole = Backends.on(collect(1.0:Float64(count)), backend)
+    xs = range === nothing ? whole : view(whole, range)
     out = Backends.on(fill(-7.0, 4), backend)
     try
-        Backends.launch!(kernel, backend, 4, out, xs, 1)
+        Backends.launch!(kernel, backend, 4, out, xs, offset)
     catch err
         return ("raised at launch", sprint(showerror, err))
     end

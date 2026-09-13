@@ -133,7 +133,10 @@ row closed with its subject half-true and the remainder filed is not completed.
    notes carry the gate's `gate: bounds door` lines, and a branch that changes a file
    eliding a bounds check shows every suite passed a second time as `+bounds`. An
    elision in `src/` sits inside a `@kernel` body, behind a length check at the
-   kernel's door and the edge-shape tests decision 0055 lists.
+   kernel's door and the edge-shape tests decision 0055 lists, and those tests run on
+   `Backends.CPU` as well as the card: under `--check-bounds=yes` the card checks an
+   index against the length only, and the CPU backend's run is what checks the lower
+   bound.
 4. The change matches the plan section it cites; a deviation is a new plan row. A
    kernel given a device form (decision 0051) carries the test that holds it bitwise to
    its portable form on the device, and its dispatch names the finding that measured it.
