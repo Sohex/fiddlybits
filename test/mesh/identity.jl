@@ -88,6 +88,36 @@ const SI_GEOMETRY_B = Mesh.geometry(SI_LEVEL_B, SI_STENCILS_B)
         @test other.digest != base.digest
     end
 
+    @testset "positive control: two refinements holding the same regions in different orders produce the same digest" begin
+        forward = si_support(SI_LEVEL_A, SI_GEOMETRY_A; refinement = ((1, 2), (3, 4), (5, 6)))
+        reversed = si_support(SI_LEVEL_A, SI_GEOMETRY_A; refinement = ((5, 6), (3, 4), (1, 2)))
+        @test forward.digest == reversed.digest
+
+        forward_vector = si_support(SI_LEVEL_A, SI_GEOMETRY_A;
+                                     refinement = [(1, 2), (3, 4), (5, 6)])
+        reversed_vector = si_support(SI_LEVEL_A, SI_GEOMETRY_A;
+                                      refinement = reverse([(1, 2), (3, 4), (5, 6)]))
+        @test forward_vector.digest == reversed_vector.digest
+
+        tuple_form = si_support(SI_LEVEL_A, SI_GEOMETRY_A; refinement = ((1, 2), (3, 4), (5, 6)))
+        vector_form = si_support(SI_LEVEL_A, SI_GEOMETRY_A;
+                                  refinement = [(1, 2), (3, 4), (5, 6)])
+        @test tuple_form.digest == vector_form.digest
+    end
+
+    @testset "a refinement with a duplicated region produces the digest of the set" begin
+        with_duplicate = si_support(SI_LEVEL_A, SI_GEOMETRY_A; refinement = ((1, 2), (1, 2), (3, 4)))
+        without_duplicate = si_support(SI_LEVEL_A, SI_GEOMETRY_A; refinement = ((1, 2), (3, 4)))
+        @test with_duplicate.digest == without_duplicate.digest
+    end
+
+    @testset "a refinement with a region given in a narrower integer type produces the same digest" begin
+        narrow = si_support(SI_LEVEL_A, SI_GEOMETRY_A;
+                             refinement = [(Int32(1), Int32(2)), (3, 4)])
+        wide = si_support(SI_LEVEL_A, SI_GEOMETRY_A; refinement = ((1, 2), (3, 4)))
+        @test narrow.digest == wide.digest
+    end
+
     @testset "two supports that differ only in constructor version have different digests" begin
         support = si_support(SI_LEVEL_A, SI_GEOMETRY_A)
         base = si_digest(support; constructor_version = SI_VERSION)
