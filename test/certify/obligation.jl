@@ -347,4 +347,27 @@ end
             end
         end
     end
+
+    @testset "obligation site lists: a mutation of an obligation's own list after construction is not seen" begin
+        ob = Backends.Obligation("corner", [(1, 1), (1, 4)])
+        case = Backends.EnsembleCase("post-construction-mutate-sites", fields, step!, [ob])
+        @test case.obligations[1].sites !== ob.sites
+
+        push!(ob.sites, (1, 9))
+        @test case.obligations[1].sites == [(1, 1), (1, 4)]
+
+        push!(ob.sites, ob.sites[1])
+        @test case.obligations[1].sites == [(1, 1), (1, 4)]
+
+        @testset "positive control: constructing today from the mutated site list is refused" begin
+            caught = try
+                Backends.EnsembleCase("post-construction-mutate-sites", fields, step!, [ob])
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "certification obligation"
+            @test occursin("field 1 cell 9", caught.reason)
+        end
+    end
 end
