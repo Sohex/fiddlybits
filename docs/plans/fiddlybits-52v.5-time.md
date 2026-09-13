@@ -128,6 +128,9 @@ eccentric_anomaly(e, M)        Markley start, two Newton steps on the stable res
 true_anomaly(e, E)
 distance(orbit, t)             stellar distance from the declared elements
 declination(system, source, t)
+positive_pole(system)          the spin axis in the orbit frame, from the obliquity
+body_orientation(system, t)    Mesh.BODY_FRAME placed in the orbit frame at t
+sub_source_longitude(system, source, t)
 hour_angle(system, source, cell, t)
 sidereal_day(system)           the declared rotation period
 solar_day(system, source, t)   varies around an eccentric orbit
@@ -137,7 +140,47 @@ mean_solar_day(system, source) a second function, not an average of the first by
 For a synchronous rotator the solar day of that source is undefined and the function
 returns `NotEvaluable` by name rather than a large number. For a retrograde rotator
 the solar day is shorter than the sidereal day, which is an identity rather than a
-special case.
+special case. The sense is `Planet`'s `Derived` one, read from the obliquity, and where
+the positive pole lies in the orbit plane within rounding there is none: `solar_day`
+and `mean_solar_day` return `NotEvaluable` by name there too.
+
+**The rotation reads two declarations of `Planet` by name, and nothing else.** Decision
+0004, section The spin axis and the rotation phase in the orbit frame, defines both;
+what this module computes from them:
+
+- `positive_pole` is `cos(obliquity) n + sin(obliquity) (n x gamma)`, `n` the planet's
+  orbit normal and `gamma` the equinox direction. It has no branch on the sense, and
+  where the sine of the obliquity is within its rounding it is `n` or `-n` and no
+  `gamma` is read.
+- `body_orientation(system, t)` is the 3 by 3 matrix whose columns are the orbit-frame
+  images of `BODY_FRAME`'s prime meridian, ninety east and spin axis. The spin axis is
+  `positive_pole`. The prime meridian at `t = 0` is
+  `cos(lambda0) u - sin(lambda0) (p x u)`, where `lambda0` is
+  `planet.sub_primary_longitude_at_epoch`, `p` the positive pole, and `u` the unit
+  projection onto the equatorial plane of the direction from the planet toward
+  `orbits.planet.primary` at `t = 0`. The prime meridian at `t` is the prime meridian
+  at `t = 0` turned about `p` through `2 pi t / sidereal_day(system)`. Every orientation it returns passes
+  `Mesh.require_body_orientation` with the angular velocity
+  `(2 pi / sidereal_day(system)) p`. Where `u` does not exist, which is only where the
+  primary lies on the spin axis at `t = 0`, it refuses by name, and the configuration
+  declares another offset.
+- `sub_source_longitude(system, source, t)` is `Mesh.longitude(BODY_FRAME, ...)` of the
+  direction toward `source` carried into body coordinates by the transpose of
+  `body_orientation(system, t)`. At `t = 0`, for the planet orbit's primary, it is the
+  declared `lambda0`.
+- `hour_angle(system, source, cell, t)` is `Mesh.longitude` of the cell centre minus
+  `sub_source_longitude(system, source, t)`, wrapped into `(-pi, pi]`: zero when the
+  source is on the cell's meridian, and positive once the surface has carried the cell
+  east of the sub-source point. `declination(system, source, t)` is the `Mesh.latitude`
+  of the same body-coordinate direction.
+
+For a synchronous rotator on a circular orbit at zero obliquity, the direction to the
+primary turns about `p` at the body's own rate. Its sub-primary longitude is therefore
+`lambda0` at every `t`, which makes the declared value that rotator's permanent
+sub-stellar longitude by name. `fiddlybits-52v.4.13` adds the longitude to `Planet` and
+gives the obliquity its range, with the sense `Derived`.
+`fiddlybits-52v.5.8` carries the directions the other angles of the orbit hierarchy are
+measured from.
 
 ### The epoch
 
@@ -151,10 +194,18 @@ seconds; `t = 0` is that event plus the offset in orbit zero. The kinds:
 | superior conjunction | for a synchronous rotator, of the named source | no source is named |
 
 "Vernal" labels a geometric event and not a season; which hemisphere calls it spring
-is a rendering choice. The reference direction for the argument of periapsis is the
-equinox of the primary where it exists and the ascending node on the orbit's
-reference plane otherwise. The pair, the offset and that direction go into every
-run's identity.
+is a rendering choice. The reference direction for the argument of periapsis of the
+planet's orbit is the equinox direction `gamma` of decision 0004. It applies wherever
+the sine of the obliquity exceeds its rounding, whatever the number of stars. Otherwise
+the argument is measured from the ascending node on the orbit's reference plane. The
+pair, the offset and that direction go into every run's identity.
+
+`t = 0` also fixes the rotation phase, through `planet.sub_primary_longitude_at_epoch`.
+That value is read at `t = 0` and not at the event, so the offset and the longitude are
+independent declarations. `body_orientation` reads the longitude at `t = 0` (section The
+orbit). A configuration whose primary lies on the spin axis at `t = 0` is refused there
+by name, not here. Detecting it needs the orbit solved at `t = 0`, and `Systems`, which
+sits below `Orbit`, cannot solve it.
 
 The epoch reference is a declared field of `System`, in its `Numerics` block, and
 the system plan names it there; this module computes the instant of the declared
