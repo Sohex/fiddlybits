@@ -171,6 +171,28 @@ end
         end
     end
 
+    @testset "area_weighted_block_sums refuses a length mismatch" begin
+        xs = [1.0, 2.0, 3.0]
+        areas_short = [1.0, 1.0]
+        areas_long = [1.0, 1.0, 1.0, 1.0]
+        @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs, areas_short, 1.5)
+        @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs, areas_long, 1.5)
+
+        @testset "positive control: a matched-length call does not refuse" begin
+            @test Reductions.area_weighted_block_sums(Float64, xs, [1.0, 1.0, 1.0], 1.5) isa AbstractVector
+        end
+
+        @testset "and on the card" begin
+            @test CUDA.functional()
+            gpu = Backends.GPU(8)
+            xs_gpu = Backends.on(xs, gpu)
+            areas_short_gpu = Backends.on(areas_short, gpu)
+            areas_long_gpu = Backends.on(areas_long, gpu)
+            @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs_gpu, areas_short_gpu, 1.5, gpu)
+            @test_throws Verdicts.Refusal Reductions.area_weighted_block_sums(Float64, xs_gpu, areas_long_gpu, 1.5, gpu)
+        end
+    end
+
     @testset "area_fraction_above's one read is bitwise the two reads it replaced" begin
         # The form it replaced: each sum read back to the host on its own.
         # Joining the two block-sum arrays on the device changes where the

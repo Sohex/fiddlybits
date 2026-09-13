@@ -375,6 +375,9 @@ function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::Abstract
         refuse("pairwise blocksize", "Reductions.area_weighted_block_sums",
                "blocksize $blocksize is not positive")
     n = length(xs)
+    length(xs) == length(areas) ||
+        refuse("area weighted extent", "Reductions.area_weighted_block_sums",
+               "xs has length $(length(xs)), areas has length $(length(areas))")
     nb = cld(n, blocksize)
     partials = similar(areas, A, nb)
     nb == 0 && return partials
