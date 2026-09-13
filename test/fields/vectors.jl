@@ -1,7 +1,9 @@
 using Test
+using CUDA
 using LinearAlgebra: cross, dot
-using Fiddlybits: Fields, Dimensions
+using Fiddlybits: Fields, Dimensions, Backends
 using Fiddlybits.Verdicts: Refusal
+import Adapt
 
 # mesh.vector_round_trip: docs/oracles/registry.toml and
 # docs/plans/fiddlybits-52v.3-fields.md, row 52v.3.5.
@@ -130,6 +132,25 @@ const NORMAL = VX.GEOMETRY.edge_normal
             @test occursin("call Fields.project", err.reason)
         end
 
+        @testset "the round-trip bound has no floor: a field scaled by 1e6 passes and fails exactly where the unscaled one does" begin
+            scale = 1.0e6
+            scaled_ok = (vecfield(:cartesian, scale .* d(lifted[1])),
+                         vecfield(:cartesian, scale .* d(lifted[2])),
+                         vecfield(:cartesian, scale .* d(lifted[3])))
+            @test (@inferred V.transform(scaled_ok, frame)) isa NTuple{2,V.Field}
+
+            scaled_bad = (vecfield(:cartesian, scale .* (d(lifted[1]) .+ 0.1 .* LOCATIONS[1, :])),
+                          vecfield(:cartesian, scale .* (d(lifted[2]) .+ 0.1 .* LOCATIONS[2, :])),
+                          vecfield(:cartesian, scale .* (d(lifted[3]) .+ 0.1 .* LOCATIONS[3, :])))
+            err = try
+                V.transform(scaled_bad, frame)
+            catch e
+                e
+            end
+            @test err isa Refusal
+            @test occursin("call Fields.project", err.reason)
+        end
+
         @testset "both are concrete under @inferred" begin
             @test (@inferred V.project(cartesian, frame)) isa NTuple{2,V.Field}
             @test (@inferred V.lift(source, frame)) isa NTuple{3,V.Field}
@@ -168,6 +189,61 @@ const NORMAL = VX.GEOMETRY.edge_normal
             @test (@inferred V.project(cartesian, frame_n)) isa NTuple{1,V.Field}
             @test (@inferred V.lift(normal_component, frame_n)) isa NTuple{3,V.Field}
             @test (@inferred V.transform(pure_normal, frame_n)) isa NTuple{1,V.Field}
+        end
+    end
+
+    @testset "lift, project and transform move the frame to the field's own backend and agree bitwise" begin
+        @test CUDA.functional()
+
+        frame = V.east_north_frame(LOCATIONS)
+        vx, vy, vz = solid_body(LOCATIONS)
+        host = (vecfield(:cartesian, vx), vecfield(:cartesian, vy), vecfield(:cartesian, vz))
+        device = map(f -> Adapt.adapt(CuArray, f), host)
+        @test Backends.backend_of(d(device[1])) === :gpu
+
+        host_source = V.project(host, frame)
+        device_source = V.project(device, frame)
+        @test Backends.backend_of(d(device_source[1])) === :gpu
+        for k in 1:2
+            @test Array(d(device_source[k])) == d(host_source[k])
+        end
+
+        host_lifted = V.lift(host_source, frame)
+        device_lifted = V.lift(device_source, frame)
+        for k in 1:3
+            @test Backends.backend_of(d(device_lifted[k])) === :gpu
+            @test Array(d(device_lifted[k])) == d(host_lifted[k])
+        end
+
+        host_strict = V.transform(host_lifted, frame)
+        device_strict = V.transform(device_lifted, frame)
+        for k in 1:2
+            @test Array(d(device_strict[k])) == d(host_strict[k])
+        end
+
+        @testset "positive control: a device field that is not purely tangent still refuses" begin
+            radial = (vecfield(:cartesian, vx .+ 0.1 .* LOCATIONS[1, :]),
+                      vecfield(:cartesian, vy .+ 0.1 .* LOCATIONS[2, :]),
+                      vecfield(:cartesian, vz .+ 0.1 .* LOCATIONS[3, :]))
+            device_radial = map(f -> Adapt.adapt(CuArray, f), radial)
+            err = try
+                V.transform(device_radial, frame)
+            catch e
+                e
+            end
+            @test err isa Refusal
+            @test occursin("call Fields.project", err.reason)
+        end
+
+        @testset "positive control: components on different backends refuse rather than broadcast wrongly" begin
+            err = try
+                V.lift((host_source[1], device_source[2]), frame)
+            catch e
+                e
+            end
+            @test err isa Refusal
+            @test occursin("lives on cpu", err.reason)
+            @test occursin("gpu", err.reason)
         end
     end
 

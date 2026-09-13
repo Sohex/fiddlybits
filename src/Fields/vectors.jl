@@ -6,6 +6,13 @@
 # transform and project are the strict and lossy conversions
 # docs/imports/climacore-jl.md names: two functions rather than one with a
 # flag, so a caller drops a component only by writing project.
+#
+# Every multiply that feeds an add below is written as an explicit fma
+# (decision 0044), so the CPU and GPU backends round the same expression the
+# same way and lift, project and transform agree bitwise across them.
+
+using ..Backends: Backend, CPU, GPU, backend_of, on
+using ..Reductions: error_bound
 
 """
     LocalFrame{Basis,N,M}
@@ -43,7 +50,9 @@ LocalFrame{Basis}(axes::NTuple{N,M}) where {Basis,N,M<:AbstractMatrix} =
 
 The Cartesian direction `(0, 0, 1)` this module reads as the sphere's pole,
 the one direction east and north are declared against. The one place this
-module names it; `local_east_north` is the one place it is read.
+module names it; `local_east_north` is the one place it is read. This is the
+one site of the pole in the tree until fiddlybits-52v.2.16 declares the
+body-fixed frame in `Mesh` and this constant reads it by name instead.
 """
 const POLAR_AXIS = (zero(Float64), zero(Float64), one(Float64))
 
@@ -141,6 +150,41 @@ function require_frame_extent(n::Integer, frame::LocalFrame, site::AbstractStrin
 end
 
 """
+    require_same_backend(fields, site)
+
+Returns `nothing` when every field of `fields` holds its data on the same
+`Backends.backend_of`, and refuses at `site` naming the first pair of
+backends that differ otherwise.
+"""
+function require_same_backend(fields::Tuple, site::AbstractString)
+    first_backend = backend_of(data(fields[1]))
+    for i in 2:length(fields)
+        this_backend = backend_of(data(fields[i]))
+        this_backend === first_backend || refuse(
+            "vector component backend", site,
+            "component 1 lives on $(first_backend) and component $(i) on $(this_backend)")
+    end
+    return nothing
+end
+
+"""
+    target_backend(array)
+
+The `Backends.CPU` or `Backends.GPU` instance matching the backend `array`
+already lives on, from `Backends.backend_of`.
+"""
+target_backend(array::AbstractArray) = backend_of(array) === :cpu ? CPU() : GPU()
+
+"""
+    frame_on(frame, backend)
+
+`frame` with every axis moved to `backend` through `Backends.on`, which
+records the move and returns an axis unchanged when it already lives there.
+"""
+frame_on(frame::LocalFrame{Basis}, backend::Backend) where {Basis} =
+    LocalFrame{Basis}(map(axis -> on(axis, backend), frame.axes))
+
+"""
     basis_field(f, data, ::Val{Basis}, writer)
 
 `data` carrying `f`'s dimension, time support and support, declaring
@@ -156,19 +200,26 @@ basis_field(f::Field{S,T,D}, data::AbstractArray, ::Val{Basis}, writer::Symbol) 
 
 The Cartesian vector `components` and `frame` together declare: three fields
 of `VectorComponent{:cartesian}`, `(x, y, z)`, each the sum over `frame`'s
-axes of `components[i] .* frame.axes[i][row, :]`. Always exact: embedding a
-one- or two-axis component set into three Cartesian components by this sum
-drops nothing, so `lift` never refuses on the values it is given.
+axes of `components[i] .* frame.axes[i][row, :]`, every multiply that feeds
+an add written as `fma` so the sum rounds the same way on every backend.
+Always exact: embedding a one- or two-axis component set into three
+Cartesian components by this sum drops nothing, so `lift` never refuses on
+the values it is given.
 
 Every field of `components` must agree in time semantics, dimension, support
-and run; `require_vector_agreement` raises naming what differs otherwise.
+and run (`require_vector_agreement`) and must share one backend
+(`require_same_backend`); `frame` is moved to that backend through
+`Backends.on` before the sum, so `components` and `frame` broadcast
+together whichever backend `components` already lives on.
 """
 function lift(components::NTuple{1,Field{VectorComponent{Basis}}},
               frame::LocalFrame{Basis,1}) where {Basis}
     require_vector_agreement(components, "Fields.lift")
+    require_same_backend(components, "Fields.lift")
     d1 = data(components[1])
     require_frame_extent(length(d1), frame, "Fields.lift")
-    a1 = frame.axes[1]
+    moved = frame_on(frame, target_backend(d1))
+    a1 = moved.axes[1]
     f = components[1]
     x = basis_field(f, d1 .* view(a1, 1, :), Val(:cartesian), :lift)
     y = basis_field(f, d1 .* view(a1, 2, :), Val(:cartesian), :lift)
@@ -179,13 +230,15 @@ end
 function lift(components::NTuple{2,Field{VectorComponent{Basis}}},
               frame::LocalFrame{Basis,2}) where {Basis}
     require_vector_agreement(components, "Fields.lift")
+    require_same_backend(components, "Fields.lift")
     d1, d2 = data(components[1]), data(components[2])
     require_frame_extent(length(d1), frame, "Fields.lift")
-    a1, a2 = frame.axes
+    moved = frame_on(frame, target_backend(d1))
+    a1, a2 = moved.axes
     f = components[1]
-    x = basis_field(f, d1 .* view(a1, 1, :) .+ d2 .* view(a2, 1, :), Val(:cartesian), :lift)
-    y = basis_field(f, d1 .* view(a1, 2, :) .+ d2 .* view(a2, 2, :), Val(:cartesian), :lift)
-    z = basis_field(f, d1 .* view(a1, 3, :) .+ d2 .* view(a2, 3, :), Val(:cartesian), :lift)
+    x = basis_field(f, fma.(d1, view(a1, 1, :), d2 .* view(a2, 1, :)), Val(:cartesian), :lift)
+    y = basis_field(f, fma.(d1, view(a1, 2, :), d2 .* view(a2, 2, :)), Val(:cartesian), :lift)
+    z = basis_field(f, fma.(d1, view(a1, 3, :), d2 .* view(a2, 3, :)), Val(:cartesian), :lift)
     return (x, y, z)
 end
 
@@ -193,63 +246,108 @@ end
     project(cartesian, frame)
 
 `cartesian`'s three components read into `frame`'s basis by a dot product
-with each axis: one field per axis, in the order `frame` declares them. The
-lossy conversion: whatever `cartesian` holds outside `frame`'s subspace is
-dropped without being checked, which is why `coarsen` and `refine` name this
-function rather than reaching it themselves.
+with each axis, every multiply that feeds an add written as `fma`: one field
+per axis, in the order `frame` declares them. The lossy conversion: whatever
+`cartesian` holds outside `frame`'s subspace is dropped without being
+checked, which is why `coarsen` and `refine` name this function rather than
+reaching it themselves.
+
+`cartesian` must agree in time semantics, dimension, support and run
+(`require_vector_agreement`) and share one backend (`require_same_backend`);
+`frame` is moved to that backend through `Backends.on` before the dot
+product.
 """
 function project(cartesian::NTuple{3,Field{VectorComponent{:cartesian}}},
                   frame::LocalFrame{Basis,1}) where {Basis}
     require_vector_agreement(cartesian, "Fields.project")
+    require_same_backend(cartesian, "Fields.project")
     dx, dy, dz = data(cartesian[1]), data(cartesian[2]), data(cartesian[3])
     require_frame_extent(length(dx), frame, "Fields.project")
-    a1 = frame.axes[1]
-    c1 = dx .* view(a1, 1, :) .+ dy .* view(a1, 2, :) .+ dz .* view(a1, 3, :)
+    moved = frame_on(frame, target_backend(dx))
+    a1 = moved.axes[1]
+    c1 = fma.(dz, view(a1, 3, :), fma.(dy, view(a1, 2, :), dx .* view(a1, 1, :)))
     return (basis_field(cartesian[1], c1, Val(Basis), :project),)
 end
 
 function project(cartesian::NTuple{3,Field{VectorComponent{:cartesian}}},
                   frame::LocalFrame{Basis,2}) where {Basis}
     require_vector_agreement(cartesian, "Fields.project")
+    require_same_backend(cartesian, "Fields.project")
     dx, dy, dz = data(cartesian[1]), data(cartesian[2]), data(cartesian[3])
     require_frame_extent(length(dx), frame, "Fields.project")
-    a1, a2 = frame.axes
-    c1 = dx .* view(a1, 1, :) .+ dy .* view(a1, 2, :) .+ dz .* view(a1, 3, :)
-    c2 = dx .* view(a2, 1, :) .+ dy .* view(a2, 2, :) .+ dz .* view(a2, 3, :)
+    moved = frame_on(frame, target_backend(dx))
+    a1, a2 = moved.axes
+    c1 = fma.(dz, view(a1, 3, :), fma.(dy, view(a1, 2, :), dx .* view(a1, 1, :)))
+    c2 = fma.(dz, view(a2, 3, :), fma.(dy, view(a2, 2, :), dx .* view(a2, 1, :)))
     return (basis_field(cartesian[1], c1, Val(Basis), :project),
             basis_field(cartesian[1], c2, Val(Basis), :project))
 end
 
 """
-    TRANSFORM_ULPS
+    round_trip_terms(n_axes)
 
-The rounding bound `transform` refuses beyond, in units of `eps` of the
-Cartesian data's own element type: one epsilon per floating point operation
-a `project` followed by a `lift` performs on one component, the dot product
-and the sum back that `check_round_trip` re-derives.
+The floating point operations one `project` followed by one `lift` performs
+to reconstruct a single Cartesian component from a frame of `n_axes` axes,
+read as the term count `Reductions.error_bound` takes: each axis costs
+`project`'s three-multiply, two-add dot product against the Cartesian
+components (5 operations), and `lift` then costs an `n_axes`-multiply,
+`n_axes - 1`-add combination of the `n_axes` projected values (`2 * n_axes -
+1` operations): `n_axes` repeats of 7, less the one add `lift` does not need
+on its own. Accumulated over `Integer` by repeated addition rather than a
+multiply.
 """
-const TRANSFORM_ULPS = 16
+function round_trip_terms(n_axes::Integer)
+    ops = -1
+    for _ in 1:n_axes
+        ops += 7
+    end
+    return ops
+end
 
 """
-    check_round_trip(cartesian, reconstructed, site, basis)
+    round_trip_magnitude(cartesian, frame)
+
+An upper bound on the absolute value of any term `round_trip_terms` counts,
+read off `cartesian` and `frame` rather than declared: the largest sum of
+`cartesian`'s three components' absolute values at one cell or edge,
+(`Reductions.error_bound`'s `magnitude`), times the square of the largest
+single entry any axis of `frame` holds. The square is the two axis-component
+factors one term carries, one from `project`'s dot product and one from
+`lift`'s combination. Computed as two `maximum` reductions, so it is read as
+a plain number on either backend rather than broadcast on the device.
+"""
+function round_trip_magnitude(cartesian::NTuple{3,Field}, frame::LocalFrame)
+    ax, ay, az = data(cartesian[1]), data(cartesian[2]), data(cartesian[3])
+    cartesian_magnitude = maximum(abs.(ax) .+ abs.(ay) .+ abs.(az))
+    axis_magnitude = maximum(maximum(abs, axis) for axis in frame.axes)
+    return cartesian_magnitude * axis_magnitude^2
+end
+
+"""
+    check_round_trip(cartesian, reconstructed, frame, site, basis)
 
 Returns `nothing` when every one of `cartesian`'s three components matches
-the corresponding component of `reconstructed` within `TRANSFORM_ULPS` times
-`eps` of its element type, scaled by its own magnitude, and refuses at `site`
-naming the component, the residual and `basis` otherwise.
+the corresponding component of `reconstructed` within
+`Reductions.error_bound(eltype(data), round_trip_terms(length(frame.axes)),
+round_trip_magnitude(cartesian, frame))`, and refuses at `site` naming the
+component, the residual and `basis` otherwise. The bound scales with
+`cartesian`'s own magnitude and carries no floor, so a field read in
+different units is judged against the same relative tolerance.
 """
 function check_round_trip(cartesian::NTuple{3,Field}, reconstructed::NTuple{3,Field},
-                           site::AbstractString, basis::Symbol)
+                           frame::LocalFrame, site::AbstractString, basis::Symbol)
     labels = (:x, :y, :z)
+    terms = round_trip_terms(length(frame.axes))
+    magnitude = round_trip_magnitude(cartesian, frame)
     for k in 1:3
         a = data(cartesian[k])
         b = data(reconstructed[k])
-        bound = TRANSFORM_ULPS * eps(eltype(a)) .* max.(one(eltype(a)), abs.(a))
-        residual = abs.(a .- b)
-        all(residual .<= bound) || refuse(
+        bound = error_bound(eltype(a), terms, magnitude)
+        residual = maximum(abs.(a .- b))
+        residual <= bound || refuse(
             "vector transform", site,
             "the $(labels[k]) component of $(type_name(VectorComponent{basis})) drops " *
-            "$(maximum(residual)); call Fields.project to allow it")
+            "$(residual), beyond the bound $(bound); call Fields.project to allow it")
     end
     return nothing
 end
@@ -259,14 +357,14 @@ end
 
 `project(cartesian, frame)`, refused instead of returned when lifting the
 result back through `frame` does not reproduce `cartesian` within
-`TRANSFORM_ULPS`. The strict conversion: a caller who wants the dropped
-component silently discarded writes `project` by name, and `transform` never
-reaches that path on its own.
+`check_round_trip`'s bound. The strict conversion: a caller who wants the
+dropped component silently discarded writes `project` by name, and
+`transform` never reaches that path on its own.
 """
 function transform(cartesian::NTuple{3,Field{VectorComponent{:cartesian}}},
                     frame::LocalFrame{Basis,N}) where {Basis,N}
     result = project(cartesian, frame)
     reconstructed = lift(result, frame)
-    check_round_trip(cartesian, reconstructed, "Fields.transform", Basis)
+    check_round_trip(cartesian, reconstructed, frame, "Fields.transform", Basis)
     return result
 end
