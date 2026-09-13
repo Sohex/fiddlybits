@@ -185,8 +185,8 @@ end
             end
             @test caught isa Verdicts.Refusal
             @test caught.quantity == "area weighted extent"
-            @test occursin("3", caught.reason)
-            @test occursin("2", caught.reason)
+            @test occursin("xs has length 3", caught.reason)
+            @test occursin("areas has length 2", caught.reason)
         end
 
         @testset "long areas array refuses on CPU, naming both lengths" begin
@@ -197,8 +197,8 @@ end
             end
             @test caught isa Verdicts.Refusal
             @test caught.quantity == "area weighted extent"
-            @test occursin("3", caught.reason)
-            @test occursin("4", caught.reason)
+            @test occursin("xs has length 3", caught.reason)
+            @test occursin("areas has length 4", caught.reason)
         end
 
         @testset "matched-length input does not refuse and produces correct value" begin
