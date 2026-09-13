@@ -1,0 +1,47 @@
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+statistic = "sum of primal cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
+threshold = "roundoff (positive control: a dropped cell, which must fail, and the unchanged mesh, which must pass)"
+
+[[oracle]]
+id = "core.held_suarez"
+tier = 1
+statistic = "jet latitude over the climatology; spread arms scale the relaxation rates with the rotation period"
+verdict_kind = "fail_bar"
+threshold = "provisional; published spread"
+protocol = "held_suarez"
+
+[[oracle]]
+id = "earth.ceres_global_means"
+tier = 2
+statistic = "global-mean OLR, reported beside the observation's uncertainty"
+verdict_kind = "report"
+threshold = "n/a"
+
+[[oracle]]
+id = "sweep.rotation_rate"
+tier = 3
+statistic = "exponent of the Hadley edge against rotation rate swept"
+verdict_kind = "fail_bar"
+threshold = "provisional: outside the published inter-model disagreement fails"
+protocol = "held_suarez"
+
+[[oracle]]
+id = "sweep.gravity"
+tier = 3
+statistic = "circulation response against gravity swept"
+verdict_kind = "report"
+threshold = "no bar: the published studies are the reference"
+protocol = "gravity_sweep"
+
+[[protocol]]
+id = "held_suarez"
+system = "HeldSuarez() at the published radius, gravity, gas constant and surface pressure"
+normalisation = "the forcing profile and the relaxation rates in seconds"
+
+[[protocol]]
+id = "gravity_sweep"
+system = "the published sweep's base system as a Sourced constructor"
+normalisation = "column mass"

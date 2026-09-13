@@ -1,0 +1,6 @@
+[[oracle]]
+id = "earth.hydrolakes_terminal_lakes"
+tier = 2
+statistic = "median |log10(predicted/observed lake area)|"
+verdict_kind = "fail_bar"
+threshold = "provisional: PASS < 0.30, MARGINAL < 0.60, FAIL above"

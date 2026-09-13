@@ -1,0 +1,6 @@
+[[oracle]]
+id = "sweep.aquaplanet_ape"
+tier = 3
+statistic = "jet latitude"
+verdict_kind = "fail_bar"
+threshold = "provisional: outside the APE ensemble range fails"
