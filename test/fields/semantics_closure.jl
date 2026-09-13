@@ -50,3 +50,162 @@ using .VocabularyClosure: closed_type_set, TypeFixture
         @test unreachable == [Int]
     end
 end
+
+# The operator enumeration: docs/plans/fiddlybits-52v.3-fields.md, section "The
+# operators and the refusal table"; decision 0006. Every member of
+# Fields.semantics_types() is checked against coarsen, refine and time_reduce: each
+# has a method or an entry in Fields.REFUSAL_TABLE. test/fields/inference.jl walks
+# the same Fields.semantics_types() and Time.time_semantics() for @inferred.
+
+"""
+    head(T)
+
+The generic head of the type `T`: `VectorComponent{:east_north}`, the bare
+`VectorComponent` and a method's own free type variable bound to one all read
+back as `VectorComponent`, which is the granularity `semantics_types()` and
+`REFUSAL_TABLE` share. `T`'s own parameter, open for `VectorComponent`'s basis
+and for `CategoricalLabel`'s and `CategoricalFraction`'s legend, is not part
+of what this file closes.
+"""
+head(T::Type) = Base.unwrap_unionall(T).name.wrapper
+head(T::TypeVar) = head(T.ub)
+
+"""
+    strip_where(T)
+
+`T` with every `UnionAll` layer it carries removed, its free type variables
+left in place inside whatever they parametrise.
+"""
+function strip_where(T)
+    while T isa UnionAll
+        T = T.body
+    end
+    return T
+end
+
+"""
+    field_semantics_head(m)
+
+The semantics head the `Field` argument of the method `m` of `coarsen` or
+`refine` dispatches on: `m`'s signature stripped of every `where`, its second
+slot (the field argument; the first is `typeof(op)`), stripped again, and its
+first type parameter, read through `head`.
+"""
+function field_semantics_head(m::Method)
+    arg = strip_where(m.sig).parameters[2]
+    arg = arg isa TypeVar ? arg.ub : arg
+    return head(strip_where(arg).parameters[1])
+end
+
+"""
+    forcing_semantics_head(m)
+
+The same for a method of `time_reduce`, whose second slot is a `Time.Forcing`
+carrying the field type one level deeper, in `Forcing`'s own second
+parameter.
+"""
+function forcing_semantics_head(m::Method)
+    arg = strip_where(m.sig).parameters[2]
+    arg = arg isa TypeVar ? arg.ub : arg
+    fld = strip_where(arg).parameters[2]
+    fld = fld isa TypeVar ? fld.ub : fld
+    return head(strip_where(fld).parameters[1])
+end
+
+"""
+    missing_coverage(op, extractor, entries, universe, root)
+
+The members of `universe` (every declared subtype of the abstract type
+`root`) that neither a method of the generic function `op` nor an entry of
+`entries` (each holding a `semantics` field, matched through `head`)
+declares: `op`'s own coverage read off `methods(op)` through `extractor`,
+which is `field_semantics_head` for `coarsen` and `refine` and
+`forcing_semantics_head` for `time_reduce`. A method or entry whose head is
+`root` itself, or `Any` (an unconstrained type parameter), covers every
+member of `universe` at once, which is how `time_reduce`'s two
+`REFUSAL_TABLE` entries and its three working methods, none of which name a
+`Semantics` subtype, close over every one of them without naming any.
+Returns the uncovered members sorted by name; empty means every pair either
+resolves to a method or is declared refused.
+"""
+function missing_coverage(op, extractor, entries, universe, root::Type)
+    covered = Set{Any}()
+    for m in methods(op)
+        push!(covered, extractor(m))
+    end
+    for e in entries
+        push!(covered, head(e.semantics))
+    end
+    (root in covered || Any in covered) && return Any[]
+    return sort(collect(setdiff(Set(universe), covered)), by = string)
+end
+
+"Entries of `Fields.REFUSAL_TABLE` declared for `operator`."
+refusal_entries(operator::Symbol) =
+    filter(e -> e.operator === operator, Fields.REFUSAL_TABLE)
+
+@testset "the operator table is closed against the Semantics set" begin
+    universe = Fields.semantics_types()
+
+    @testset "refine" begin
+        @test isempty(missing_coverage(Fields.refine, field_semantics_head,
+                                       refusal_entries(:refine), universe,
+                                       Fields.Semantics))
+    end
+
+    @testset "time_reduce" begin
+        @test isempty(missing_coverage(Fields.time_reduce, forcing_semantics_head,
+                                       refusal_entries(:time_reduce), universe,
+                                       Fields.Semantics))
+    end
+
+    @testset "coarsen" begin
+        # fiddlybits-52v.3.16: coarsen dispatches to neither a method nor a
+        # REFUSAL_TABLE entry for CategoricalFraction. Visible rather than
+        # assumed (docs/workflow.md): @test_broken fails the moment the gap
+        # closes, which is what forces this line back to a plain @test rather
+        # than staying green on its own.
+        missing = missing_coverage(Fields.coarsen, field_semantics_head,
+                                   refusal_entries(:coarsen), universe, Fields.Semantics)
+        @test missing == [Fields.CategoricalFraction]
+        @test_broken isempty(missing)
+    end
+end
+
+"""
+A hierarchy no module under test declares, standing in for `Semantics`, and a
+one-argument generic function standing in for `coarsen`/`refine`, so
+`missing_coverage`'s positive control does not read the production tables.
+`Jagged` carries neither a method of `f` nor an entry of `TABLE`, which is the
+control fiddlybits-52v.3.4 asks for: a semantics added to a fixture with no
+row in its table fails the walk.
+"""
+module OperatorClosureFixture
+
+abstract type Shape end
+struct Round <: Shape end
+struct Square <: Shape end
+struct Jagged <: Shape end
+
+"`Round` is the one shape `f` resolves for."
+f(::Round) = :measured
+
+"Every entry `f` is declared to refuse, in `missing_coverage`'s shape."
+const TABLE = ((operator = :f, semantics = Square, sentence = "squares refuse by name"),)
+
+types() = (Round, Square, Jagged)
+
+end # module OperatorClosureFixture
+
+@testset "positive control: a fixture semantics type added with neither fails the walk" begin
+    OF = OperatorClosureFixture
+    simple_head(m) = head(strip_where(m.sig).parameters[2])
+
+    missing = missing_coverage(OF.f, simple_head, OF.TABLE, OF.types(), OF.Shape)
+    @test missing == [OF.Jagged]
+
+    @testset "control: the whole set closes once Jagged is no longer in it" begin
+        @test isempty(missing_coverage(OF.f, simple_head, OF.TABLE,
+                                       (OF.Round, OF.Square), OF.Shape))
+    end
+end
