@@ -300,6 +300,47 @@ The tolerance is `k * N * eps * M`, derived from floating point and read from
 `Reductions` rather than declared here, so a ledger tolerance has one definition
 (REQ-NUM-004, REQ-SYS-103).
 
+What sits beside the field is decided by what the semantics conserves across the
+crossing, and is built in `src/Fields/reduce.jl` from `Float64` totals the operator takes
+on the field's backend when it runs. An `Extensive` coarsening or refinement and an
+`IntervalAccumulation` conserve the total and return `Ledger{:total}`, the source's total
+against the result's. A `FluxDensity` or `Fraction` coarsening or refinement and an
+`Intensive` coarsening under `AreaMean` conserve the integral under the named measure and
+return `Ledger{:primal_cell_area_integral}` or `Ledger{:dual_area_integral}`, a coarse
+cell holding the sum of its children's measure. An `IntervalMean` conserves the integral
+over the duration and returns `Ledger{:duration_integral}`. A `CategoricalLabel`
+coarsening or refinement conserves the area of each class and returns `ClassLedgers`
+under the measure's name, one ledger per legend class, and refuses a label the legend
+does not name. A quantile table, a spread `Intensive` or `VectorComponent{:cartesian}`
+refinement and an `EndpointState` reduction conserve nothing a ledger closes and return
+`NotConserved`, carrying the sentence `NOT_CONSERVED_TABLE` declares, which `closed`
+refuses with. Every operator that returns a ledger takes `reservoir` as a required
+keyword. Three alternatives were weighed. One ledger over a histogram's total area
+closes whatever the histogram weighted by or dropped, since each coarse cell's shares
+sum to one, so it could not fail on the breaks it exists for. `nothing` in the ledger
+position of a non-conserving operator would make the store's check a `MethodError`
+rather than a named refusal. Returning the field alone from those operators would give
+two return shapes and let a caller of a conserving operator reach for the shape without
+the ledger. `ClassLedgers` costs a consumer a third form beside `Ledger` and
+`NotConserved`.
+
+The tolerance is `error_bound(T, n, M)` over the reduction the operator ran: `T` its
+accumulator, `n` its term count, the fine cells of a crossing or the cells times the
+intervals of a time reduction, and `M` the `Float64` total of its terms' absolute
+values. A refinement by spread runs no reduction, and its ledger's is its own `Float64`
+sum over the fine cells. The residual is two evaluations of one exact total, so in the
+model of Higham (1993, eq. 1.2, with 2.2 and 3.3) it is at most `gamma_D * M`, `D` the
+rounded operations the two evaluations take a term through. A crossing of `b >= 4`
+children under each of `Nc >= 20` coarse cells gives `D <= n + b + Nc + 2`, a mean's
+coarse measure summed in the mean's own accumulator and order so its denominator cancels
+from `after`; a time reduction over `K >= 2` intervals gives `D <= 2 * (cells + K)`, and
+over one interval its two totals are one sum. `n * eps(T) = 2 * n * u(T)` exceeds
+`gamma_D` for `T = Float64` while `n * u <= 1/4`, and for `T = Float32`, whose own steps
+are at most `b + 3` per term in a crossing and `K + 1` in a time reduction with every
+`Float64` step at `u(Float64)`, wherever `error_bound` is valid. `ledger.closure`'s operator arm and
+`mesh.constant_field_reduction` in `test/fields/reduce.jl` hold every conserving
+operator to it, on `Backends.CPU` and `Backends.GPU` at two crossings.
+
 A quantity declared a reservoir is accumulated in FP64 or by compensated summation
 whatever the working precision, and a ledger given an FP32 accumulator for a
 reservoir refuses naming the quantity. The declaration is a field-level one, so the

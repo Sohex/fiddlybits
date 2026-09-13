@@ -66,8 +66,9 @@ declares, is positive, and land elsewhere. Every keyword is required.
 Refuses a field that is not `Intensive` of dimension `LENGTH`; a `water_depth` that
 `Fields.require_combinable` refuses beside `elevation`; a mesh that is not the one
 its support was built from; a coarse level not coarser than the terrain level; a
-non-finite `datum`, elevation or water depth; a negative water depth; and a positive
-water depth on an ocean cell.
+non-finite `datum`, elevation or water depth; a negative water depth; a positive
+water depth on an ocean cell; and a coarsening of the surface classes whose ledger for
+some class is open, naming the class.
 """
 function derive(elevation::Fields.Field{Fields.Intensive,TS,typeof(Dimensions.LENGTH)};
                 datum::Real, ocean_seeds, water_depth::Fields.Field, terrain::LevelMesh,
@@ -98,9 +99,15 @@ function derive(elevation::Fields.Field{Fields.Intensive,TS,typeof(Dimensions.LE
                            data = surface_labels(ocean, depth), support = terrain_support,
                            time = Fields.time_support(elevation),
                            origin = Fields.unstamped(:connectivity, Fields.origin(elevation).run))
-    fractions = Fields.coarsen(surface, coarse_support; legend = SURFACE_CLASSES,
-                               measure = Fields.Measured{:primal_cell_area}(terrain.geometry.cell_area),
-                               backend = Backends.CPU())
+    fractions, class_areas = Fields.coarsen(surface, coarse_support; legend = SURFACE_CLASSES,
+                                            measure = Fields.Measured{:primal_cell_area}(terrain.geometry.cell_area),
+                                            reservoir = false, backend = Backends.CPU())
+    Fields.closed(class_areas) ||
+        refuse("surface fractions", site,
+               "the coarsening does not conserve the $(Fields.quantity(class_areas)) of " *
+               join((String(c) for (c, l) in zip(Fields.classes(class_areas),
+                                                  Fields.ledgers(class_areas))
+                     if !Fields.closed(l)), ", "))
     ocean_gates, land_gates = gates(z, datum64, ocean, terrain, coarse,
                                     terrain_support.radius, site)
     return Graph(terrain, coarse, datum64, z, surface, fractions,
