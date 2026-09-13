@@ -212,15 +212,17 @@ end
     emit_topology_changes(old, new; sequence, instant, tier)
 
 Every `Edit` of `topology_changes(old, new)`, each handed to `Events.emit` as one
-`topology_change` event whose payload carries the edit's name, cells and quantity,
-numbered from `sequence` in order, at `instant` on `tier`, from `COMPONENT`. Returns
-the edits.
+`topology_change` event whose payload carries the edit's name, the coarse level of
+`new`, the edit's cells as `Mesh.CellId` values at that level through `Mesh.disk_id`,
+and its quantity, numbered from `sequence` in order, at `instant` on `tier`, from
+`COMPONENT`. Returns the edits.
 """
 function emit_topology_changes(old::Graph, new::Graph; sequence::Integer, instant::Real,
                                tier::Symbol)
     edits = topology_changes(old, new)
     for (k, edit) in enumerate(edits)
-        payload = Events.TopologyChangePayload(edit = String(edit.name), cells = edit.cells,
+        payload = Events.TopologyChangePayload(edit = String(edit.name), level = new.coarse.index,
+                                               cells = Mesh.disk_id.(edit.cells),
                                                quantity = edit.quantity)
         Events.emit(Events.Event(Events.TopologyChange(), sequence + k - 1, instant, tier,
                                  COMPONENT, payload))

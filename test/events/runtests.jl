@@ -1,5 +1,5 @@
 using Test
-using Fiddlybits: Events, Verdicts, Reductions
+using Fiddlybits: Events, Verdicts, Reductions, Mesh
 
 # The event vocabulary is closed by this check rather than by the language: a
 # subtype added anywhere fails the suite until the enumeration and decision
@@ -65,8 +65,8 @@ const VALID_PAYLOAD_ARGS = Dict(
                                   tolerance = 1.0e-6, exchange = "surface flux"),
     Events.RefreshPayload => (trigger = "sea ice extent", field = "albedo",
                                change = 0.2, restart_seconds = 3600.0, restart_orbits = 0.1),
-    Events.TopologyChangePayload => (edit = "strait closed", cells = [1, 2],
-                                      quantity = 4.0),
+    Events.TopologyChangePayload => (edit = "seaway_closed", level = 1,
+                                      cells = [Mesh.CellId(0), Mesh.CellId(1)], quantity = 4.0),
     Events.LevelChangePayload => (from = 3, to = 4, window = 86400.0),
     Events.ArtifactPayload => (key = "abc123", kind = "field", support = "L4"),
     Events.CheckpointPayload => (key = "abc123", precision = Float64),
@@ -155,6 +155,23 @@ const VALID_PAYLOAD_ARGS = Dict(
             founding = FoundingRefusalFixture.RefusalPayload("Orbit", "eccentricity", 1.5, 1.0)
             e = raised_refusal(() -> Events.Event(Events.Refusal(), 1, 0.0, :slow, "Systems", founding))
             @test occursin("refusal", e.site)
+        end
+    end
+
+    @testset "a topology_change payload names the level and the CellId base of its cells" begin
+        args = VALID_PAYLOAD_ARGS[Events.TopologyChangePayload]
+        payload = Events.TopologyChangePayload(; args...)
+        @test payload.level == args.level
+        @test eltype(payload.cells) === Mesh.CellId
+        @test Events.Event(Events.TopologyChange(), 1, 0.0, :slow, "Connectivity", payload) isa Events.Event
+
+        @testset "positive control: cells of no named base, and a level that is not one, refuse naming the field" begin
+            for (field, value) in ((:cells, [1, 2]), (:cells, Int32[0, 1]), (:cells, [1.0, 2.0]),
+                                   (:cells, Any[Mesh.CellId(0), Mesh.CellId(1)]), (:level, -1))
+                e = raised_refusal(() -> Events.TopologyChangePayload(;
+                    merge(args, NamedTuple{(field,)}((value,)))...))
+                @test e.quantity == String(field)
+            end
         end
     end
 
