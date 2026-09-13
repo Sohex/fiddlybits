@@ -8,8 +8,7 @@
 # flag, so a caller drops a component only by writing project.
 #
 # Every multiply that feeds an add below is written as an explicit fma
-# (decision 0044), so the CPU and GPU backends round the same expression the
-# same way and lift, project and transform agree bitwise across them.
+# (decision 0044).
 
 using ..Backends: Backend, CPU, GPU, backend_of, on
 using ..Reductions: error_bound
@@ -201,10 +200,9 @@ basis_field(f::Field{S,T,D}, data::AbstractArray, ::Val{Basis}, writer::Symbol) 
 The Cartesian vector `components` and `frame` together declare: three fields
 of `VectorComponent{:cartesian}`, `(x, y, z)`, each the sum over `frame`'s
 axes of `components[i] .* frame.axes[i][row, :]`, every multiply that feeds
-an add written as `fma` so the sum rounds the same way on every backend.
-Always exact: embedding a one- or two-axis component set into three
-Cartesian components by this sum drops nothing, so `lift` never refuses on
-the values it is given.
+an add written as `fma`. Always exact: embedding a one- or two-axis
+component set into three Cartesian components by this sum drops nothing, so
+`lift` never refuses on the values it is given.
 
 Every field of `components` must agree in time semantics, dimension, support
 and run (`require_vector_agreement`) and must share one backend
@@ -292,17 +290,11 @@ read as the term count `Reductions.error_bound` takes: each axis costs
 `project`'s three-multiply, two-add dot product against the Cartesian
 components (5 operations), and `lift` then costs an `n_axes`-multiply,
 `n_axes - 1`-add combination of the `n_axes` projected values (`2 * n_axes -
-1` operations): `n_axes` repeats of 7, less the one add `lift` does not need
-on its own. Accumulated over `Integer` by repeated addition rather than a
-multiply.
+1` operations). Over `Integer`, exempted by name in
+`test/lint/lists/fused_multiply_add.toml` rather than restructured
+(decision 0044, "Integer arithmetic is exempted by name, not by shape").
 """
-function round_trip_terms(n_axes::Integer)
-    ops = -1
-    for _ in 1:n_axes
-        ops += 7
-    end
-    return ops
-end
+round_trip_terms(n_axes::Integer) = 7 * n_axes - 1
 
 """
     round_trip_magnitude(cartesian, frame)
@@ -313,12 +305,15 @@ read off `cartesian` and `frame` rather than declared: the largest sum of
 (`Reductions.error_bound`'s `magnitude`), times the square of the largest
 single entry any axis of `frame` holds. The square is the two axis-component
 factors one term carries, one from `project`'s dot product and one from
-`lift`'s combination. Computed as two `maximum` reductions, so it is read as
-a plain number on either backend rather than broadcast on the device.
+`lift`'s combination. The per-cell sum is formed on `cartesian`'s own
+backend and read back through `Backends.on` in the one move below;
+`frame`'s axes already live on the host, so `axis_magnitude` reads them
+directly.
 """
 function round_trip_magnitude(cartesian::NTuple{3,Field}, frame::LocalFrame)
     ax, ay, az = data(cartesian[1]), data(cartesian[2]), data(cartesian[3])
-    cartesian_magnitude = maximum(abs.(ax) .+ abs.(ay) .+ abs.(az))
+    per_cell = on(abs.(ax) .+ abs.(ay) .+ abs.(az), CPU(1))
+    cartesian_magnitude = maximum(per_cell)
     axis_magnitude = maximum(maximum(abs, axis) for axis in frame.axes)
     return cartesian_magnitude * axis_magnitude^2
 end
@@ -333,17 +328,21 @@ round_trip_magnitude(cartesian, frame))`, and refuses at `site` naming the
 component, the residual and `basis` otherwise. The bound scales with
 `cartesian`'s own magnitude and carries no floor, so a field read in
 different units is judged against the same relative tolerance.
+
+The three components' residuals are formed on `cartesian`'s own backend and
+read back together, in the one move `Backends.on` below, rather than once
+per component.
 """
 function check_round_trip(cartesian::NTuple{3,Field}, reconstructed::NTuple{3,Field},
                            frame::LocalFrame, site::AbstractString, basis::Symbol)
     labels = (:x, :y, :z)
     terms = round_trip_terms(length(frame.axes))
     magnitude = round_trip_magnitude(cartesian, frame)
+    on_device(k) = abs.(data(cartesian[k]) .- data(reconstructed[k]))
+    residuals = on(hcat(on_device(1), on_device(2), on_device(3)), CPU(1))
+    bound = error_bound(eltype(residuals), terms, magnitude)
     for k in 1:3
-        a = data(cartesian[k])
-        b = data(reconstructed[k])
-        bound = error_bound(eltype(a), terms, magnitude)
-        residual = maximum(abs.(a .- b))
+        residual = maximum(view(residuals, :, k))
         residual <= bound || refuse(
             "vector transform", site,
             "the $(labels[k]) component of $(type_name(VectorComponent{basis})) drops " *

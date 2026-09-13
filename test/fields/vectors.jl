@@ -205,20 +205,20 @@ const NORMAL = VX.GEOMETRY.edge_normal
         device_source = V.project(device, frame)
         @test Backends.backend_of(d(device_source[1])) === :gpu
         for k in 1:2
-            @test Array(d(device_source[k])) == d(host_source[k])
+            @test Backends.on(d(device_source[k]), Backends.CPU(1)) == d(host_source[k])
         end
 
         host_lifted = V.lift(host_source, frame)
         device_lifted = V.lift(device_source, frame)
         for k in 1:3
             @test Backends.backend_of(d(device_lifted[k])) === :gpu
-            @test Array(d(device_lifted[k])) == d(host_lifted[k])
+            @test Backends.on(d(device_lifted[k]), Backends.CPU(1)) == d(host_lifted[k])
         end
 
         host_strict = V.transform(host_lifted, frame)
         device_strict = V.transform(device_lifted, frame)
         for k in 1:2
-            @test Array(d(device_strict[k])) == d(host_strict[k])
+            @test Backends.on(d(device_strict[k]), Backends.CPU(1)) == d(host_strict[k])
         end
 
         @testset "positive control: a device field that is not purely tangent still refuses" begin
