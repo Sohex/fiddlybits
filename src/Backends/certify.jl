@@ -146,6 +146,18 @@ same site is not refused: `exhaustive_envelope` and `divergence` run on one
 obligation's site list at a time, so an overlap between two obligations never
 sums or perturbs a site twice the way a repeat within one obligation's own
 list does.
+
+Copies `obligations` and `fields`, the way `Reductions.Segmentation` copies the
+boundaries it is checked against: `check_obligations` runs once, here, against
+the site count and the field lengths `fields` has at that moment, so a list
+mutated afterward would bypass a check that already ran, the way a mutated
+boundary array would bypass `Segmentation`'s. Both are copied so the case goes
+on describing what `check_obligations` checked rather than what the caller's
+own lists hold now. The `obligations` copy is one array of names and site
+lists, cheap regardless of case size. The `fields` copy is one pass over the
+case's own state; `measure_envelope` and `certification` each already copy
+`fields` in full at least once per call, so one more copy at construction adds
+nothing of a different order for a case of any size.
 """
 struct EnsembleCase{S}
     name::String
@@ -156,7 +168,7 @@ struct EnsembleCase{S}
     function EnsembleCase(name::AbstractString, fields::Vector{Vector{Float64}}, step::S,
                           obligations::Vector{Obligation}) where {S}
         check_obligations(name, fields, obligations)
-        return new{S}(String(name), fields, step, obligations)
+        return new{S}(String(name), [copy(v) for v in fields], step, copy(obligations))
     end
 end
 
