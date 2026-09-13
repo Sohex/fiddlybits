@@ -82,8 +82,8 @@ record_move(array::AbstractArray, from, to) =
 `Adapt.adapt_structure`.
 
 The `CPU` form completes each device array `x` carries immediately before
-copying it, through `HostAdaptor`, rather than draining the device before the
-structure is walked: a structure holding no device array completes nothing.
+copying it, through `HostAdaptor`; a structure holding no device array
+completes nothing.
 """
 adapt_for(x, backend::GPU) = Adapt.adapt(array_type(backend), x)
 
@@ -102,10 +102,6 @@ end
 """
     Adapt.adapt_storage(a::HostAdaptor, x::AbstractArray)
 
-`x` completed and converted to `a.to`. The completion sits here, at the one
-leaf `Adapt.adapt` converts, rather than at the top of the walk: an array
-already on the host completes nothing, through the same test `complete!`
-carries at every other call site, and an array still being written by a
-kernel is waited for immediately before this call reads it.
+`x` completed, through `complete!`, then converted to `a.to`.
 """
 Adapt.adapt_storage(a::HostAdaptor, x::AbstractArray) = (complete!(x); convert(a.to, x))

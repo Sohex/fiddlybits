@@ -3,9 +3,8 @@ using CUDA
 using Fiddlybits: Backends
 
 # adapt_for(x, CPU) completes only the device arrays x actually carries, through the
-# same complete! test Backends.on uses at each array it reads, rather than draining
-# the whole device before it starts: docs/plans/fiddlybits-52v.7-kernels.md, section
-# "The device layer", and decision 0038 on stages that are not separated by a barrier.
+# same complete! test Backends.on uses at each array it reads:
+# docs/plans/fiddlybits-52v.7-kernels.md, section "The device layer".
 #
 # spin_write_kernel!, calibrated_spins and elapsed come from launch_completion.jl,
 # included before this file in runtests.jl.
@@ -43,9 +42,6 @@ using Fiddlybits: Backends
     end
 
     @testset "a structure holding a device array reads what its kernel finished writing" begin
-        # No pause sits between launch! and adapt_for, and spins is calibrated to
-        # keep the kernel running for a target well above either call's own
-        # overhead, so the kernel is still writing out when adapt_for starts.
         out = Backends.on(fill(SPIN_SENTINEL, 1), gpu)
         src = Backends.on([1.0], gpu)
         expected = [1.0 + Float64(spins)]
@@ -60,11 +56,30 @@ using Fiddlybits: Backends
         @test there.data == expected
         @test isempty(Backends.queued(gpu))
 
-        @testset "positive control: a kernel still writing is what the wait is for" begin
-            # queued(gpu) was non-empty just before adapt_for ran: nothing had
-            # waited for the kernel writing out yet, and adapt_for read the
-            # finished value regardless.
-            @test expected != fill(SPIN_SENTINEL, 1)
+        @testset "positive control: a read with no ordering sees the unfinished write" begin
+            # The copy below is issued on a stream of its own with no
+            # dependency on the kernel's, which is what adapt_for's completion
+            # refuses to do. It is a race, so it is scored over repeats: one
+            # stale read is what makes the check above a check.
+            stale = 0
+            for _ in 1:5
+                Backends.complete!(gpu)
+                fill!(out, SPIN_SENTINEL)
+                Backends.complete!(gpu)
+                host = Vector{Float64}(undef, 1)
+                CUDA.pin(host)
+                ptr = pointer(out)
+                other = CUDA.CuStream()
+                Backends.launch!(spin_write_kernel!, gpu, 1, out, src, spins)
+                GC.@preserve out host begin
+                    unsafe_copyto!(pointer(host), ptr, 1; stream = other, async = true)
+                end
+                CUDA.synchronize(other)
+                all(host .== SPIN_SENTINEL) && (stale += 1)
+                Backends.complete!(gpu)
+            end
+            println("stale reads: ", stale, " of 5 trials")
+            @test stale > 0
         end
     end
 
