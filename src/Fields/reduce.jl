@@ -107,7 +107,7 @@ const REFUSAL_TABLE = (
      sentence = "a quantile table is not a moment; recompute from the fine field"),
     (operator = :coarsen, semantics = CategoricalFraction, time_semantics = TimeSemantics,
      rule = nothing,
-     sentence = "a class-fraction histogram is not re-aggregable; recompute it from the fine label field rather than average an average"),
+     sentence = "a class-fraction field holds one column per class, and coarsen reduces one value per cell until fiddlybits-52v.3.12"),
     (operator = :refine, semantics = CategoricalFraction, time_semantics = TimeSemantics,
      rule = nothing,
      sentence = "a histogram does not carry which child held which class"),
@@ -456,8 +456,8 @@ never a centre sample; it refuses a label the legend does not name, and its ledg
 `coarsen_class_ledgers`. `Intensive` under `ToQuantiles` returns the `NotConserved`
 `NOT_CONSERVED_TABLE` declares.
 
-`Intensive` has no form without a rule; `CategoricalFraction` and `Quantiles` have no
-form at all: see `REFUSAL_TABLE`.
+`Intensive` has no form without a rule; `Quantiles` has no form, and
+`CategoricalFraction` none until multi-column fields reduce: see `REFUSAL_TABLE`.
 """
 function coarsen(f::Field{Extensive}, to::Support; reservoir::Bool, backend::Backend)
     seg = setup(f, to, "Fields.coarsen", backend)
