@@ -62,15 +62,18 @@ absent_path_failure(message::AbstractString) =
 """
     at_revision(spec; dir)
 
-The text `git show <spec>` writes, run in `dir`. Returns an empty string when git
-reports the named path absent there. Any other failure, including one where `spec`'s
-revision itself does not resolve, throws rather than returning a value a caller
-could read as "absent".
+The text `git show <spec>` writes, run in `dir` with `LC_ALL=C` and `LANGUAGE`
+cleared, so the message `absent_path_failure` reads is always git's untranslated
+English regardless of the caller's own locale. Returns an empty string when git
+reports the named path absent there. Any other failure, including one where
+`spec`'s revision itself does not resolve, throws rather than returning a value a
+caller could read as "absent".
 """
 function at_revision(spec::AbstractString; dir::AbstractString)
     out = IOBuffer()
     err = IOBuffer()
-    ok = success(pipeline(Cmd(`git show $spec`; dir = dir); stdout = out, stderr = err))
+    cmd = addenv(Cmd(`git show $spec`; dir = dir), "LC_ALL" => "C", "LANGUAGE" => "")
+    ok = success(pipeline(cmd; stdout = out, stderr = err))
     ok && return String(take!(out))
     message = String(take!(err))
     absent_path_failure(message) && return ""
@@ -92,8 +95,9 @@ returning, whether or not the run succeeded.
 function staged_tree_hash(root::AbstractString, script::AbstractString)
     tree = mktempdir()
     try
-        run(pipeline(Cmd(`git checkout-index -a --prefix=$(tree * "/")`; dir = root);
-                     stdout = devnull, stderr = devnull))
+        checkout = addenv(Cmd(`git checkout-index -a --prefix=$(tree * "/")`; dir = root),
+                           "LC_ALL" => "C", "LANGUAGE" => "")
+        run(pipeline(checkout; stdout = devnull, stderr = devnull))
         cmd = `julia --startup-file=no --project=$(tree) $(joinpath(tree, script))`
         return chomp(read(cmd, String))
     finally

@@ -92,6 +92,13 @@ run_git(dir::AbstractString, args::Vector{String}) =
         unborn = mktempdir()
         run_git(unborn, ["init", "-q"])
         @test_throws ErrorException Answers.at_revision("HEAD:whatever.txt"; dir = unborn)
+
+        # The caller's own locale never reaches git: an absent path still reads as
+        # absent, whether or not this machine has the named locale's translations.
+        withenv("LANG" => "de_DE.UTF-8", "LC_ALL" => "de_DE.UTF-8",
+                "LANGUAGE" => "de_DE:de") do
+            @test Answers.at_revision("HEAD:missing.txt"; dir = repo) == ""
+        end
     end
 
     @testset "the computed hash comes from a checkout of the index, not the working tree" begin
@@ -133,10 +140,27 @@ run_git(dir::AbstractString, args::Vector{String}) =
         # An unstaged edit returns the working tree to A's behaviour.
         write(joinpath(repo, "tools", "gate", "reference.jl"), reference_script("A"))
 
+        # The computed hash is the staged code's, B, not the working tree's, A; the
+        # staged record still says A, so the two disagree.
+        computed = Answers.staged_tree_hash(repo, joinpath("tools", "gate", "reference.jl"))
+        staged = Answers.hash_of(Answers.read_index("bench/reference.toml"; dir = repo))
+        head = Answers.hash_of(Answers.read_head("bench/reference.toml"; dir = repo))
+        @test computed == "B"
+        @test staged == "A"
+        @test Answers.verdict(; computed, staged, head, message = "") === :stale_record
+
         message = joinpath(repo, "commit-message.txt")
         write(message, "Restore the old behaviour\n")
 
-        @test Answers.main([message]; root = repo) != 0
+        old_stderr = stderr
+        rd, wr = redirect_stderr()
+        result = Answers.main([message]; root = repo)
+        redirect_stderr(old_stderr)
+        close(wr)
+        captured = read(rd, String)
+
+        @test result != 0
+        @test occursin("does not match", captured)
     end
 
     include("load_latency.jl")
