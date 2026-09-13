@@ -1,7 +1,10 @@
 # Oracle registry skeleton. Every entry is provisional and unregistered.
-# A threshold becomes binding only when registered_at names the commit that fixed
-# it, before the first artifact it judges exists. Values marked "provisional" are
-# placeholders to be set at the registering milestone.
+# A bar is fixed before the value it judges has been seen. An entry is registered when
+# registered_at names a commit at which its statistic, verdict_kind, threshold and
+# holdout are what they are here; an unregistered entry executes its statistic on
+# fixtures and positive controls and shows no value on a model result
+# (docs/oracles/README.md, Registration). Values marked "provisional" are placeholders
+# to be set at the registering milestone.
 #
 # Fields: id, tier (1 identity/analytic | 2 earth | 3 published_spread), subsystem,
 # dataset_or_reference, statistic, verdict_kind (fail_bar | report), threshold,
@@ -31,11 +34,6 @@
 # system-derived units; a published case's day written as its seconds on the arm
 # where the published bar applies, with the spread-arm rule stated; vertical
 # diagnostics in sigma, never a fixed pressure (docs/oracles/README.md).
-#
-# One row is open against the rule behind this file's schema, and fiddlybits-52v.8.2
-# waits on it so the loader is not written against a shape already known to be wrong:
-#   fiddlybits-5d1  the registration rule is stated as before the artifact exists, and
-#                   decision 0025 cites a source saying before the results are seen
 
 # ---------------------------------------------------------------- tier 1: build and dependencies
 
@@ -1409,9 +1407,9 @@ id = "oracles.registration_rule"
 tier = 1
 subsystem = "oracles"
 dataset_or_reference = "identity"
-statistic = "the git history against the registration rule of decision 0025: whether any commit changes the threshold or registered_at field of an entry whose registered_at is set and also touches src/ or notes/findings/; and whether any bar is narrower than the observational uncertainty its own entry states"
+statistic = "the registry, the admission predicate the runner's door calls, and the git history from the commit carrying the 2026-09-13 amendment of decision 0025, against the registration rule of docs/oracles/README.md: whether the predicate admits an unregistered entry's statistic value, distance or threshold comparison on a model result; whether an entry counted registered differs in statistic, verdict_kind, threshold or holdout from its registered_at commit; whether a tier-2 or tier-3 entry is registered again with its anchors and datasets unchanged, or in a commit touching src/ or notes/findings/; whether an entry registered once with the verdict_kind that carries no threshold edge is later registered as fail_bar; whether a merge, read over its whole branch against its first parent, changes an entry's threshold together with src/ or a testset named by that entry; whether a fixture is constructed under src/; and whether any bar is narrower than the observational uncertainty its own entry states"
 verdict_kind = "fail_bar"
-threshold = "no such commit and no such bar (positive controls: a fixture commit that changes a registered entry's threshold and a result path together, which must fail; the same commit on a provisional entry, which must pass, since the rule bites at registration and not before; a fixture bar set below a stated observational uncertainty, which must be refused at registration)"
+threshold = "no such admission, entry, registration, merge or construction, and no such bar (positive controls: the predicate handed an unregistered fixture entry and a model result, which must refuse the value, and the same entry and a fixture, which must admit it; a fixture entry whose threshold differs from its registered_at commit, which must be counted unregistered; a fixture tier-2 entry registered again with anchors and datasets unchanged, which must be refused, and the same registration beside a changed anchor, which must be accepted; a fixture entry registered without a threshold edge and then as fail_bar, which must be refused; a fixture merge changing an entry's threshold and the testset named by it, which must be refused, and the threshold change merged alone, which must be accepted; a fixture src/ file constructing a fixture, which must be refused; a fixture bar set below a stated observational uncertainty, which must be refused at registration)"
 provisional = true
 registered_at = ""
 holdout = false

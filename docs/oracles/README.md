@@ -54,15 +54,40 @@ metric is REPORT.
 
 ## Registration
 
-- A threshold is fixed and committed before the first artifact it judges exists;
-  `registered_at` records that commit. A registry edit may not share a commit with
-  a result it judges.
+- A bar is fixed before the value it judges has been seen. That value is the entry's
+  statistic evaluated on a model result: the output of code under `src/` on a declared
+  `System`, from any run, store or test. A fixture a test constructs with its answer
+  known, and a positive control's named break, are not model results.
+- `registered_at` names a commit at which the entry's `statistic`, `verdict_kind`,
+  `threshold` and `holdout` are what they are now. An entry with an empty
+  `registered_at`, or one that differs from that commit, is unregistered.
+- An unregistered entry executes its statistic on fixtures and positive controls. On
+  a model result the runner establishes only whether the statistic evaluates and the
+  difference between two arms of one configuration, and returns and emits no value,
+  distance, verdict or comparison with a threshold, for a `report` entry as for a
+  `fail_bar` one. The runner's door decides it from `registered_at` and from whether
+  it is handed a fixture, a type only `test/` constructs.
+- A registered entry's value has been seen, so a later registration rests on a change
+  to the bar's source: a tier-2 or tier-3 entry is registered again only beside a
+  change to its `anchors` or `datasets`, in a commit touching nothing under `src/` or
+  `notes/findings/`, and an entry once registered as `report` is not registered as
+  `fail_bar`.
+- A tier-1 identity's answer is known before any run. Its door is the testset named by
+  its id, which judges the implementation on every commit whether or not the entry is
+  registered; its threshold is an exact identity or a tolerance whose derivation it
+  states, fixed by the plan row before the implementation row, and no merge changes an
+  entry's threshold together with `src/` or a testset named by that entry.
+- `oracles.registration_rule` decides each clause above (`test/oracles/`), reading
+  git from the commit that carries decision 0025's amendment of 2026-09-13 and a
+  merge over its whole branch. A value read outside the runner and the testsets, and
+  a bar chosen knowing another model's value of its statistic, are outside what it
+  decides; the basis each bar states names any such value it knew.
 - Every entry names its source kind (identity, conservation, analytic, known
   quantity, published spread) and its anchors in `docs/references/INDEX.md`.
 - Every entry in `registry.toml` is `provisional = true` with an empty
   `registered_at` until the milestone that registers it. Nothing in this skeleton
-  has been registered. A provisional entry runs and records its verdict, and no
-  verdict of it blocks a milestone gate.
+  has been registered, so no entry has a verdict on a model result, and no verdict of
+  a provisional entry blocks a milestone gate.
 - Statistics and thresholds are stated in SI seconds and in dimensionless or
   system-derived units. A published case's "day" is written as its seconds on the
   arm where the published bar applies, and the entry states the rule by which the
@@ -109,7 +134,10 @@ metric is REPORT.
 
 A pre-registered subset of Earth metrics is scored only at milestone gates, never
 in the nightly run, so iteration cannot converge on the visible metrics. Hold-out
-entries carry `holdout = true`.
+entries carry `holdout = true`. Membership is fixed with the threshold at registration,
+so it is chosen before any value is seen; before registration no entry's value is seen
+through the runner, and from registration a hold-out entry is scored at milestone gates
+only.
 
 ## Anti-tuning
 
@@ -144,3 +172,4 @@ never deleted.
 - 2026-09-13: one verdict semantics per entry, the two verdict kinds, no verdict named in prose, where a bar applies, the protocol table in place of the protocol_system field, and a provisional entry blocking no gate, from docs/decisions/0053-one-verdict-semantics-per-registry-row.md.
 - 2026-09-13: the depends_on field, no entry id named in prose, and no clause of a dependency's threshold restated, from docs/decisions/0054-a-row-names-the-rows-it-rests-on.md.
 - 2026-09-13: the instrument table and field, no clause of an instrument's definition restated, and parameters checked against the constants they name, from docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md.
+- 2026-09-13: a bar is fixed before the value it judges is seen; what an unregistered entry executes; registration fixing statistic, verdict_kind, threshold and holdout; a later registration resting on a change of source; the tier-1 testset rule; hold-out membership fixed at registration, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-13).
