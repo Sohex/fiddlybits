@@ -1,0 +1,2 @@
+id = "seaice"
+oracles = ["earth.sea_ice_extent", "earth.sea_ice_extent_cycle"]

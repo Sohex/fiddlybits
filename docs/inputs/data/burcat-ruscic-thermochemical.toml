@@ -11,6 +11,7 @@ licence = "free of charge on condition that the database and its author are quot
 fetched = "2026-09-09"
 local_path = "inputs/data/burcat-ruscic-thermochemical"   # untracked payload
 role = "model INPUT (Sourced), the SECOND source, not the first: nasa-cea-thermo is where a thermochemical quantity comes from. This file is read only for a species CEA does not carry, or for an enthalpy of formation whose Active Thermochemical Tables value here is better than CEA's, and either case is an exception named on the constant. One quantity has one definition; two databases must not become two definitions."
+oracles = ["system.gas_mixture_properties"]
 
 [files]
 "BURCAT.THR" = { bytes = 2315627, sha256 = "42a597ff852d1a2995f81d4fdca069f3cdcaef77ead5e3c66e02e80ed6699101", format = "NASA 7-term polynomials, CHEMKIN fixed-width, four lines a species", species = 3526 }

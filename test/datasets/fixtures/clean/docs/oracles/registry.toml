@@ -1,0 +1,18 @@
+[[oracle]]
+id = "earth.sea_ice_extent"
+tier = 2
+datasets = ["seaice"]
+
+[[oracle]]
+id = "earth.global_means"
+tier = 2
+datasets = []
+
+[[oracle]]
+id = "system.gas_properties"
+tier = 1
+datasets = ["thermo"]
+
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1

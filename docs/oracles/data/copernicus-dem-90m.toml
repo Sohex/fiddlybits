@@ -12,6 +12,7 @@ recipe = "oracles/recipes/copernicus_fetch.sh with oracles/recipes/copernicus_re
 coverage = "regional, not global: the records that cite this DEM use it at declared boxes only, and a global GLO-90 pull (about 26,000 tiles) is deferred; extending coverage is a re-run of the recipe with more boxes, recorded here as a new fetch date"
 vertical_reference = "EGM2008 geoid, per the product handbook"
 tile_shape_note = "one-degree COG tiles, 1200 x 1200 at 3 arc-second"
+oracles = ["earth.hydrolakes_terminal_lakes"]
 anchors = ["REQ-HYD-001", "REQ-TER-016", "M1", "M2"]
 
 [[region]]

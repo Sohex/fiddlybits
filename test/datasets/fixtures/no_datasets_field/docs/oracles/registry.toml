@@ -1,0 +1,7 @@
+[[oracle]]
+id = "earth.sea_ice_extent"
+tier = 2
+
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
