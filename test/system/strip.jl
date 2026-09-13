@@ -35,6 +35,8 @@ import .SystemFixtures as SF
               Systems.gravitational_parameter(Float32, value(s.planet.mass))
         @test st.orbits.companions[1].primary_mass === value(s.stars[1].mass)
         @test st.numerics.exner_reference_pressure === value(s.numerics.exner_reference_pressure)
+        @test st.planet.sub_primary_longitude_at_epoch ===
+              value(s.planet.sub_primary_longitude_at_epoch)
     end
 
     @testset "members are read by name" begin
@@ -50,6 +52,6 @@ import .SystemFixtures as SF
         @test typeof(st.orbits.planet).parameters[2] === Systems.StarBody(1)
         @test typeof(st.orbits.moons[1]).parameters[4] === :planet_equator
         @test typeof(st.planet).parameters[2] === :prograde
-        @test typeof(Systems.strip(SF.synchronous_system()).planet).parameters[2] === :synchronous
+        @test typeof(Systems.strip(SF.synchronous_system()).planet).parameters[2] === :prograde
     end
 end

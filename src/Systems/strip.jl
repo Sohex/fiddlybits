@@ -59,8 +59,8 @@ function province_value(l::StrippedLithosphere{FT,Classes}, member::Symbol,
 end
 
 """
-The planet's constants, its rotation sense named by the type parameter `Sense`
-(`:prograde`, `:retrograde` or `:synchronous`).
+The planet's constants, its `Derived` rotation sense (decision 0004) named by the
+type parameter `Sense` (`:prograde`, `:retrograde` or `Verdicts.NotEvaluable()`).
 """
 struct StrippedPlanet{FT,Sense,Classes,K}
     mass::FT
@@ -68,6 +68,7 @@ struct StrippedPlanet{FT,Sense,Classes,K}
     volumetric_mean_radius::FT
     sidereal_rotation_period::FT
     obliquity::FT
+    sub_primary_longitude_at_epoch::FT
     equator_pole_gravity_difference::FT
     lithosphere::StrippedLithosphere{FT,Classes,K}
 end
@@ -158,10 +159,11 @@ function strip_planet(p::Planet{FT,B,R,F,K}) where {FT,B,R,F,K}
         value(l.mantle_thermal_expansivity), value(l.mantle_density),
         value(l.radiogenic_heat_production), map(value, l.crustal_density),
         map(value, l.crustal_thickness))
-    return StrippedPlanet{FT,rotation_sense(p.rotation),l.province_classes,K}(
+    return StrippedPlanet{FT,rotation_sense(p),l.province_classes,K}(
         value(p.mass), gravitational_parameter(FT, value(p.mass)),
         value(p.volumetric_mean_radius), value(rotation_period(p.rotation)),
-        value(p.obliquity), value(p.figure.equator_pole_gravity_difference), lithosphere)
+        value(p.obliquity), value(p.sub_primary_longitude_at_epoch),
+        value(p.figure.equator_pole_gravity_difference), lithosphere)
 end
 
 function strip_orbit(s::System{FT}, o::Orbit) where {FT}

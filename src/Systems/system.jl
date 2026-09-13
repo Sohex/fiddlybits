@@ -151,8 +151,9 @@ end
 
 The planet as `System` holds it: a `SiderealRotation` as declared, refusing a
 supplied `sidereal_rotation_period` as a second declaration; or a
-`SynchronousRotation` resolved to a `SynchronousPeriod`, the orbital period of the
-planet's orbit, checked against a supplied `sidereal_rotation_period`.
+`SynchronousRotation` resolved to a `SynchronousPeriod`, refused unless the
+`Derived` sense of decision 0004 is prograde, the orbital period of the planet's
+orbit checked against a supplied `sidereal_rotation_period`.
 """
 function resolve_rotation(p::Planet{FT,B,<:SiderealRotation}, stars, moons, orbit,
                           supplied::NamedTuple, site::AbstractString) where {FT,B}
@@ -164,6 +165,10 @@ end
 
 function resolve_rotation(p::Planet{FT,B,SynchronousRotation}, stars, moons, orbit,
                           supplied::NamedTuple, site::AbstractString) where {FT,B}
+    rotation_sense(p) === :prograde || refuse(
+        "rotation", site,
+        "a synchronous rotation is refused: its Derived sense from the obliquity is " *
+        "not prograde (decision 0004)")
     masses = orbit_masses(stars, p, moons, orbit)
     period = orbital_period(FT, value(orbit.semi_major_axis), masses)
     haskey(supplied, :sidereal_rotation_period) && check_supplied(

@@ -2,9 +2,10 @@
 # docs/plans/fiddlybits-52v.4-system.md, section "The struct"; decision 0004, the
 # planet's bulk and the lithosphere block.
 
-using ..Verdicts: refuse
+using ..Verdicts: refuse, NotEvaluable
 using ..Dimensions: Dim, MASS, LENGTH, TIME, TEMPERATURE, DIMENSIONLESS
-using ..Dispositions: Disposition, Derived, Bracketed, value
+using ..Dispositions: Disposition, Sourced, Derived, Bracketed, Irreducible, value
+using ..Reductions: error_bound
 
 """
     InteriorModel
@@ -74,30 +75,25 @@ function CompositionBulk(; kwargs...)
 end
 
 """
-    SiderealRotation(; period, sense)
+    SiderealRotation(; period)
 
-A planet's rotation declared by its sidereal rotation period, above zero, and its
-`sense`, `:prograde` or `:retrograde`, relative to the normal of the planet's orbit.
+A planet's rotation declared by its sidereal rotation period, above zero. The sense
+of rotation relative to the planet's orbit normal is `Derived` from the obliquity by
+`rotation_sense` and is never a keyword here (decision 0004).
 """
 struct SiderealRotation{FT}
     period::Disposition{FT,typeof(TIME)}
-    sense::Symbol
 
-    SiderealRotation{FT}(::Checked, p, s) where {FT} = new{FT}(p, s)
+    SiderealRotation{FT}(::Checked, p) where {FT} = new{FT}(p)
 end
-
-"The senses a sidereal rotation is declared with."
-const ROTATION_SENSES = (:prograde, :retrograde)
 
 function SiderealRotation(; kwargs...)
     site = "Systems.SiderealRotation"
-    k, _ = read_keywords(site, values(kwargs), (:period, :sense), ())
+    k, _ = read_keywords(site, values(kwargs), (:period,), ())
     FT = float_type("period", site, k.period)
     period = require_positive("period", site,
         require_disposition("period", site, k.period, FT, TIME, DECLARED))
-    k.sense in ROTATION_SENSES || refuse(
-        "sense", site, "$(k.sense) is not one of $(join(ROTATION_SENSES, ", "))")
-    return SiderealRotation{FT}(Checked(), period, k.sense)
+    return SiderealRotation{FT}(Checked(), period)
 end
 
 """
@@ -128,10 +124,6 @@ end
 "The sidereal rotation period of a declared or resolved rotation."
 rotation_period(r::SiderealRotation) = r.period
 rotation_period(r::SynchronousPeriod) = r.period
-
-"The sense of a rotation relative to the planet's orbit normal."
-rotation_sense(r::SiderealRotation) = r.sense
-rotation_sense(::SynchronousPeriod) = :synchronous
 
 "The dimension of a thermal diffusivity: length^2 time^-1."
 const DIFFUSIVITY = Dim{0,2,-1,0,0}()
@@ -197,27 +189,36 @@ function Lithosphere(; kwargs...)
 end
 
 "The keywords of `Planet`."
-const PLANET_KEYWORDS = (:mass, :bulk, :rotation, :obliquity, :figure, :lithosphere)
+const PLANET_KEYWORDS = (:mass, :bulk, :rotation, :obliquity,
+                         :sub_primary_longitude_at_epoch, :figure, :lithosphere)
 
 "The Derived values `Planet` checks when a caller supplies them."
 const PLANET_CHECKED = (:volumetric_mean_radius,)
+
+"The dispositions `sub_primary_longitude_at_epoch` is declared with (decision 0004)."
+const SUB_PRIMARY_LONGITUDE_DISPOSITIONS = (Sourced, Irreducible)
 
 """
     Planet
 
 The planet of a system. Build it with the keyword constructor, which has no defaults:
 
-    Planet(; mass, bulk, rotation, obliquity, figure, lithosphere)
+    Planet(; mass, bulk, rotation, obliquity, sub_primary_longitude_at_epoch, figure,
+             lithosphere)
 
 `mass` is above zero. `bulk` is a `DeclaredBulk` or a `CompositionBulk`, whose model
 gives the volumetric mean radius as `Derived` inside its domain; a caller may pass
 `volumetric_mean_radius` beside a composition bulk to have it checked, and is refused
 a second declaration beside a declared one. `rotation` is a `SiderealRotation` or a
-`SynchronousRotation`. `obliquity` is an angle in `[0, pi]` measured from the
-planet's orbit normal (decision 0004); how the obliquity and the sense place the
-rotation pole is fiddlybits-52v.5.7's, and this constructor refuses only an angle
-outside that range. `figure` is an
-`AbsentFigure` or a `HydrostaticFigure`; `lithosphere` is a `Lithosphere`.
+`SynchronousRotation`. `obliquity` is an angle in `[0, pi]` from the planet's orbit
+normal to the positive pole of rotation of decision 0005 (decision 0004); the sense
+of rotation relative to the orbit normal is `Derived` from it by `rotation_sense` and
+is never a keyword. `sub_primary_longitude_at_epoch` is the body-fixed longitude in
+`(-pi, pi]` of the direction from the planet toward `orbits.planet.primary` at
+`t = 0` (decision 0004), `Sourced` or `Irreducible`. How the two angles place the
+rotation pole and the prime meridian is fiddlybits-52v.5.7's; this constructor
+refuses only a value outside its own range. `figure` is an `AbsentFigure` or a
+`HydrostaticFigure`; `lithosphere` is a `Lithosphere`.
 """
 struct Planet{FT,B,R,F,K}
     mass::Disposition{FT,typeof(MASS)}
@@ -225,6 +226,7 @@ struct Planet{FT,B,R,F,K}
     volumetric_mean_radius::Disposition{FT,typeof(LENGTH)}
     rotation::R
     obliquity::Disposition{FT,typeof(DIMENSIONLESS)}
+    sub_primary_longitude_at_epoch::Disposition{FT,typeof(DIMENSIONLESS)}
     figure::F
     lithosphere::Lithosphere{FT,K}
 
@@ -233,6 +235,22 @@ end
 
 "The field names of `Planet`."
 const PLANET_FIELDS = fieldnames(Planet)
+
+"""
+    rotation_sense(planet)
+
+`:prograde` where `cos(planet.obliquity)` exceeds
+`Reductions.error_bound(FT, DECLINATION_TERMS, one(FT))`, `:retrograde` where
+`-cos(planet.obliquity)` does, and `Verdicts.NotEvaluable()` between (decisions 0004
+and 0008); the threshold is the one `require_epoch`'s vernal equinox arm reads.
+"""
+function rotation_sense(p::Planet{FT}) where {FT}
+    c = cos(value(p.obliquity))
+    threshold = error_bound(FT, DECLINATION_TERMS, one(FT))
+    c > threshold && return :prograde
+    -c > threshold && return :retrograde
+    return NotEvaluable()
+end
 
 """
     resolve_radius(bulk, mass, supplied, site)
@@ -291,13 +309,20 @@ function Planet(; kwargs...)
     obliquity = require_interval("obliquity", site,
         require_disposition("obliquity", site, k.obliquity, FT, DIMENSIONLESS, DECLARED),
         zero(FT), true, FT(pi), true)
+    sub_primary_longitude_at_epoch = require_interval(
+        "sub_primary_longitude_at_epoch", site,
+        require_disposition("sub_primary_longitude_at_epoch", site,
+                            k.sub_primary_longitude_at_epoch, FT, DIMENSIONLESS,
+                            SUB_PRIMARY_LONGITUDE_DISPOSITIONS),
+        -FT(pi), false, FT(pi), true)
     figure = k.figure
     figure isa AbsentFigure{FT} || refuse(
         "figure", site, "a $(typeof(figure)) where an AbsentFigure{$(FT)} is required")
     lithosphere = require_type("lithosphere", site, k.lithosphere, Lithosphere{FT})
     return Planet{FT,typeof(k.bulk),typeof(rotation),typeof(figure),
                   length(lithosphere.province_classes)}(
-        Checked(), mass, k.bulk, radius, rotation, obliquity, figure, lithosphere)
+        Checked(), mass, k.bulk, radius, rotation, obliquity,
+        sub_primary_longitude_at_epoch, figure, lithosphere)
 end
 
 """
@@ -309,5 +334,5 @@ synchronous rotation as its `SynchronousPeriod`.
 function with_rotation(p::Planet{FT,B,R,F,K}, rotation) where {FT,B,R,F,K}
     return Planet{FT,B,typeof(rotation),F,K}(
         Checked(), p.mass, p.bulk, p.volumetric_mean_radius, rotation, p.obliquity,
-        p.figure, p.lithosphere)
+        p.sub_primary_longitude_at_epoch, p.figure, p.lithosphere)
 end

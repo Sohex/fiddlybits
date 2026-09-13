@@ -17,7 +17,7 @@ import .SystemFixtures as SF
             push!(out, SF.system(T).planet)
             push!(out, SF.synchronous_system(T).planet)
             push!(out, SF.system(T; planet = SF.planet(T; rotation = Systems.SiderealRotation(
-                period = SF.wide(T(2e4), time), sense = :retrograde))).planet)
+                period = SF.wide(T(2e4), time)))).planet)
         end
         return out
     end
@@ -36,7 +36,7 @@ import .SystemFixtures as SF
     @testset "g reduces to the point-mass form at zero rotation" begin
         for T in (Float64, Float32)
             still = SF.system(T; planet = SF.planet(T; rotation = Systems.SiderealRotation(
-                period = SF.irreducible(T(Inf), time), sense = :prograde))).planet
+                period = SF.irreducible(T(Inf), time)))).planet
             r = value(still.volumetric_mean_radius)
             point_mass = setprecision(BigFloat, 256) do
                 value(Systems.gravitational_constant(BigFloat)) * big(value(still.mass)) / big(r)^2
