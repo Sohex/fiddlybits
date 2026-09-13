@@ -101,6 +101,27 @@ const INSTANTS = (0.0, 0.5, 1.0, -1.5, 3600.25, 1.2345e9, -1.2345e9, 8.64e12 + 0
         @test_throws Verdicts.Refusal Time.decode(1, 1.0)
         @test_throws Verdicts.Refusal Time.decode(1, -0.25)
         @test_throws Verdicts.Refusal Time.decode(1, NaN)
-        @test_throws Verdicts.Refusal Time.decode(typemin(Int64), 0.0)
+    end
+
+    @testset "decode refuses whole seconds outside the declared range" begin
+        refusal_min = try
+            Time.decode(typemin(Int64), 0.0)
+        catch e
+            e
+        end
+        @test refusal_min isa Verdicts.Refusal
+        @test refusal_min.site == "Time.decode"
+        @test occursin(string(typemin(Int64)), refusal_min.reason)
+        @test occursin(string(Time.WHOLE_SECONDS_LIMIT), refusal_min.reason)
+
+        @test_throws Verdicts.Refusal Time.decode(Time.WHOLE_SECONDS_LIMIT, 0.0)
+        @test_throws Verdicts.Refusal Time.decode(-Time.WHOLE_SECONDS_LIMIT, 0.0)
+
+        back_pos = Time.decode(Time.WHOLE_SECONDS_LIMIT - 1, 0.0)
+        @test back_pos isa Time.SimTime
+        back_neg = Time.decode(-(Time.WHOLE_SECONDS_LIMIT - 1), 0.0)
+        @test back_neg isa Time.SimTime
+
+        @test_throws Verdicts.Refusal Time.decode(typemax(UInt64), 0.0)
     end
 end
