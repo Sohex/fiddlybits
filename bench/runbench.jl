@@ -11,8 +11,9 @@
 # cases on this bed: fiddlybits-zgh, fiddlybits-2tg, fiddlybits-3jt, fiddlybits-ool,
 # fiddlybits-9j7, fiddlybits-dn6.
 #
-# Every run records what else held the card while it ran, before the first case and
-# after the last. What that reading licenses is
+# Every run records what else held the card while it ran, once before the first case
+# and once more between every case and the next, so a neighbour that only touches the
+# card between two cases is not invisible. What that reading licenses is
 # notes/findings/2026-09-12-reduction-bench-occupancy.md.
 
 const LOAD_SECONDS = @elapsed using Fiddlybits
@@ -283,6 +284,16 @@ end
 
 sole_holder(o::Occupancy) = o.shards_in_use == 1
 
+"""
+    sole_holder_throughout(readings)
+
+`true` when every `Occupancy` in `readings` is a sole-holder reading, `false` when
+any one of them saw more than one share. `readings` carries one entry taken before
+the first case and one more taken after every case, so a neighbour that arrives and
+leaves between two cases still lands inside a reading.
+"""
+sole_holder_throughout(readings) = all(sole_holder, readings)
+
 "The scheduler's allocated and total share counts, from `qrun free`."
 function shard_counts()
     try
@@ -350,13 +361,15 @@ function main()
 
     backend = Backends.GPU(WORKGROUP)
     startup = process_age()
-    before = occupancy()
+    readings = Occupancy[occupancy()]
 
     measured = Dict{String, Float64}()
     rows = Dict{String, Any}[]
     spent = 0.0
     for case in CASES
         samples = measure(case, backend)
+        occ = occupancy()
+        push!(readings, occ)
         spent += sum(samples) * case.calls
         measured[case.id] = minimum(samples)
         push!(rows, Dict{String, Any}(
@@ -368,18 +381,16 @@ function main()
             "median_us" => median(samples) * 1.0e6,
             "max_us" => maximum(samples) * 1.0e6,
             "verdict" => name(verdict(case.bar, minimum(samples))),
+            "occupancy" => table(occ),
         ))
     end
-
-    after = occupancy()
 
     TOML.print(stdout, Dict("bed" => Dict{String, Any}(
         "host" => host(),
         "card" => card(),
         "load" => load1(),
-        "occupancy_before" => table(before),
-        "occupancy_after" => table(after),
-        "sole_holder_throughout" => sole_holder(before) && sole_holder(after),
+        "occupancy_before" => table(first(readings)),
+        "sole_holder_throughout" => sole_holder_throughout(readings),
         "julia" => string(VERSION),
         "startup_s" => startup,
         "load_s" => LOAD_SECONDS,
