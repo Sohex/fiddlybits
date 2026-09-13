@@ -64,17 +64,21 @@ function lithosphere(T = Float64; kw...)
     return S.Lithosphere(; merge(base, values(kw))...)
 end
 
+"The keywords of a planet with a declared bulk and a sidereal rotation, over `T`;
+`kw` replaces any of them."
+planet_keywords(T = Float64; kw...) = merge(
+    (mass = wide(T(8e24), MASS),
+     bulk = S.DeclaredBulk(volumetric_mean_radius = wide(T(7e6), LENGTH)),
+     rotation = S.SiderealRotation(period = wide(T(1e5), TIME)),
+     obliquity = bracket(T(0.4), T(0.2), T(0.6), ONE),
+     sub_primary_longitude_at_epoch = irreducible(T(0.3), ONE),
+     figure = S.AbsentFigure(equator_pole_gravity_difference =
+                                 bracket(T(0.02), T(0), T(0.1), S.ACCELERATION)),
+     lithosphere = lithosphere(T)),
+    values(kw))
+
 "A planet with a declared bulk and a sidereal rotation; `kw` replaces any keyword."
-function planet(T = Float64; kw...)
-    base = (mass = wide(T(8e24), MASS),
-            bulk = S.DeclaredBulk(volumetric_mean_radius = wide(T(7e6), LENGTH)),
-            rotation = S.SiderealRotation(period = wide(T(1e5), TIME), sense = :prograde),
-            obliquity = bracket(T(0.4), T(0.2), T(0.6), ONE),
-            figure = S.AbsentFigure(equator_pole_gravity_difference =
-                                        bracket(T(0.02), T(0), T(0.1), S.ACCELERATION)),
-            lithosphere = lithosphere(T))
-    return S.Planet(; merge(base, values(kw))...)
-end
+planet(T = Float64; kw...) = S.Planet(; planet_keywords(T; kw...)...)
 
 "The elements every orbit shares, over `T`; `kw` replaces any of them."
 elements(T; kw...) = merge((eccentricity = bracket(T(0.1), T(0.05), T(0.2), ONE),

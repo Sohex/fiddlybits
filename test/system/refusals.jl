@@ -115,6 +115,49 @@ import .SystemFixtures as SF
         @test SF.planet_orbit(eccentricity = SF.irreducible(0.0, one_)) isa Systems.Orbit
     end
 
+    @testset "a sense keyword on a rotation" begin
+        @test SF.refused(SF.caught(() -> Systems.SiderealRotation(
+                             period = SF.wide(1e5, Dimensions.TIME), sense = :prograde)),
+                         "sense", "not a keyword")
+    end
+
+    @testset "an obliquity outside [0, pi]" begin
+        one_ = Dimensions.DIMENSIONLESS
+        @test SF.refused(SF.caught(() -> SF.planet(obliquity = SF.irreducible(-0.1, one_))),
+                         "obliquity", "lies outside")
+        @test SF.refused(SF.caught(() -> SF.planet(obliquity = SF.irreducible(3.2, one_))),
+                         "obliquity", "lies outside")
+        @test SF.planet(obliquity = SF.irreducible(0.0, one_)) isa Systems.Planet
+        @test SF.planet(obliquity = SF.irreducible(Float64(pi), one_)) isa Systems.Planet
+    end
+
+    @testset "a sub-primary longitude at the epoch omitted, and outside (-pi, pi]" begin
+        one_ = Dimensions.DIMENSIONLESS
+        without = Base.structdiff(SF.planet_keywords(),
+                                  NamedTuple{(:sub_primary_longitude_at_epoch,)})
+        @test SF.refused(SF.caught(() -> Systems.Planet(; without...)),
+                         "sub_primary_longitude_at_epoch", "missing")
+        @test SF.refused(SF.caught(() -> SF.planet(
+                             sub_primary_longitude_at_epoch = SF.irreducible(3.5, one_))),
+                         "sub_primary_longitude_at_epoch", "lies outside")
+        @test SF.refused(SF.caught(() -> SF.planet(
+                             sub_primary_longitude_at_epoch = SF.irreducible(-pi, one_))),
+                         "sub_primary_longitude_at_epoch", "lies outside")
+        @test SF.planet(sub_primary_longitude_at_epoch = SF.irreducible(Float64(pi), one_)) isa
+              Systems.Planet
+    end
+
+    @testset "a synchronous rotation whose Derived sense is not prograde" begin
+        one_ = Dimensions.DIMENSIONLESS
+        retrograde = SF.planet(rotation = Systems.SynchronousRotation(),
+                               obliquity = SF.irreducible(3 * pi / 4, one_))
+        in_plane = SF.planet(rotation = Systems.SynchronousRotation(),
+                             obliquity = SF.irreducible(Float64(pi) / 2, one_))
+        @test SF.refused(SF.caught(() -> SF.system(planet = retrograde)), "rotation", "prograde")
+        @test SF.refused(SF.caught(() -> SF.system(planet = in_plane)), "rotation", "prograde")
+        @test SF.synchronous_system() isa Systems.System
+    end
+
     @testset "the equinox kind at zero obliquity" begin
         one_ = Dimensions.DIMENSIONLESS
         @test SF.refused(SF.caught(() -> SF.flux_system(planet = SF.planet(obliquity = SF.irreducible(0.0, one_)))),

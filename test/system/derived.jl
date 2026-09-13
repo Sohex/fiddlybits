@@ -1,5 +1,5 @@
 using Test
-using Fiddlybits: Systems, Dispositions, Dimensions, Reductions
+using Fiddlybits: Systems, Dispositions, Dimensions, Reductions, Verdicts
 import .SystemFixtures as SF
 
 # The Derived fields of System: enumerated from the struct, recomputed by rederive,
@@ -48,6 +48,16 @@ import .SystemFixtures as SF
             @test abs(big(a) - SF.flux_axis_256(T(l), T(f))) <=
                   Reductions.error_bound(T, Systems.FLUX_SEMI_MAJOR_AXIS_TERMS, a)
         end
+    end
+
+    @testset "rotation_sense is Derived from the obliquity" begin
+        one_ = Dimensions.DIMENSIONLESS
+        prograde = SF.planet(obliquity = SF.irreducible(0.1, one_))
+        retrograde = SF.planet(obliquity = SF.irreducible(pi - 0.1, one_))
+        in_plane = SF.planet(obliquity = SF.irreducible(Float64(pi) / 2, one_))
+        @test Systems.rotation_sense(prograde) === :prograde
+        @test Systems.rotation_sense(retrograde) === :retrograde
+        @test Systems.rotation_sense(in_plane) === Verdicts.NotEvaluable()
     end
 
     @testset "a supplied Derived value is checked against the computed one" begin
