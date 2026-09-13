@@ -20,10 +20,10 @@ const BLOCKSIZE = 256
     hi = min(i * blocksize, n)
     T = eltype(partials)
     acc = zero(T)
-    for j in lo:hi
+    @inbounds for j in lo:hi
         acc += T(xs[j])
     end
-    partials[i] = acc
+    @inbounds partials[i] = acc
 end
 
 """
@@ -39,50 +39,118 @@ block_width(::Val{B}) where {B} = B
     lane = @index(Local, Linear)
     element = @index(Global, Linear)
     shared = @localmem eltype(xs) (block_width(width),)
-    shared[lane] = xs[element]
+    @inbounds shared[lane] = xs[element]
     @synchronize
     if lane == 1
         T = eltype(partials)
         acc = zero(T)
-        for j in 1:(block == nb ? lastcount : block_width(width))
+        @inbounds for j in 1:(block == nb ? lastcount : block_width(width))
             acc += T(shared[j])
         end
-        partials[block] = acc
+        @inbounds partials[block] = acc
     end
 end
 
 """
-    launch_block_sums!(cpu_kernel, shared_kernel, backend, partials, n, blocksize, inputs...)
+    launch_block_sums!(cpu_kernel, shared_kernel, backend, partials, n, blocksize, columns, inputs)
 
-Queues the block sums of `n` elements into `partials`, whose first
-dimension has length `cld(n, blocksize)` (one row per block; a second
-dimension carries more than one accumulator per block, as
-`area_fraction_block_sums` does), on `backend`. On `CPU`, `cpu_kernel` over
-one work item per block, each reading its block of `inputs` from
-`(i-1)*blocksize+1` itself. On `GPU`, `shared_kernel` over `n` work items at
-a workgroup of `blocksize` (`at_workgroup`), one workgroup per block: every
+Queues the block sums of `n` elements into `partials` on `backend`, with the
+values of the named tuple `inputs` as the kernel's arguments after
+`partials`, in order. `partials` holds one row per block and `columns`
+accumulators per row, as `area_fraction_block_sums` carries two.
+
+Before the launch, on the host, refuses through `Verdicts.refuse`, naming
+the array and both lengths, unless `blocksize` is positive, `partials` is
+`cld(n, blocksize)` rows by `columns` columns, and every array among
+`inputs` holds `n` elements: the lengths every index either kernel reads or
+writes is derived from.
+
+On `CPU`, `cpu_kernel` over one work item per block, each reading its block
+of `inputs` from `(i-1)*blocksize+1` itself. On `GPU`, when `n` is at most
+`device_form_limit(shared_kernel)`, `shared_kernel` over `n` work items at a
+workgroup of `blocksize` (`at_workgroup`), one workgroup per block: every
 lane copies its own element of `inputs` into the workgroup's shared memory,
-and after the barrier lane 1 accumulates that shared copy in index order.
+and after the barrier lane 1 accumulates that shared copy in index order;
+above that limit, `cpu_kernel` as on `CPU`, at `backend`'s own workgroup.
 The GPU kernel is a device form under
 docs/decisions/0051-a-kernel-may-carry-a-device-form-beside-its-portable-one.md;
 notes/findings/2026-09-13-block-sums-in-shared-memory.md measures the two on
-the card. On `GPU` the workgroup is `blocksize`, so a
+the card with bounds checks, and
+notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
+measures them with the reads under `@inbounds` and is where each limit is
+read from. On `GPU` below the limit the workgroup is `blocksize`, so a
 `blocksize` above the device's threads per block raises at the launch.
 """
-function launch_block_sums!(cpu_kernel, shared_kernel, backend::CPU, partials, n::Integer,
-                             blocksize::Integer, inputs...)
-    launch!(cpu_kernel, backend, size(partials, 1), partials, inputs..., Int(blocksize), Int(n))
+function launch_block_sums!(cpu_kernel, shared_kernel, backend::Backend, partials::AbstractArray,
+                             n::Integer, blocksize::Integer, columns::Integer, inputs::NamedTuple)
+    site = "Reductions.launch_block_sums!"
+    blocksize > 0 ||
+        refuse("pairwise blocksize", site, "blocksize $blocksize is not positive")
+    nb = cld(n, blocksize)
+    size(partials, 1) == nb ||
+        refuse("block sums extent", site,
+               "partials has $(size(partials, 1)) rows, $n elements in blocks of " *
+               "$blocksize have $nb")
+    (ndims(partials) <= 2 && size(partials, 2) == columns) ||
+        refuse("block sums extent", site,
+               "partials has size $(size(partials)), the kernel writes $columns " *
+               "column(s) per block")
+    for (name, input) in pairs(inputs)
+        input isa AbstractArray || continue
+        length(input) == n ||
+            refuse("block sums extent", site,
+                   "$name has length $(length(input)), the block sums read $n elements")
+    end
+    queue_block_sums!(cpu_kernel, shared_kernel, backend, partials, Int(n), Int(blocksize),
+                      values(inputs)...)
     return partials
 end
 
-function launch_block_sums!(cpu_kernel, shared_kernel, backend::GPU, partials, n::Integer,
-                             blocksize::Integer, inputs...)
+"""
+    queue_block_sums!(cpu_kernel, shared_kernel, backend, partials, n, blocksize, inputs...)
+
+The launch `launch_block_sums!` makes once its checks hold, by backend type.
+"""
+function queue_block_sums!(cpu_kernel, shared_kernel, backend::CPU, partials, n::Int,
+                            blocksize::Int, inputs...)
+    launch!(cpu_kernel, backend, size(partials, 1), partials, inputs..., blocksize, n)
+    return nothing
+end
+
+function queue_block_sums!(cpu_kernel, shared_kernel, backend::GPU, partials, n::Int,
+                            blocksize::Int, inputs...)
     nb = size(partials, 1)
+    if n > device_form_limit(shared_kernel)
+        launch!(cpu_kernel, backend, nb, partials, inputs..., blocksize, n)
+        return nothing
+    end
     lastcount = mod1(n, blocksize)
     launch!(shared_kernel, at_workgroup(backend, blocksize), n,
-            partials, inputs..., Val(Int(blocksize)), Int(nb), Int(lastcount))
-    return partials
+            partials, inputs..., Val(blocksize), nb, lastcount)
+    return nothing
 end
+
+"""
+    PAIRWISE_DEVICE_FORM_MAX
+
+The largest element count `launch_block_sums!` launches
+`pairwise_block_shared_kernel!` over on `GPU`; above it the portable
+`pairwise_block_kernel!` runs there instead. The largest count at which
+notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
+measured the device form faster than the portable text on the card, at
+`BLOCKSIZE` and the bench's workgroup.
+"""
+const PAIRWISE_DEVICE_FORM_MAX = 245760
+
+"""
+    device_form_limit(shared_kernel)
+
+The largest element count `launch_block_sums!` launches `shared_kernel`, a
+block-sum device form, over on `GPU`. One method per device form, each
+naming the finding its limit is read from; a device form without one raises
+a `MethodError` at its first launch on `GPU`.
+"""
+device_form_limit(::typeof(pairwise_block_shared_kernel!)) = PAIRWISE_DEVICE_FORM_MAX
 
 """
     pairwise_block_sums(::Type{A}, xs, backend; blocksize = BLOCKSIZE) where A
@@ -104,7 +172,7 @@ function pairwise_block_sums(::Type{A}, xs::AbstractVector, backend::Backend;
     partials = similar(xs, A, nb)
     nb == 0 && return partials
     return launch_block_sums!(pairwise_block_kernel!, pairwise_block_shared_kernel!, backend,
-                              partials, n, blocksize, xs)
+                              partials, n, blocksize, 1, (xs = xs,))
 end
 
 """

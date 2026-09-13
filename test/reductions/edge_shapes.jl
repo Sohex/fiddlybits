@@ -1,0 +1,385 @@
+using Test
+using CUDA
+using Fiddlybits: Reductions, Backends, Verdicts
+
+# Decision 0055: every kernel in src/Reductions/ reads and writes under @inbounds. Each is
+# run here over the edge shapes on Backends.CPU and on Backends.GPU against its reference
+# path (decision 0027), and each door that launches one refuses an argument one element
+# short, naming the array and both lengths.
+
+"The raw bytes of `v`, read on the host."
+edge_bytes(v::AbstractArray) = collect(reinterpret(UInt8, vec(collect(Backends.on(v, Backends.CPU(1))))))
+edge_bytes(x::Number) = collect(reinterpret(UInt8, [x]))
+
+"`n` elements of type `T` from the suite's fixed formulas."
+edge_elements(::Type{Bool}, n::Integer) = Bool[isodd(i ÷ 3) for i in 1:n]
+edge_elements(::Type{T}, n::Integer) where {T<:Real} = ReductionFixtures.seeded_vector(T, n)
+
+"`n` positive areas or weights of type `T` from the suite's fixed formula."
+edge_areas(::Type{T}, n::Integer) where {T<:Real} =
+    T.(abs.(ReductionFixtures.seeded_vector(Float64, n)) .+ 0.1)
+
+"The block sums of `terms` in blocks of `blocksize`, each `pairwise_sum_reference` in `A`."
+block_reference(::Type{A}, terms::AbstractVector, blocksize::Integer) where {A} =
+    A[Reductions.pairwise_sum_reference(A, terms[(i - 1) * blocksize + 1:min(i * blocksize, length(terms))])
+      for i in 1:cld(length(terms), blocksize)]
+
+"`areas` where `xs` is at or above `x`, zero elsewhere."
+selected(xs, areas, x) = ifelse.(xs .>= x, areas, zero(eltype(areas)))
+
+"The refusal `f` raises, or `nothing` when it returns."
+function refusal_of(f)
+    try
+        f()
+    catch e
+        e isa Verdicts.Refusal && return e
+        rethrow()
+    end
+    return nothing
+end
+
+const EDGE_BACKENDS = (("CPU", Backends.CPU(8)), ("GPU", Backends.GPU(8)))
+const EDGE_B = Reductions.BLOCKSIZE
+const EDGE_SECOND_B = 17
+
+# (name, element count, blocksize, whether every type runs it)
+const BLOCK_SHAPES = [
+    ("a single element", 1, EDGE_B, true),
+    ("fewer elements than one block", EDGE_B - 3, EDGE_B, true),
+    ("a partial last block", 4 * EDGE_B + 37, EDGE_B, true),
+    ("every block full", 4 * EDGE_B, EDGE_B, true),
+    ("a second block length with a partial last block", 5 * EDGE_SECOND_B + 3, EDGE_SECOND_B, false),
+    ("a second block length with every block full", 5 * EDGE_SECOND_B, EDGE_SECOND_B, false),
+]
+
+# (element type, accumulator type); the first is the one every shape runs.
+const PAIRWISE_TYPES = [(Float64, Float64), (Float32, Float64), (Float64, Float32),
+                        (Float32, Float32), (Bool, Int)]
+
+# (element type, area type, accumulator type); the first is the one every shape runs.
+const AREA_TYPES = [(TX, TW, A) for A in (Float64, Float32) for TX in (Float64, Float32)
+                    for TW in (Float64, Float32)]
+
+# (name, boundary array, whether a mean is defined over it)
+const SEGMENT_SHAPES = [
+    ("a single element", [1, 2], true),
+    ("an empty segment beside one-element segments", [1, 1, 2, 3, 3, 4], false),
+    ("a partial last segment", [1, 17, 33, 49, 65, 70], true),
+    ("every segment full", collect(1:16:81), true),
+    ("a second segment length", collect(1:64:193), true),
+    ("uneven segments", ReductionFixtures.segment_starts(ReductionFixtures.N, ReductionFixtures.NSEG), true),
+]
+
+const SUM_TYPES = [(T, A) for A in (Float64, Float32) for T in (Float64, Float32)]
+const WEIGHTED_TYPES = AREA_TYPES
+
+# (name, depth k, segment count)
+const QUANTILE_SHAPES = [
+    ("one segment at the smallest depth", 1, 1),
+    ("several segments at the smallest depth", 1, 7),
+    ("a second segment length", 2, 5),
+    ("depth 3", 3, 2),
+    ("depth 4", 4, 2),
+    ("one segment at the largest depth", 5, 1),
+    ("several segments at the largest depth", 5, 3),
+]
+
+@testset "the eliding reduction kernels over their edge shapes, on both backends (decision 0055)" begin
+    @test CUDA.functional()
+
+    for (bname, backend) in EDGE_BACKENDS
+        @testset "$bname" begin
+            @testset "pairwise_block_sums and pairwise_sum: $shape, $T into $A" for
+                    (shape, n, bs, every_type) in BLOCK_SHAPES, (T, A) in PAIRWISE_TYPES
+                (every_type || (T, A) == first(PAIRWISE_TYPES)) || continue
+                xs = edge_elements(T, n)
+                reference = block_reference(A, xs, bs)
+                xs_b = Backends.on(xs, backend)
+                partials = Reductions.pairwise_block_sums(A, xs_b, backend; blocksize = bs)
+                @test eltype(partials) === A
+                @test edge_bytes(partials) == edge_bytes(reference)
+                @test edge_bytes(Reductions.pairwise_sum(A, xs_b, backend; blocksize = bs)) ==
+                      edge_bytes(Reductions.combine_tree(reference))
+            end
+
+            @testset "area_weighted_block_sums and area_weighted_sum: $shape, $TX and $TW into $A" for
+                    (shape, n, bs, every_type) in BLOCK_SHAPES, (TX, TW, A) in AREA_TYPES
+                (every_type || (TX, TW, A) == first(AREA_TYPES)) || continue
+                xs, areas, x = edge_elements(TX, n), edge_areas(TW, n), 0.0
+                reference = block_reference(A, selected(xs, areas, x), bs)
+                xs_b, areas_b = Backends.on(xs, backend), Backends.on(areas, backend)
+                partials = Reductions.area_weighted_block_sums(A, xs_b, areas_b, x, backend; blocksize = bs)
+                @test edge_bytes(partials) == edge_bytes(reference)
+                @test edge_bytes(Reductions.area_weighted_sum(A, xs_b, areas_b, x, backend; blocksize = bs)) ==
+                      edge_bytes(Reductions.combine_tree(reference))
+            end
+
+            @testset "area_fraction_block_sums and area_fraction_above: $shape, $TX and $TW into $A" for
+                    (shape, n, bs, every_type) in BLOCK_SHAPES, (TX, TW, A) in AREA_TYPES
+                (every_type || (TX, TW, A) == first(AREA_TYPES)) || continue
+                xs, areas, x = edge_elements(TX, n), edge_areas(TW, n), 0.0
+                total = block_reference(A, areas, bs)
+                above = block_reference(A, selected(xs, areas, x), bs)
+                xs_b, areas_b = Backends.on(xs, backend), Backends.on(areas, backend)
+                partials = Reductions.area_fraction_block_sums(A, xs_b, areas_b, x, backend; blocksize = bs)
+                @test size(partials) == (cld(n, bs), 2)
+                @test edge_bytes(partials) == edge_bytes(hcat(total, above))
+                if bs == EDGE_B && A === Float64
+                    fraction = Reductions.area_fraction_above(xs_b, areas_b, x, backend)
+                    @test edge_bytes(fraction) ==
+                          edge_bytes(Reductions.combine_tree(above) / Reductions.combine_tree(total))
+                    tol = 2 * Reductions.error_bound(Float64, n, sum(Float64, areas)) / sum(Float64, areas)
+                    @test abs(fraction - Reductions.area_fraction_above_reference(xs, areas, x)) <= tol
+                end
+            end
+
+            @testset "positive control: the first element of a block and the last element each move exactly their own block" begin
+                n = 4 * EDGE_B + 37
+                xs = edge_elements(Float64, n)
+                areas = edge_areas(Float64, n)
+                x = -3.0
+                nb = cld(n, EDGE_B)
+                sums(v, a) = (Backends.on(Reductions.pairwise_block_sums(Float64, Backends.on(v, backend), backend), Backends.CPU(1)),
+                              Backends.on(Reductions.area_weighted_block_sums(Float64, Backends.on(v, backend),
+                                                                              Backends.on(a, backend), x, backend), Backends.CPU(1)),
+                              Backends.on(Reductions.area_fraction_block_sums(Float64, Backends.on(v, backend),
+                                                                              Backends.on(a, backend), x, backend), Backends.CPU(1)))
+                base = sums(xs, areas)
+                for (index, block) in ((EDGE_B + 1, 2), (n, nb))
+                    moved_xs, moved_areas = copy(xs), copy(areas)
+                    moved_xs[index] += 1.0
+                    moved_areas[index] += 1.0
+                    moved = sums(moved_xs, moved_areas)
+                    @test findall(moved[1] .!= base[1]) == [block]
+                    @test findall(sums(xs, moved_areas)[2] .!= base[2]) == [block]
+                    @test findall(vec(any(sums(xs, moved_areas)[3] .!= base[3]; dims = 2))) == [block]
+                end
+            end
+
+            @testset "segmented_sum: $shape, $T into $A" for
+                    (shape, starts, _) in SEGMENT_SHAPES, (T, A) in SUM_TYPES
+                n = last(starts) - 1
+                xs = edge_elements(T, n)
+                xs_b = Backends.on(xs, backend)
+                segmentation = Reductions.Segmentation(xs_b, Backends.on(starts, backend))
+                result = Reductions.segmented_sum(A, xs_b, segmentation, backend)
+                @test eltype(result) === A
+                @test edge_bytes(result) == edge_bytes(Reductions.segmented_sum_reference(A, xs, starts))
+            end
+
+            @testset "segmented_weighted_sum and segmented_mean: $shape, $TX and $TW into $A" for
+                    (shape, starts, has_mean) in SEGMENT_SHAPES, (TX, TW, A) in WEIGHTED_TYPES
+                n = last(starts) - 1
+                xs, weights = edge_elements(TX, n), edge_areas(TW, n)
+                xs_b, weights_b = Backends.on(xs, backend), Backends.on(weights, backend)
+                segmentation = Reductions.Segmentation(xs_b, Backends.on(starts, backend))
+                @test edge_bytes(Reductions.segmented_weighted_sum(A, xs_b, weights_b, segmentation, backend)) ==
+                      edge_bytes(Reductions.segmented_weighted_sum_reference(A, xs, weights, starts))
+                if has_mean
+                    @test edge_bytes(Reductions.segmented_mean(A, xs_b, segmentation, weights_b, backend)) ==
+                          edge_bytes(Reductions.segmented_mean_reference(A, xs, starts, weights))
+                else
+                    @test_throws Verdicts.Refusal Reductions.segmented_mean(A, xs_b, segmentation, weights_b, backend)
+                end
+            end
+
+            @testset "positive control: the first element of a segment and the last element each move exactly their own segment" begin
+                starts = [1, 17, 33, 49, 65, 70]
+                n = last(starts) - 1
+                xs, weights = edge_elements(Float64, n), edge_areas(Float64, n)
+                reduce_all(v, w) = begin
+                    v_b, w_b = Backends.on(v, backend), Backends.on(w, backend)
+                    seg = Reductions.Segmentation(v_b, Backends.on(starts, backend))
+                    [Backends.on(r, Backends.CPU(1)) for r in (Reductions.segmented_sum(Float64, v_b, seg, backend),
+                                                               Reductions.segmented_weighted_sum(Float64, v_b, w_b, seg, backend),
+                                                               Reductions.segmented_mean(Float64, v_b, seg, w_b, backend))]
+                end
+                base = reduce_all(xs, weights)
+                for (index, segment) in ((starts[2], 2), (n, length(starts) - 1))
+                    moved_xs = copy(xs)
+                    moved_xs[index] += 1.0
+                    for (b, m) in zip(base, reduce_all(moved_xs, weights))
+                        @test findall(m .!= b) == [segment]
+                    end
+                end
+            end
+
+            @testset "segmented_quantile: $shape, $T, q=$q" for
+                    (shape, k, nseg) in QUANTILE_SHAPES, T in (Float64, Float32, Int), q in (0.0, 0.5, 1.0)
+                seglen = 4^k
+                n = nseg * seglen
+                xs = T === Int ? Int[mod(i * 7919 + 13, 251) - 125 for i in 1:n] : edge_elements(T, n)
+                starts = collect(1:seglen:(n + 1))
+                xs_b = Backends.on(xs, backend)
+                segmentation = Reductions.Segmentation(xs_b, Backends.on(starts, backend))
+                result = Reductions.segmented_quantile(xs_b, segmentation, q, backend)
+                @test eltype(result) === T
+                @test edge_bytes(result) == edge_bytes(Reductions.segmented_quantile_reference(xs, starts, q))
+            end
+
+            @testset "positive control: the first element of a segment and the last element each move exactly their own segment's maximum" begin
+                k, nseg = 2, 4
+                seglen = 4^k
+                n = nseg * seglen
+                xs = edge_elements(Float64, n)
+                starts = collect(1:seglen:(n + 1))
+                top(v) = Backends.on(Reductions.segmented_quantile(Backends.on(v, backend),
+                                                                    Backends.on(starts, backend), 1.0, backend),
+                                     Backends.CPU(1))
+                base = top(xs)
+                for (index, segment) in ((seglen + 1, 2), (n, nseg))
+                    moved = copy(xs)
+                    moved[index] = 10.0
+                    @test findall(top(moved) .!= base) == [segment]
+                end
+            end
+        end
+    end
+end
+
+@testset "each eliding kernel's door refuses an argument one element short (decision 0055)" begin
+    @test CUDA.functional()
+
+    for (bname, backend) in EDGE_BACKENDS
+        @testset "$bname" begin
+            on_b(v) = Backends.on(v, backend)
+
+            @testset "Reductions.launch_block_sums!" begin
+                n = 2 * EDGE_B + 5
+                nb = cld(n, EDGE_B)
+                xs, areas, x = on_b(edge_elements(Float64, n)), on_b(edge_areas(Float64, n)), 0.0
+                pairwise(partials, inputs) =
+                    () -> Reductions.launch_block_sums!(Reductions.pairwise_block_kernel!,
+                                                        Reductions.pairwise_block_shared_kernel!, backend,
+                                                        partials, n, EDGE_B, 1, inputs)
+                weighted(partials, inputs) =
+                    () -> Reductions.launch_block_sums!(Reductions.area_weighted_block_kernel!,
+                                                        Reductions.area_weighted_block_shared_kernel!, backend,
+                                                        partials, n, EDGE_B, 1, inputs)
+                fraction(partials, inputs) =
+                    () -> Reductions.launch_block_sums!(Reductions.area_fraction_block_kernel!,
+                                                        Reductions.area_fraction_block_shared_kernel!, backend,
+                                                        partials, n, EDGE_B, 2, inputs)
+
+                @testset "matched arguments launch and agree with the reference" begin
+                    partials = similar(xs, Float64, nb)
+                    @test refusal_of(pairwise(partials, (xs = xs,))) === nothing
+                    @test edge_bytes(partials) ==
+                          edge_bytes(block_reference(Float64, Backends.on(xs, Backends.CPU(1)), EDGE_B))
+                    @test refusal_of(weighted(similar(xs, Float64, nb), (xs = xs, areas = areas, x = x))) === nothing
+                    @test refusal_of(fraction(similar(xs, Float64, nb, 2), (xs = xs, areas = areas, x = x))) === nothing
+                end
+
+                for (what, call, name, got, expected) in (
+                        ("partials one row short", pairwise(similar(xs, Float64, nb - 1), (xs = xs,)),
+                         "partials", "$(nb - 1) rows", "have $nb"),
+                        ("xs one element short", pairwise(similar(xs, Float64, nb), (xs = xs[1:n-1],)),
+                         "xs", "length $(n - 1)", "read $n"),
+                        ("areas one element short", weighted(similar(xs, Float64, nb), (xs = xs, areas = areas[1:n-1], x = x)),
+                         "areas", "length $(n - 1)", "read $n"),
+                        ("xs one element short beside areas", fraction(similar(xs, Float64, nb, 2), (xs = xs[1:n-1], areas = areas, x = x)),
+                         "xs", "length $(n - 1)", "read $n"),
+                        ("partials one column short", fraction(similar(xs, Float64, nb, 1), (xs = xs, areas = areas, x = x)),
+                         "partials", "size ($nb, 1)", "2 column(s)"))
+                    @testset "$what refuses, naming the array and both lengths" begin
+                        caught = refusal_of(call)
+                        @test caught isa Verdicts.Refusal
+                        @test caught.site == "Reductions.launch_block_sums!"
+                        @test occursin("$name has", caught.reason)
+                        @test occursin(got, caught.reason)
+                        @test occursin(expected, caught.reason)
+                    end
+                end
+            end
+
+            @testset "Reductions.launch_segments!" begin
+                starts = [1, 17, 33, 49, 65, 70]
+                n, nseg = last(starts) - 1, length(starts) - 1
+                xs_h, weights_h = edge_elements(Float64, n), edge_areas(Float64, n)
+                xs, weights = on_b(xs_h), on_b(weights_h)
+                segmentation = Reductions.Segmentation(xs, on_b(starts))
+                lo, hi = segmentation.lo, segmentation.hi
+                mean_call(out, zeroflag, xs, weights, lo, hi) =
+                    () -> Reductions.launch_segments!(Reductions.segmented_mean_kernel!, backend, n, nseg,
+                                                      (out = out, zeroflag = zeroflag), (xs = xs, weights = weights),
+                                                      lo, hi, "edge shapes")
+
+                @testset "matched arguments launch and agree with the reference" begin
+                    out, zeroflag = similar(xs, Float64, nseg), similar(xs, Bool, nseg)
+                    @test refusal_of(mean_call(out, zeroflag, xs, weights, lo, hi)) === nothing
+                    @test edge_bytes(out) == edge_bytes(Reductions.segmented_mean_reference(Float64, xs_h, starts, weights_h))
+                end
+
+                for (name, args, got, expected) in (
+                        ("out", (similar(xs, Float64, nseg - 1), similar(xs, Bool, nseg), xs, weights, lo, hi),
+                         nseg - 1, "$nseg segments"),
+                        ("zeroflag", (similar(xs, Float64, nseg), similar(xs, Bool, nseg - 1), xs, weights, lo, hi),
+                         nseg - 1, "$nseg segments"),
+                        ("xs", (similar(xs, Float64, nseg), similar(xs, Bool, nseg), xs[1:n-1], weights, lo, hi),
+                         n - 1, "$n elements"),
+                        ("weights", (similar(xs, Float64, nseg), similar(xs, Bool, nseg), xs, weights[1:n-1], lo, hi),
+                         n - 1, "$n elements"),
+                        ("lo", (similar(xs, Float64, nseg), similar(xs, Bool, nseg), xs, weights, lo[1:nseg-1], hi),
+                         nseg - 1, "$nseg segments"),
+                        ("hi", (similar(xs, Float64, nseg), similar(xs, Bool, nseg), xs, weights, lo, hi[1:nseg-1]),
+                         nseg - 1, "$nseg segments"))
+                    @testset "$name one element short refuses, naming the array and both lengths" begin
+                        caught = refusal_of(mean_call(args...))
+                        @test caught isa Verdicts.Refusal
+                        @test caught.site == "edge shapes"
+                        @test occursin("$name has length $got", caught.reason)
+                        @test occursin(expected, caught.reason)
+                    end
+                end
+            end
+
+            @testset "Reductions.launch_quantiles!" begin
+                k, nseg = 1, 3
+                seglen = 4^k
+                n = nseg * seglen
+                xs_h = edge_elements(Float64, n)
+                starts = collect(1:seglen:(n + 1))
+                xs = on_b(xs_h)
+                base = Reductions.Segmentation(xs, on_b(starts)).lo .- 1
+                partner, ascending = Reductions.device_bitonic_network(backend, k)
+                rank = Reductions.quantile_rank(seglen, 0.5)
+                call(k, out, xs, base, rank, partner, ascending) =
+                    () -> Reductions.launch_quantiles!(backend, k, nseg, out, xs, base, rank, partner, ascending)
+
+                @testset "matched arguments launch and agree with the reference" begin
+                    out = similar(xs, nseg)
+                    @test refusal_of(call(k, out, xs, base, rank, partner, ascending)) === nothing
+                    @test edge_bytes(out) == edge_bytes(Reductions.segmented_quantile_reference(xs_h, starts, 0.5))
+                end
+
+                for (what, args, expected) in (
+                        ("out one element short", (k, similar(xs, nseg - 1), xs, base, rank, partner, ascending),
+                         ["out has length $(nseg - 1)", "need $nseg"]),
+                        ("base one element short", (k, similar(xs, nseg), xs, base[1:nseg-1], rank, partner, ascending),
+                         ["base has length $(nseg - 1)", "need $nseg"]),
+                        ("xs one element short", (k, similar(xs, nseg), xs[1:n-1], base, rank, partner, ascending),
+                         ["xs has length $(n - 1)", "need $n"]),
+                        ("partner one row short", (k, similar(xs, nseg), xs, base, rank, partner[1:seglen-1, :], ascending),
+                         ["partner has size ($(seglen - 1), ", "size ($seglen, "]),
+                        ("ascending one row short", (k, similar(xs, nseg), xs, base, rank, partner, ascending[1:seglen-1, :]),
+                         ["ascending has size ($(seglen - 1), ", "size ($seglen, "]),
+                        ("rank one past the segment", (k, similar(xs, nseg), xs, base, seglen + 1, partner, ascending),
+                         ["rank $(seglen + 1)", "1:$seglen"]),
+                        ("rank one below the segment", (k, similar(xs, nseg), xs, base, 0, partner, ascending),
+                         ["rank 0", "1:$seglen"]),
+                        ("k above the declared range", (Reductions.QUANTILE_K_MAX + 1, similar(xs, nseg), xs, base, rank,
+                                                        partner, ascending),
+                         ["k=$(Reductions.QUANTILE_K_MAX + 1)"]))
+                    @testset "$what refuses, naming it and both bounds" begin
+                        caught = refusal_of(call(args...))
+                        @test caught isa Verdicts.Refusal
+                        @test caught.site == "Reductions.launch_quantiles!"
+                        for text in expected
+                            @test occursin(text, caught.reason)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end

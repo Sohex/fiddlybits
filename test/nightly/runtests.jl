@@ -72,17 +72,40 @@ end
         end
     end
 
-    @testset "the tree no longer elides a check of its own" begin
-        # The seven annotations in src/Mesh bought nothing measurable
-        # (notes/findings/2026-09-12-what-seven-inbounds-annotations-buy.md), so the
-        # shipped form is checked and the flag now only reaches dependencies.
+    @testset "every elision in src/ is an @inbounds inside a @kernel body (decision 0055)" begin
+        # Gate.elision_sites reads the parsed source; a site is admitted when it is an
+        # @inbounds and sits inside a @kernel call, and refused otherwise, which
+        # includes @kernel inbounds=true and Expr(:inbounds) built in code.
+        refused(text) = [s for s in NightlyDriver.Gate.elision_sites(text)
+                         if !(s[2] == "@inbounds" && s[3])]
+        fixture(name) = read(joinpath(@__DIR__, "fixtures", name), String)
+
         sources = String[]
         for (dir, _, names) in walkdir(joinpath(NIGHTLY_ROOT, "src")), name in names
             endswith(name, ".jl") && push!(sources, joinpath(dir, name))
         end
         @test !isempty(sources)
-        elided = [f for f in sources if occursin("@inbounds", read(f, String))]
-        @test isempty(elided)
+        outside = [(relpath(f, NIGHTLY_ROOT), s) for f in sources for s in refused(read(f, String))]
+        @test isempty(outside)
+
+        @testset "positive control: an @inbounds in host code is refused" begin
+            sites = refused(fixture("inbounds_outside_kernel.jl"))
+            @test length(sites) == 1
+            @test sites[1][2] == "@inbounds"
+            @test !sites[1][3]
+        end
+
+        @testset "positive control: a @kernel given inbounds=true is refused" begin
+            sites = refused(fixture("kernel_inbounds_true.jl"))
+            @test length(sites) == 1
+            @test sites[1][2] == "@kernel inbounds=true"
+        end
+
+        @testset "clean control: an @inbounds inside a kernel body, plain and through @eval, is admitted" begin
+            text = fixture("inbounds_inside_kernel.jl")
+            @test length(NightlyDriver.Gate.elision_sites(text)) == 2
+            @test isempty(refused(text))
+        end
     end
 
     @testset "the subject is main with a clean tree, or it refuses" begin
