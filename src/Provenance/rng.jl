@@ -167,7 +167,8 @@ philox_key128(root_seed::Integer, support::Support, process::Integer) =
 The Philox-4x64-10 output keyed on the physical identity of decision 0010:
 the 128-bit key of `philox_key128` from `root_seed`, `support_digest` (or
 `support.digest`) and `process`, and the counter `(cell, time_index,
-draw_index, 0)`. A pure function: the same arguments give the same four
+draw_index, 0)`, where `cell` is the 1-based in-memory cell index, not the
+0-based on-disk `CellId`. A pure function: the same arguments give the same four
 64-bit words whatever thread, partition or traversal order called it.
 `draw_index` is the n-th draw within one cell and time index, so a caller
 taking more than one draw there moves neither another caller's stream nor
