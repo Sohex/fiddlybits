@@ -125,8 +125,26 @@ end
         @test event.header.sequence == 7
         @test event.header.tier === :slow
         @test event.payload.edit == "seaway_closed"
-        @test event.payload.cells == sort([CF.A, CF.B])
         @test event.payload.quantity == CF.DATUM - CF.STRAIT_FLOOR
+
+        @testset "the cells read back at the declared level and base are the strait's two coarse cells" begin
+            @test eltype(event.payload.cells) === Mesh.CellId
+            # The cells at level L holding a terrain cell of a crossing of the strait.
+            strait_at(L) = Set(Mesh.ancestor(Int(i), CF.TERRAIN_INDEX - L)
+                               for e in only(CT_GRAPH.ocean_gates).section
+                               for i in CF.TERRAIN.stencils.edge_cell[:, e])
+            placed = Mesh.memory_index.(event.payload.cells)
+            @test all(i -> 1 <= i <= Mesh.ncells(event.payload.level), placed)
+            @test Set(placed) == strait_at(event.payload.level)
+            @test placed == sort([CF.A, CF.B])
+
+            @testset "positive control: the same cells read at the memory base, or at any other level, miss the strait" begin
+                as_memory = [c.value for c in event.payload.cells]
+                @test Set(as_memory) != strait_at(event.payload.level)
+                others = [L for L in 0:CF.TERRAIN_INDEX if L != event.payload.level]
+                @test all(L -> Set(placed) != strait_at(L), others)
+            end
+        end
 
         @testset "reopening it emits the reverse edit" begin
             back = Connectivity.topology_changes(CT_CLOSED, CT_GRAPH)
