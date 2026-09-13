@@ -2,7 +2,7 @@ using Test
 using CUDA
 using Fiddlybits: Reductions, Backends, Verdicts
 
-# Decision 0055 and decision 0027: segmented_weighted_sum and segmented_mean
+# Decision 0056 and decision 0027: segmented_weighted_sum and segmented_mean
 # against their references at every mix of Float32 and Float64 elements,
 # weights and accumulator, on the CPU and on the GPU, and the right answer of
 # a single-term segment computed at 256 bits.
@@ -62,7 +62,7 @@ quotient_at(::Type{A}, a, b) where {A} =
 "`true` when converting to `A` and promoting the two operands give different types for the product."
 orders_differ(TX, TW, A) = promote_type(TX, TW) !== A
 
-@testset "segmented weighted reductions at every mix of Float32 and Float64 (decision 0055)" begin
+@testset "segmented weighted reductions at every mix of Float32 and Float64 (decision 0056)" begin
     xs64 = ReductionFixtures.seeded_vector(Float64, ReductionFixtures.N)
     weights64 = abs.(xs64) .+ 0.1
     starts = ReductionFixtures.segment_starts(ReductionFixtures.N, ReductionFixtures.NSEG)

@@ -212,7 +212,7 @@ asking `Backends.budget` to account for a transient. Each term is
 `nofuse_mul(A(xs[j]), A(weights[j]))`: both operands converted to `A`,
 then multiplied through `Backends.nofuse_mul`, so the product is rounded
 once on its own in `A` before the add that follows, on both CPU and GPU
-(decisions 0055 and 0044). The sum this function returns is bitwise
+(decisions 0056 and 0044). The sum this function returns is bitwise
 `segmented_weighted_sum_reference`, and bitwise the `segmented_sum` in
 `A` of the materialised array `A.(xs) .* A.(weights)`. Refuses when
 `xs` and `weights` differ in length, or when `xs` does not have the
@@ -238,7 +238,7 @@ end
 The naive serial reference for `segmented_weighted_sum` (decision 0027):
 the products `A(xs[j]) * A(weights[j])` written one index at a time into an
 array of type `A`, each operand converted to `A` before it is multiplied
-(decision 0055), and that array then reduced by `segmented_sum_reference`
+(decision 0056), and that array then reduced by `segmented_sum_reference`
 in `A`. Refuses when `xs` and `weights` differ in length. The
 `Segmentation` form reads the boundaries it holds and checks them again
 here.
@@ -286,7 +286,7 @@ zero-weight test written out at the end of that same pass. No array the
 size of `xs`, nor a numerator or a denominator array, is ever materialised.
 Each numerator term is `nofuse_mul(A(xs[j]), A(weights[j]))` and each
 denominator term `A(weights[j])`, exactly as `segmented_weighted_sum`
-states (decisions 0055 and 0044), so the result is bitwise
+states (decisions 0056 and 0044), so the result is bitwise
 `segmented_mean_reference`. Refuses
 when `xs` and `weights` differ in length, or when `xs` does not have the
 length `segmentation` was checked against, or when any segment's total
@@ -335,7 +335,7 @@ The naive serial reference for `segmented_mean` (decision 0027): each
 segment's weighted numerator and total weight accumulated one term at a
 time in index order, one segment after another, each numerator term
 `A(xs[j]) * A(weights[j])` with both operands converted to `A` before they
-are multiplied (decision 0055). Refuses when `xs` and
+are multiplied (decision 0056). Refuses when `xs` and
 `weights` differ in length, or when a segment's total weight is zero. The
 `Segmentation` form reads the boundaries it holds and checks them again
 here.
