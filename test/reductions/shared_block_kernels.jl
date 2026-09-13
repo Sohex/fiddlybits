@@ -92,11 +92,13 @@ bits(v::AbstractArray{Float32}) = reinterpret(UInt32, v)
         @test bits(shared) == bits(on_cpu)
     end
 
-    @testset "pairwise_block_sums launches the device form up to its limit and the portable text above it" begin
+    @testset "each block sum launches its device form up to its limit and the portable text above it" begin
         limit = Reductions.device_form_limit(Reductions.pairwise_block_shared_kernel!)
         @test limit == Reductions.PAIRWISE_DEVICE_FORM_MAX
-        @test Reductions.device_form_limit(Reductions.area_weighted_block_shared_kernel!) == typemax(Int)
-        @test Reductions.device_form_limit(Reductions.area_fraction_block_shared_kernel!) == typemax(Int)
+        @test Reductions.device_form_limit(Reductions.area_weighted_block_shared_kernel!) ==
+              Reductions.AREA_WEIGHTED_DEVICE_FORM_MAX
+        @test Reductions.device_form_limit(Reductions.area_fraction_block_shared_kernel!) ==
+              Reductions.AREA_FRACTION_DEVICE_FORM_MAX
 
         # The kernels one call of `f` queues on `gpu`.
         function launched(f)
@@ -107,10 +109,39 @@ bits(v::AbstractArray{Float32}) = reinterpret(UInt32, v)
             return kernels
         end
 
-        for (n, expected) in ((limit, Reductions.pairwise_block_shared_kernel!),
-                              (limit + 1, Reductions.pairwise_block_kernel!))
-            xs_gpu = Backends.on(ReductionFixtures.seeded_vector(Float64, n), gpu)
-            @test launched(() -> Reductions.pairwise_block_sums(Float64, xs_gpu, gpu)) == [expected]
+        # The launches one call of `f` queues on `gpu`, with their workgroups.
+        function launches(f)
+            Backends.complete!(gpu)
+            f()
+            record = Backends.queued_launches(gpu)
+            Backends.complete!(gpu)
+            return record
+        end
+
+        block_sums = (
+            ("pairwise_block_sums", Reductions.pairwise_block_shared_kernel!, Reductions.pairwise_block_kernel!,
+             (xs, areas, b) -> Reductions.pairwise_block_sums(Float64, xs, b)),
+            ("area_weighted_block_sums", Reductions.area_weighted_block_shared_kernel!,
+             Reductions.area_weighted_block_kernel!,
+             (xs, areas, b) -> Reductions.area_weighted_block_sums(Float64, xs, areas, 0.0, b)),
+            ("area_fraction_block_sums", Reductions.area_fraction_block_shared_kernel!,
+             Reductions.area_fraction_block_kernel!,
+             (xs, areas, b) -> Reductions.area_fraction_block_sums(Float64, xs, areas, 0.0, b)),
+        )
+        for (name, shared, portable, call) in block_sums
+            form_limit = Reductions.device_form_limit(shared)
+            @testset "$name: the device form at $form_limit elements, pinned to the block, and the portable text one above, at the launch rule" begin
+                for (n, expected, workgroup) in ((form_limit, shared, B),
+                                                 (form_limit + 1, portable,
+                                                  Backends.launch_workgroup(gpu, cld(form_limit + 1, B))))
+                    xs = ReductionFixtures.seeded_vector(Float64, n)
+                    areas = abs.(xs) .+ 0.1
+                    xs_gpu, areas_gpu = Backends.on(xs, gpu), Backends.on(areas, gpu)
+                    @test launches(() -> call(xs_gpu, areas_gpu, gpu)) ==
+                          [(kernel = expected, workgroup = workgroup, n = expected === shared ? n : cld(n, B))]
+                    @test bits(Backends.on(call(xs_gpu, areas_gpu, gpu), cpu)) == bits(call(xs, areas, cpu))
+                end
+            end
         end
 
         @testset "positive control: the record names the kernel a direct launch queued" begin

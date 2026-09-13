@@ -126,8 +126,9 @@ end
     launch_segments!(kernel, backend, nelement, nseg, outputs, inputs, lo, hi, site)
 
 Queues `kernel` on `backend` over one work item per segment, `nseg` of
-them, with the values of the named tuples `outputs` and `inputs`, then `lo`
-and `hi`, as its arguments in that order. Segment `s` reads `lo[s]:hi[s]`.
+them, at `Backends.launch_workgroup`, with the values of the named tuples
+`outputs` and `inputs`, then `lo` and `hi`, as its arguments in that order.
+Segment `s` reads `lo[s]:hi[s]`.
 
 Before the launch, on the host, refuses at `site` through
 `Verdicts.refuse`, naming the array and both lengths, unless every array of
@@ -172,8 +173,8 @@ end
 end
 
 """
-    segmented_sum(::Type{A}, xs, starts, backend = CPU(BLOCKSIZE)) where A
-    segmented_sum(::Type{A}, xs, segmentation, backend = CPU(BLOCKSIZE)) where A
+    segmented_sum(::Type{A}, xs, starts, backend = CPU()) where A
+    segmented_sum(::Type{A}, xs, segmentation, backend = CPU()) where A
 
 The per-segment fixed-order sum of `xs`, accumulated in type `A`. `xs` is
 grouped contiguously by segment and `starts` gives its boundaries
@@ -186,7 +187,7 @@ The `Segmentation` form takes the same boundaries already checked, and
 refuses when `xs` does not have the length they were checked against.
 """
 function segmented_sum(::Type{A}, xs::AbstractVector, segmentation::Segmentation,
-                        backend::Backend = CPU(BLOCKSIZE)) where {A<:Number}
+                        backend::Backend = CPU()) where {A<:Number}
     require_extent(segmentation, xs, "Reductions.segmented_sum")
     out = similar(xs, A, segmentation.nseg)
     segmentation.nseg == 0 && return out
@@ -197,7 +198,7 @@ function segmented_sum(::Type{A}, xs::AbstractVector, segmentation::Segmentation
 end
 
 function segmented_sum(::Type{A}, xs::AbstractVector, starts::AbstractVector{<:Integer},
-                        backend::Backend = CPU(BLOCKSIZE)) where {A<:Number}
+                        backend::Backend = CPU()) where {A<:Number}
     return segmented_sum(A, xs, Segmentation(xs, starts), backend)
 end
 
@@ -242,7 +243,7 @@ end
 end
 
 """
-    segmented_weighted_sum(::Type{A}, xs, weights, segmentation, backend = CPU(BLOCKSIZE)) where A
+    segmented_weighted_sum(::Type{A}, xs, weights, segmentation, backend = CPU()) where A
 
 The per-segment fixed-order sum of `xs[j] * weights[j]`, accumulated in
 type `A`, one workgroup pass per segment: the product and the
@@ -262,7 +263,7 @@ once on its own in `A` before the add that follows, on both CPU and GPU
 length `segmentation` was checked against.
 """
 function segmented_weighted_sum(::Type{A}, xs::AbstractVector, weights::AbstractVector,
-                                 segmentation::Segmentation, backend::Backend = CPU(BLOCKSIZE)) where {A<:Number}
+                                 segmentation::Segmentation, backend::Backend = CPU()) where {A<:Number}
     require_extent(segmentation, xs, "Reductions.segmented_weighted_sum")
     length(xs) == length(weights) ||
         refuse("segmented weighted sum extent", "Reductions.segmented_weighted_sum",
@@ -323,8 +324,8 @@ end
 end
 
 """
-    segmented_mean(::Type{A}, xs, starts, weights, backend = CPU(BLOCKSIZE)) where A
-    segmented_mean(::Type{A}, xs, segmentation, weights, backend = CPU(BLOCKSIZE)) where A
+    segmented_mean(::Type{A}, xs, starts, weights, backend = CPU()) where A
+    segmented_mean(::Type{A}, xs, segmentation, weights, backend = CPU()) where A
 
 The per-segment weighted mean of `xs` by `weights`, accumulated in type
 `A`: the weighted numerator and the total weight accumulated in the same
@@ -353,7 +354,7 @@ vocabulary. It is not a read of the boundary array, which the
 `Segmentation` form still reads no times.
 """
 function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentation,
-                         weights::AbstractVector, backend::Backend = CPU(BLOCKSIZE)) where {A<:Number}
+                         weights::AbstractVector, backend::Backend = CPU()) where {A<:Number}
     length(xs) == length(weights) ||
         refuse("segmented mean extent", "Reductions.segmented_mean",
                "xs has length $(length(xs)), weights has length $(length(weights))")
@@ -372,7 +373,7 @@ function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentatio
 end
 
 function segmented_mean(::Type{A}, xs::AbstractVector, starts::AbstractVector{<:Integer},
-                         weights::AbstractVector, backend::Backend = CPU(BLOCKSIZE)) where {A<:Number}
+                         weights::AbstractVector, backend::Backend = CPU()) where {A<:Number}
     return segmented_mean(A, xs, Segmentation(xs, starts), weights, backend)
 end
 
