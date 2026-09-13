@@ -50,18 +50,32 @@ function write_digest!(io::IO, d::NTuple{32,UInt8})
 end
 
 """
+    RefinementRegions
+
+The type `Support` and `digest_refinement` take a refinement region set as:
+any vector or tuple of `(a, b)` integer pairs. Neither the order the pairs
+arrive in nor a repeated pair is part of the identity; `digest_refinement`
+canonicalises both away before hashing.
+"""
+const RefinementRegions = Union{AbstractVector{<:Tuple{Integer,Integer}},
+                                 Tuple{Vararg{Tuple{Integer,Integer}}}}
+
+"""
     digest_refinement(refinement)
 
-The digest over the refinement region set: a length prefix, then each region
-as an `(Int64, Int64)` pair, in the order `refinement` iterates. A uniform
-level passes an empty set and gets the digest of that empty set.
+The digest over the refinement region set: a length prefix, then each
+distinct `(a, b)` region as an `(Int64, Int64)` pair, sorted ascending by
+`(a, b)`. Two refinements holding the same regions, in any order or with a
+region repeated, produce this same digest. A uniform level passes an empty
+set and gets the digest of that empty set.
 """
-function digest_refinement(refinement)
+function digest_refinement(refinement::RefinementRegions)
+    regions = sort!(collect(Set((Int64(a), Int64(b)) for (a, b) in refinement)))
     io = IOBuffer()
-    write_le!(io, UInt64(length(refinement)))
-    for (a, b) in refinement
-        write_le!(io, Int64(a))
-        write_le!(io, Int64(b))
+    write_le!(io, UInt64(length(regions)))
+    for (a, b) in regions
+        write_le!(io, a)
+        write_le!(io, b)
     end
     return Tuple(sha256(take!(io)))
 end
@@ -203,12 +217,15 @@ native measures at `radius`, which reaches the measures through `at_radius`
 and nowhere else. Every keyword is required: a silent default across this
 boundary is what REQ-TER-002 is built against.
 
+`refinement` is a `RefinementRegions`: any vector or tuple of `(a, b)`
+integer pairs, passed on to `digest_refinement`.
+
 `constructor_version` is not a keyword. It is read from
 `GEOMETRY_CONSTRUCTOR_VERSION` here, so a caller cannot hold an identity at a
 version the geometry no longer has.
 """
 function Support(level_index::Integer, level::Level, geometry::Geometry;
-                  kind::Symbol, refinement, radius::Float64,
+                  kind::Symbol, refinement::RefinementRegions, radius::Float64,
                   element_type::Symbol, fractions)
     L = Int(level_index)
     refinement_digest = digest_refinement(refinement)
