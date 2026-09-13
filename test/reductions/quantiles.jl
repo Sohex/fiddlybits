@@ -65,6 +65,16 @@ end
                 @test size(partner, 2) == size(ascending, 2)
             end
         end
+
+        @testset "QUANTILE_BITONIC_NETWORK matches bitonic_network(4^k)" begin
+            for k in Reductions.QUANTILE_K_MIN:Reductions.QUANTILE_K_MAX
+                seglen = 4^k
+                cached_partner, cached_ascending = Reductions.QUANTILE_BITONIC_NETWORK[k]
+                live_partner, live_ascending = Reductions.bitonic_network(seglen)
+                @test cached_partner == live_partner
+                @test cached_ascending == live_ascending
+            end
+        end
     end
 
     @testset "kernels.segmented_quantile_exact: bitwise against the exactly sorted answer" begin
