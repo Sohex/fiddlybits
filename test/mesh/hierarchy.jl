@@ -22,6 +22,11 @@ end
 worst_radial_defect(vertices) = maximum(abs(1 - norm(view(vertices, :, i))) for i in axes(vertices, 2))
 
 @testset "Mesh.hierarchy" begin
+    @testset "negative level refuses" begin
+        @test_throws Mesh.Refusal Mesh.hierarchy(-1)
+        @test_throws Mesh.Refusal Mesh.hierarchy(-2)
+    end
+
     @testset "parent(children(i)) == i at every level" begin
         for l in 0:TOP_LEVEL
             @test all(i -> all(==(i), Mesh.parent.(Mesh.children(i))), 1:Mesh.ncells(l))

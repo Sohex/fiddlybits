@@ -3,6 +3,7 @@
 # notes/findings/2026-09-10-chordal-bisection-and-spherical-area.md.
 
 using LinearAlgebra: cross, dot
+using ..Verdicts: refuse
 
 """
     CellId
@@ -252,6 +253,8 @@ midpoint with no renormalisation. It exists so the oracles of the geometry
 row have a positive control that must fail.
 """
 function hierarchy(L::Integer; T = Float64, project::Bool = true)
+    L >= 0 || refuse("level", "Mesh.hierarchy",
+                      "a level of $L is not a non-negative refinement depth")
     v0, c0 = base_icosahedron(T)
     levels = Vector{Level{T}}(undef, L + 1)
     levels[1] = Level{T}(v0, c0)
