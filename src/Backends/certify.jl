@@ -146,6 +146,12 @@ same site is not refused: `exhaustive_envelope` and `divergence` run on one
 obligation's site list at a time, so an overlap between two obligations never
 sums or perturbs a site twice the way a repeat within one obligation's own
 list does.
+
+Holds its own copies of `fields`, one copy per field vector, of `obligations`,
+and of each obligation's own site list, checked after copying rather than
+before: mutating any of `fields`, `obligations` or an obligation's site list
+afterward leaves the case describing what was checked. `step` is held as
+given.
 """
 struct EnsembleCase{S}
     name::String
@@ -155,8 +161,10 @@ struct EnsembleCase{S}
 
     function EnsembleCase(name::AbstractString, fields::Vector{Vector{Float64}}, step::S,
                           obligations::Vector{Obligation}) where {S}
-        check_obligations(name, fields, obligations)
-        return new{S}(String(name), fields, step, obligations)
+        fields_copy = [copy(v) for v in fields]
+        obligations_copy = [Obligation(ob.name, copy(ob.sites)) for ob in obligations]
+        check_obligations(name, fields_copy, obligations_copy)
+        return new{S}(String(name), fields_copy, step, obligations_copy)
     end
 end
 
