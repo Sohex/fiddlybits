@@ -26,5 +26,9 @@
 set -eu
 root=$(git rev-parse --show-toplevel)
 cd "$root"
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+  echo "gate.sh submits its own job and is run directly, not inside a job" >&2
+  exit 1
+fi
 exec qrun -p gpu-share -c 8 -m 16G -t 00:30:00 -n fiddlybits-gate -- \
   sh -c 'julia --startup-file=no --project=. tools/gate/run.jl "$SLURM_CPUS_PER_TASK"'
