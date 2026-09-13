@@ -165,4 +165,5 @@ run_git(dir::AbstractString, args::Vector{String}) =
 
     include("load_latency.jl")
     include("parallel_gate.jl")
+    include("scheduler_refusal.jl")
 end
