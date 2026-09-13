@@ -16,7 +16,10 @@ of each cell's class from `SURFACE_CLASSES`, and `fractions` its coarsening, the
 `CategoricalFraction{SURFACE_LEGEND}` field of each coarse cell's land, ocean and
 inland-water area shares weighted by the primal cell area at the terrain level.
 `land_component` and `terminal` are per terrain cell, from `land_components` and
-`drainage_terminals`. `ocean_gates` and `land_gates` are per coarse edge, from `gates`.
+`drainage_terminals`. `ocean_body` and `land_body` are the `Body` of each terrain cell,
+from `coarse_bodies` over the ocean cells and over the non-ocean cells with the coarse
+level as the one the bodies lie in. `ocean_gates` and `land_gates` are per coarse edge
+and pair of bodies, from `gates`.
 """
 struct Graph{S<:Fields.Field,F<:Fields.Field,T,C}
     terrain::LevelMesh{T}
@@ -26,6 +29,8 @@ struct Graph{S<:Fields.Field,F<:Fields.Field,T,C}
     surface::S
     fractions::F
     land_component::Vector{Union{Nothing,Int32}}
+    ocean_body::Vector{Body}
+    land_body::Vector{Body}
     terminal::Vector{Terminal}
     ocean_gates::Vector{OceanGate}
     land_gates::Vector{LandGate}
@@ -108,10 +113,13 @@ function derive(elevation::Fields.Field{Fields.Intensive,TS,typeof(Dimensions.LE
                join((String(c) for (c, l) in zip(Fields.classes(class_areas),
                                                   Fields.ledgers(class_areas))
                      if !Fields.closed(l)), ", "))
-    ocean_gates, land_gates = gates(z, datum64, ocean, terrain, coarse,
+    levels = terrain.index - coarse.index
+    ocean_body = coarse_bodies(ocean, terrain.stencils, levels)
+    land_body = coarse_bodies(.!ocean, terrain.stencils, levels)
+    ocean_gates, land_gates = gates(z, datum64, ocean, ocean_body, land_body, terrain, coarse,
                                     terrain_support.radius, site)
     return Graph(terrain, coarse, datum64, z, surface, fractions,
-                 land_components(ocean, terrain.stencils),
+                 land_components(ocean, terrain.stencils), ocean_body, land_body,
                  drainage_terminals(z, ocean, terrain.stencils), ocean_gates, land_gates)
 end
 
@@ -125,3 +133,37 @@ derive(elevation::Fields.Field; kwargs...) =
 Whether each terrain cell of `graph` is world ocean, read from its surface field.
 """
 is_ocean(graph::Graph) = BitVector([label === :ocean for label in Fields.data(graph.surface)])
+
+"""
+    bodies_of(body, graph, cell, site)
+
+The labels, ascending, of the bodies of `body` holding a terrain cell of coarse cell
+`cell` of `graph`. Refuses at `site` a `cell` that is not a cell of the coarse level.
+"""
+function bodies_of(body::Vector{Body}, graph::Graph, cell::Integer, site::AbstractString)
+    n = Mesh.ncells(graph.coarse.index)
+    1 <= cell <= n ||
+        refuse("coarse cell", site, "cell $cell is not a cell of level $(graph.coarse.index), which has $n")
+    range = Mesh.descendants(cell, graph.terrain.index - graph.coarse.index)
+    return sort!(unique!(Int32[l for l in body[range] if l !== nothing]))
+end
+
+"""
+    ocean_bodies(graph, cell)
+
+The labels, ascending, of the ocean bodies of coarse cell `cell` of `graph`, each the
+lowest terrain cell index of its body; every `OceanGate` naming one in `bodies` is a
+connection of that body. Refuses a `cell` that is not a cell of the coarse level.
+"""
+ocean_bodies(graph::Graph, cell::Integer) =
+    bodies_of(graph.ocean_body, graph, cell, "Connectivity.ocean_bodies")
+
+"""
+    land_bodies(graph, cell)
+
+The labels, ascending, of the land bodies of coarse cell `cell` of `graph`, each the
+lowest terrain cell index of its body; every `LandGate` naming one in `bodies` is a
+contiguity of that body. Refuses a `cell` that is not a cell of the coarse level.
+"""
+land_bodies(graph::Graph, cell::Integer) =
+    bodies_of(graph.land_body, graph, cell, "Connectivity.land_bodies")

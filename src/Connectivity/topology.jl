@@ -13,11 +13,11 @@ The closed vocabulary of graph edits, each with what its quantity is.
 """
 const EDITS = (
     (name = :seaway_closed,
-     quantity = "the greatest water column before the edit over a cell of the edit now at or above the datum; for an ocean gate lost with no cell of its coarse cells changing class, its sill depth before the edit"),
+     quantity = "the greatest water column before the edit over a cell of the edit now at or above the datum"),
     (name = :island_emerged,
      quantity = "the greatest water column before the edit over a cell of the edit now at or above the datum"),
     (name = :land_bridge_flooded,
-     quantity = "the greatest water column after the edit over a cell of the edit that lay at or above the datum; for an ocean gate gained with no cell of its coarse cells changing class, its sill depth after the edit"),
+     quantity = "the greatest water column after the edit over a cell of the edit that lay at or above the datum"),
     (name = :island_submerged,
      quantity = "the greatest water column after the edit over a cell of the edit that lay at or above the datum"),
     (name = :basin_captured,
@@ -75,33 +75,105 @@ function cluster!(members::Vector{Int}, visited::BitVector, was_ocean::BitVector
     return sort!(members)
 end
 
-"The coarse edges carrying a gate in `gates`."
-gate_edges(gates) = Set{Int32}(g.edge for g in gates)
+"""
+    unmatched!(cells, gates, others, corresponding)
+
+`cells` with the two coarse cells added of every gate of `gates` for which `others`
+holds no gate on the same coarse edge whose first body is one `corresponding` maps the
+gate's first body to and whose second body is one it maps the gate's second body to.
+"""
+function unmatched!(cells::Set{Int}, gates, others, corresponding::Dict{Int32,Set{Int32}})
+    by_edge = Dict{Int32,Vector{NTuple{2,Int32}}}()
+    for g in others
+        push!(get!(Vector{NTuple{2,Int32}}, by_edge, g.edge), g.bodies)
+    end
+    for g in gates
+        firsts = corresponding[g.bodies[1]]
+        seconds = corresponding[g.bodies[2]]
+        any(b -> b[1] in firsts && b[2] in seconds, get(by_edge, g.edge, NTuple{2,Int32}[])) && continue
+        push!(cells, Int(g.cells[1]), Int(g.cells[2]))
+    end
+    return cells
+end
 
 """
-    cluster_edit(old, new, members, was_ocean, is_ocean, toggles, attributed, site)
+    body_moves(old_body, new_body, old_gates, new_gates, depth)
+
+`(lost, gained)`: the coarse cells, `depth` levels coarser than the terrain level, where
+the bodies of one kind and their gates differ in structure between two graphs, read
+through which bodies share a cell and never through their labels.
+
+A body of the old graph and a body of the new correspond when a terrain cell lies in
+both. An old body corresponding to other than one new body, as when it split or left
+every cell it held, puts its coarse cell in `lost`, and so does an old gate with no new
+gate on its coarse edge between bodies corresponding to its two, through `unmatched!`.
+The same with the two graphs exchanged puts coarse cells in `gained`.
+"""
+function body_moves(old_body::Vector{Body}, new_body::Vector{Body}, old_gates, new_gates,
+                    depth::Integer)
+    forward = Dict{Int32,Set{Int32}}()
+    backward = Dict{Int32,Set{Int32}}()
+    for i in eachindex(old_body)
+        p = old_body[i]
+        q = new_body[i]
+        p === nothing || get!(Set{Int32}, forward, p)
+        q === nothing || get!(Set{Int32}, backward, q)
+        (p === nothing || q === nothing) && continue
+        push!(forward[p], q)
+        push!(backward[q], p)
+    end
+    lost = Set{Int}()
+    gained = Set{Int}()
+    for (p, images) in forward
+        length(images) == 1 || push!(lost, coarse_cell(p, depth))
+    end
+    for (q, images) in backward
+        length(images) == 1 || push!(gained, coarse_cell(q, depth))
+    end
+    unmatched!(lost, old_gates, new_gates, forward)
+    unmatched!(gained, new_gates, old_gates, backward)
+    return lost, gained
+end
+
+"""
+    structure_moves(old, new)
+
+`(closing, flooding)`: the coarse cells where the bodies and gates of two graphs differ
+in a direction, from `body_moves`. `closing` holds the coarse cells of ocean structure
+lost and of land structure gained; `flooding` those of ocean structure gained and of
+land structure lost.
+"""
+function structure_moves(old::Graph, new::Graph)
+    depth = new.terrain.index - new.coarse.index
+    ocean_lost, ocean_gained = body_moves(old.ocean_body, new.ocean_body, old.ocean_gates,
+                                          new.ocean_gates, depth)
+    land_lost, land_gained = body_moves(old.land_body, new.land_body, old.land_gates,
+                                        new.land_gates, depth)
+    return (closing = union(ocean_lost, land_gained), flooding = union(ocean_gained, land_lost))
+end
+
+"""
+    cluster_edit(old, new, members, was_ocean, is_ocean, moves, site)
 
 The `Edit` a cluster of cells that changed between ocean and non-ocean makes, or
-`nothing` when it changes no topology. Every coarse edge of `toggles` with a coarse
-cell holding a cell of the cluster is added to `attributed`.
+`nothing` when it changes no topology.
 
 A cluster that left the ocean changes topology when the non-ocean cells beside it,
 non-ocean in both graphs, lay in other than one land component of `old`; when a cell
-of it lies below the datum in `new`; or when a coarse edge of `toggles.closing`, the
-edges that lost an ocean gate or gained a land gate, has a coarse cell holding a cell
-of the cluster. It is `:island_emerged` when no land lay beside it and `:seaway_closed`
-otherwise. A cluster that joined the ocean is the same with the two graphs exchanged
-and `toggles.flooding`, and is `:island_submerged` or `:land_bridge_flooded`.
+of it lies below the datum in `new`; or when a coarse cell of `moves.closing`, from
+`structure_moves`, holds a cell of the cluster. It is `:island_emerged` when no land
+lay beside it and `:seaway_closed` otherwise. A cluster that joined the ocean is the
+same with the two graphs exchanged and `moves.flooding`, and is `:island_submerged` or
+`:land_bridge_flooded`.
 
 Refuses at `site` a cluster in which no cell crossed the datum, since the two graphs
 then name different oceans.
 """
 function cluster_edit(old::Graph, new::Graph, members::Vector{Int}, was_ocean::BitVector,
-                      is_ocean::BitVector, toggles, attributed::Set{Int32}, site::AbstractString)
+                      is_ocean::BitVector, moves, site::AbstractString)
     closing = was_ocean[first(members)]
     wet, dry = closing ? (old, new) : (new, old)
     st = new.terrain.stencils
-    cst = new.coarse.stencils
     depth = new.terrain.index - new.coarse.index
     inside = Set(members)
     components = Set{Int32}()
@@ -111,13 +183,9 @@ function cluster_edit(old::Graph, new::Graph, members::Vector{Int}, was_ocean::B
         was_ocean[j] || is_ocean[j] || push!(components, something(wet.land_component[j]))
     end
     holding = Set{Int}(coarse_cell(i, depth) for i in members)
-    touches(e) = Int(cst.edge_cell[1, e]) in holding || Int(cst.edge_cell[2, e]) in holding
-    for e in union(toggles.closing, toggles.flooding)
-        touches(e) && push!(attributed, e)
-    end
-    gate_changed = any(touches, closing ? toggles.closing : toggles.flooding)
+    moved = any(in(holding), closing ? moves.closing : moves.flooding)
     enclosed = any(i -> dry.datum - dry.elevation[i] > 0, members)
-    length(components) == 1 && !enclosed && !gate_changed && return nothing
+    length(components) == 1 && !enclosed && !moved && return nothing
 
     crossed = [i for i in members if dry.datum - dry.elevation[i] <= 0]
     isempty(crossed) &&
@@ -167,11 +235,8 @@ end
 
 Every `Edit` between two graphs derived on the same terrain and coarse supports: one
 per cluster of cells that changed between ocean and non-ocean and changed topology,
-in ascending order of the cluster's lowest cell; then, in ascending coarse edge order,
-a `:seaway_closed` for every ocean gate lost and a `:land_bridge_flooded` for every
-ocean gate gained whose coarse cells hold no cell of any such cluster, with the gate's
-sill depth and its two coarse cells; then the basin captures in ascending order of the
-captured basin. Refuses graphs on different supports, naming both.
+in ascending order of the cluster's lowest cell; then the basin captures in ascending
+order of the captured basin. Refuses graphs on different supports, naming both.
 """
 function topology_changes(old::Graph, new::Graph)
     site = "Connectivity.topology_changes"
@@ -179,30 +244,15 @@ function topology_changes(old::Graph, new::Graph)
     Mesh.require_same_support(Fields.support(old.fractions), Fields.support(new.fractions), site)
     was_ocean = is_ocean(old)
     now_ocean = is_ocean(new)
-    old_ocean = Dict{Int32,OceanGate}(g.edge => g for g in old.ocean_gates)
-    new_ocean = Dict{Int32,OceanGate}(g.edge => g for g in new.ocean_gates)
-    old_land = gate_edges(old.land_gates)
-    new_land = gate_edges(new.land_gates)
-    lost_ocean = setdiff(Set{Int32}(keys(old_ocean)), keys(new_ocean))
-    gained_ocean = setdiff(Set{Int32}(keys(new_ocean)), keys(old_ocean))
-    toggles = (closing = union(lost_ocean, setdiff(new_land, old_land)),
-               flooding = union(gained_ocean, setdiff(old_land, new_land)))
-    attributed = Set{Int32}()
+    moves = structure_moves(old, new)
     edits = Edit[]
     visited = falses(length(was_ocean))
     members = Int[]
     for i in eachindex(was_ocean)
         (visited[i] || was_ocean[i] == now_ocean[i]) && continue
         cluster!(members, visited, was_ocean, now_ocean, new.terrain.stencils, i)
-        edit = cluster_edit(old, new, members, was_ocean, now_ocean, toggles, attributed, site)
+        edit = cluster_edit(old, new, members, was_ocean, now_ocean, moves, site)
         edit === nothing || push!(edits, edit)
-    end
-    cst = new.coarse.stencils
-    for e in sort!(collect(union(lost_ocean, gained_ocean)))
-        e in attributed && continue
-        cells = sort!(Int[cst.edge_cell[1, e], cst.edge_cell[2, e]])
-        push!(edits, e in lost_ocean ? Edit(:seaway_closed, cells, old_ocean[e].sill_depth) :
-                                       Edit(:land_bridge_flooded, cells, new_ocean[e].sill_depth))
     end
     append!(edits, captures(old, new, now_ocean))
     return edits

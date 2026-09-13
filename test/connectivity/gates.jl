@@ -34,32 +34,53 @@ cg_graph(z; seeds = [CG.A_BODY]) = CG.graph(z; seeds = seeds)
         @test only(gate.section) in CG.NECK
     end
 
-    @testset "an ocean gate gained with no cell changing class is one edit" begin
+    @testset "a sill deepening with no cell changing class moves the gate and no topology" begin
         seeds = [CG.A_BODY, first(CG.PAIRS[2])]
         shallow = cg_graph(CG.gate_world(gap_floor = CG.LAND); seeds = seeds)
         deep = cg_graph(CG.gate_world(gap_floor = CG.LAND, strip_floor = 2 * CG.B_FLOOR); seeds = seeds)
-        @test isempty(shallow.ocean_gates)
         @test Connectivity.is_ocean(shallow) == Connectivity.is_ocean(deep)
-        gate = only(deep.ocean_gates)
-        @test gate.sill_depth == CG.DATUM - CG.B_FLOOR
-        @test Connectivity.topology_changes(shallow, deep) ==
-              [Connectivity.Edit(:land_bridge_flooded, sort([CG.A, CG.B]), CG.DATUM - CG.B_FLOOR)]
-        @test Connectivity.topology_changes(deep, shallow) ==
-              [Connectivity.Edit(:seaway_closed, sort([CG.A, CG.B]), CG.DATUM - CG.B_FLOOR)]
+        before = only(shallow.ocean_gates)
+        after = only(deep.ocean_gates)
+        strip = shallow.ocean_body[first(CG.PAIRS[2])]
+        @test before.bodies == after.bodies
+        @test strip in before.bodies
+        @test !(shallow.ocean_body[CG.A_BODY] in before.bodies)
+        @test before.sill_depth == CG.DATUM - CG.STRAIT_FLOOR
+        @test after.sill_depth == CG.DATUM - CG.B_FLOOR
+        @test isempty(Connectivity.topology_changes(shallow, deep))
+        @test isempty(Connectivity.topology_changes(deep, shallow))
     end
 
-    @testset "a wet crossing joining neither side's ocean body is no ocean gate" begin
+    @testset "a wet crossing between two strips joins the strips and neither deep body" begin
         z = CG.gate_world(gap_floor = CG.LAND, walled_b = true)
         g = cg_graph(z; seeds = [CG.A_BODY, CG.B_BODY, first(CG.PAIRS[2])])
         @test Connectivity.is_ocean(g)[first(CG.PAIRS[2])]
         @test Connectivity.is_ocean(g)[CG.PAIRS[2][2]]
-        @test isempty(g.ocean_gates)
+        gate = only(g.ocean_gates)
+        @test Set(gate.bodies) == Set((g.ocean_body[first(CG.PAIRS[2])], g.ocean_body[CG.PAIRS[2][2]]))
+        @test !any(gate -> g.ocean_body[CG.A_BODY] in gate.bodies || g.ocean_body[CG.B_BODY] in gate.bodies,
+                   g.ocean_gates)
+        @test length(Connectivity.ocean_bodies(g, CG.A)) == 2
+        @test length(Connectivity.ocean_bodies(g, CG.B)) == 2
     end
 
-    @testset "an isolated dry crossing is no land gate" begin
+    @testset "an islet across the coarse edge is a land gate between its halves alone" begin
         g = cg_graph(CG.gate_world(gap_floor = CG.STRAIT_FLOOR, islet = true))
         @test !Connectivity.is_ocean(g)[first(CG.PAIRS[7])]
-        @test !any(gate -> gate.edge == CG.EDGE, g.land_gates)
-        @test length(g.ocean_gates) == 1
+        gate = only(gate for gate in g.land_gates if gate.edge == CG.EDGE)
+        @test Set(gate.bodies) == Set((g.land_body[first(CG.PAIRS[7])], g.land_body[CG.PAIRS[7][2]]))
+        @test gate.crossings == 1
+        @test gate.width == cg_length(CG.PAIRS[7][3])
+        @test g.land_body[first(CG.PAIRS[7])] == first(CG.PAIRS[7])
+
+        @testset "the islet cuts the strip's end off as a body of its own, with its own gate" begin
+            neck = g.ocean_body[CG.GAP_UP]
+            cut = g.ocean_body[first(CG.PAIRS[8])]
+            @test neck != cut
+            @test g.ocean_body[first(CG.PAIRS[6])] == neck
+            @test Set(cb for gate in g.ocean_gates for cb in gate.bodies
+                     if Connectivity.coarse_cell(cb, CG.DEPTH) == CG.A) == Set((neck, cut))
+            @test length(g.ocean_gates) == 2
+        end
     end
 end

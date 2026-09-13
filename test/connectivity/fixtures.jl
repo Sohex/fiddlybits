@@ -192,6 +192,154 @@ function gate_world(; gap_floor, strip_floor = STRAIT_FLOOR, walled_b = false, i
     return z
 end
 
+"""
+The isthmus world, a third synthetic world. Coarse cell A holds two seas. `NEAR_B` is
+the cells of A at least three rows nearer the shared edge `EDGE` than the edge `EDGE_Z`
+A shares with `Z`, and `NEAR_Z` the cells at least five rows nearer `EDGE_Z` than
+`EDGE`, rows counted as in `distances_from`; the cells of A in neither are `ISTHMUS`.
+The pool of a sea is the component, through edge neighbours, of its cells off its
+coarse edge holding the most cells, the one of lowest first cell among equals. A sill
+is a cell on its coarse edge whose two other edge neighbours lie in the pool: `SILL_B`
+and `SILL_Z`. `SEA_B` is the pool and the sills of `NEAR_B`, and `SEA_Z` the same; the
+other cells of `NEAR_B` and `NEAR_Z` are land. The coarse cells around `CORNER`, the
+vertex `EDGE` and `EDGE_Z` share, other than A, are `AROUND`: they hold B and Z and are
+ocean, so the two seas are joined outside A.
+"""
+const Z = Int(COARSE.stencils.edge_neighbour[2, A])
+const EDGE_Z = Int(COARSE.stencils.cell_edge[2, A])
+const CORNER = COARSE.level.cells[3, A]
+const AROUND = [c for c in 1:NCOARSE if CORNER in COARSE.level.cells[:, c] && c != A]
+const Z_ROW = [i for i in Mesh.descendants(A, DEPTH) if any(j -> Mesh.ancestor(j, DEPTH) == Z, neighbours(i))]
+const A_DISTANCE_Z = distances_from(A, Z_ROW)
+const NEAR_B = [i for i in Mesh.descendants(A, DEPTH) if A_DISTANCE[i] - A_DISTANCE_Z[i] <= -3]
+const NEAR_Z = [i for i in Mesh.descendants(A, DEPTH) if A_DISTANCE[i] - A_DISTANCE_Z[i] >= 5]
+const ISTHMUS = [i for i in Mesh.descendants(A, DEPTH) if !(i in NEAR_B) && !(i in NEAR_Z)]
+
+"""
+    pool(near, distance)
+
+The component, through edge neighbours, of the cells of `near` at a positive
+`distance` holding the most cells, the one of lowest first cell among equals; ascending.
+"""
+function pool(near, distance)
+    left = Set(i for i in near if distance[i] > 0)
+    best = Int[]
+    for start in sort(collect(left))
+        start in left || continue
+        component = [start]
+        delete!(left, start)
+        head = 1
+        while head <= length(component)
+            i = component[head]
+            head += 1
+            for j in neighbours(i)
+                j in left || continue
+                delete!(left, j)
+                push!(component, j)
+            end
+        end
+        length(component) > length(best) && (best = component)
+    end
+    return sort!(best)
+end
+
+"The cells of `near` at `distance` zero whose two other edge neighbours lie in `water`."
+sills(near, distance, water) =
+    [i for i in near if distance[i] == 0 && count(in(water), neighbours(i)) == 2]
+
+const POOL_B = pool(NEAR_B, A_DISTANCE)
+const POOL_Z = pool(NEAR_Z, A_DISTANCE_Z)
+const SILL_B = sills(NEAR_B, A_DISTANCE, POOL_B)
+const SILL_Z = sills(NEAR_Z, A_DISTANCE_Z, POOL_Z)
+const SEA_B = sort(vcat(POOL_B, SILL_B))
+const SEA_Z = sort(vcat(POOL_Z, SILL_Z))
+
+"The floors of the sills of each sea."
+const SILL_B_FLOOR = -60.0
+const SILL_Z_FLOOR = -210.0
+
+"The terrain edges on `EDGE` between `SILL_B` and B, and on `EDGE_Z` between `SILL_Z` and Z."
+const CROSSINGS_B = sort([p[3] for p in PAIRS if first(p) in SILL_B])
+const CROSSINGS_Z = sort([edge_between(i, j) for i in SILL_Z for j in neighbours(i)
+                          if Mesh.ancestor(j, DEPTH) == Z])
+
+"Whether the cells `cells` are joined through edge neighbours among themselves."
+function joined(cells)
+    members = Set(cells)
+    reached = Set([first(cells)])
+    queue = [first(cells)]
+    head = 1
+    while head <= length(queue)
+        i = queue[head]
+        head += 1
+        for j in neighbours(i)
+            (j in members && !(j in reached)) || continue
+            push!(reached, j)
+            push!(queue, j)
+        end
+    end
+    return length(reached) == length(members)
+end
+
+"""
+    isthmus_world(; isthmus_floor = LAND, raised = Int[])
+
+The elevation of the isthmus world: `LAND` everywhere but the coarse cells of `AROUND`,
+at `B_FLOOR`, and the seas of A. The sills of each sea lie at its sill floor and its
+other cells at `A_FLOOR`; `ISTHMUS` lies at `isthmus_floor`; the cells `raised` lie at
+`LAND`.
+"""
+function isthmus_world(; isthmus_floor = LAND, raised = Int[])
+    z = fill(LAND, NCELLS)
+    for c in AROUND, i in Mesh.descendants(c, DEPTH)
+        z[i] = B_FLOOR
+    end
+    for i in SEA_B
+        z[i] = i in SILL_B ? SILL_B_FLOOR : A_FLOOR
+    end
+    for i in SEA_Z
+        z[i] = i in SILL_Z ? SILL_Z_FLOOR : A_FLOOR
+    end
+    z[ISTHMUS] .= isthmus_floor
+    z[raised] .= LAND
+    return z
+end
+
+"""
+    bar_through(sea, shore)
+
+The cells of the path through edge neighbours within `sea` from the cell of `sea` on
+`EDGE` whose pair is the middle one of those pairs, in the order of `PAIRS`, to the
+first cell reached with an edge neighbour in `shore`, found breadth first with
+neighbours taken in stencil order; ascending.
+"""
+function bar_through(sea, shore)
+    along = [first(p) for p in PAIRS if first(p) in sea]
+    start = along[(length(along) + 1) ÷ 2]
+    previous = Dict{Int,Int}(start => start)
+    queue = [start]
+    head = 1
+    while head <= length(queue)
+        i = queue[head]
+        head += 1
+        if any(in(shore), neighbours(i))
+            path = [i]
+            while previous[last(path)] != last(path)
+                push!(path, previous[last(path)])
+            end
+            return sort!(path)
+        end
+        for j in neighbours(i)
+            (j in sea && !haskey(previous, j)) || continue
+            previous[j] = i
+            push!(queue, j)
+        end
+    end
+    error("no path through the sea reaches the shore")
+end
+
+const BAR_B = bar_through(SEA_B, ISTHMUS)
+
 "The terrain elevation of the synthetic world, before any edit."
 function elevation()
     z = fill(LAND, NCELLS)
