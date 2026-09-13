@@ -15,8 +15,15 @@
 # built from it does and does not establish, are in
 # notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md, which
 # supersedes the formula the earlier finding recorded.
+#
+# The sampled members are a seeded draw without replacement, and the miss rate is
+# a probability over that draw's seed, by
+# docs/decisions/0052-the-sampled-ensemble-is-a-seeded-draw.md; the sites the
+# deterministic order it replaced could not reach, and what the seed moves, are in
+# notes/findings/2026-09-13-the-bit-reversed-prefix-perturbs-one-residue-class.md.
 
 using ..Verdicts: FAIL, OracleVerdict, PASS, Refusal, refuse
+using SHA: sha256
 
 """
     ENSEMBLE_MISS_RATE_RECIPROCAL
@@ -33,8 +40,10 @@ const ENSEMBLE_MISS_RATE_RECIPROCAL = 256
 """
     ENSEMBLE_CONFIDENCE_RECIPROCAL
 
-The reciprocal of the probability `ENSEMBLE_MEMBERS` is allowed to miss a
-sub-population of relative size `1 / ENSEMBLE_MISS_RATE_RECIPROCAL`. Bracketed
+The reciprocal of the probability, over the seed of the `sampled_sites` draw,
+that `ENSEMBLE_MEMBERS` members are allowed to miss a sub-population of relative
+size `1 / ENSEMBLE_MISS_RATE_RECIPROCAL` fixed without reference to that seed.
+Bracketed
 in `[5, 1000]`, pushed down by the same mechanism
 `ENSEMBLE_MISS_RATE_RECIPROCAL` carries and pushed up by a cost the member count
 carries only as the logarithm of this reciprocal. Swept over the bracket in
@@ -49,9 +58,11 @@ The smallest member count `m` with `(1 - p)^m <= alpha` for
 `p = 1 / miss_rate_reciprocal` and `alpha = 1 / confidence_reciprocal`, counted
 by multiplying `1 - p` in until it is at or below `alpha`. `(1 - p)^m` is the
 probability that `m` sites drawn with replacement from the site population all
-miss a sub-population of relative size `p`; the ensemble draws without
+miss a sub-population of relative size `p`; `sampled_sites` draws without
 replacement, for which that probability is smaller, so the count this rule
-returns is an upper bound on the count the without-replacement draw needs.
+returns is an upper bound on the count the without-replacement draw needs. The
+probability is over the seed of the draw, under the condition
+`detectable_miss_rate` states.
 """
 function ensemble_members(miss_rate_reciprocal::Integer, confidence_reciprocal::Integer)
     survives = 1 - 1 / miss_rate_reciprocal
@@ -80,9 +91,16 @@ const ENSEMBLE_MEMBERS = ensemble_members(ENSEMBLE_MISS_RATE_RECIPROCAL,
     detectable_miss_rate(members, confidence_reciprocal)
 
 `1 - alpha^(1 / members)` for `alpha = 1 / confidence_reciprocal`: the smallest
-sub-population fraction an ensemble of `members` sites holds at least one site
-of with probability at least `1 - alpha`. The inverse of `ensemble_members`, and
-the number the registry rows this envelope serves state.
+fraction `p` of a case's usable sites with `(1 - p)^members <= alpha`. An
+ensemble of `members` sites drawn by `sampled_sites` holds at least one site of
+every sub-population of at least that fraction with probability at least
+`1 - alpha` over the seed of the draw, for a sub-population fixed without
+reference to the seed. For one fixed seed a given sub-population is either held
+or missed; the statement is about the draw, and it rests on the SHA-256 digest
+ordering sites as a uniformly random permutation would, which
+docs/decisions/0052-the-sampled-ensemble-is-a-seeded-draw.md names. The inverse
+of `ensemble_members`, and the number the registry rows this envelope serves
+state.
 """
 detectable_miss_rate(members::Integer, confidence_reciprocal::Integer) =
     1 - (1 / confidence_reciprocal)^(1 / members)
@@ -91,10 +109,66 @@ detectable_miss_rate(members::Integer, confidence_reciprocal::Integer) =
     ENSEMBLE_MISS_RATE
 
 `detectable_miss_rate` at `ENSEMBLE_MEMBERS` and
-`ENSEMBLE_CONFIDENCE_RECIPROCAL`. Derived.
+`ENSEMBLE_CONFIDENCE_RECIPROCAL`. Derived. A probability over the seed of the
+`sampled_sites` draw, under the condition `detectable_miss_rate` states.
 """
 const ENSEMBLE_MISS_RATE = detectable_miss_rate(ENSEMBLE_MEMBERS,
                                                 ENSEMBLE_CONFIDENCE_RECIPROCAL)
+
+"""
+    ENSEMBLE_SEED
+
+The seed `envelope` draws its sampled members under, and the one input of
+`sampled_sites` beside the site list and the member count. Irreducible: fixed
+by docs/decisions/0052-the-sampled-ensemble-is-a-seeded-draw.md, and what a
+different seed moves is measured in
+notes/findings/2026-09-13-the-bit-reversed-prefix-perturbs-one-residue-class.md.
+"""
+const ENSEMBLE_SEED = UInt64(0)
+
+"""
+    draw_key(seed, site)
+
+The sort key of `site`, a `(field, cell)` pair, in the draw `seed` names: the
+SHA-256 digest of `seed`, `field` and `cell`, each written as eight
+little-endian bytes, read as four big-endian `UInt64` words, followed by `field`
+and `cell`. A pure function of its two arguments, so a site's key is the same
+whatever list the site is drawn from.
+"""
+function draw_key(seed::UInt64, site::Tuple{Int,Int})
+    f, i = site
+    io = IOBuffer()
+    write(io, htol(seed))
+    write(io, htol(UInt64(f)))
+    write(io, htol(UInt64(i)))
+    chunks = collect(Iterators.partition(sha256(take!(io)), 8))
+    word(c) = foldl((a, b) -> (a << 8) | UInt64(b), c; init = zero(UInt64))
+    return (word(chunks[1]), word(chunks[2]), word(chunks[3]), word(chunks[4]), f, i)
+end
+
+"""
+    sampled_sites(sites, members, seed)
+
+The `members` entries of `sites` with the smallest `draw_key` under `seed`, in
+ascending key order: `members` distinct sites drawn without replacement, and
+the same sites in the same order for the same `sites`, `members` and `seed`.
+
+Refuses when `members` is not positive, when it exceeds the number of distinct
+sites in `sites`, and when `sites` names one site twice, because a repeated site
+would be drawn as two members.
+"""
+function sampled_sites(sites::Vector{Tuple{Int,Int}}, members::Integer, seed::UInt64)
+    length(unique(sites)) == length(sites) ||
+        refuse("ulp-ensemble draw", "Backends.sampled_sites",
+               "the site list names a site twice, so a draw without replacement from it " *
+               "could perturb one site as two members")
+    1 <= members <= length(sites) ||
+        refuse("ulp-ensemble draw", "Backends.sampled_sites",
+               "a draw of $(members) members from $(length(sites)) sites, and a draw without " *
+               "replacement takes at least one site and at most every site")
+    keyed = sort!([(draw_key(seed, s), s) for s in sites]; by = first)
+    return Tuple{Int,Int}[last(keyed[t]) for t in 1:members]
+end
 
 """
     Obligation(name, sites)
@@ -207,7 +281,7 @@ function check_obligations(name::AbstractString, fields::Vector{Vector{Float64}}
 end
 
 """
-    Envelope(case, steps, precision, members, sites, exhaustive, miss_rate,
+    Envelope(case, steps, precision, members, sites, exhaustive, miss_rate, seed,
              amplification, perturbed, scope)
 
 The measured ulp-ensemble divergence envelope of one case.
@@ -229,12 +303,15 @@ and so the precision each member's one ulp is taken at. `sites` is the number of
 usable perturbation sites the case has, `members` the number the ensemble used
 at each injection step, `exhaustive` whether those are all of them, and
 `miss_rate` the sub-population fraction `members` detects, which is zero when
-`exhaustive`.
+`exhaustive`. `seed` is the `sampled_sites` seed the members were drawn under,
+or `nothing` when no draw was taken because the members are every site named.
 
 `perturbed` is the `(field, cell)` pair each member perturbed, in the order the
 members ran, and `scope` the pairs each member's divergence was scored over, or
 `nothing` for every cell of the case. `covers` reads the two to decide whether
-an envelope stands for an `Obligation`.
+an envelope stands for an `Obligation`. A sampled envelope's `perturbed` is
+`sampled_sites(usable_sites(case, precision), members, seed)`, so the envelope
+carries what reproduces its own member set.
 """
 struct Envelope
     case::String
@@ -244,6 +321,7 @@ struct Envelope
     sites::Int
     exhaustive::Bool
     miss_rate::Float64
+    seed::Union{Nothing,UInt64}
     amplification::Matrix{Float64}
     perturbed::Vector{Tuple{Int,Int}}
     scope::Union{Nothing,Vector{Tuple{Int,Int}}}
@@ -370,20 +448,6 @@ function usable_sites(case::EnsembleCase, ::Type{P}) where {P<:AbstractFloat}
 end
 
 """
-    bit_reversed_order(n)
-
-`1:n` ordered by the reversal of the bit pattern of the zero-based index, the
-radix-2 van der Corput order. The first `m` entries are spread over `1:n` for
-every `m`, which is what lets an ensemble that stops at `ENSEMBLE_MEMBERS` cover
-the site list rather than its first several hundred entries. The order is a
-function of `n` alone, so an envelope measured twice on one case is the same
-envelope, and the miss rate `detectable_miss_rate` reports is a statement about
-a sub-population whose position in the site list is not correlated with this
-order.
-"""
-bit_reversed_order(n::Integer) = sortperm([bitreverse(UInt64(j)) for j in 0:(n - 1)])
-
-"""
     advance(step, state, steps, name, what)
 
 `state` advanced `steps` steps by `step`, returning one copy of the state per
@@ -421,8 +485,8 @@ function check_finite(state::Vector{Vector{T}}, s::Integer,
 end
 
 """
-    measure_envelope(case, steps, sites, all_sites, exhaustive, miss_rate, scope,
-                     precision)
+    measure_envelope(case, steps, sites, all_sites, exhaustive, miss_rate, seed,
+                     scope, precision)
 
 The machinery `envelope` and `exhaustive_envelope` share. At every injection
 step `j` from zero to `steps - 1` the reference state at that step is perturbed
@@ -434,7 +498,7 @@ candidate's error is, at the size the candidate's error has.
 
 `scope = nothing` scores divergence over every cell of `case`; `scope = sites`
 restricts it to the sites named. The result is packaged as an `Envelope`
-carrying `all_sites`, `exhaustive` and `miss_rate` as given, so the two callers
+carrying `all_sites`, `exhaustive`, `miss_rate` and `seed` as given, so the two callers
 state what their own count and rate mean rather than this function guessing.
 
 The cost is the step count's triangular number rather than the step count, one
@@ -502,6 +566,7 @@ end
 
 function measure_envelope(case::EnsembleCase, steps::Integer, sites::Vector{Tuple{Int,Int}},
                           all_sites::Int, exhaustive::Bool, miss_rate::Float64,
+                          seed::Union{Nothing,UInt64},
                           scope::Union{Nothing,Vector{Tuple{Int,Int}}},
                           ::Type{P}) where {P<:AbstractFloat}
     base = advance(case.step, [copy(v) for v in case.fields], steps,
@@ -531,7 +596,7 @@ function measure_envelope(case::EnsembleCase, steps::Integer, sites::Vector{Tupl
                "perturbation and its envelope is not measurable")
 
     return Envelope(case.name, Int(steps), P, length(sites), all_sites, exhaustive, miss_rate,
-                    amplification, copy(sites), scope === nothing ? nothing : copy(scope))
+                    seed, amplification, copy(sites), scope === nothing ? nothing : copy(scope))
 end
 
 """
@@ -550,8 +615,10 @@ precision whose divergence this envelope is the tolerance of, and both readings
 it fixes are measured rather than chosen: see `field_ulp`.
 
 The members are `min(ENSEMBLE_MEMBERS, length(usable_sites(case, precision)))`
-sites taken in `bit_reversed_order`, the same sites at every injection step, and
-the envelope carries the miss rate that count detects.
+sites, the same sites at every injection step: every usable site in
+field-then-cell order when that count is all of them, and otherwise
+`sampled_sites` of the usable sites under `ENSEMBLE_SEED`. The envelope carries
+the miss rate that count detects and the seed the members were drawn under.
 
 Refuses, naming what could not be measured, when `steps` is not positive, when
 the case has no usable perturbation site, when a field loses its scale partway
@@ -576,11 +643,11 @@ function envelope(case::EnsembleCase, steps::Integer, ::Type{P}) where {P<:Abstr
 
     members = min(ENSEMBLE_MEMBERS, length(sites))
     exhaustive = members == length(sites)
-    order = bit_reversed_order(length(sites))
-    chosen = [sites[order[t]] for t in 1:members]
+    chosen = exhaustive ? sites : sampled_sites(sites, members, ENSEMBLE_SEED)
 
     return measure_envelope(case, steps, chosen, length(sites), exhaustive,
-                            exhaustive ? zero(Float64) : ENSEMBLE_MISS_RATE, nothing, P)
+                            exhaustive ? zero(Float64) : ENSEMBLE_MISS_RATE,
+                            exhaustive ? nothing : ENSEMBLE_SEED, nothing, P)
 end
 
 """
@@ -620,7 +687,8 @@ function exhaustive_envelope(case::EnsembleCase, steps::Integer,
         refuse("ulp-ensemble perturbation site", "Backends.exhaustive_envelope",
                "case $(case.name): no site was named to check exhaustively")
 
-    return measure_envelope(case, steps, sites, length(sites), true, zero(Float64), sites, P)
+    return measure_envelope(case, steps, sites, length(sites), true, zero(Float64), nothing,
+                            sites, P)
 end
 
 """

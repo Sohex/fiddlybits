@@ -38,6 +38,8 @@ using Fiddlybits: Backends, Verdicts
         again = Backends.envelope(CASE, CertifyFixtures.STEPS, Float32)
         @test again.amplification == CASE_ENVELOPE.amplification
         @test again.members == CASE_ENVELOPE.members
+        @test again.seed === CASE_ENVELOPE.seed
+        @test again.perturbed == CASE_ENVELOPE.perturbed
     end
 
     @testset "a case with fewer sites than the member count is exhaustive" begin
@@ -46,6 +48,7 @@ using Fiddlybits: Backends, Verdicts
         @test small.members == small.sites
         @test small.exhaustive
         @test small.miss_rate == 0
+        @test small.seed === nothing
     end
 
     @testset "certify.unmeasurable_envelope_refuses" begin

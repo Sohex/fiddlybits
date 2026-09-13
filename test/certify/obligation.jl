@@ -18,16 +18,17 @@ using Fiddlybits: Backends, Verdicts
 
 const OBLIGATION_ROUNDOFF = scope -> CertifyMeshFixture.roundoff(MESH_CASE; sites = scope)
 
-# The stand-in case's gains from the initial state, at the declared draw, as
-# notes/findings/2026-09-12-ulp-ensemble-amplitude-and-injection-step.md records
-# them in full, section "The stand-in case at the two amplitudes". The vector is
+# The stand-in case's gains from the initial state, at the declared draw under
+# Backends.ENSEMBLE_SEED, as
+# notes/findings/2026-09-13-the-bit-reversed-prefix-perturbs-one-residue-class.md
+# records them in full, section "The declared draw's signature". The vector is
 # the draw's own signature: a member set that moved would not reproduce it.
 const FINDING_AMPLIFICATION =
-    [1.5370733437594026, 1.49623842316214, 1.5326636934187263, 1.5908572526823264,
-     1.6080869103316218, 1.6191722891526297, 1.6264993406366557, 1.6330749358749017,
-     1.651457596803084, 1.6652258010581136, 1.6752443460281938, 1.6837054369971156,
-     1.6935136308893561, 1.7129886508919299, 1.7329219253733754, 1.7526412960141897,
-     1.7716029654257, 1.7909559129038826, 1.813414293807, 1.8346782953012735]
+    [1.537073343526572, 1.5369850533315912, 1.6662453915341757, 1.700109020457603,
+     1.7335024176863953, 1.7417272574966773, 1.745736060431227, 1.7488743663416244,
+     1.754974546842277, 1.764291615691036, 1.7780310197267681, 1.7947989981621504,
+     1.8142512016929686, 1.8351148362271488, 1.856626014225185, 1.8779181980062276,
+     1.8984275262337178, 1.9177005665842444, 1.935503300279379, 1.9527521666605026]
 
 # Unchanged by that finding: the initial divergence is the Float32 rounding of
 # the case's own initial state and no envelope enters it.
@@ -208,8 +209,8 @@ end
         @test length(elsewhere) == length(ob.sites)
         @test Set(elsewhere) != Set(ob.sites)
         other = Backends.Envelope(e.case, e.steps, e.precision, e.members, e.sites,
-                                  e.exhaustive, e.miss_rate, e.amplification, elsewhere,
-                                  elsewhere)
+                                  e.exhaustive, e.miss_rate, e.seed, e.amplification,
+                                  elsewhere, elsewhere)
         @test !Backends.covers(other, MESH_PENTAGON_SITES, ob)
         @test !Backends.covers(other, elsewhere, ob)
     end
@@ -270,20 +271,33 @@ end
                                      roundoff = CASE_ROUNDOFF).initial == FINDING_INITIAL
     end
 
-    @testset "the members are the bit-reversed prefix, in order, over every usable site" begin
+    @testset "the members are the seeded draw, in order, over every usable site" begin
         usable = Backends.usable_sites(CASE, Float32)
-        order = Backends.bit_reversed_order(length(usable))
         @test CASE_ENVELOPE.perturbed ==
-              [usable[order[t]] for t in 1:Backends.ENSEMBLE_MEMBERS]
+              Backends.sampled_sites(usable, Backends.ENSEMBLE_MEMBERS, Backends.ENSEMBLE_SEED)
+        @test CASE_ENVELOPE.seed === Backends.ENSEMBLE_SEED
         @test CASE_ENVELOPE.scope === nothing
 
         @testset "the real-mesh case draws the same way" begin
             mesh_usable = Backends.usable_sites(MESH_CASE, Float32)
-            mesh_order = Backends.bit_reversed_order(length(mesh_usable))
             @test MESH_SAMPLED_ENVELOPE.perturbed ==
-                  [mesh_usable[mesh_order[t]] for t in 1:Backends.ENSEMBLE_MEMBERS]
+                  Backends.sampled_sites(mesh_usable, Backends.ENSEMBLE_MEMBERS,
+                                         Backends.ENSEMBLE_SEED)
+            @test MESH_SAMPLED_ENVELOPE.seed === Backends.ENSEMBLE_SEED
             @test MESH_SAMPLED_ENVELOPE.scope === nothing
             @test MESH_SAMPLED_ENVELOPE.miss_rate == Backends.ENSEMBLE_MISS_RATE
+
+            @testset "and reaches every residue class of the site position modulo 16" begin
+                position = Dict(s => k - 1 for (k, s) in enumerate(mesh_usable))
+                drawn = [position[s] for s in MESH_SAMPLED_ENVELOPE.perturbed]
+                @test length(unique(mod.(drawn, 16))) == 16
+
+                @testset "positive control: the bit-reversed prefix reaches one" begin
+                    prefix = CertifyFixtures.bit_reversed_prefix(length(mesh_usable),
+                                                                 Backends.ENSEMBLE_MEMBERS) .- 1
+                    @test length(unique(mod.(prefix, 16))) == 1
+                end
+            end
         end
 
         @testset "positive control: the obligation's arm draws over its own sites" begin
@@ -291,6 +305,7 @@ end
             @test MESH_PENTAGON_ENVELOPE.scope !== nothing
             @test Set(MESH_PENTAGON_ENVELOPE.scope) == Set(MESH_PENTAGON_SITES)
             @test MESH_PENTAGON_ENVELOPE.miss_rate == 0
+            @test MESH_PENTAGON_ENVELOPE.seed === nothing
         end
     end
 end
