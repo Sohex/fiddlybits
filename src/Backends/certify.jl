@@ -99,8 +99,8 @@ reference to the seed. For one fixed seed a given sub-population is either held
 or missed; the statement is about the draw, and it rests on the SHA-256 digest
 ordering sites as a uniformly random permutation would, which
 docs/decisions/0052-the-sampled-ensemble-is-a-seeded-draw.md names. The inverse
-of `ensemble_members`, and the number the registry rows this envelope serves
-state.
+of `ensemble_members`, and the number the `ulp_ensemble` instrument of
+docs/oracles/registry.toml states as `Backends.ENSEMBLE_MISS_RATE`.
 """
 detectable_miss_rate(members::Integer, confidence_reciprocal::Integer) =
     1 - (1 / confidence_reciprocal)^(1 / members)

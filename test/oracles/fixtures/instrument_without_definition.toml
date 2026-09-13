@@ -1,0 +1,11 @@
+[[oracle]]
+id = "repro.backend_ulp_envelope"
+tier = 1
+statistic = "CPU versus GPU divergence at every step against the ensemble envelope"
+verdict_kind = "fail_bar"
+threshold = "inside the envelope at every step"
+instrument = "ulp_ensemble"
+
+[[instrument]]
+id = "ulp_ensemble"
+parameters = { "Backends.ENSEMBLE_MEMBERS" = 766 }

@@ -223,8 +223,11 @@ certify_case(kernel, case, steps; roundoff)         PASS only when every arm cas
 
 `envelope` runs a CPU ensemble whose members each have one field perturbed by one ulp
 in one cell, and measures the divergence as a function of step count. A pair is not
-an ensemble: the member count is declared and the registry states the miss rate that
-count can detect, because a stochastic property tested by a pair is not tested.
+an ensemble: the member count is declared, and the registry's `ulp_ensemble`
+instrument states it with the seed and the miss rate that count can detect, as
+parameters checked against the constants that hold them
+(`docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md`), because a
+stochastic property tested by a pair is not tested.
 
 The ulp is one ulp at `precision`, the precision whose divergence the envelope is the
 tolerance of, and it is taken at every step an error could be injected at rather than
@@ -274,9 +277,11 @@ obligation: given a case and a step count rather than a caller-built envelope, t
 run the sampled arm and the exhaustive arm of every `Obligation` the case declares,
 and the case-level verdict is `PASS` only when every arm is. The two registry rows
 this certification serves, `repro.backend_ulp_envelope` and
-`repro.fp32_kernel_certification`, now carry that requirement in their own threshold
-text (`fiddlybits-52v.7.24`): a certification of a case that declares an
-`Obligation` is not admissible from the sampled arm alone.
+`repro.fp32_kernel_certification`, name the `ulp_ensemble` instrument, whose one
+definition carries that requirement (`fiddlybits-52v.7.24`, `fiddlybits-859`): a
+certification of a case that declares an `Obligation` is not admissible from the
+sampled arm alone. Neither row states the instrument's definition or rests on the
+other's verdict.
 
 A kernel enters a production profile at FP32 only when its FP32 output stays inside
 the envelope of its FP64 self. Ledgers, accumulated reservoirs and global reductions
