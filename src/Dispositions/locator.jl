@@ -1,16 +1,14 @@
 # Locator: docs/plans/fiddlybits-52v.4-system.md, section "The five dispositions";
 # decision 0007; REQ-SYS-001.
-#
-# Both fields are required and neither may be empty, so there is no constructor that
-# takes an identifier alone.
 
 using ..Verdicts: refuse
 
 """
     Locator(; identifier, table)
 
-The work a `Sourced` value is taken from: its identifier, as carried into
-`docs/references/INDEX.md`, and the table or equation the value comes from.
+The work a `Sourced` value is taken from: its identifier, and the table or equation
+the value comes from. `identifier` is either a bare DOI or, for a row of
+`docs/references/INDEX.md` with no DOI, that row's file key (its first column).
 """
 struct Locator
     identifier::String

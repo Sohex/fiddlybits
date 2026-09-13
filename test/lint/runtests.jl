@@ -119,4 +119,10 @@ fixture(entry, kind) = joinpath(FIXTURES, entry.name, kind, entry.inside)
             @test !isempty(e["reason"])
         end
     end
+
+    @testset "lint_sourced places every row of docs/references/INDEX.md" begin
+        _, unplaced = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        isempty(unplaced) || @info "lint_sourced: rows it could not place" unplaced
+        @test isempty(unplaced)
+    end
 end

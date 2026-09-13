@@ -75,7 +75,7 @@ end
     @test occursin("sensitivity", e.reason)
 end
 
-@testset "Closure: a Sourced coefficient, and a single level" begin
+@testset "Closure: a Sourced coefficient, a single level, and a repeated level" begin
     e = caught(() -> closure(coefficient = sourced()))
     @test e isa Verdicts.Refusal
     @test occursin("Bracketed", e.reason)
@@ -83,6 +83,10 @@ end
     e = caught(() -> closure(levels = (3,)))
     @test e isa Verdicts.Refusal
     @test occursin("fewer than two levels", e.reason)
+
+    e = caught(() -> closure(levels = (4, 4)))
+    @test e isa Verdicts.Refusal
+    @test occursin("one level, twice", e.reason)
 end
 
 @testset "value and dimension" begin

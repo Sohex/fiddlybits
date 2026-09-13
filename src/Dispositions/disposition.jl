@@ -1,11 +1,8 @@
 # The five dispositions: docs/plans/fiddlybits-52v.4-system.md, section "The five
 # dispositions"; decision 0007; REQ-SYS-001; REQ-SYS-103.
 #
-# The set is closed by dispositions() and the suite that checks it against
-# subtypes(Disposition), not by the language, so there is no sixth constructor.
-# The reference check that a Sourced identifier is marked read is lint_sourced, not a
-# constructor refusal: reading docs/references/INDEX.md at construction time would
-# make this package depend on a documents directory being present.
+# The reference check on a Sourced locator is lint_sourced (test/lint/lint_sourced.jl),
+# not a constructor refusal.
 
 using ..Dimensions: Dim
 using ..Verdicts: refuse
@@ -163,6 +160,9 @@ function Closure(; law::Symbol, coefficient::Disposition{T,D},
     length(levels) >= 2 || refuse(
         "Closure levels", "Dispositions.Closure",
         "$(levels) names fewer than two levels")
+    length(unique(levels)) >= 2 || refuse(
+        "Closure levels", "Dispositions.Closure",
+        "$(levels) names one level, twice")
     return Closure{T,D,N}(law, coefficient, levels)
 end
 

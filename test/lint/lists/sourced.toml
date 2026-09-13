@@ -1,7 +1,8 @@
 # lint_sourced: REQ-SYS-001, decision 0007, docs/plans/fiddlybits-52v.4-system.md,
-# section "The five dispositions". Every Sourced locator's identifier is checked
-# against docs/references/INDEX.md.
+# section "The five dispositions".
 
+# The references index, relative to the root a run is passed: the project root for
+# the tree run, a fixture directory for the dirty and clean fixtures.
 index = "docs/references/INDEX.md"
 
 # The areas a Sourced locator may appear in.
