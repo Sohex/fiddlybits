@@ -1,6 +1,6 @@
 using Test
 using LinearAlgebra: norm
-using Fiddlybits: Mesh
+using Fiddlybits: Mesh, Verdicts
 
 # mesh.nesting_identity and mesh.area_closure read this hierarchy; their oracles
 # are the next row's. This file is the interface acceptance named in
@@ -23,8 +23,18 @@ worst_radial_defect(vertices) = maximum(abs(1 - norm(view(vertices, :, i))) for 
 
 @testset "Mesh.hierarchy" begin
     @testset "negative level refuses" begin
-        @test_throws Mesh.Refusal Mesh.hierarchy(-1)
-        @test_throws Mesh.Refusal Mesh.hierarchy(-2)
+        for L in (-1, -2)
+            caught = nothing
+            try
+                Mesh.hierarchy(L)
+            catch e
+                caught = e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "level"
+            @test caught.site == "Mesh.hierarchy"
+            @test occursin(string(L), caught.reason)
+        end
     end
 
     @testset "parent(children(i)) == i at every level" begin
