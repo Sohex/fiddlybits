@@ -57,8 +57,10 @@ without one of the five dispositions is the failure the whole plan exists to pre
 
 `Dispositions` references `Verdicts` for its refusals and `Dimensions` for the
 dimension a value carries; it references nothing else, so it sits in group B of the
-skeleton plan's include order. `Systems` references `Dispositions`, `Dimensions` and
-`Verdicts`, and nothing below it. `EarthRatios` references `Dispositions` only, and
+skeleton plan's include order. `Systems` references `Dispositions`, `Dimensions`,
+`Reductions` for `error_bound`, the rounding bound of a `Derived` rule, and `Verdicts`,
+and nothing below it; `Reductions` references `Backends` and `Verdicts`, so it is
+included before `Systems`. `EarthRatios` references `Dispositions` only, and
 is read by `Render` and by no physics module, which is what `lint_earth` decides.
 
 `src/Systems/tracking.jl` and `src/Systems/profile.jl` are called out as their own
