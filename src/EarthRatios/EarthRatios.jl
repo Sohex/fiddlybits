@@ -3,10 +3,8 @@
 #
 # Every member is a unit-conversion denominator, not a physical quantity: a report
 # divides a computed value by one of these to state it as a count of Earth units, in
-# `Render` only. Each name closes with `_unit` so that member, used anywhere physics
-# is computed, reads as what it is: a unit, not a value to compute with. Each is a
-# zero-argument function, called on a caller's own call and never as a side effect of
-# loading the package: notes/findings/2026-09-13-a-const-sourced-value-leaks-refuse-into-the-package-image.md.
+# `Render` only. Each name closes with `_unit`. Each is a zero-argument function, not
+# a `const`: notes/findings/2026-09-13-a-const-sourced-value-leaks-refuse-into-the-package-image.md.
 
 module EarthRatios
 
@@ -23,8 +21,8 @@ gravity_unit() = Sourced(
     value = 9.80665,
     dim = LENGTH / TIME / TIME,
     locator = Locator(
-        identifier = "10.3847/0004-6256/152/2/41",
-        table = "Section 2, the gn = 9.80665 m/s^2 statement"))
+        identifier = "10.59161/CGPM1901DECL2E",
+        table = "Declaration 2, p.70: 980.665 cm/sec^2"))
 
 """
     radius_unit()
