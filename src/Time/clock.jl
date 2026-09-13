@@ -110,7 +110,7 @@ A `fraction` outside `[0, 1)` is refused: it would name an instant a second pair
 names, and the round trip would then not be one.
 """
 function decode(whole::Integer, fraction::T) where {T<:AbstractFloat}
-    abs(whole) < WHOLE_SECONDS_LIMIT ||
+    -WHOLE_SECONDS_LIMIT < whole < WHOLE_SECONDS_LIMIT ||
         refuse("SimTime", "Time.decode",
                "the whole part $(whole) is outside the range Int64 carries here, " *
                "$(WHOLE_SECONDS_LIMIT)")

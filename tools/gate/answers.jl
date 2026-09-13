@@ -48,30 +48,82 @@ function hash_of(text::AbstractString)
     return m === nothing ? "" : String(m.captures[1])
 end
 
-"The file's text at a git revision, or an empty string. A path absent there is an
-answer, not an error, so git's own message is suppressed."
-function at_revision(spec)
+"""
+    absent_path_failure(message)
+
+Whether a failed `git show <rev>:<path>` failed because `path` is absent at `rev`,
+recognised from the two families of message git writes for that case ("does not
+exist ..." and "exists on disk, but not ..."). Any other message, including one from
+a revision that does not resolve or a repository git cannot open, is not this.
+"""
+absent_path_failure(message::AbstractString) =
+    occursin("does not exist", message) || occursin("exists on disk, but not", message)
+
+"""
+    at_revision(spec; dir)
+
+The text `git show <spec>` writes, run in `dir` with `LC_ALL=C` and `LANGUAGE`
+cleared, so the message `absent_path_failure` reads is always git's untranslated
+English regardless of the caller's own locale. Returns an empty string when git
+reports the named path absent there. Any other failure, including one where
+`spec`'s revision itself does not resolve, throws rather than returning a value a
+caller could read as "absent".
+"""
+function at_revision(spec::AbstractString; dir::AbstractString)
+    out = IOBuffer()
+    err = IOBuffer()
+    cmd = addenv(Cmd(`git show $spec`; dir = dir), "LC_ALL" => "C", "LANGUAGE" => "")
+    ok = success(pipeline(cmd; stdout = out, stderr = err))
+    ok && return String(take!(out))
+    message = String(take!(err))
+    absent_path_failure(message) && return ""
+    error("git show $spec failed in $dir:\n" * message)
+end
+
+read_index(path::AbstractString; dir::AbstractString) = at_revision(":" * path; dir = dir)
+read_head(path::AbstractString; dir::AbstractString) = at_revision("HEAD:" * path; dir = dir)
+
+"""
+    staged_tree_hash(root, script)
+
+Check out the git index at `root` into a fresh directory, run `script` (a path
+relative to `root`) there with `julia --project=<the fresh directory>`, and return
+its trimmed standard output. Every file the run reads, including `script` itself, is
+the index's version, never the working tree's. The directory is removed before
+returning, whether or not the run succeeded.
+"""
+function staged_tree_hash(root::AbstractString, script::AbstractString)
+    tree = mktempdir()
     try
-        return read(pipeline(`git show $spec`, stderr = devnull), String)
-    catch
-        return ""
+        checkout = addenv(Cmd(`git checkout-index -a --prefix=$(tree * "/")`; dir = root),
+                           "LC_ALL" => "C", "LANGUAGE" => "")
+        run(pipeline(checkout; stdout = devnull, stderr = devnull))
+        cmd = `julia --startup-file=no --project=$(tree) $(joinpath(tree, script))`
+        return chomp(read(cmd, String))
+    finally
+        rm(tree; force = true, recursive = true)
     end
 end
 
-read_index(path) = at_revision(":" * path)
-read_head(path) = at_revision("HEAD:" * path)
+"""
+    main(args; root)
 
-function main(args)
+The commit-msg entry point. `root` is the git worktree the commit is against and
+defaults to the current directory, which is where the caller is expected to run
+from. The reference hash comes from `staged_tree_hash`, never from `root`'s working
+tree, unless `FB_REFERENCE_HASH` is set, in which case that value is used as is.
+"""
+function main(args; root::AbstractString = pwd())
     if isempty(args)
         println(stderr, "usage: answers.jl <commit-message-file>")
         return 2
     end
     record = "bench/reference.toml"
     computed = get(ENV, "FB_REFERENCE_HASH") do
-        chomp(read(`julia --startup-file=no --project=. tools/gate/reference.jl`, String))
+        staged_tree_hash(root, joinpath("tools", "gate", "reference.jl"))
     end
-    staged = hash_of(read_index(record))
-    head = hash_of(read_head(record))
+    staged = hash_of(read_index(record; dir = root))
+    head = hash_of(read_head(record; dir = root))
     message = read(args[1], String)
     v = verdict(; computed, staged, head, message)
     v === :ok && return 0

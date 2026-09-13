@@ -309,3 +309,80 @@ end
         end
     end
 end
+
+@testset "certify.construction_copies_its_inputs" begin
+    fields = [collect(1.0:4.0)]
+    step! = state -> state
+
+    @testset "obligations: a push onto the caller's list after construction is not seen" begin
+        obligations = [Backends.Obligation("corner", [(1, 1), (1, 4)])]
+        case = Backends.EnsembleCase("post-construction-push", fields, step!, obligations)
+        @test case.obligations !== obligations
+
+        push!(obligations, Backends.Obligation("beyond", [(1, 9)]))
+        @test length(case.obligations) == 1
+        @test case.obligations[1].name == "corner"
+
+        @testset "positive control: constructing today from the list as it now stands is refused" begin
+            caught = try
+                Backends.EnsembleCase("post-construction-push", fields, step!, obligations)
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "certification obligation"
+            @test occursin("field 1 cell 9", caught.reason)
+        end
+    end
+
+    @testset "fields: a mutation of the caller's vector after construction is not seen" begin
+        case = Backends.EnsembleCase("post-construction-mutate-fields", fields, step!,
+                                     Backends.Obligation[])
+        @test case.fields !== fields
+        @test case.fields[1] !== fields[1]
+
+        push!(fields[1], 99.0)
+        @test length(case.fields[1]) == 4
+        @test case.fields[1] == [1.0, 2.0, 3.0, 4.0]
+
+        @testset "positive control: an obligation naming the grown length is refused against the case's own copy" begin
+            caught = try
+                Backends.EnsembleCase("post-construction-mutate-fields", case.fields, step!,
+                                      [Backends.Obligation("fifth", [(1, 5)])])
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test occursin("field 1 cell 5", caught.reason)
+
+            @testset "the same obligation against the caller's now-longer vector constructs" begin
+                ok = Backends.EnsembleCase("built-from-mutated-fields", fields, step!,
+                                          [Backends.Obligation("fifth", [(1, 5)])])
+                @test length(ok.fields[1]) == 5
+            end
+        end
+    end
+
+    @testset "obligation site lists: a mutation of an obligation's own list after construction is not seen" begin
+        ob = Backends.Obligation("corner", [(1, 1), (1, 4)])
+        case = Backends.EnsembleCase("post-construction-mutate-sites", fields, step!, [ob])
+        @test case.obligations[1].sites !== ob.sites
+
+        push!(ob.sites, (1, 9))
+        @test case.obligations[1].sites == [(1, 1), (1, 4)]
+
+        push!(ob.sites, ob.sites[1])
+        @test case.obligations[1].sites == [(1, 1), (1, 4)]
+
+        @testset "positive control: constructing today from the mutated site list is refused" begin
+            caught = try
+                Backends.EnsembleCase("post-construction-mutate-sites", fields, step!, [ob])
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "certification obligation"
+            @test occursin("field 1 cell 9", caught.reason)
+        end
+    end
+end
