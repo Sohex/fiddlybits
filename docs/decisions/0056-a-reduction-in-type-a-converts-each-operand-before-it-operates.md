@@ -1,5 +1,5 @@
 +++
-id = "0055"
+id = "0056"
 title = "A reduction accumulated in type A converts every operand to A where it reads it, so each term's product is formed in A and not in the operands' own type"
 status = "accepted"
 date = 2026-09-13

@@ -236,23 +236,27 @@ end
     segmented_weighted_sum_reference(::Type{A}, xs, weights, segmentation) where A
 
 The naive serial reference for `segmented_weighted_sum` (decision 0027):
-the products `A(xs[j]) * A(weights[j])` written one index at a time into an
-array of type `A`, each operand converted to `A` before it is multiplied
-(decision 0056), and that array then reduced by `segmented_sum_reference`
-in `A`. Refuses when `xs` and `weights` differ in length. The
-`Segmentation` form reads the boundaries it holds and checks them again
-here.
+each segment's terms `A(xs[j]) * A(weights[j])` accumulated one at a time
+in index order, one segment after another, both operands converted to `A`
+before they are multiplied (decision 0056). Refuses when `xs` and
+`weights` differ in length. The `Segmentation` form reads the boundaries
+it holds and checks them again here.
 """
 function segmented_weighted_sum_reference(::Type{A}, xs::AbstractVector, weights::AbstractVector,
                                            starts::AbstractVector{<:Integer}) where {A<:Number}
     length(xs) == length(weights) ||
         refuse("segmented weighted sum extent", "Reductions.segmented_weighted_sum_reference",
                "xs has length $(length(xs)), weights has length $(length(weights))")
-    terms = Vector{A}(undef, length(xs))
-    for j in eachindex(terms, xs, weights)
-        terms[j] = A(xs[j]) * A(weights[j])
+    nseg = segment_extent(xs, starts)
+    out = Vector{A}(undef, nseg)
+    for s in 1:nseg
+        acc = zero(A)
+        for j in starts[s]:starts[s+1]-1
+            acc += A(xs[j]) * A(weights[j])
+        end
+        out[s] = acc
     end
-    return segmented_sum_reference(A, terms, starts)
+    return out
 end
 
 function segmented_weighted_sum_reference(::Type{A}, xs::AbstractVector, weights::AbstractVector,
