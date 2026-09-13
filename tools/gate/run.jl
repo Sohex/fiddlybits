@@ -9,6 +9,10 @@
 # `test/runtests.jl` runs the same suites in one process in order, and is what
 # `Pkg.test()` calls. Both read `suites` from `test/suites.jl`, so a suite cannot
 # exist for one door and not the other.
+#
+# When the working tree changes a Julia file that elides a bounds check against its
+# merge base with `main`, every suite also runs a second time under `BOUNDS_FLAGS`, in
+# the same pool (decision 0055).
 
 const ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 include(joinpath(ROOT, "test", "suites.jl"))
@@ -41,12 +45,20 @@ The flags every suite process carries beyond the defaults, so that the gate and
 them says nothing when a method is overwritten or a deprecated binding is used
 (notes/findings/2026-09-12-the-overwrite-warning-reaches-one-door-of-two.md).
 
-`--check-bounds=yes`, which `Pkg.test()` also sets, is not here. It is the one flag
-that changes what is compiled rather than what is reported, and it costs the gate a
-factor of 2.2 against a wall time decision 0049 bounds
-(notes/findings/2026-09-12-what-the-gate-pays-for-each-of-pkg-test-s-flags.md).
+`--check-bounds=yes`, which `Pkg.test()` also sets, is not here: it changes what is
+compiled rather than what is reported. It is `BOUNDS_FLAGS`, which the checked pass
+and the nightly bed add (decisions 0050 and 0055).
 """
 const SUITE_FLAGS = `--warn-overwrite=yes --depwarn=yes`
+
+"""
+The flags a checked pass adds to `SUITE_FLAGS`: the gate's second pass over a change
+that elides a bounds check, and every night's run (`tools/nightly/run.jl`).
+"""
+const BOUNDS_FLAGS = `--check-bounds=yes`
+
+"The suffix a suite's label carries in the checked pass, in the report and its log name."
+const CHECKED_SUFFIX = "+bounds"
 
 """
     suite_command(root, name)
@@ -61,9 +73,8 @@ a suite does not use costs a stack and nothing else, and the one suite that does
 use them, `certify`, is the last to finish and has the machine to itself for most
 of its run (notes/findings/2026-09-12-the-gate-in-parallel.md).
 
-`extra` is what a caller adds to `SUITE_FLAGS` for its own door. The nightly bed
-passes `--check-bounds=yes` there (`tools/nightly/run.jl`), which decision 0050 keeps
-off the gate.
+`extra` is what a caller adds to `SUITE_FLAGS` for its own door: `BOUNDS_FLAGS` for
+the checked pass and the nightly bed.
 """
 suite_command(root::AbstractString, name::AbstractString, threads::Int;
               extra::Cmd = ``) =
@@ -98,10 +109,24 @@ function warm_precompile(root::AbstractString; extra::Cmd = ``)
 end
 
 """
-    in_process(root, logdir)
+    warm_both(root)
+
+Warm the default configuration and the `BOUNDS_FLAGS` one at once, and return their
+times as `(default, bounds)`. Both are warmed on every run: `test/backends` starts a
+probe process under each, whichever pass it is in.
+"""
+function warm_both(root::AbstractString)
+    bounds = Threads.@spawn warm_precompile(root; extra = BOUNDS_FLAGS)
+    default = warm_precompile(root)
+    return (default, fetch(bounds))
+end
+
+"""
+    in_process(root, logdir, threads; extra, suffix)
 
 The runner `run_suites` uses in earnest: one suite, in its own `julia`, with its
-whole output in `logdir`. Returns whether the suite passed.
+whole output in `logdir` under the suite's name followed by `suffix`. Returns whether
+the suite passed.
 
 A suite is a process and not a task, so nothing it defines, allocates or leaves
 behind can reach another suite. That is what makes the partition unable to change
@@ -110,8 +135,8 @@ suite's collection cost stops being a function of what ran before it
 (notes/findings/2026-09-12-the-gate-in-parallel.md).
 """
 in_process(root::AbstractString, logdir::AbstractString, threads::Int;
-           extra::Cmd = ``) =
-    name -> open(joinpath(logdir, name * ".log"), "w") do io
+           extra::Cmd = ``, suffix::AbstractString = "") =
+    name -> open(joinpath(logdir, name * suffix * ".log"), "w") do io
         success(pipeline(suite_command(root, name, threads; extra = extra);
                          stdout = io, stderr = io))
     end
@@ -183,13 +208,13 @@ end
     unaccepted_warnings(text, accepted)
 
 The warning lines in `text` that no entry of `accepted` covers. A warning is a line
-opening `WARNING:`, which is how the runtime writes one, or `\u250c Warning:`, which
+opening `WARNING:`, which is how the runtime writes one, or `┌ Warning:`, which
 is the top of a `@warn` box; the rest of a box is its detail and is not scanned.
 """
 function unaccepted_warnings(text::AbstractString, accepted)
     found = String[]
     for line in eachline(IOBuffer(text))
-        startswith(line, "WARNING:") || startswith(line, "\u250c Warning:") || continue
+        startswith(line, "WARNING:") || startswith(line, "┌ Warning:") || continue
         any(p -> occursin(first(p), line), accepted) && continue
         push!(found, line)
     end
@@ -252,6 +277,244 @@ function report(results::Vector{Tuple{String,Bool,Float64}}, logdir::AbstractStr
     return (isempty(failed) && isempty(warned)) ? 0 : 1
 end
 
+"""
+    git_at(root, args)
+
+`git -C root` with `args`, in this process's environment less every variable `git
+rev-parse --local-env-vars` names (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` and the
+rest), so the repository it acts on is the one at `root` and not one the calling
+process was pointed at, as a git hook's process is.
+"""
+function git_at(root::AbstractString, args::Cmd)
+    located = Set(split(read(`git rev-parse --local-env-vars`, String)))
+    env = Dict(k => v for (k, v) in ENV if !(k in located))
+    return setenv(`git -C $(root) $(args)`, env)
+end
+
+is_macro_named(head, name::Symbol) =
+    head === name || (head isa Expr && head.head === :. && length(head.args) == 2 &&
+                      head.args[2] isa QuoteNode && head.args[2].value === name)
+
+"""
+    elision_sites(text)
+
+Every place Julia source `text` elides a bounds check, as `(line, form, in_kernel)`:
+an `@inbounds` (or `Base.@inbounds`) call, an `Expr(:inbounds, ...)` built in code,
+or a KernelAbstractions `@kernel` given `inbounds=true`. `in_kernel` is whether the
+site sits inside the arguments of a `@kernel` call. Read from the parsed syntax, so a
+string or a comment naming the macro is not a site.
+
+Source that does not parse is one site, `(0, "unparseable", false)`.
+"""
+function elision_sites(text::AbstractString)
+    parsed = try
+        Meta.parseall(text)
+    catch
+        return [(0, "unparseable", false)]
+    end
+    sites = Tuple{Int,String,Bool}[]
+    line = Ref(0)
+    function walk(node, in_kernel::Bool)
+        if node isa LineNumberNode
+            line[] = node.line
+        elseif node isa Expr
+            if node.head === :error || node.head === :incomplete
+                push!(sites, (line[], "unparseable", in_kernel))
+                return
+            end
+            if node.head === :macrocall && !isempty(node.args)
+                name = node.args[1]
+                length(node.args) >= 2 && node.args[2] isa LineNumberNode &&
+                    (line[] = node.args[2].line)
+                if is_macro_named(name, Symbol("@inbounds"))
+                    push!(sites, (line[], "@inbounds", in_kernel))
+                elseif is_macro_named(name, Symbol("@kernel"))
+                    for a in node.args
+                        a isa Expr && a.head === :(=) && a.args[1] === :inbounds &&
+                            a.args[2] === true &&
+                            push!(sites, (line[], "@kernel inbounds=true", true))
+                    end
+                    foreach(a -> walk(a, true), node.args[2:end])
+                    return
+                end
+            elseif node.head === :call && length(node.args) >= 2 && node.args[1] === :Expr &&
+                   node.args[2] isa QuoteNode && node.args[2].value === :inbounds
+                push!(sites, (line[], "Expr(:inbounds)", in_kernel))
+            end
+            foreach(a -> walk(a, in_kernel), node.args)
+        end
+    end
+    walk(parsed, false)
+    return sites
+end
+
+"""
+    split_lines(text)
+
+The non-empty lines of `text`.
+"""
+split_lines(text::AbstractString) = String[l for l in split(text, '\n') if !isempty(l)]
+
+"""
+    changed_paths(root; base_ref)
+
+`(base, paths)`: the merge base of `base_ref` and `HEAD` in the repository at `root`,
+and every path, relative to `root`, that the working tree changes against it: tracked
+changes whether committed, staged or not, and untracked files not ignored. A rename is
+its two paths. Refuses when `base_ref` does not resolve, naming it.
+"""
+function changed_paths(root::AbstractString; base_ref::AbstractString = "main")
+    base = try
+        strip(read(git_at(root, `merge-base $(base_ref) HEAD`), String))
+    catch
+        error("the bounds door diffs against the merge base of $(base_ref) and HEAD, " *
+              "and git found none in $(root); a checkout without $(base_ref) cannot " *
+              "say which of its files a change touches")
+    end
+    tracked = split_lines(read(git_at(root, `diff --name-only --no-renames $(base)`), String))
+    untracked = split_lines(read(git_at(root, `ls-files --others --exclude-standard`), String))
+    return String(base), sort(unique(vcat(tracked, untracked)))
+end
+
+"""
+    eliding_changes(root; base_ref)
+
+`(base, eliding)`: the merge base `changed_paths` found, and every changed `.jl` file
+present in the working tree whose `elision_sites` are not empty, as `path => sites`.
+"""
+function eliding_changes(root::AbstractString; base_ref::AbstractString = "main")
+    base, paths = changed_paths(root; base_ref = base_ref)
+    eliding = Pair{String,Vector{Tuple{Int,String,Bool}}}[]
+    for p in paths
+        endswith(p, ".jl") || continue
+        file = joinpath(root, p)
+        isfile(file) || continue
+        sites = elision_sites(read(file, String))
+        isempty(sites) || push!(eliding, p => sites)
+    end
+    return base, eliding
+end
+
+"""
+    door_controls()
+
+Run `eliding_changes` on scratch repositories where the answer is known, and refuse
+unless every one comes out as stated: a change to a file carrying `@inbounds`, an
+untracked file carrying one and a `@kernel inbounds=true` each trigger; a change to a
+file without one, a docstring naming the macro, and a clean branch do not. Returns the
+number of controls run.
+"""
+function door_controls()
+    git(dir, args) = run(pipeline(git_at(dir, `-c user.email=gate@fiddlybits -c user.name=gate $(args)`);
+                                  stdout = devnull, stderr = devnull))
+    eliding = "function f(v)\n    @inbounds return v[1]\nend\n"
+    plain = "function g(v)\n    return v[1]\nend\n"
+    named = "\"\"\"\n    h(v)\n\nReads under `@inbounds`.\n\"\"\"\nh(v) = v[1]\n"
+    forced = "using KernelAbstractions\n@kernel inbounds=true function k!(o)\n    i = @index(Global)\n    o[i] = 1\nend\n"
+    cases = (
+        ("a clean branch", (d) -> nothing, String[]),
+        ("a change to a file without an elision", (d) -> write(joinpath(d, "plain.jl"), plain * "# changed\n"), String[]),
+        ("a change to a file carrying @inbounds", (d) -> write(joinpath(d, "kernel.jl"), eliding * "# changed\n"), ["kernel.jl"]),
+        ("an untracked file carrying @inbounds", (d) -> write(joinpath(d, "new.jl"), eliding), ["new.jl"]),
+        ("a docstring naming the macro", (d) -> write(joinpath(d, "named.jl"), named), String[]),
+        ("a @kernel given inbounds=true", (d) -> write(joinpath(d, "forced.jl"), forced), ["forced.jl"]),
+        ("a committed change on the branch", (d) -> begin
+             write(joinpath(d, "kernel.jl"), eliding * "# committed\n")
+             git(d, `commit -q -am change`)
+         end, ["kernel.jl"]),
+    )
+    for (what, change, expected) in cases
+        dir = mktempdir()
+        git(dir, `init -q -b main`)
+        write(joinpath(dir, "kernel.jl"), eliding)
+        write(joinpath(dir, "plain.jl"), plain)
+        git(dir, `add -A`)
+        git(dir, `commit -q -m base`)
+        git(dir, `checkout -q -b change`)
+        change(dir)
+        _, found = eliding_changes(dir)
+        got = first.(found)
+        got == expected ||
+            error("the bounds door's control \"$(what)\" found $(got) where it must find " *
+                  "$(expected); the door cannot be trusted to say which changes elide a check")
+        rm(dir; recursive = true)
+    end
+    return length(cases)
+end
+
+"""
+    probe_command(root, flags, arms)
+
+The command that runs `tools/gate/bounds_probe.jl` over `arms` in a fresh `julia` on
+`root`'s project, carrying `SUITE_FLAGS` and `flags`.
+"""
+probe_command(root::AbstractString, flags::Cmd, arms::Vector{String}) =
+    `julia --startup-file=no $(SUITE_FLAGS) $(flags) --project=$(root) $(joinpath(root, "tools", "gate", "bounds_probe.jl")) $(arms)`
+
+"""
+    probe_verdicts(text)
+
+The TOML lines of a probe's stdout, parsed: every line opening with a lower-case key
+and ` = `. The card's own kernel exception report shares the stream and is not read.
+"""
+probe_verdicts(text::AbstractString) =
+    TOML.parse(join(filter(l -> occursin(r"^[a-z_]+ = ", l), split(text, '\n')), "\n"))
+
+"""
+    run_probe(root, flags, arms)
+
+`probe_verdicts` of `probe_command(root, flags, arms)`. Refuses, carrying what the
+process wrote, when any arm has no verdict.
+"""
+function run_probe(root::AbstractString, flags::Cmd, arms::Vector{String})
+    buffer = IOBuffer()
+    run(pipeline(ignorestatus(probe_command(root, flags, arms)); stdout = buffer, stderr = buffer))
+    text = String(take!(buffer))
+    verdicts = probe_verdicts(text)
+    all(a -> haskey(verdicts, a), arms) ||
+        error("the bounds probe under $(flags) gave no verdict for every arm of " *
+              "$(join(arms, ", ")); it wrote:\n$(text)")
+    return verdicts
+end
+
+"""
+    bounds_reach(root, flags)
+
+Run the probe's two marker arms under `flags` and return its verdicts, refusing unless
+both read `"checked"`: a pass under `flags` that did not compile bounds checks into
+the kernels it launches on both backends would report a pass it did not earn.
+"""
+function bounds_reach(root::AbstractString, flags::Cmd)
+    verdicts = run_probe(root, flags, ["marker_cpu", "marker_gpu"])
+    for arm in ("marker_cpu", "marker_gpu")
+        verdicts[arm] == "checked" ||
+            error("under $(flags) the kernels launched on $(arm[end-2:end]) under " *
+                  "@inbounds read \"$(verdicts[arm])\" and not \"checked\" " *
+                  "($(get(verdicts, arm * "_detail", ""))); a pass under these flags " *
+                  "would not check what it claims to")
+    end
+    return verdicts
+end
+
+"""
+    door_summary(base, eliding)
+
+The lines the gate prints about the bounds door: the merge base, and either every
+changed file that elides a check with the lines of its sites, or that there is none.
+"""
+function door_summary(base::AbstractString, eliding)
+    head = "gate: bounds door against main at $(base[1:min(end, 12)]): "
+    isempty(eliding) &&
+        return [head * "no changed .jl file elides a bounds check; no checked pass"]
+    lines = [head * "$(length(eliding)) changed .jl file(s) elide a bounds check; every " *
+             "suite also runs under $(join(BOUNDS_FLAGS.exec, " "))"]
+    for (path, sites) in eliding
+        push!(lines, "gate:   " * path * " at line(s) " *
+                     join(unique(string(s[1]) for s in sites), ", "))
+    end
+    return lines
+end
+
 function main(args::Vector{String})
     workers = worker_count(args)
     found, missing = suites(joinpath(ROOT, "test"))
@@ -260,14 +523,37 @@ function main(args::Vector{String})
               join(missing, ", "))
     isempty(found) && error("no suite was found under test/")
 
+    controls = door_controls()
+    base, eliding = eliding_changes(ROOT)
+    summary = door_summary(base, eliding)
+    foreach(println, summary)
+    println("gate: the door's ", controls, " controls came out as stated")
+
     logdir = mktempdir(; cleanup = false)
     println("gate: ", length(found), " suites, ", workers, " at once, logs in ", logdir)
-    warmed = warm_precompile(ROOT)
-    println("gate: package warm in ", round(warmed; digits = 1), " s")
+    default_warm, bounds_warm = warm_both(ROOT)
+    println("gate: package warm in ", round(default_warm; digits = 1), " s, and in ",
+            round(bounds_warm; digits = 1), " s under ", join(BOUNDS_FLAGS.exec, " "))
+
+    plain = in_process(ROOT, logdir, workers)
+    names = copy(found)
+    runner = plain
+    if !isempty(eliding)
+        reach = bounds_reach(ROOT, BOUNDS_FLAGS)
+        println("gate: under ", join(BOUNDS_FLAGS.exec, " "), " kernels under @inbounds read ",
+                reach["marker_cpu"], " on cpu and ", reach["marker_gpu"], " on gpu")
+        checked = in_process(ROOT, logdir, workers; extra = BOUNDS_FLAGS, suffix = CHECKED_SUFFIX)
+        names = collect(Iterators.flatten((n, n * CHECKED_SUFFIX) for n in found))
+        runner = label -> endswith(label, CHECKED_SUFFIX) ?
+            checked(label[1:end-length(CHECKED_SUFFIX)]) : plain(label)
+    end
 
     wall = time()
-    results = run_suites(found, workers, in_process(ROOT, logdir, workers))
-    return report(results, logdir, time() - wall)
+    results = run_suites(names, workers, runner)
+    status = report(results, logdir, time() - wall)
+    println()
+    foreach(println, summary)
+    return status
 end
 
 (abspath(PROGRAM_FILE) == @__FILE__) && exit(main(ARGS))

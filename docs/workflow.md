@@ -54,7 +54,8 @@ cd .beads/worktrees/<id>
 #   heavy work through qrun (see ~/.claude/CLAUDE.md), never directly
 ./tools/gate/gate.sh                          # the per-commit gate: every suite in its
                                               # own process, through the scheduler,
-                                              # printing each suite's wall time
+                                              # printing each suite's wall time, and
+                                              # its "gate: bounds door" lines
 #   `julia --project -e 'using Pkg; Pkg.test()'` runs the same suites in one process in
 #   order, which is slower and is the door to reach for when reading one failure
 #   run the row's acceptance oracles by name; record verdicts
@@ -68,6 +69,14 @@ A worktree lives under `.beads/worktrees/` rather than at the repository root, w
 keeps it under the root and so under `.taskrunner.toml`: every `qrun` from inside it
 inherits this repository's resource defaults. `.gitignore` covers the directory as a
 class, so no worktree needs an entry of its own.
+
+**The bounds door is part of the gate, not a step beside it** (decision 0055). The gate
+diffs the worktree against its merge base with `main` and parses every changed `.jl`
+file; when one elides a bounds check (`@inbounds`, `@kernel inbounds=true`), every suite
+also runs under `--check-bounds=yes` in the same pool, with `+bounds` after its name.
+The gate prints what the door found at the start of the run and again at the end; copy
+those lines into the row's notes with the gate's verdict. There is no command to run
+for it and no flag that turns it off.
 
 **Every tracker write comes before the commit that carries it.** Nothing in git records
 the board: the tracker lives in Dolt and syncs through `refs/dolt/data`, and the JSONL
@@ -120,7 +129,11 @@ row closed with its subject half-true and the remainder filed is not completed.
 
 1. The branch's acceptance oracles passed in the worktree, by name, in the notes.
 2. The diff stays inside the file boundary.
-3. The per-commit gate passes; a moved reference hash carries an `answers:` line.
+3. The per-commit gate passes; a moved reference hash carries an `answers:` line. The
+   notes carry the gate's `gate: bounds door` lines, and a branch that changes a file
+   eliding a bounds check shows every suite passed a second time as `+bounds`. An
+   elision in `src/` sits inside a `@kernel` body, behind a length check at the
+   kernel's door and the edge-shape tests decision 0055 lists.
 4. The change matches the plan section it cites; a deviation is a new plan row. A
    kernel given a device form (decision 0051) carries the test that holds it bitwise to
    its portable form on the device, and its dispatch names the finding that measured it.
