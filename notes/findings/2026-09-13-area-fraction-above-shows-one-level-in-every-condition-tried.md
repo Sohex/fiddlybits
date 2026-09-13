@@ -7,24 +7,6 @@ KernelAbstractions.jl 0.9.42, driver 610.57.04, one NVIDIA GeForce RTX 4090. Bra
 unchanged since `notes/findings/2026-09-13-block-sums-in-shared-memory.md`) or to
 `src/Reductions/quantiles.jl`. The row is `fiddlybits-6nh`.
 
-## What is checkably the same, and what is checkably different, from the two campaigns that found the split
-
-`notes/findings/2026-09-13-block-sums-in-shared-memory.md` (the branch-arm campaign,
-84 or 107 us) and its own predecessor (the base-arm campaign against
-`1c7b601ec401e5b4667b74c59d45443ff8f35ca7`, committed 2026-09-12 11:11:46, 116 or 141
-us) both name Julia 1.12.7, CUDA.jl 6.3.1, KernelAbstractions.jl 0.9.42, Adapt.jl
-4.7.0, driver 610.57.04: identical to every version this investigation ran under,
-checked directly (`pkgversion` on each package) rather than assumed. `bench/
-runbench.jl`'s sha256 is unchanged across all three. The branch-arm campaign's own
-commit, `3a4d33ad9b46fb3c7d7521dd4c70ceb15b6c8005`, is committed 2026-09-13 04:36:42
-and is an ancestor of every commit this investigation ran from, including `280e183`
-(2026-09-13 08:14:40) and this finding's own head. What is different and checkable:
-this investigation's measurements ran on 2026-09-13 from about 06:56 to 09:32, three
-to five hours after the branch-arm campaign's commit, the same calendar day but not
-the same session. What else was running on the shared host at either time is not
-recorded by either campaign and is not recoverable now. No other difference in code,
-package version or driver is found.
-
 ## The question
 
 `reduction.area_fraction_above.7` settles per process into one of two discrete levels
@@ -105,6 +87,24 @@ covering every client back to 2026-09-07, logs every client's priority as `0
 resource limit: this MPS server is not configured to partition SM resources between
 clients, ruling out a sticky per-client allocation decided at connection time as the
 mechanism.
+
+## What is checkably the same, and what is checkably different, from the two campaigns that found the split
+
+`notes/findings/2026-09-13-block-sums-in-shared-memory.md` carries both campaigns: the
+base arm against `1c7b601ec401e5b4667b74c59d45443ff8f35ca7` (committed 2026-09-12
+11:11:46, 116 or 141 us) and the branch arm (84 or 107 us). Its header names Julia
+1.12.7, CUDA.jl 6.3.1, KernelAbstractions.jl 0.9.42 and Adapt.jl 4.7.0, identical to
+the versions this investigation ran under (read with `pkgversion` on each package); it
+does not name a driver, so the driver is not compared. `bench/runbench.jl`'s sha256 is
+unchanged across both arms and this investigation. The branch-arm campaign's own
+commit, `3a4d33ad9b46fb3c7d7521dd4c70ceb15b6c8005`, is committed 2026-09-13 04:36:42
+and is an ancestor of every commit this investigation ran from, including `280e183`
+(2026-09-13 08:14:40) and this finding's own head. What is different and checkable:
+this investigation's measurements ran on 2026-09-13 from about 06:56 to 09:32, three
+to five hours after the branch-arm campaign's commit, the same calendar day but not
+the same session. What else was running on the shared host at either time is not
+recorded by either campaign and is not recoverable now. No other difference in code or
+package version is found.
 
 ## What this leaves
 
