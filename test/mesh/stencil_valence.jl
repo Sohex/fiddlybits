@@ -258,6 +258,40 @@ end
         @test_throws Verdicts.Refusal Mesh.build_vertex_neighbour(fan, 9)
     end
 
+    @testset "build_edges refuses an edge shared by three faces, naming it" begin
+        # Three copies of the same triangle: the third occurrence of edge
+        # (2, 3) is the third face sharing it, named with the first two
+        # cells that already share it.
+        triple = Int32[1 1 1; 2 2 2; 3 3 3]
+        caught = nothing
+        try
+            Mesh.build_edges(triple)
+        catch e
+            caught = e
+        end
+        @test caught isa Verdicts.Refusal
+        @test occursin("(2, 3)", caught.reason)
+        @test occursin("cells 1, 2 and 3", caught.reason)
+    end
+
+    @testset "build_edges refuses a cell list yielding fewer than ne unique edges" begin
+        # Two triangles on edge (1, 2, 3), two more on edge (1, 2, 4): with
+        # no incidence check, edge (1, 2) is claimed by all four cells and
+        # only five of the six edges edge_count(4) predicts are ever
+        # created, leaving the sixth column of edge_cell unwritten.
+        short = Int32[1 1 1 1; 2 2 2 2; 3 3 4 4]
+        @test Mesh.edge_count(size(short, 2)) == 6
+        caught = nothing
+        try
+            Mesh.build_edges(short)
+        catch e
+            caught = e
+        end
+        @test caught isa Verdicts.Refusal
+        @test occursin("(1, 2)", caught.reason)
+        @test occursin("cells 1, 2 and 3", caught.reason)
+    end
+
     @testset "the leak check catches mesh geometry named directly in a kernel" begin
         dirty = joinpath(@__DIR__, "fixtures", "dirty")
         clean = joinpath(@__DIR__, "fixtures", "clean")

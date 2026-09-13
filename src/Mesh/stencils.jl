@@ -68,12 +68,19 @@ scanning cells in index order and local edges 1, 2, 3 within a cell, into an
 `edge_cell` sized by `edge_count`.
 `edge_cell[1, e]` is the cell that created edge `e`, `edge_cell[2, e]` the
 other cell sharing it.
+
+An incidence count is tracked per edge. A third cell claiming an edge already
+carrying two is refused by name, naming the edge and the three cells, rather
+than overwriting the second face. Before returning, the exact edge count and
+an incidence of exactly two on every edge are asserted, so a short edge set
+never leaves a trailing column of `edge_cell` unwritten.
 """
 function build_edges(cells::Matrix{Int32})
     nc = size(cells, 2)
     ne = edge_count(nc)
     cell_edge = Matrix{Int32}(undef, 3, nc)
     edge_cell = Matrix{Int32}(undef, 2, ne)
+    incidence = zeros(Int32, ne)
     seen = Dict{Tuple{Int32,Int32},Int32}()
     sizehint!(seen, ne)
     found = 0
@@ -89,13 +96,24 @@ function build_edges(cells::Matrix{Int32})
                 e = Int32(found)
                 edge_cell[1, e] = Int32(i)
                 edge_cell[2, e] = Int32(0)
+                incidence[e] = Int32(1)
                 seen[key] = e
             else
+                incidence[e] < 2 ||
+                    refuse("edge incidence", "Mesh.build_edges",
+                           "edge ($(key[1]), $(key[2])) is shared by cells $(edge_cell[1, e]), $(edge_cell[2, e]) and $i, a third face a closed triangulated surface does not carry")
+                incidence[e] += Int32(1)
                 edge_cell[2, e] = Int32(i)
             end
             cell_edge[k, i] = e
         end
     end
+    found == ne ||
+        refuse("edge count", "Mesh.build_edges",
+               "a level of $nc cells yielded $found edges, short of the $ne a closed triangulated surface has")
+    all(==(Int32(2)), incidence) ||
+        refuse("edge incidence", "Mesh.build_edges",
+               "a level of $nc cells left an edge with incidence other than two, so its cells are not a closed triangulated surface")
     return cell_edge, edge_cell
 end
 
