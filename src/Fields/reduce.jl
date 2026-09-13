@@ -5,7 +5,7 @@
 # instead, and the refusals are the table below rather than scattered calls, so that
 # the enumeration test of fiddlybits-52v.3.4 can read them.
 
-using ..Mesh: ncells
+using ..Mesh: ncells, require_ancestor
 using ..Reductions: Segmentation, segmented_sum, segmented_mean, segmented_quantile
 using ..Backends: Backend
 using ..Time: Forcing, Interval, IntervalMean, IntervalAccumulation, EndpointState,
@@ -198,24 +198,6 @@ require_measure_extent(f::Field, m::Measured, site::AbstractString) =
         "$(measure_name(m)) measure holds $(length(values_of(m)))")
 
 """
-    require_same_family(from, to, site)
-
-Returns `nothing` when two supports could be two levels of one mesh, and refuses at
-`site` naming what differs otherwise. It compares what two levels of one hierarchy
-share: the kind, the radius, the element type and the refinement. It cannot establish
-ancestry, which no field of a `Support` carries; `fiddlybits-52v.2.14` asks `Mesh` for
-a check that can.
-"""
-function require_same_family(from::Support, to::Support, site::AbstractString)
-    for name in (:kind, :radius, :element_type, :refinement_digest)
-        a, b = getproperty(from, name), getproperty(to, name)
-        a == b || refuse("support family", site,
-                         "the supports differ in $(name): $(repr(a)) and $(repr(b))")
-    end
-    return nothing
-end
-
-"""
     reduced(f, semantics, data, support, writer)
 
 `data` on `support` carrying `semantics`, `f`'s dimension and time support, and an
@@ -236,7 +218,7 @@ and the contiguous child ranges.
 """
 function setup(f::Field, to::Support, site::AbstractString)
     require_columnar(f, site)
-    require_same_family(f.support, to, site)
+    require_ancestor(f.support, to, site)
     return child_segmentation(f, to)
 end
 
@@ -342,7 +324,7 @@ value, which conserves the integral because the children tile the parent exactly
 function refine(f::Field{Extensive,T,D,L}, to::Support{L2};
                  measure::Measured, backend::Backend) where {T,D,L,L2}
     require_columnar(f, "Fields.refine")
-    require_same_family(f.support, to, "Fields.refine")
+    require_ancestor(f.support, to, "Fields.refine")
     fine = values_of(measure)
     seg = block_segmentation(fine, L, L2, "Fields.refine")
     totals = segmented_sum(eltype(fine), fine, seg, backend)

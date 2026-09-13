@@ -47,6 +47,14 @@ identity.
   (primal and dual areas, edge lengths) including the radius they were formed
   from, and any effective fraction a field uses. Two supports with the same
   shape and different geometry have different identities.
+- Ancestry between two levels of one hierarchy is a separate question from
+  identity and is answered by a lineage digest, carried on every `Support`
+  alongside its identity digest and compared by a door of its own: two levels
+  bisected from the same base icosahedron carry the same lineage digest
+  whatever their own level, and two bisected from different base icosahedra
+  carry different ones even where their kind, radius, element type and
+  refinement region set all agree, which those four fields alone cannot tell
+  apart.
 - Every array in the content store carries its support identity, semantics,
   time semantics, dimension, owner and interval as attributes; the store
   refuses an array missing any (decision A6).
@@ -66,6 +74,9 @@ identity.
   identities per level.
 - Test: a support identity changes when radius, level, refinement set or
   geometry version changes, and does not change when only a human tag does.
+- Test: `require_ancestor` refuses two supports with the same kind, radius,
+  element type and refinement region set when they were bisected from
+  different base icosahedra, and accepts two levels of one hierarchy.
 - Import review for the NetCDF dependency naming its Earth-sphere default and
   the test that catches it leaking.
 - Lint: the Earth radius denominator is unusable as a length.
@@ -81,3 +92,23 @@ identity.
 - Eaton, B. et al. "NetCDF Climate and Forecast (CF) Metadata Conventions".
   Locator: https://cfconventions.org (version to be pinned at export design).
   DOI: to confirm. The declared-geometry vocabulary an export must speak.
+
+## Amendments
+
+- 2026-09-13: ancestry given its own field, a lineage digest over the base
+  level's vertices, in place of a hierarchy identity a `Support` would name.
+  The two were weighed against this record's own "shape is never identity"
+  argument rather than against present demand: `bisect` carries every
+  existing vertex forward unchanged, so a level's first `nvertices(0)`
+  columns hold the base icosahedron's own vertices at every level one
+  hierarchy produces, and a digest over those columns is content, derived
+  from what the hierarchy is, the same way the identity digest above is. A
+  hierarchy identity a `Support` would name instead is a token stamped at
+  construction, not derived from content, and it fails the property
+  `mesh.support_identity` already holds identity to: two independent builds
+  from one recipe carry the same identity digest because their content is
+  bit for bit the same, and an opaque per-build identity would tell those two
+  builds apart for ancestry while the identity digest calls them the same
+  support, one fact stated two ways. `Fields.require_same_family` is removed
+  and `Fields` calls `Mesh.require_ancestor` in its place. From
+  `fiddlybits-52v.2.14`.
