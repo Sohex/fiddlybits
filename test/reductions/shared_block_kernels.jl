@@ -2,11 +2,12 @@ using Test
 using CUDA
 using Fiddlybits: Reductions, Backends
 
-# The block-sum kernels on GPU run one workgroup per block over shared memory
-# (Reductions.launch_block_sums!). The per-lane kernels are the same accumulation
-# reading global memory, and still run on CPU; launched on the card directly they
-# are the path the shared-memory kernels replaced there, so every comparison below
-# is between the two on the same device, bitwise.
+# The block-sum kernels on GPU run one workgroup per block over shared memory up to
+# each device form's limit (Reductions.launch_block_sums!, Reductions.device_form_limit).
+# The per-lane kernels are the same accumulation reading global memory, run on CPU,
+# and run on GPU above the limit; launched on the card directly they are the path the
+# shared-memory kernels replace there, so every comparison below is between the two on
+# the same device, bitwise.
 
 "The block sums `kernel` writes when launched on `backend` one work item per block."
 function per_lane_block_sums(kernel, ::Type{A}, backend, n, blocksize, inputs...) where {A}
@@ -89,6 +90,49 @@ bits(v::AbstractArray{Float32}) = reinterpret(UInt32, v)
         @test size(shared) == (cld(n, bs), 2)
         @test bits(shared) == bits(per_lane)
         @test bits(shared) == bits(on_cpu)
+    end
+
+    @testset "pairwise_block_sums launches the device form up to its limit and the portable text above it" begin
+        limit = Reductions.device_form_limit(Reductions.pairwise_block_shared_kernel!)
+        @test limit == Reductions.PAIRWISE_DEVICE_FORM_MAX
+        @test Reductions.device_form_limit(Reductions.area_weighted_block_shared_kernel!) == typemax(Int)
+        @test Reductions.device_form_limit(Reductions.area_fraction_block_shared_kernel!) == typemax(Int)
+
+        # The kernels one call of `f` queues on `gpu`.
+        function launched(f)
+            Backends.complete!(gpu)
+            f()
+            kernels = copy(Backends.queued(gpu))
+            Backends.complete!(gpu)
+            return kernels
+        end
+
+        for (n, expected) in ((limit, Reductions.pairwise_block_shared_kernel!),
+                              (limit + 1, Reductions.pairwise_block_kernel!))
+            xs_gpu = Backends.on(ReductionFixtures.seeded_vector(Float64, n), gpu)
+            @test launched(() -> Reductions.pairwise_block_sums(Float64, xs_gpu, gpu)) == [expected]
+        end
+
+        @testset "positive control: the record names the kernel a direct launch queued" begin
+            xs_gpu = Backends.on(ReductionFixtures.seeded_vector(Float64, 16), gpu)
+            partials = similar(xs_gpu, Float64, 4)
+            @test launched(() -> Backends.launch!(Reductions.pairwise_block_kernel!, gpu, 4, partials,
+                                                  xs_gpu, 4, 16)) == [Reductions.pairwise_block_kernel!]
+            @test launched(() -> nothing) == []
+        end
+
+        @testset "the portable text on the card above the limit: $what, $T into $A" for
+                (what, n) in (("a partial last block", limit + 37), ("every block full", limit + B)),
+                (A, T) in ((Float64, Float64), (Float64, Float32), (Float32, Float32))
+            xs = ReductionFixtures.seeded_vector(T, n)
+            xs_gpu = Backends.on(xs, gpu)
+            on_gpu = Backends.on(Reductions.pairwise_block_sums(A, xs_gpu, gpu), cpu)
+            reference = A[Reductions.pairwise_sum_reference(A, xs[(i - 1) * B + 1:min(i * B, n)])
+                          for i in 1:cld(n, B)]
+            @test bits(on_gpu) == bits(reference)
+            @test bits(on_gpu) == bits(Reductions.pairwise_block_sums(A, xs, cpu))
+            @test Reductions.pairwise_sum(A, xs_gpu, gpu) === Reductions.combine_tree(reference)
+        end
     end
 
     @testset "positive control: every lane's element reaches its block's sum" begin

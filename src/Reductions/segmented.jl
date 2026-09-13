@@ -89,7 +89,9 @@ A `Segmentation` holds its own copies of the boundaries and of `lo` and
 `hi`, and is only ever constructed from a boundary array, never looked up
 from one: mutating a boundary array in place after building a
 `Segmentation` from it leaves the `Segmentation` describing what was
-checked, and `xs` is checked against `nelement` on every use.
+checked, and `xs` is checked against `nelement` on every use. The checked
+constructor is its only constructor, so every `lo[s]:hi[s]` a kernel reads
+lies inside `1:nelement`.
 """
 struct Segmentation{D<:AbstractVector{<:Integer},H<:AbstractVector{<:Integer}}
     nelement::Int
@@ -97,13 +99,14 @@ struct Segmentation{D<:AbstractVector{<:Integer},H<:AbstractVector{<:Integer}}
     starts_host::H
     lo::D
     hi::D
-end
 
-function Segmentation(xs::AbstractVector, starts::AbstractVector{<:Integer})
-    starts_host = starts_on_host(starts)
-    nseg = segment_extent_host(xs, starts_host)
-    lo, hi = segment_bounds(starts)
-    return Segmentation(length(xs), nseg, copy(starts_host), lo, hi)
+    function Segmentation(xs::AbstractVector, starts::AbstractVector{<:Integer})
+        starts_host = starts_on_host(starts)
+        nseg = segment_extent_host(xs, starts_host)
+        lo, hi = segment_bounds(starts)
+        host = copy(starts_host)
+        return new{typeof(lo),typeof(host)}(length(xs), nseg, host, lo, hi)
+    end
 end
 
 """
@@ -119,14 +122,53 @@ function require_extent(segmentation::Segmentation, xs::AbstractVector, site::Ab
            "xs has length $(length(xs))")
 end
 
+"""
+    launch_segments!(kernel, backend, nelement, nseg, outputs, inputs, lo, hi, site)
+
+Queues `kernel` on `backend` over one work item per segment, `nseg` of
+them, with the values of the named tuples `outputs` and `inputs`, then `lo`
+and `hi`, as its arguments in that order. Segment `s` reads `lo[s]:hi[s]`.
+
+Before the launch, on the host, refuses at `site` through
+`Verdicts.refuse`, naming the array and both lengths, unless every array of
+`outputs` holds `nseg` elements, every array of `inputs` holds `nelement`,
+and `lo` and `hi` each hold `nseg`: the lengths every index the kernel reads
+or writes is derived from. The values of `lo` and `hi` lie inside
+`1:nelement` because a `Segmentation` is built only by its checked
+constructor.
+"""
+function launch_segments!(kernel, backend::Backend, nelement::Integer, nseg::Integer,
+                           outputs::NamedTuple, inputs::NamedTuple,
+                           lo::AbstractVector{<:Integer}, hi::AbstractVector{<:Integer},
+                           site::AbstractString)
+    for (name, array) in pairs(outputs)
+        length(array) == nseg ||
+            refuse("segment kernel extent", site,
+                   "$name has length $(length(array)), the segmentation has $nseg segments")
+    end
+    for (name, array) in pairs(inputs)
+        length(array) == nelement ||
+            refuse("segment kernel extent", site,
+                   "$name has length $(length(array)), the segmentation covers " *
+                   "$nelement elements")
+    end
+    for (name, array) in (("lo", lo), ("hi", hi))
+        length(array) == nseg ||
+            refuse("segment kernel extent", site,
+                   "$name has length $(length(array)), the segmentation has $nseg segments")
+    end
+    launch!(kernel, backend, nseg, values(outputs)..., values(inputs)..., lo, hi)
+    return nothing
+end
+
 @kernel function segmented_sum_kernel!(out, @Const(xs), @Const(lo), @Const(hi))
     seg = @index(Global)
     T = eltype(out)
     acc = zero(T)
-    for j in lo[seg]:hi[seg]
+    @inbounds for j in lo[seg]:hi[seg]
         acc += T(xs[j])
     end
-    out[seg] = acc
+    @inbounds out[seg] = acc
 end
 
 """
@@ -148,8 +190,9 @@ function segmented_sum(::Type{A}, xs::AbstractVector, segmentation::Segmentation
     require_extent(segmentation, xs, "Reductions.segmented_sum")
     out = similar(xs, A, segmentation.nseg)
     segmentation.nseg == 0 && return out
-    launch!(segmented_sum_kernel!, backend, segmentation.nseg,
-            out, xs, segmentation.lo, segmentation.hi)
+    launch_segments!(segmented_sum_kernel!, backend, segmentation.nelement, segmentation.nseg,
+                     (out = out,), (xs = xs,), segmentation.lo, segmentation.hi,
+                     "Reductions.segmented_sum")
     return out
 end
 
@@ -192,10 +235,10 @@ end
     seg = @index(Global)
     T = eltype(out)
     acc = zero(T)
-    for j in lo[seg]:hi[seg]
+    @inbounds for j in lo[seg]:hi[seg]
         acc += nofuse_mul(T(xs[j]), T(weights[j]))
     end
-    out[seg] = acc
+    @inbounds out[seg] = acc
 end
 
 """
@@ -226,8 +269,9 @@ function segmented_weighted_sum(::Type{A}, xs::AbstractVector, weights::Abstract
                "xs has length $(length(xs)), weights has length $(length(weights))")
     out = similar(xs, A, segmentation.nseg)
     segmentation.nseg == 0 && return out
-    launch!(segmented_weighted_sum_kernel!, backend, segmentation.nseg,
-            out, xs, weights, segmentation.lo, segmentation.hi)
+    launch_segments!(segmented_weighted_sum_kernel!, backend, segmentation.nelement,
+                     segmentation.nseg, (out = out,), (xs = xs, weights = weights),
+                     segmentation.lo, segmentation.hi, "Reductions.segmented_weighted_sum")
     return out
 end
 
@@ -270,12 +314,12 @@ end
     T = eltype(out)
     num = zero(T)
     den = zero(T)
-    for j in lo[seg]:hi[seg]
+    @inbounds for j in lo[seg]:hi[seg]
         num += nofuse_mul(T(xs[j]), T(weights[j]))
         den += T(weights[j])
     end
-    out[seg] = num / den
-    zeroflag[seg] = iszero(den)
+    @inbounds out[seg] = num / den
+    @inbounds zeroflag[seg] = iszero(den)
 end
 
 """
@@ -317,8 +361,9 @@ function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentatio
     out = similar(xs, A, segmentation.nseg)
     segmentation.nseg == 0 && return out
     zeroflag = similar(xs, Bool, segmentation.nseg)
-    launch!(segmented_mean_kernel!, backend, segmentation.nseg,
-            out, zeroflag, xs, weights, segmentation.lo, segmentation.hi)
+    launch_segments!(segmented_mean_kernel!, backend, segmentation.nelement, segmentation.nseg,
+                     (out = out, zeroflag = zeroflag), (xs = xs, weights = weights),
+                     segmentation.lo, segmentation.hi, "Reductions.segmented_mean")
     nzero = pairwise_sum(Int, zeroflag, backend)
     nzero == 0 ||
         refuse("segmented mean weight", "Reductions.segmented_mean",

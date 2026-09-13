@@ -162,23 +162,25 @@ for k in QUANTILE_K_MIN:QUANTILE_K_MAX
         seg = @index(Group, Linear)
         li = @index(Local, Linear)
         shared = @localmem eltype(xs) ($seglen,)
-        shared[li] = xs[base[seg] + li]
+        @inbounds shared[li] = xs[base[seg] + li]
         @synchronize
         for step in 1:$nsteps
-            p = partner[li, step]
-            if p > li
-                a = shared[li]
-                b = shared[p]
-                swap = ascending[li, step] ? (a > b) : (a < b)
-                if swap
-                    shared[li] = b
-                    shared[p] = a
+            @inbounds begin
+                p = partner[li, step]
+                if p > li
+                    a = shared[li]
+                    b = shared[p]
+                    swap = ascending[li, step] ? (a > b) : (a < b)
+                    if swap
+                        shared[li] = b
+                        shared[p] = a
+                    end
                 end
             end
             @synchronize
         end
         if li == 1
-            out[seg] = shared[rank]
+            @inbounds out[seg] = shared[rank]
         end
     end
 end
@@ -273,14 +275,54 @@ function segmented_quantile(xs::AbstractVector, segmentation::Segmentation, q::R
     out = similar(xs, nseg)
     nseg == 0 && return out
     k = segment_depth_host(segmentation.starts_host, nseg)
-    seglen = 4^k
-    rank = quantile_rank(seglen, q)
+    rank = quantile_rank(4^k, q)
     base = segmentation.lo .- 1
     partner, ascending = device_bitonic_network(backend, k)
-    kernel = quantile_kernel(Val(k))
-    launch!(kernel, at_workgroup(backend, seglen), nseg * seglen,
-            out, xs, base, rank, partner, ascending)
+    launch_quantiles!(backend, k, nseg, out, xs, base, rank, partner, ascending)
     return out
+end
+
+"""
+    launch_quantiles!(backend, k, nseg, out, xs, base, rank, partner, ascending)
+
+Queues `quantile_kernel(Val(k))` on `backend` over `nseg` segments of `4^k`
+elements, one workgroup per segment (`at_workgroup`): segment `s` sorts
+`xs[base[s] + 1:base[s] + 4^k]` by the network `partner` and `ascending` and
+writes the element at `rank` to `out[s]`.
+
+Before the launch, on the host, refuses through `Verdicts.refuse`, naming
+the array and both lengths, unless `k` is in
+`QUANTILE_K_MIN:QUANTILE_K_MAX`, `out` and `base` hold `nseg` elements, `xs`
+holds `nseg * 4^k`, `partner` and `ascending` are each `4^k` by the step
+count of `QUANTILE_BITONIC_NETWORK[k]`, and `rank` is in `1:4^k`: the lengths
+every index the kernel reads or writes is derived from. The values of `base`
+are `lo .- 1` of a `Segmentation` whose segments all have length `4^k`.
+"""
+function launch_quantiles!(backend::Backend, k::Integer, nseg::Integer, out::AbstractVector,
+                            xs::AbstractVector, base::AbstractVector{<:Integer}, rank::Integer,
+                            partner::AbstractMatrix, ascending::AbstractMatrix)
+    site = "Reductions.launch_quantiles!"
+    QUANTILE_K_MIN <= k <= QUANTILE_K_MAX ||
+        refuse("quantile segment depth", site,
+               "k=$k is outside the declared range $QUANTILE_K_MIN:$QUANTILE_K_MAX")
+    seglen = 4^k
+    shape = (seglen, size(QUANTILE_BITONIC_NETWORK[k][1], 2))
+    for (name, array, expected) in (("out", out, nseg), ("base", base, nseg),
+                                    ("xs", xs, nseg * seglen))
+        length(array) == expected ||
+            refuse("quantile kernel extent", site,
+                   "$name has length $(length(array)), $nseg segments of $seglen need $expected")
+    end
+    for (name, array) in (("partner", partner), ("ascending", ascending))
+        size(array) == shape ||
+            refuse("quantile kernel extent", site,
+                   "$name has size $(size(array)), the network at k=$k has size $shape")
+    end
+    1 <= rank <= seglen ||
+        refuse("quantile rank", site, "rank $rank is outside 1:$seglen")
+    launch!(quantile_kernel(Val(Int(k))), at_workgroup(backend, seglen), nseg * seglen,
+            out, xs, base, Int(rank), partner, ascending)
+    return nothing
 end
 
 function segmented_quantile(xs::AbstractVector, starts::AbstractVector{<:Integer}, q::Real,
@@ -320,10 +362,10 @@ end
     hi = min(i * blocksize, n)
     T = eltype(partials)
     acc = zero(T)
-    for j in lo:hi
+    @inbounds for j in lo:hi
         acc += T(ifelse(xs[j] >= x, areas[j], zero(eltype(areas))))
     end
-    partials[i] = acc
+    @inbounds partials[i] = acc
 end
 
 @kernel function area_weighted_block_shared_kernel!(partials, @Const(xs), @Const(areas), x,
@@ -332,17 +374,26 @@ end
     lane = @index(Local, Linear)
     element = @index(Global, Linear)
     shared = @localmem eltype(areas) (block_width(width),)
-    shared[lane] = ifelse(xs[element] >= x, areas[element], zero(eltype(areas)))
+    @inbounds shared[lane] = ifelse(xs[element] >= x, areas[element], zero(eltype(areas)))
     @synchronize
     if lane == 1
         T = eltype(partials)
         acc = zero(T)
-        for j in 1:(block == nb ? lastcount : block_width(width))
+        @inbounds for j in 1:(block == nb ? lastcount : block_width(width))
             acc += T(shared[j])
         end
-        partials[block] = acc
+        @inbounds partials[block] = acc
     end
 end
+
+"""
+    device_form_limit(::typeof(area_weighted_block_shared_kernel!))
+
+No limit: notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
+measured the device form faster than the portable text on the card at both of the
+bench's element counts.
+"""
+device_form_limit(::typeof(area_weighted_block_shared_kernel!)) = typemax(Int)
 
 """
     area_weighted_sum(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
@@ -396,7 +447,7 @@ function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::Abstract
     partials = similar(areas, A, nb)
     nb == 0 && return partials
     return launch_block_sums!(area_weighted_block_kernel!, area_weighted_block_shared_kernel!,
-                              backend, partials, n, blocksize, xs, areas, x)
+                              backend, partials, n, blocksize, 1, (xs = xs, areas = areas, x = x))
 end
 
 @kernel function area_fraction_block_kernel!(partials, @Const(xs), @Const(areas), x, blocksize, n)
@@ -407,12 +458,12 @@ end
     T = eltype(partials)
     total = zero(T)
     above = zero(T)
-    for j in lo:hi
+    @inbounds for j in lo:hi
         total += T(areas[j])
         above += T(ifelse(xs[j] >= x, areas[j], zero(eltype(areas))))
     end
-    partials[i, 1] = total
-    partials[i, 2] = above
+    @inbounds partials[i, 1] = total
+    @inbounds partials[i, 2] = above
 end
 
 @kernel function area_fraction_block_shared_kernel!(partials, @Const(xs), @Const(areas), x,
@@ -422,21 +473,30 @@ end
     element = @index(Global, Linear)
     shared_total = @localmem eltype(areas) (block_width(width),)
     shared_above = @localmem eltype(areas) (block_width(width),)
-    shared_total[lane] = areas[element]
-    shared_above[lane] = ifelse(xs[element] >= x, areas[element], zero(eltype(areas)))
+    @inbounds shared_total[lane] = areas[element]
+    @inbounds shared_above[lane] = ifelse(xs[element] >= x, areas[element], zero(eltype(areas)))
     @synchronize
     if lane == 1
         T = eltype(partials)
         total = zero(T)
         above = zero(T)
-        for j in 1:(block == nb ? lastcount : block_width(width))
+        @inbounds for j in 1:(block == nb ? lastcount : block_width(width))
             total += T(shared_total[j])
             above += T(shared_above[j])
         end
-        partials[block, 1] = total
-        partials[block, 2] = above
+        @inbounds partials[block, 1] = total
+        @inbounds partials[block, 2] = above
     end
 end
+
+"""
+    device_form_limit(::typeof(area_fraction_block_shared_kernel!))
+
+No limit: notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
+measured the device form faster than the portable text on the card at both of the
+bench's element counts.
+"""
+device_form_limit(::typeof(area_fraction_block_shared_kernel!)) = typemax(Int)
 
 """
     area_fraction_block_sums(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
@@ -470,7 +530,7 @@ function area_fraction_block_sums(::Type{A}, xs::AbstractVector, areas::Abstract
     partials = similar(areas, A, nb, 2)
     nb == 0 && return partials
     return launch_block_sums!(area_fraction_block_kernel!, area_fraction_block_shared_kernel!,
-                              backend, partials, n, blocksize, xs, areas, x)
+                              backend, partials, n, blocksize, 2, (xs = xs, areas = areas, x = x))
 end
 
 """
