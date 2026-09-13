@@ -122,6 +122,59 @@ small), `Derived` from the system and the first-guess column of the vertical lad
 a reader comparing two configurations at one profile reads the ratio, not the
 kilometres.
 
+### The body-fixed frame and the icosahedron's orientation
+
+The mesh's Cartesian coordinates are body-fixed, and `Mesh.BODY_FRAME` is the one
+declaration of how they meet the planet's rotation. Its `spin_axis` is the positive pole
+of rotation, the pole about which the body turns counterclockwise seen from outside (the
+right-hand rule); its `prime_meridian` is the equatorial direction of longitude zero; and
+`ninety_east` is their cross product, derived and never declared, so the frame is
+right-handed by construction. Latitude is positive toward the spin axis and longitude
+increases east, the direction the surface moves. Every east-north frame, latitude,
+longitude, Coriolis parameter and hour angle reads these axes from the declaration by
+name, and no other site in `src/` writes an axis by coordinate, which
+`test/mesh/frame.jl` decides by scanning the tree.
+
+The spin axis is the positive pole on every configuration, prograde or retrograde. The
+sense of decision 0004 is relative to the orbit normal, and it enters only where the body
+frame is placed in the orbit frame: a retrograde rotator's positive pole lies on the far
+side of its orbit plane from the orbit normal. `Mesh.require_body_orientation` is the
+rule every placement passes: the placed frame is right-handed, and the placed spin axis
+has a positive component along the body's rotation vector. The rotation rate about the
+spin axis is then positive, the Coriolis parameter `2 Omega sin(latitude)` is positive
+toward the spin axis, and the surface moves east, on every configuration, and no kernel
+reads the sense. How decision 0004's obliquity and sense, and a rotation phase at the
+epoch, place the frame in the orbit frame is `fiddlybits-52v.5.7`.
+
+`base_icosahedron` places each golden-ratio corner by its components along the prime
+meridian, ninety east and the spin axis. That puts the spin axis through the midpoint of
+one base edge and the prime meridian through the midpoint of the base edge at right
+angles to it, each a two-fold symmetry axis of the icosahedron. What follows is checked
+by `test/mesh/frame.jl` or follows from what it checks:
+
+- Every level is mirror-symmetric about the equatorial plane, bitwise, because the plane
+  normal to a two-fold axis is a mirror plane of the icosahedron and a renormalised
+  bisection commutes with the reflection. A forcing symmetric about the equator but not
+  zonally symmetric, of which the sub-stellar heating of a synchronous rotator with its
+  sub-stellar point on the equator is the case that matters, meets the same grid in both
+  hemispheres, so a hemispheric difference in the response is not grid imprint. On a grid
+  that is not symmetric across the equator, an initial state symmetric across it evolves
+  asymmetric (Heikes and Randall 1995, Part I, p. 1864), and a symmetric grid keeps the
+  response symmetric (the same paper, p. 1874). Every level is also mirror-symmetric
+  about the plane of the prime meridian and the spin axis. The mirror normal to a base
+  vertex or to a base face centre is not a symmetry, which is the check's positive
+  control.
+- No pole is a valence-five vertex. From level one each pole is a valence-six vertex, and
+  no cell centre lies on the spin axis at any level, so an east-north frame over cell
+  centres exists at every cell.
+- The cost falls on the equator. Four of the twelve valence-five vertices lie on it, so an
+  equatorial wave crosses four of them in a circuit; the other eight lie four in the
+  plane of the prime meridian and four in the plane of ninety east. The rotational
+  symmetry about the spin axis is of order two, so a pattern the grid imprints on a
+  zonally symmetric flow repeats under a half turn and holds only even zonal wavenumbers,
+  where a vertex-at-pole orientation imprints wavenumber five near its valence-five
+  vertices (Wan et al. 2013, p. 747).
+
 ## Alternatives considered
 
 - **Fibonacci-sphere Voronoi mesh** (what the predecessor's terrain generator used).
@@ -149,6 +202,36 @@ kilometres.
 - **Mosaic and connectivity only, with no refinement in scope.** Lost because it
   leaves no path to resolving a feature's dynamics when the parameterisation is
   insufficient.
+- **The spin axis as the pole on the orbit normal's side**, the north pole of the IAU
+  convention for planets and satellites (Archinal et al. 2018, p. 6, with the invariable
+  plane where decision 0004 has the orbit normal), the sense carried as the sign of the
+  rotation about it. It matches the catalogue coordinates of solar-system planets. Lost
+  because the sign then reaches every rotating kernel: the Coriolis parameter and the
+  direction the surface moves change sign with the sense, and a kernel that drops the
+  sign runs a retrograde world as a prograde one without an error. The positive pole is
+  the IAU convention for dwarf planets, minor planets, their satellites and comets (the
+  same report, p. 22), which the report notes planetary systems could follow (p. 39).
+- **A pole on a base vertex**, the orientation of the ICON grid (Wan et al. 2013,
+  p. 738). It keeps the equator free of valence-five vertices and puts one at each pole,
+  where the Coriolis parameter is extremal; its hemispheres are related by a fifth of a
+  turn and not by a reflection, so the equatorial mirror is not a symmetry. Lost on that
+  asymmetry.
+- **The twisted icosahedron** (Heikes and Randall 1995, Part I, p. 1864): the southern
+  faces of the vertex-at-pole orientation rotated through a fifth of a turn, which
+  restores equatorial symmetry. It is no longer a regular icosahedron and its equatorial
+  faces are distorted, and the grid the authors run repositions the new points of each
+  level to minimise an error measure (Part II, p. 1885), which breaks exact nesting as
+  smoothing does. Lost.
+- **A pole on a base face centre.** Order-three symmetry about the spin axis and no
+  equatorial mirror, and the central child of the polar face keeps its circumcentre on
+  the axis at every level, so a cell centre sits on each pole, where east has no
+  direction. Lost.
+- **An orientation with no symmetry axis through the pole.** No mesh site on a pole at
+  the levels a profile uses, and no symmetry either; its angle would be chosen to avoid
+  something rather than derived. Lost.
+- **The prime meridian through the other two-fold axis in the equatorial plane.**
+  Equivalent in every property above except which four valence-five vertices lie in the
+  prime meridian's plane. Either is admissible, and the declaration names one.
 
 ## Consequences
 
@@ -166,6 +249,14 @@ kilometres.
   graded refinement region shows no reflected-wave growth for a propagating wave
   test; drainage-density isotropy by azimuth and a Hack's-law exponent for the
   routing stencil.
+- `Mesh.BODY_FRAME` is read by `Fields.local_east_north` and `Fields.east_north_frame`,
+  and `Mesh.latitude`, `Mesh.longitude` and `Mesh.require_body_orientation` are the doors
+  the Coriolis parameter (`fiddlybits-52v.9.2`), the hour angle (`fiddlybits-52v.5.3`)
+  and the instellation (`fiddlybits-52v.5.4`) read. Checks implied: east cross north is
+  the local up at every cell centre; the placement rule refuses a retrograde rotator
+  placed with its pole on the orbit normal's side, and a left-handed placement; the two
+  mirror symmetries of the hierarchy hold bitwise; no site in `src/` writes an axis by
+  coordinate.
 - Routing on triangles uses the twelve-neighbour stencil with slope-weighted
   multiple-flow-direction accumulation and random tie-breaking for the steepest
   receiver, to break the lattice bias of single-direction routing on a regular mesh.
@@ -174,7 +265,10 @@ kilometres.
 
 - Wan, H., et al. "The ICON-1.2 hydrostatic atmospheric dynamical core on triangular
   grids - Part 1: Formulation and performance of the baseline version." Geoscientific
-  Model Development 6 (2013). DOI: 10.5194/gmd-6-735-2013
+  Model Development 6 (2013). DOI: 10.5194/gmd-6-735-2013. Pages 738 (the grid's orientation, a vertex at each pole) and 747 (wavenumber-five imprint near the valence-five vertices).
+- Archinal, B. A., et al. "Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2015." Celestial Mechanics and Dynamical Astronomy 130 (2018), article 22. DOI: 10.1007/s10569-017-9805-5. Pages 6 (the north pole by the invariable plane, the sense from W), 22 (the positive pole by the right-hand rule), 39 (planetary systems following the right-hand rule).
+- Heikes, R., Randall, D. A. "Numerical Integration of the Shallow-Water Equations on a Twisted Icosahedral Grid. Part I: Basic Design and Results of Tests." Monthly Weather Review 123 (1995). DOI: 10.1175/1520-0493(1995)123<1862:NIOTSW>2.0.CO;2. Pages 1864 (a grid not symmetric across the equator, the twisted icosahedron), 1874 (a symmetric response on a symmetric grid).
+- Heikes, R., Randall, D. A. "Numerical Integration of the Shallow-Water Equations on a Twisted Icosahedral Grid. Part II: A Detailed Description of the Grid and an Analysis of Numerical Accuracy." Monthly Weather Review 123 (1995). DOI: 10.1175/1520-0493(1995)123<1881:NIOTSW>2.0.CO;2. Page 1885 (the new points of each level repositioned).
 - Zaengl, G., Reinert, D., Ripodas, P., Baldauf, M. "The ICON (ICOsahedral
   Non-hydrostatic) modelling framework of DWD and MPI-M: Description of the
   non-hydrostatic dynamical core." Quarterly Journal of the Royal Meteorological
@@ -194,3 +288,4 @@ kilometres.
 - 2026-09-08: the vertical ladder places levels inside a declared fraction of the scale height computed from composition and a Bracketed first-guess temperature, with the boundary-layer depth scale bounded by a Bracketed multiple of u*/|f| and the slow-rotator limit named, replacing "the lowest kilometre", from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-08: the profile record reports the spacing as a ratio to the deformation radius; the mesh radius is named as the volumetric mean radius and the geopotential comes from g(r, phi); the strait control names its non-rotating limit, from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-08: cross-area review: both ends named for the ladder's first-guess temperature, Bond albedo and u*/|f| multiple, matching decision 0016, from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-13: the body-fixed frame is declared once in Mesh, its spin axis the positive pole of rotation for either sense, with the placement rule a retrograde rotator passes; the base icosahedron is placed in it with the spin axis and the prime meridian on two-fold axes; section The body-fixed frame and the icosahedron's orientation and its alternatives, carried by fiddlybits-52v.2.16, with the rotation phase at the epoch and the placement from obliquity and sense in fiddlybits-52v.5.7.
