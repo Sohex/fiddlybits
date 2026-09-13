@@ -323,7 +323,18 @@ measured outcome indistinguishable from an input the classifier cannot judge, an
 ledger that produced it would stop a run instead of reporting what it found. Returning
 no signature keeps the outcome but leaves every consumer to name it separately. A
 fourth signature costs a class with no single fix and a consumer that handles four
-signatures rather than three.
+signatures rather than three. The successive-difference test has no exact recursion for
+its null distribution, so beyond the length at which enumerating every ordering stays
+within the permutation count its caller declares, it draws that many random orderings,
+and it reads their randomness from a counter-indexed function the caller passes rather
+than holding a generator of its own. A classification is then a pure function of its
+series and the caller's key, and the caller keys it on the ledger's identity through
+the counter-based generator of decision 0010, which sits above Fields. A seeded stream
+inside Fields was the alternative: every classification in a run would draw the same
+orderings, so an ordering set that favoured one pattern would favour it at every
+ledger, and the bits would be a stream a Julia release may change. Moving the
+generator's bijection below Fields was the other: it buys nothing the passed function
+does not, at the cost of a prerequisite row.
 
 ## Oracles
 

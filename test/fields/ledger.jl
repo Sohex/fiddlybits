@@ -167,8 +167,46 @@ end
 "`n` errors drawn uniformly within nine tenths of each tolerance of `tolerances`."
 rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolerances]
 
+"A `draw` for `Fields.classify`: each call the next `UInt64` of a `Xoshiro(seed)` stream."
+stream_draw(seed) = let rng = Random.Xoshiro(seed)
+    _ -> rand(rng, UInt64)
+end
+
+"Every ordering of `values`, by recursive swaps: the test's own reference enumeration."
+function all_orderings(values)
+    out = Vector{Vector{Int}}()
+    work = collect(values)
+    function visit(k)
+        if k > length(work)
+            push!(out, copy(work))
+            return
+        end
+        for j in k:length(work)
+            work[k], work[j] = work[j], work[k]
+            visit(k + 1)
+            work[k], work[j] = work[j], work[k]
+        end
+    end
+    visit(1)
+    return out
+end
+
+"The number of pairs `i < j` with `w[i] > w[j]`."
+function inversions(w)
+    k = 0
+    for i in eachindex(w), j in (i + 1):lastindex(w)
+        w[i] > w[j] && (k += 1)
+    end
+    return k
+end
+
+"Every composition of `n`: the ordered tuples of positive sizes summing to `n`."
+compositions(n) = n == 0 ? [Int[]] :
+    [vcat(first, rest) for first in 1:n for rest in compositions(n - first)]
+
 @testset "Fields.classify" begin
     alpha = 1 // 100
+    permutations = 10_000
     windows = [10.0, 30.0, 100.0, 200.0, 400.0, 700.0, 1000.0, 1200.0]
     tolerances = fill(1.0, length(windows))
 
@@ -177,15 +215,16 @@ rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolera
         review_tolerances = fill(1.0, 4)
         within = [-0.9, -0.5, 0.5, 0.9]
         offset = [4.1, 5.2, 4.7, 5.9]
+        draw = stream_draw(1)
 
         err = raised(() -> L.classify(review_windows, within, review_tolerances;
-                                      false_alarm = alpha))
+                                      false_alarm = alpha, permutations, draw))
         @test err isa Refusal
         @test occursin("successive-difference", err.reason)
         @test occursin("at least 6 windows", err.reason)
 
         err = raised(() -> L.classify(review_windows, offset, review_tolerances;
-                                      false_alarm = alpha))
+                                      false_alarm = alpha, permutations, draw))
         @test err isa Refusal
         @test occursin("trend", err.reason)
         @test occursin("at least 6 windows", err.reason)
@@ -197,29 +236,33 @@ rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolera
         @test L.exchangeable_minimum_length(1 // 13) == 5
         @test L.offset_minimum_length(1 // 9) == 5
         @test L.classify(review_windows, within, review_tolerances;
-                         false_alarm = admitting) == L.Unexplained()
+                         false_alarm = admitting, permutations, draw) == L.Unexplained()
         @test L.classify(review_windows, offset, review_tolerances;
-                         false_alarm = admitting) == L.StockOmission()
+                         false_alarm = admitting, permutations, draw) ==
+              L.StockOmission()
     end
 
     @testset "a leak under one tolerance unit at the shortest window is Leak" begin
         rate = 0.5 / windows[1]
         for seed in (1, 2, 3)
             rng = Random.Xoshiro(seed)
+            draw = stream_draw(seed)
             noise = 0.4 .* (2 .* rand(rng, length(windows)) .- 1)
             residuals = rate .* windows .+ noise
             @test abs(residuals[1]) < tolerances[1]
-            @test L.classify(windows, residuals, tolerances; false_alarm = alpha) ==
-                  L.Leak()
-            @test L.classify(windows, noise, tolerances; false_alarm = alpha) != L.Leak()
+            @test L.classify(windows, residuals, tolerances; false_alarm = alpha,
+                             permutations, draw) == L.Leak()
+            @test L.classify(windows, noise, tolerances; false_alarm = alpha,
+                             permutations, draw) != L.Leak()
         end
     end
 
     @testset "stock omissions carrying rounding noise are StockOmission" begin
         series = 200
         rng = Random.Xoshiro(20)
+        draw = stream_draw(21)
         classes = [L.classify(windows, 5.0 .+ rounding_noise(rng, tolerances), tolerances;
-                              false_alarm = alpha) for _ in 1:series]
+                              false_alarm = alpha, permutations, draw) for _ in 1:series]
         @test all(c -> c in (L.StockOmission(), L.Leak(), L.Unexplained()), classes)
         @test count(!=(L.StockOmission()), classes) <
               binomial_critical_count(series, 2 * alpha, alpha)
@@ -229,12 +272,14 @@ rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolera
     @testset "random walks within the quantum are told apart from rounding" begin
         series = 200
         rng = Random.Xoshiro(30)
+        draw = stream_draw(31)
         walks = map(1:series) do _
             walk = cumsum(randn(rng, length(windows)))
             0.9 .* walk ./ maximum(abs, walk)
         end
         @test all(w -> all(abs.(w) .<= tolerances), walks)
-        new = [L.classify(windows, w, tolerances; false_alarm = alpha) for w in walks]
+        new = [L.classify(windows, w, tolerances; false_alarm = alpha, permutations, draw)
+               for w in walks]
         old = [round2_classify(windows, w, tolerances) for w in walks]
         @test all(c -> c in (L.Rounding(), L.Unexplained()), new)
         @test count(!=(L.Rounding()), new) >= binomial_critical_count(series, alpha, alpha)
@@ -244,41 +289,120 @@ rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolera
 
     @testset "the false-alarm rate on rounding noise is at most the declared probability" begin
         series = 2000
+        critical = binomial_critical_count(series, alpha, alpha)
+        # enumerated: factorial(8) orderings do not exceed the declared count
         rng = Random.Xoshiro(40)
+        draw = stream_draw(41)
         alarms = count(1:series) do _
             L.classify(windows, rounding_noise(rng, tolerances), tolerances;
-                       false_alarm = alpha) != L.Rounding()
+                       false_alarm = alpha, permutations = factorial(8), draw) !=
+            L.Rounding()
         end
-        @test alarms < binomial_critical_count(series, alpha, alpha)
+        @test alarms < critical
+        # random: a declared count below factorial(8)
+        rng = Random.Xoshiro(50)
+        draw = stream_draw(51)
+        alarms = count(1:series) do _
+            L.classify(windows, rounding_noise(rng, tolerances), tolerances;
+                       false_alarm = alpha, permutations = 1000, draw) != L.Rounding()
+        end
+        @test alarms < critical
+    end
+
+    @testset "a series of 20 windows classifies" begin
+        long_windows = collect(10.0:10.0:200.0)
+        long_tolerances = fill(1.0, 20)
+        rng = Random.Xoshiro(60)
+        draw = stream_draw(61)
+        leak = (0.5 / long_windows[1]) .* long_windows .+
+               0.4 .* (2 .* rand(rng, 20) .- 1)
+        @test L.classify(long_windows, leak, long_tolerances; false_alarm = alpha,
+                         permutations, draw) == L.Leak()
+        noise = rounding_noise(rng, long_tolerances)
+        @test L.classify(long_windows, noise, long_tolerances; false_alarm = alpha,
+                         permutations, draw) in (L.Rounding(), L.Unexplained())
+        stock = 5.0 .+ rounding_noise(rng, long_tolerances)
+        @test L.classify(long_windows, stock, long_tolerances; false_alarm = alpha,
+                         permutations, draw) in L.residual_signatures()
     end
 
     @testset "zero residuals at zero tolerance are Rounding" begin
         zeros_n = zeros(length(windows))
-        @test L.classify(windows, zeros_n, zeros_n; false_alarm = alpha) == L.Rounding()
+        @test L.classify(windows, zeros_n, zeros_n; false_alarm = alpha, permutations,
+                         draw = stream_draw(2)) == L.Rounding()
     end
 
-    @testset "minimum lengths" begin
+    @testset "minimum lengths and permutation counts" begin
+        draw = stream_draw(3)
         @test L.exchangeable_minimum_length(alpha) == 6
         @test L.offset_minimum_length(alpha) == 8
+        @test L.random_permutation_minimum(alpha) == 100
+        @test L.random_permutation_minimum(1 // 8) == 8
+        @test L.random_permutation_minimum(0.3) == 4
         for n in 2:8
             @test L.count_at_least(L.trend_statistic, collect(1:n)) ==
                   (2, factorial(big(n)))
+            @test L.trend_tail(collect(1:n)) == (2, factorial(big(n)))
             @test L.count_at_least(L.successive_difference_statistic, collect(1:n)) ==
                   (2, factorial(big(n)))
         end
 
-        err = raised(() -> L.classify(windows[1:5], zeros(5), ones(5); false_alarm = alpha))
+        err = raised(() -> L.classify(windows[1:5], zeros(5), ones(5);
+                                      false_alarm = alpha, permutations, draw))
         @test err isa Refusal
         @test occursin("successive-difference", err.reason)
-        @test L.classify(windows[1:6], zeros(6), ones(6); false_alarm = alpha) ==
-              L.Rounding()
+        @test L.classify(windows[1:6], zeros(6), ones(6); false_alarm = alpha,
+                         permutations, draw) == L.Rounding()
+
+        err = raised(() -> L.classify(windows, zeros(8), ones(8); false_alarm = alpha,
+                                      permutations = 99, draw))
+        @test err isa Refusal
+        @test occursin("successive-difference", err.reason)
+        @test occursin("at least 100 random permutations", err.reason)
+        @test L.classify(windows, zeros(8), ones(8); false_alarm = alpha,
+                         permutations = 100, draw) == L.Rounding()
 
         unordered = [5.3, 4.8, 5.9, 4.6, 5.5, 5.0, 5.7]
         err = raised(() -> L.classify(windows[1:7], unordered, ones(7);
-                                      false_alarm = alpha))
+                                      false_alarm = alpha, permutations, draw))
         @test err isa Refusal
         @test occursin("offset", err.reason)
         @test occursin("at least 8 windows", err.reason)
+    end
+
+    @testset "inversion_counts matches enumeration for every tie structure up to 8" begin
+        for n in 1:8, sizes in compositions(n)
+            values = reduce(vcat, [fill(g, a) for (g, a) in enumerate(sizes)])
+            histogram = zeros(BigInt, binomial(n, 2) + 1)
+            for w in all_orderings(values)
+                histogram[inversions(w) + 1] += 1
+            end
+            counts = L.inversion_counts(sizes)
+            repeats = prod(factorial(big(a)) for a in sizes)
+            padded = zeros(BigInt, length(histogram))
+            padded[1:length(counts)] .= counts
+            @test histogram == padded .* repeats
+        end
+    end
+
+    @testset "trend_tail matches count_at_least with ties up to 7" begin
+        rng = Random.Xoshiro(70)
+        for n in 1:7, sizes in compositions(n)
+            values = reduce(vcat, [fill(2g, a) for (g, a) in enumerate(sizes)])
+            for arrangement in (values, reverse(values), Random.shuffle(rng, values))
+                d, total = L.trend_tail(arrangement)
+                de, te = L.count_at_least(L.trend_statistic, arrangement)
+                @test d // total == de // te
+            end
+        end
+    end
+
+    @testset "q_binomial" begin
+        @test L.q_binomial(4, 2) == BigInt[1, 1, 2, 1, 1]
+        @test L.q_binomial(5, 0) == BigInt[1]
+        @test L.q_binomial(5, 5) == BigInt[1]
+        @test sum(L.q_binomial(10, 4)) == binomial(10, 4)
+        @test raised(() -> L.q_binomial(3, 4)) isa Refusal
     end
 
     @testset "count_at_least visits every ordering once" begin
@@ -287,6 +411,40 @@ rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolera
         code(v) = foldl((acc, x) -> 10 * acc + x, v; init = 0)
         ds = [L.count_at_least(code, o)[1] for o in orderings]
         @test sort(ds) == collect(1:24)
+    end
+
+    @testset "uniform_index reads words from an accepted range divisible by i" begin
+        for i in 1:12
+            m = UInt64(i)
+            lowest = (typemax(UInt64) - m + 1) % m
+            @test (UInt128(typemax(UInt64)) + 1 - lowest) % i == 0
+        end
+        words = UInt64[0, 1]
+        @test L.uniform_index(c -> words[c], 0, 3) == (2, 2)
+        @test L.uniform_index(c -> words[c + 1], 0, 3) == (2, 1)
+    end
+
+    @testset "shuffle_with_draws! reaches each ordering once over all index choices" begin
+        n = 5
+        top = typemax(UInt64)
+        word_for(choice, i) = top - (((top % UInt64(i)) - UInt64(choice - 1) + UInt64(i)) %
+                                     UInt64(i))
+        reached = Set{Vector{Int}}()
+        for choices in Iterators.product((1:i for i in n:-1:2)...)
+            steps = collect(zip(choices, n:-1:2))
+            work = collect(1:n)
+            counter = L.shuffle_with_draws!(work, c -> word_for(steps[c]...), 0)
+            @test counter == n - 1
+            push!(reached, work)
+        end
+        @test length(reached) == factorial(n)
+    end
+
+    @testset "random_count_at_least counts the identity" begin
+        @test L.random_count_at_least(L.successive_difference_statistic, collect(1:6), 1,
+                                      stream_draw(4)) == 1
+        @test L.random_count_at_least(L.successive_difference_statistic, fill(3, 6), 50,
+                                      stream_draw(4)) == 50
     end
 
     @testset "binomial_upper_tail counts sign patterns" begin
@@ -300,20 +458,28 @@ rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolera
         @test L.doubled_midranks([3.0, 1.0, 3.0, 2.0]) == [7, 2, 7, 4]
     end
 
-    @testset "classify refuses malformed input and requires false_alarm" begin
+    @testset "classify refuses malformed input and requires its keywords" begin
+        draw = stream_draw(5)
         ok = (windows, zeros(8), ones(8))
         for bad in ((windows[1:7], zeros(8), ones(8)),
                     (reverse(windows), zeros(8), ones(8)),
                     (windows, [NaN; zeros(7)], ones(8)),
                     (windows, zeros(8), [-1.0; ones(7)]))
-            err = raised(() -> L.classify(bad...; false_alarm = alpha))
+            err = raised(() -> L.classify(bad...; false_alarm = alpha, permutations, draw))
             @test err isa Refusal
             @test err.site == "Fields.classify"
         end
         for a in (0, 1, NaN, -0.5, 1.5)
-            @test raised(() -> L.classify(ok...; false_alarm = a)) isa Refusal
+            @test raised(() -> L.classify(ok...; false_alarm = a, permutations, draw)) isa
+                  Refusal
         end
-        @test raised(() -> L.classify(ok...)) isa UndefKeywordError
+        @test raised(() -> L.classify(ok...; false_alarm = alpha, permutations = 0,
+                                      draw)) isa Refusal
+        @test raised(() -> L.classify(ok...; permutations, draw)) isa UndefKeywordError
+        @test raised(() -> L.classify(ok...; false_alarm = alpha, draw)) isa
+              UndefKeywordError
+        @test raised(() -> L.classify(ok...; false_alarm = alpha, permutations)) isa
+              UndefKeywordError
     end
 
     @testset "residual_signatures enumerates the closed set" begin
@@ -324,12 +490,15 @@ rounding_noise(rng, tolerances) = [0.9 * (2 * rand(rng) - 1) * t for t in tolera
     @testset "classify reads a series of ledgers" begin
         ledgers = [L.Ledger{:mass}(Float64, 8, 10.0, 10.0, 10.0, 0.0; reservoir = false)
                    for _ in windows]
-        @test L.classify(ledgers, windows; false_alarm = alpha) == L.Rounding()
+        @test L.classify(ledgers, windows; false_alarm = alpha, permutations,
+                         draw = stream_draw(6)) == L.Rounding()
     end
 
     @testset "classify infers a ResidualSignature" begin
+        draw = stream_draw(7)
+        keywords = (false_alarm = 0.01, permutations = 100, draw = draw)
         rt = Base.return_types(Core.kwcall,
-                               (typeof((false_alarm = 0.01,)), typeof(L.classify),
+                               (typeof(keywords), typeof(L.classify),
                                 Vector{Float64}, Vector{Float64}, Vector{Float64}))
         @test length(rt) == 1
         @test rt[1] <: L.ResidualSignature

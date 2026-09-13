@@ -137,19 +137,26 @@ function doubled_midranks(x::AbstractVector{<:Real})
 end
 
 """
-    trend_statistic(ranks)
+    kendall_score(ranks)
 
-`abs(S)` for Kendall's `S = sum(sign(ranks[j] - ranks[i]) for i < j)`: the count of
-increasing pairs minus the count of decreasing pairs of `ranks` against position.
+Kendall's `S = sum(sign(ranks[j] - ranks[i]) for i < j)`: the count of increasing
+pairs minus the count of decreasing pairs of `ranks` against position.
 """
-function trend_statistic(ranks::AbstractVector{Int})
+function kendall_score(ranks::AbstractVector{Int})
     n = length(ranks)
     s = 0
     for i in 1:n, j in (i + 1):n
         s += sign(ranks[j] - ranks[i])
     end
-    return abs(s)
+    return s
 end
+
+"""
+    trend_statistic(ranks)
+
+`abs(kendall_score(ranks))`.
+"""
+trend_statistic(ranks::AbstractVector{Int}) = abs(kendall_score(ranks))
 
 """
     successive_difference_statistic(ranks)
@@ -163,6 +170,106 @@ function successive_difference_statistic(ranks::AbstractVector{Int})
         total += (ranks[i + 1] - ranks[i])^2
     end
     return -total
+end
+
+"""
+    q_binomial(n, k)
+
+The coefficients, constant term first, of the q-binomial coefficient `[n, k]_q` as
+`BigInt`s, from `[m, 0] = [m, m] = 1` and `[m, j] = [m - 1, j] + q^(m - j) [m - 1, j - 1]`
+(Stanley, Enumerative Combinatorics vol. 1, 2nd ed., version of 15 July 2011, eq. 1.67,
+p. 62).
+"""
+function q_binomial(n::Int, k::Int)
+    0 <= k <= n ||
+        refuse("q-binomial coefficient", "Fields.q_binomial",
+               "k must lie in 0:n; got n = $(n), k = $(k)")
+    row = [BigInt[1]]
+    for m in 1:n
+        top = min(m, k)
+        next = Vector{Vector{BigInt}}(undef, top + 1)
+        for j in 0:top
+            if j == 0 || j == m
+                next[j + 1] = BigInt[1]
+                continue
+            end
+            kept = row[j + 1]
+            shifted = row[j]
+            shift = m - j
+            span = length(shifted) + shift
+            poly = zeros(BigInt, max(length(kept), span))
+            for i in eachindex(kept)
+                poly[i] += kept[i]
+            end
+            for i in eachindex(shifted)
+                poly[i + shift] += shifted[i]
+            end
+            next[j + 1] = poly
+        end
+        row = next
+    end
+    return row[k + 1]
+end
+
+"""
+    polynomial_product(a, b)
+
+The coefficients, constant term first, of the product of the polynomials whose
+coefficients, constant term first, are `a` and `b`.
+"""
+function polynomial_product(a::Vector{BigInt}, b::Vector{BigInt})
+    span = length(a) + length(b)
+    c = zeros(BigInt, span - 1)
+    for i in eachindex(a), j in eachindex(b)
+        term = a[i] * b[j]
+        c[i + j - 1] += term
+    end
+    return c
+end
+
+"""
+    inversion_counts(sizes)
+
+`c` with `c[k + 1]` the number of distinct orderings of a multiset with multiplicities
+`sizes` that have `k` inversions (pairs `i < j` with the `i`-th element greater): the
+coefficients of the q-multinomial coefficient over `sizes`, formed as the product of
+`q_binomial(n - sizes[1] - ... - sizes[g - 1], sizes[g])` over `g`, `n = sum(sizes)`
+(Stanley, Enumerative Combinatorics vol. 1, 2nd ed., version of 15 July 2011,
+Proposition 1.7.1, eq. 1.68, p. 63, and eq. 1.66, p. 62).
+"""
+function inversion_counts(sizes::AbstractVector{Int})
+    remaining = sum(sizes; init = 0)
+    counts = BigInt[1]
+    for a in sizes
+        counts = polynomial_product(counts, q_binomial(remaining, a))
+        remaining -= a
+    end
+    return counts
+end
+
+"""
+    trend_tail(ranks)
+
+`(d, total)`: `total` the number of distinct orderings of `ranks`, and `d` the number
+of them whose `trend_statistic` is at least `trend_statistic(ranks)`. Computed from
+`inversion_counts` over the multiplicities of the values of `ranks`: an ordering with
+`k` inversions has `kendall_score` equal to `untied - 2k`, `untied` the number of
+pairs of unequal values.
+"""
+function trend_tail(ranks::AbstractVector{Int})
+    n = length(ranks)
+    sizes = [count(==(v), ranks) for v in sort(unique(ranks))]
+    counts = inversion_counts(sizes)
+    all_pairs = binomial(n, 2)
+    tied_pairs = sum((binomial(a, 2) for a in sizes); init = 0)
+    untied = all_pairs - tied_pairs
+    observed = trend_statistic(ranks)
+    d = big(0)
+    for k in 0:(length(counts) - 1)
+        twice = 2 * k
+        abs(untied - twice) >= observed && (d += counts[k + 1])
+    end
+    return d, sum(counts)
 end
 
 """
@@ -203,11 +310,68 @@ function orderings_at_least!(statistic::F, work::Vector{Int}, k::Int, observed) 
 end
 
 """
+    uniform_index(draw, counter, i)
+
+`(j, counter)`: `j` in `1:i` from the `UInt64` words `draw(counter + 1)`,
+`draw(counter + 2)`, ..., taking the first word `u` with `u >= (2^64 - i) % i` and
+returning `j = u % i + 1`, and `counter` advanced by the number of words read.
+"""
+function uniform_index(draw::F, counter::Int, i::Int) where {F}
+    m = UInt64(i)
+    lowest = (typemax(UInt64) - m + 1) % m
+    while true
+        counter += 1
+        u = draw(counter)::UInt64
+        u >= lowest && return Int(u % m) + 1, counter
+    end
+end
+
+"""
+    shuffle_with_draws!(work, draw, counter)
+
+`work` reordered in place by swapping `work[i]` with `work[j]` for `i` from
+`length(work)` down to 2, `j` the `uniform_index(draw, counter, i)` of each step.
+Returns `counter` advanced by the number of words read.
+"""
+function shuffle_with_draws!(work::Vector{Int}, draw::F, counter::Int) where {F}
+    for i in length(work):-1:2
+        j, counter = uniform_index(draw, counter, i)
+        work[i], work[j] = work[j], work[i]
+    end
+    return counter
+end
+
+"""
+    random_count_at_least(statistic, values, permutations, draw)
+
+`d`: one for `values` itself, plus the number of `permutations - 1` orderings, each
+`values` put through `shuffle_with_draws!` with one word counter running across them
+from `0`, whose `statistic` is at least `statistic(values)`.
+
+`d / permutations` is the p-value of the random permutation test of Hemerik and Goeman
+(2018, arXiv:1411.7565, Definition 2 and Theorem 2, section 3.3, p. 11), the identity
+included and the orderings drawn with replacement.
+"""
+function random_count_at_least(statistic::F, values::AbstractVector{Int},
+                               permutations::Integer, draw::G) where {F,G}
+    observed = statistic(values)
+    work = collect(values)
+    counter = 0
+    d = 1
+    for _ in 2:permutations
+        copyto!(work, values)
+        counter = shuffle_with_draws!(work, draw, counter)
+        statistic(work) >= observed && (d += 1)
+    end
+    return d
+end
+
+"""
     exchangeable_minimum_length(false_alarm)
 
 The smallest `n >= 2` with `2 / factorial(n) <= false_alarm`, computed exactly: the
-series length below which `count_at_least` over `n` distinct values returns no
-`d / total` at or under `false_alarm` for `trend_statistic` or
+series length below which no ordering of `n` distinct values has a `trend_tail` or
+`count_at_least` p-value at or under `false_alarm` for `trend_statistic` or
 `successive_difference_statistic`, whose most extreme value each is reached by exactly
 the two monotone orderings.
 """
@@ -218,6 +382,17 @@ function exchangeable_minimum_length(false_alarm::Real)
         n += 1
     end
     return n
+end
+
+"""
+    random_permutation_minimum(false_alarm)
+
+The smallest permutation count `w` with `1 / w <= false_alarm`, computed exactly: the
+count below which `random_count_at_least` gives no `d / w` at or under `false_alarm`.
+"""
+function random_permutation_minimum(false_alarm::Real)
+    a = Rational{BigInt}(false_alarm)
+    return Int(ceil(1 / a))
 end
 
 """
@@ -265,26 +440,62 @@ function offset_minimum_length(false_alarm::Real)
     return n
 end
 
-"""
-    exchangeability_rejects(statistic, test, residuals, false_alarm)
+"Refuse `classify` naming `test`, `false_alarm` and what the test needs."
+too_short(test, false_alarm, needs) =
+    refuse("residual classification", "Fields.classify",
+           "the $(test) test at false-alarm probability $(false_alarm) needs $(needs)")
 
-Whether `count_at_least(statistic, doubled_midranks(residuals))` returns
-`d / total <= false_alarm`.
-
-Refuses naming `test` and `exchangeable_minimum_length(false_alarm)` when `residuals`
-is shorter than that length.
 """
-function exchangeability_rejects(statistic::F, test::AbstractString,
-                                 residuals::AbstractVector{<:Real},
-                                 false_alarm::Real) where {F}
+    trend_rejects(residuals, false_alarm)
+
+Whether `trend_tail(doubled_midranks(residuals))` gives `d / total <= false_alarm`.
+
+Refuses naming the trend test and `exchangeable_minimum_length(false_alarm)` when
+`residuals` is shorter than that length.
+"""
+function trend_rejects(residuals::AbstractVector{<:Real}, false_alarm::Real)
     n = length(residuals)
     needed = exchangeable_minimum_length(false_alarm)
-    n >= needed ||
-        refuse("residual classification", "Fields.classify",
-               "the $(test) test at false-alarm probability $(false_alarm) needs at " *
-               "least $(needed) windows; got $(n)")
-    d, total = count_at_least(statistic, doubled_midranks(residuals))
+    n >= needed || too_short("trend", false_alarm, "at least $(needed) windows; got $(n)")
+    d, total = trend_tail(doubled_midranks(residuals))
     return d <= Rational{BigInt}(false_alarm) * total
+end
+
+"""
+    successive_difference_rejects(residuals, false_alarm, permutations, draw)
+
+Whether the p-value of `successive_difference_statistic` over
+`ranks = doubled_midranks(residuals)` is at most `false_alarm`. When
+`factorial(length(residuals)) <= permutations` the p-value is `d / total` of
+`count_at_least`; otherwise it is `random_count_at_least(..., permutations, draw) /
+permutations`.
+
+Refuses naming the successive-difference test: in the first case when `residuals` is
+shorter than `exchangeable_minimum_length(false_alarm)`, and in the second when
+`permutations` is below `random_permutation_minimum(false_alarm)`.
+"""
+function successive_difference_rejects(residuals::AbstractVector{<:Real},
+                                       false_alarm::Real, permutations::Integer,
+                                       draw::F) where {F}
+    n = length(residuals)
+    a = Rational{BigInt}(false_alarm)
+    ranks = doubled_midranks(residuals)
+    test = "successive-difference"
+    if factorial(big(n)) <= permutations
+        needed = exchangeable_minimum_length(false_alarm)
+        n >= needed ||
+            too_short(test, false_alarm,
+                      "at least $(needed) windows when all $(factorial(big(n))) " *
+                      "orderings are enumerated; got $(n)")
+        d, total = count_at_least(successive_difference_statistic, ranks)
+        return d <= a * total
+    end
+    needed = random_permutation_minimum(false_alarm)
+    permutations >= needed ||
+        too_short(test, false_alarm,
+                  "at least $(needed) random permutations; got $(permutations)")
+    d = random_count_at_least(successive_difference_statistic, ranks, permutations, draw)
+    return d <= a * permutations
 end
 
 """
@@ -300,29 +511,32 @@ function offset_rejects(residuals::AbstractVector{<:Real},
                         tolerances::AbstractVector{<:Real}, false_alarm::Real)
     n = length(residuals)
     needed = offset_minimum_length(false_alarm)
-    n >= needed ||
-        refuse("residual classification", "Fields.classify",
-               "the offset test at false-alarm probability $(false_alarm) needs at " *
-               "least $(needed) windows; got $(n)")
+    n >= needed || too_short("offset", false_alarm, "at least $(needed) windows; got $(n)")
     tail = binomial_upper_tail(n, offset_count(residuals, tolerances))
     doubled = 2 * tail
     return doubled <= Rational{BigInt}(false_alarm) * big(2)^n
 end
 
 """
-    classify(windows, residuals, tolerances; false_alarm)
+    classify(windows, residuals, tolerances; false_alarm, permutations, draw)
 
 The `ResidualSignature` of closure residuals measured at the strictly increasing
 `windows`, each against the tolerance at its window, with every test run at the
 false-alarm probability `false_alarm` the caller declares.
 
+`permutations` is the permutation count the successive-difference test declares, and
+`draw` the function it reads its random words from: `draw(i)` a `UInt64` for each
+counter `i = 1, 2, ...`, read in that order and only when
+`factorial(length(residuals)) > permutations`.
+
 Three tests, `n = length(residuals)`:
 
-- trend: `exchangeability_rejects(trend_statistic, ...)`. Null model: the residuals
-  are exchangeable, as independent errors of one distribution about one level are.
-- successive difference: `exchangeability_rejects(successive_difference_statistic,
-  ...)`, rejecting when the ranks move by less between neighbouring windows than
-  reorderings do. Null model: the same.
+- trend: `trend_rejects(residuals, false_alarm)`, exact at every length. Null model:
+  the residuals are exchangeable, as independent errors of one distribution about one
+  level are.
+- successive difference: `successive_difference_rejects(residuals, false_alarm,
+  permutations, draw)`, rejecting when the ranks move by less between neighbouring
+  windows than reorderings do. Null model: the same.
 - offset: `offset_rejects(residuals, tolerances, false_alarm)`. Null model: the
   residuals are independent and each lies above its tolerance with probability at
   most one half and below its negated tolerance with probability at most one half, as
@@ -334,17 +548,15 @@ beyond its tolerance, `Leak` when the trend test rejects; otherwise `Unexplained
 the successive-difference test rejects; otherwise `StockOmission` when the offset test
 rejects; otherwise `Unexplained`.
 
-The trend and successive-difference tests enumerate all `factorial(n)` orderings.
-
 Refuses when `windows`, `residuals` and `tolerances` disagree in length; when `windows`
 is not strictly increasing; when a residual is not finite or a tolerance is negative
-or not finite; when `false_alarm` does not lie strictly between 0 and 1; and when a
-test is reached with fewer windows than its minimum length
-(`exchangeable_minimum_length` for the trend and successive-difference tests,
-`offset_minimum_length` for the offset test), naming the test.
+or not finite; when `false_alarm` does not lie strictly between 0 and 1; when
+`permutations` is below 1; and when a test is reached that its minimum length or
+permutation count refuses, naming the test.
 """
 function classify(windows::AbstractVector{<:Real}, residuals::AbstractVector{<:Real},
-                  tolerances::AbstractVector{<:Real}; false_alarm::Real)
+                  tolerances::AbstractVector{<:Real}; false_alarm::Real,
+                  permutations::Integer, draw)
     length(windows) == length(residuals) == length(tolerances) ||
         refuse("residual classification", "Fields.classify",
                "windows, residuals and tolerances must share one length; got " *
@@ -361,26 +573,29 @@ function classify(windows::AbstractVector{<:Real}, residuals::AbstractVector{<:R
     isfinite(false_alarm) && 0 < false_alarm < 1 ||
         refuse("residual classification", "Fields.classify",
                "false_alarm must lie strictly between 0 and 1; got $(false_alarm)")
+    permutations >= 1 ||
+        refuse("residual classification", "Fields.classify",
+               "permutations must be at least 1; got $(permutations)")
 
     within = all(i -> abs(residuals[i]) <= tolerances[i], eachindex(residuals, tolerances))
     if within
-        exchangeability_rejects(successive_difference_statistic, "successive-difference",
-                                residuals, false_alarm) && return Unexplained()
+        successive_difference_rejects(residuals, false_alarm, permutations, draw) &&
+            return Unexplained()
         return Rounding()
     end
-    exchangeability_rejects(trend_statistic, "trend", residuals, false_alarm) &&
-        return Leak()
-    exchangeability_rejects(successive_difference_statistic, "successive-difference",
-                            residuals, false_alarm) && return Unexplained()
+    trend_rejects(residuals, false_alarm) && return Leak()
+    successive_difference_rejects(residuals, false_alarm, permutations, draw) &&
+        return Unexplained()
     offset_rejects(residuals, tolerances, false_alarm) && return StockOmission()
     return Unexplained()
 end
 
 """
-    classify(ledgers, windows; false_alarm)
+    classify(ledgers, windows; false_alarm, permutations, draw)
 
 `classify` read off a series of `Ledger`s at their `windows`, one length per ledger.
 """
 classify(ledgers::AbstractVector{<:Ledger}, windows::AbstractVector{<:Real};
-         false_alarm::Real) =
-    classify(windows, residual.(ledgers), tolerance.(ledgers); false_alarm = false_alarm)
+         false_alarm::Real, permutations::Integer, draw) =
+    classify(windows, residual.(ledgers), tolerance.(ledgers);
+             false_alarm = false_alarm, permutations = permutations, draw = draw)
