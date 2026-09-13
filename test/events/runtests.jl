@@ -1,5 +1,5 @@
 using Test
-using Fiddlybits: Events, Verdicts
+using Fiddlybits: Events, Verdicts, Orbit
 
 # The event vocabulary is closed by this check rather than by the language: a
 # subtype added anywhere fails the suite until the enumeration and decision
@@ -20,13 +20,47 @@ module PayloadTypeFixture
 end
 Events.payload_type(::PayloadTypeFixture.WithPayload) = Int
 
+# The refusal payload shape decision 0042 carried at its founding, the fixture the
+# field comparison below must report as fabricating and losing fields.
+module FoundingRefusalFixture
+    struct RefusalPayload
+        component::String
+        refused::String
+        quantity::Float64
+        bound::Float64
+    end
+end
+
+"""
+    field_difference(P, R)
+
+`(fabricated, lost)`: the `(name, type)` fields of `P` that `R` does not carry,
+and the `(name, type)` fields of `R` that `P` does not carry.
+"""
+function field_difference(P::DataType, R::DataType)
+    p = collect(zip(fieldnames(P), fieldtypes(P)))
+    r = collect(zip(fieldnames(R), fieldtypes(R)))
+    return (setdiff(p, r), setdiff(r, p))
+end
+
+"The `Verdicts.Refusal` that calling `f` raises."
+function raised_refusal(f)
+    try
+        f()
+    catch err
+        err isa Verdicts.Refusal && return err
+        rethrow()
+    end
+    error("no refusal was raised")
+end
+
 "A complete, valid keyword set for each payload, used where a test needs one
 that constructs without refusing."
 const VALID_PAYLOAD_ARGS = Dict(
     Events.VerdictPayload => (predicate = "FixedPointLoop", verdict = Verdicts.Converged(),
                                statistic = 0.5, bracket = (0.0, 1.0)),
-    Events.RefusalPayload => (component = "Mesh", refused = "radius",
-                               quantity = 2.0, bound = 1.0),
+    Events.RefusalPayload => (quantity = "eccentricity", site = "Systems.System",
+                               reason = "outside the elliptic range [0, 1): 1.5"),
     Events.LedgerOpenPayload => (ledger = "heat", imbalance = 1.0e-3,
                                   tolerance = 1.0e-6, exchange = "surface flux"),
     Events.RefreshPayload => (trigger = "sea ice extent", field = "albedo",
@@ -93,6 +127,34 @@ const VALID_PAYLOAD_ARGS = Dict(
                 @test e isa Verdicts.Refusal
                 @test e.quantity == String(field)
             end
+        end
+    end
+
+    @testset "a refusal event is built from a raised refusal, no field fabricated or lost" begin
+        sites = (
+            () -> Orbit.check_eccentricity(1.5, "Systems.System"),
+            () -> Events.moved([1.0], "cpu", :gpu),
+        )
+        for site in sites
+            raised = raised_refusal(site)
+            @test field_difference(Events.payload_type(Events.Refusal()), typeof(raised)) ==
+                  (Tuple{Symbol,DataType}[], Tuple{Symbol,DataType}[])
+            event = Events.Event(Events.Refusal(), 1, 0.0, :slow, "Systems", raised)
+            @test event.payload === raised
+            for field in fieldnames(typeof(raised))
+                @test getfield(event.payload, field) == getfield(raised, field)
+            end
+        end
+
+        @testset "positive control: the founding payload shape is reported, and refused as a payload" begin
+            fabricated, lost = field_difference(FoundingRefusalFixture.RefusalPayload,
+                                                Verdicts.Refusal)
+            @test Set(fabricated) == Set([(:component, String), (:refused, String),
+                                          (:quantity, Float64), (:bound, Float64)])
+            @test Set(lost) == Set([(:quantity, String), (:site, String), (:reason, String)])
+            founding = FoundingRefusalFixture.RefusalPayload("Orbit", "eccentricity", 1.5, 1.0)
+            e = raised_refusal(() -> Events.Event(Events.Refusal(), 1, 0.0, :slow, "Systems", founding))
+            @test occursin("refusal", e.site)
         end
     end
 
