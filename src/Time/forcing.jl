@@ -15,6 +15,10 @@ pair of intervals that carries it.
 Contiguity is exact: the end of one interval and the start of the next are the same
 number, not two numbers within a tolerance. `uniform_forcing` builds a list that way,
 and any builder that computes each boundary once does the same.
+
+A `Forcing` holds its own copies of `intervals` and `values`, exactly as
+`Reductions.Segmentation` does: mutating the vectors passed in afterwards leaves the
+`Forcing` describing what was checked.
 """
 struct Forcing{T<:AbstractFloat,V}
     intervals::Vector{Interval{T}}
@@ -38,7 +42,7 @@ struct Forcing{T<:AbstractFloat,V}
                        "and interval $(k) starting at $(current.t0.seconds)")
             end
         end
-        return new{T,V}(intervals, values)
+        return new{T,V}(copy(intervals), copy(values))
     end
 end
 
