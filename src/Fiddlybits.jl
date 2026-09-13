@@ -19,6 +19,7 @@ include("Fields/Fields.jl")
 include("Instellation/Instellation.jl")
 include("Connectivity/Connectivity.jl")
 include("Provenance/Provenance.jl")
+include("ShallowWater/ShallowWater.jl")
 include("Oracles/Oracles.jl")
 include("Render/Render.jl")
 
