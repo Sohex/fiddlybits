@@ -35,24 +35,39 @@ import TOML
 using Dates: now, format
 
 """
+    git_at(root, args)
+
+`git -C root` with `args`, in this process's environment less every variable `git
+rev-parse --local-env-vars` names (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` and the
+rest), so the repository it acts on is the one at `root` and not one the calling
+process was pointed at, as a git hook's process is.
+"""
+function git_at(root::AbstractString, args::Cmd)
+    located = Set(split(read(`git rev-parse --local-env-vars`, String)))
+    env = Dict(k => v for (k, v) in ENV if !(k in located))
+    return setenv(`git -C $(root) $(args)`, env)
+end
+
+"""
     subject(root)
 
 The commit the nightly is about, as `(branch, sha)`, or a refusal. `main` with nothing
 uncommitted and nothing untracked: a run against a working tree is a run nobody can
 reproduce or compare, and guessing which of the two the caller meant is worse than
-saying so.
+saying so. Every git read goes through `git_at`, so the answer is about `root` when
+this runs under a git hook.
 """
 function subject(root::AbstractString)
-    branch = strip(read(`git -C $(root) rev-parse --abbrev-ref HEAD`, String))
+    branch = strip(read(git_at(root, `rev-parse --abbrev-ref HEAD`), String))
     branch == "main" ||
         error("the nightly runs against main and this checkout is on $(branch); " *
               "check main out, or run tools/gate/gate.sh, which is the door for a branch")
-    dirty = strip(read(`git -C $(root) status --porcelain`, String))
+    dirty = strip(read(git_at(root, `status --porcelain`), String))
     isempty(dirty) ||
         error("the nightly runs against a clean tree and this one has changes:\n" *
               dirty * "\ncommit them or stash them; a run against a working tree " *
               "is not one the next night can be compared with")
-    return (branch, strip(read(`git -C $(root) rev-parse HEAD`, String)))
+    return (branch, strip(read(git_at(root, `rev-parse HEAD`), String)))
 end
 
 """

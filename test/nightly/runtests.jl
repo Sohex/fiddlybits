@@ -86,43 +86,79 @@ end
     end
 
     @testset "the subject is main with a clean tree, or it refuses" begin
-        @testset "positive control: a checkout that is not main is refused" begin
-            scratch = mktempdir()
-            run(pipeline(`git -C $(scratch) init -q -b elsewhere`; stdout = devnull))
-            run(pipeline(`git -C $(scratch) -c user.email=t@t -c user.name=t commit -q --allow-empty -m x`;
+        # Every scratch repository is made through git_at, and every control runs twice:
+        # with GIT_DIR unset, and with GIT_DIR naming a second scratch repository, the
+        # way a git hook run from a worktree exports it.
+        git_at = NightlyDriver.git_at
+        make_repo(dir, branch) = run(pipeline(git_at(dir, `init -q -b $(branch)`); stdout = devnull))
+        commit_empty(dir) =
+            run(pipeline(git_at(dir, `-c user.email=t@t -c user.name=t commit -q --allow-empty -m x`);
                          stdout = devnull))
-            caught = try
-                subject(scratch)
-            catch e
-                e
+
+        pointed = mktempdir()
+        make_repo(pointed, "pushing")
+        commit_empty(pointed)
+        pointed_head = read(git_at(pointed, `rev-parse HEAD`), String)
+        pointed_config = read(joinpath(pointed, ".git", "config"), String)
+
+        for (arm, gitdir) in (("GIT_DIR unset", nothing),
+                              ("GIT_DIR naming another repository", joinpath(pointed, ".git")))
+            @testset "$arm" begin
+                withenv("GIT_DIR" => gitdir) do
+                    @testset "positive control: a checkout that is not main is refused" begin
+                        scratch = mktempdir()
+                        make_repo(scratch, "elsewhere")
+                        commit_empty(scratch)
+                        caught = try
+                            subject(scratch)
+                        catch e
+                            e
+                        end
+                        @test caught isa ErrorException
+                        @test occursin("elsewhere", caught.msg)
+                    end
+
+                    @testset "positive control: a tree with changes in it is refused" begin
+                        scratch = mktempdir()
+                        make_repo(scratch, "main")
+                        commit_empty(scratch)
+                        write(joinpath(scratch, "untracked.txt"), "a change nobody committed")
+                        caught = try
+                            subject(scratch)
+                        catch e
+                            e
+                        end
+                        @test caught isa ErrorException
+                        @test occursin("untracked.txt", caught.msg)
+                    end
+
+                    @testset "clean control: main with nothing outstanding is the subject" begin
+                        scratch = mktempdir()
+                        make_repo(scratch, "main")
+                        commit_empty(scratch)
+                        branch, sha = subject(scratch)
+                        @test branch == "main"
+                        @test sha == strip(read(git_at(scratch, `rev-parse HEAD`), String))
+                    end
+                end
             end
-            @test caught isa ErrorException
-            @test occursin("elsewhere", caught.msg)
         end
 
-        @testset "positive control: a tree with changes in it is refused" begin
-            scratch = mktempdir()
-            run(pipeline(`git -C $(scratch) init -q -b main`; stdout = devnull))
-            run(pipeline(`git -C $(scratch) -c user.email=t@t -c user.name=t commit -q --allow-empty -m x`;
-                         stdout = devnull))
-            write(joinpath(scratch, "untracked.txt"), "a change nobody committed")
-            caught = try
-                subject(scratch)
-            catch e
-                e
-            end
-            @test caught isa ErrorException
-            @test occursin("untracked.txt", caught.msg)
+        @testset "the repository GIT_DIR named is where it was" begin
+            @test read(git_at(pointed, `rev-parse HEAD`), String) == pointed_head
+            @test read(joinpath(pointed, ".git", "config"), String) == pointed_config
         end
 
-        @testset "clean control: main with nothing outstanding is the subject" begin
+        @testset "positive control: git -C alone follows GIT_DIR" begin
+            # Without this the second arm above would also pass in an environment where
+            # GIT_DIR had no effect on git -C, and would say nothing about git_at.
             scratch = mktempdir()
-            run(pipeline(`git -C $(scratch) init -q -b main`; stdout = devnull))
-            run(pipeline(`git -C $(scratch) -c user.email=t@t -c user.name=t commit -q --allow-empty -m x`;
-                         stdout = devnull))
-            branch, sha = subject(scratch)
-            @test branch == "main"
-            @test length(sha) == 40
+            make_repo(scratch, "main")
+            commit_empty(scratch)
+            followed = withenv("GIT_DIR" => joinpath(pointed, ".git")) do
+                strip(read(`git -C $(scratch) rev-parse --abbrev-ref HEAD`, String))
+            end
+            @test followed == "pushing"
         end
     end
 
