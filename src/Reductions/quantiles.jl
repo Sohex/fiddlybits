@@ -2,7 +2,7 @@
 # kernels.md, section "The reductions", decision 0005 (the 4^k segment) and
 # decision 0027 (reference path).
 
-using ..Backends: Backend, CPU, GPU, launch!, bitwise, array_type, on
+using ..Backends: Backend, CPU, GPU, launch!, at_workgroup, array_type, on
 using ..Verdicts: refuse
 using KernelAbstractions: @kernel, @index, @Const, @localmem, @synchronize
 
@@ -18,15 +18,6 @@ sort fits a segment of up to 1024 for quantiles", `4^5 = 1024`.
 """
 const QUANTILE_K_MIN = 1
 const QUANTILE_K_MAX = 5
-
-"""
-    at_workgroup(backend, workgroup)
-
-`backend` with its KernelAbstractions workgroup size replaced by
-`workgroup`, keeping its kind (`CPU` or `GPU`) and its `bitwise` flag.
-"""
-at_workgroup(backend::CPU, workgroup::Integer) = CPU(workgroup; bitwise = bitwise(backend))
-at_workgroup(backend::GPU, workgroup::Integer) = GPU(workgroup; bitwise = bitwise(backend))
 
 """
     segment_depth_host(starts_host, nseg)
@@ -246,8 +237,8 @@ function device_bitonic_network(backend::Backend, k::Integer)
 end
 
 """
-    segmented_quantile(xs, starts, q, backend = CPU(BLOCKSIZE))
-    segmented_quantile(xs, segmentation, q, backend = CPU(BLOCKSIZE))
+    segmented_quantile(xs, starts, q, backend = CPU())
+    segmented_quantile(xs, segmentation, q, backend = CPU())
 
 The `q`-quantile of each segment `starts` describes (`segment_extent`),
 selected rather than interpolated: every segment is sorted by a bitonic
@@ -257,10 +248,9 @@ unchanged in type and value from whatever `xs` held at that rank. `xs` is
 never reordered. Every segment must share one length, `4^k` for a `k` in
 `QUANTILE_K_MIN:QUANTILE_K_MAX` (`segment_depth`); a segment is a coarse
 cell's `4^k` descendants at depth `k` (decision 0005). `xs` and `starts`
-must already live on `backend`; the workgroup size `backend` carries is
-replaced with the segment length regardless of what was passed in
-(`at_workgroup`), because the sort's barriers apply across exactly one
-workgroup.
+must already live on `backend`; the launch is pinned to the segment length
+(`Backends.at_workgroup`) whatever `backend` carries, because the sort's
+barriers apply across exactly one workgroup.
 
 The `Segmentation` form takes the boundaries already checked and refuses
 when `xs` does not have the length they were checked against. A
@@ -269,7 +259,7 @@ the host boundaries it holds, which is host work and no device-to-host
 copy.
 """
 function segmented_quantile(xs::AbstractVector, segmentation::Segmentation, q::Real,
-                             backend::Backend = CPU(BLOCKSIZE))
+                             backend::Backend = CPU())
     require_extent(segmentation, xs, "Reductions.segmented_quantile")
     nseg = segmentation.nseg
     out = similar(xs, nseg)
@@ -286,7 +276,7 @@ end
     launch_quantiles!(backend, k, nseg, out, xs, base, rank, partner, ascending)
 
 Queues `quantile_kernel(Val(k))` on `backend` over `nseg` segments of `4^k`
-elements, one workgroup per segment (`at_workgroup`): segment `s` sorts
+elements, one workgroup per segment (`Backends.at_workgroup`): segment `s` sorts
 `xs[base[s] + 1:base[s] + 4^k]` by the network `partner` and `ascending` and
 writes the element at `rank` to `out[s]`.
 
@@ -326,7 +316,7 @@ function launch_quantiles!(backend::Backend, k::Integer, nseg::Integer, out::Abs
 end
 
 function segmented_quantile(xs::AbstractVector, starts::AbstractVector{<:Integer}, q::Real,
-                             backend::Backend = CPU(BLOCKSIZE))
+                             backend::Backend = CPU())
     return segmented_quantile(xs, Segmentation(xs, starts), q, backend)
 end
 
@@ -387,16 +377,21 @@ end
 end
 
 """
-    device_form_limit(::typeof(area_weighted_block_shared_kernel!))
+    AREA_WEIGHTED_DEVICE_FORM_MAX
 
-No limit: notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
-measured the device form faster than the portable text on the card at both of the
-bench's element counts.
+The largest element count `launch_block_sums!` launches
+`area_weighted_block_shared_kernel!` over on `GPU`; above it the portable
+`area_weighted_block_kernel!` runs there instead. The largest count at which
+notes/findings/2026-09-13-the-launch-workgroup-is-set-by-blocks-at-once-and-the-warp.md
+measured the device form faster than the portable text on the card, at
+`BLOCKSIZE` and the portable text at `Backends.launch_workgroup`.
 """
-device_form_limit(::typeof(area_weighted_block_shared_kernel!)) = typemax(Int)
+const AREA_WEIGHTED_DEVICE_FORM_MAX = 184320
+
+device_form_limit(::typeof(area_weighted_block_shared_kernel!)) = AREA_WEIGHTED_DEVICE_FORM_MAX
 
 """
-    area_weighted_sum(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
+    area_weighted_sum(::Type{A}, xs, areas, x, backend = CPU(); blocksize = BLOCKSIZE) where A
 
 The fixed-order sum, accumulated in type `A`, of `areas` at the indices
 where `xs` is at or above `x`, and zero elsewhere: the same blocked,
@@ -414,13 +409,13 @@ already live on `backend`; the block sums are combined on the host through
 `blocksize` is not positive or when `xs` and `areas` differ in length.
 """
 area_weighted_sum(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
-                   backend::Backend = CPU(BLOCKSIZE);
+                   backend::Backend = CPU();
                    blocksize::Integer = BLOCKSIZE) where {A<:Number} =
     combine_fixed_order(on(area_weighted_block_sums(A, xs, areas, x, backend;
                                                      blocksize = blocksize), CPU(1)))
 
 """
-    area_weighted_block_sums(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
+    area_weighted_block_sums(::Type{A}, xs, areas, x, backend = CPU(); blocksize = BLOCKSIZE) where A
 
 `area_weighted_sum`'s block sums before they are combined: block `i` the
 fixed-order sum, accumulated in type `A`, of `areas` over that block's
@@ -434,7 +429,7 @@ fused door, `area_fraction_block_sums`, rather than this one, so it reads
 positive or when `xs` and `areas` differ in length.
 """
 function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
-                                   backend::Backend = CPU(BLOCKSIZE);
+                                   backend::Backend = CPU();
                                    blocksize::Integer = BLOCKSIZE) where {A<:Number}
     blocksize > 0 ||
         refuse("pairwise blocksize", "Reductions.area_weighted_block_sums",
@@ -490,16 +485,21 @@ end
 end
 
 """
-    device_form_limit(::typeof(area_fraction_block_shared_kernel!))
+    AREA_FRACTION_DEVICE_FORM_MAX
 
-No limit: notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
-measured the device form faster than the portable text on the card at both of the
-bench's element counts.
+The largest element count `launch_block_sums!` launches
+`area_fraction_block_shared_kernel!` over on `GPU`; above it the portable
+`area_fraction_block_kernel!` runs there instead. The largest count at which
+notes/findings/2026-09-13-the-launch-workgroup-is-set-by-blocks-at-once-and-the-warp.md
+measured the device form faster than the portable text on the card, at
+`BLOCKSIZE` and the portable text at `Backends.launch_workgroup`.
 """
-device_form_limit(::typeof(area_fraction_block_shared_kernel!)) = typemax(Int)
+const AREA_FRACTION_DEVICE_FORM_MAX = 81920
+
+device_form_limit(::typeof(area_fraction_block_shared_kernel!)) = AREA_FRACTION_DEVICE_FORM_MAX
 
 """
-    area_fraction_block_sums(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
+    area_fraction_block_sums(::Type{A}, xs, areas, x, backend = CPU(); blocksize = BLOCKSIZE) where A
 
 `area_fraction_above`'s block sums before they are combined: block `i`'s
 row holds, in column 1, the fixed-order sum accumulated in type `A` of
@@ -517,7 +517,7 @@ reads its own shared array. Refuses when `blocksize` is not positive or
 when `xs` and `areas` differ in length.
 """
 function area_fraction_block_sums(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
-                                   backend::Backend = CPU(BLOCKSIZE);
+                                   backend::Backend = CPU();
                                    blocksize::Integer = BLOCKSIZE) where {A<:Number}
     blocksize > 0 ||
         refuse("pairwise blocksize", "Reductions.area_fraction_block_sums",
@@ -534,7 +534,7 @@ function area_fraction_block_sums(::Type{A}, xs::AbstractVector, areas::Abstract
 end
 
 """
-    area_fraction_above(xs, areas, x, backend = CPU(BLOCKSIZE))
+    area_fraction_above(xs, areas, x, backend = CPU())
 
 The area-weighted fraction of `xs` at or above `x`: the fixed-order sum of
 `areas` where `xs .>= x`, divided by the fixed-order sum of `areas`, from
@@ -559,7 +559,7 @@ read.md; the fused kernel and its cost are in
 notes/findings/2026-09-13-area-fraction-above-fused-block-sums.md.
 """
 function area_fraction_above(xs::AbstractVector, areas::AbstractVector, x::Real,
-                              backend::Backend = CPU(BLOCKSIZE))
+                              backend::Backend = CPU())
     length(xs) == length(areas) ||
         refuse("area fraction extent", "Reductions.area_fraction_above",
                "xs has length $(length(xs)), areas has length $(length(areas))")

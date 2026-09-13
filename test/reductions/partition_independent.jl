@@ -56,6 +56,45 @@ using Fiddlybits: Reductions, Backends
             @test seg_wg4 == seg_wg16
         end
 
+        @testset "the launch rule against pinned workgroups, on both backends" begin
+            # Backends.launch_workgroup chooses the workgroup of an unpinned backend per
+            # launch; each reduction below runs unpinned and pinned at 1 and 256, and the
+            # launches are read back from Backends.queued_launches so the comparison is
+            # between launches that differ.
+            gpu = Backends.GPU()
+            for nseg in (100, 200, 5000)
+                n = 16 * nseg
+                xs = ReductionFixtures.seeded_vector(Float64, n)
+                weights = abs.(xs) .+ 0.1
+                starts = collect(1:16:n+1)
+                results(backend) = begin
+                    xs_b, w_b = Backends.on(xs, backend), Backends.on(weights, backend)
+                    seg = Reductions.Segmentation(xs_b, Backends.on(starts, backend))
+                    [collect(reinterpret(UInt8, Backends.on(r, Backends.CPU(1))))
+                     for r in (Reductions.segmented_sum(Float64, xs_b, seg, backend),
+                               Reductions.segmented_weighted_sum(Float64, xs_b, w_b, seg, backend),
+                               Reductions.segmented_mean(Float64, xs_b, seg, w_b, backend))]
+                end
+                @test results(gpu) == results(Backends.GPU(1)) == results(Backends.GPU(256))
+                @test results(Backends.CPU()) == results(Backends.CPU(16)) == results(gpu)
+
+                xs_g = Backends.on(xs, gpu)
+                seg_g = Reductions.Segmentation(xs_g, Backends.on(starts, gpu))
+                launched(backend) = begin
+                    Backends.complete!(gpu)
+                    Reductions.segmented_sum(Float64, xs_g, seg_g, backend)
+                    shape = [launch.workgroup for launch in Backends.queued_launches(gpu)]
+                    Backends.complete!(gpu)
+                    shape
+                end
+                @testset "positive control: the unpinned launch of $nseg segments ran at its rule, not at a pin" begin
+                    @test launched(gpu) == [Backends.launch_workgroup(gpu, nseg)]
+                    @test launched(Backends.GPU(256)) == [256]
+                    @test Backends.launch_workgroup(gpu, nseg) != 256
+                end
+            end
+        end
+
         @testset "thread counts: 1, 4 and 16 Julia threads, separate processes" begin
             one = run_reductions_at(1)
             four = run_reductions_at(4)

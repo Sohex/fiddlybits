@@ -38,7 +38,7 @@ function refusal_of(f)
     return nothing
 end
 
-const EDGE_BACKENDS = (("CPU", Backends.CPU(8)), ("GPU", Backends.GPU(8)))
+const EDGE_BACKENDS = (("CPU", Backends.CPU()), ("GPU", Backends.GPU()))
 const EDGE_B = Reductions.BLOCKSIZE
 const EDGE_SECOND_B = 17
 

@@ -1,7 +1,7 @@
 # Fixed-order pairwise summation: docs/plans/fiddlybits-52v.7-kernels.md,
 # section "The reductions".
 
-using ..Backends: Backend, CPU, GPU, backend_of, launch!, on
+using ..Backends: Backend, CPU, GPU, at_workgroup, backend_of, launch!, on
 using ..Verdicts: refuse
 using KernelAbstractions: @kernel, @index, @Const, @localmem, @synchronize
 
@@ -10,7 +10,7 @@ using KernelAbstractions: @kernel, @index, @Const, @localmem, @synchronize
 
 The fixed, declared number of terms `pairwise_sum` accumulates per block
 before the block sums are combined (decision 0038): a constant of this
-module, never read from the thread count or a backend's workgroup size.
+module, never read from the thread count or a launch's workgroup size.
 """
 const BLOCKSIZE = 256
 
@@ -66,19 +66,22 @@ the array and both lengths, unless `blocksize` is positive, `partials` is
 writes is derived from.
 
 On `CPU`, `cpu_kernel` over one work item per block, each reading its block
-of `inputs` from `(i-1)*blocksize+1` itself. On `GPU`, when `n` is at most
-`device_form_limit(shared_kernel)`, `shared_kernel` over `n` work items at a
-workgroup of `blocksize` (`at_workgroup`), one workgroup per block: every
-lane copies its own element of `inputs` into the workgroup's shared memory,
-and after the barrier lane 1 accumulates that shared copy in index order;
-above that limit, `cpu_kernel` as on `CPU`, at `backend`'s own workgroup.
+of `inputs` from `(i-1)*blocksize+1` itself, at `Backends.launch_workgroup`.
+On `GPU`, when `n` is at most `device_form_limit(shared_kernel)`,
+`shared_kernel` over `n` work items pinned to a workgroup of `blocksize`
+(`Backends.at_workgroup`), one workgroup per block: every lane copies its own
+element of `inputs` into the workgroup's shared memory, and after the barrier
+lane 1 accumulates that shared copy in index order; above that limit,
+`cpu_kernel` as on `CPU`, at `Backends.launch_workgroup`.
 The GPU kernel is a device form under
 docs/decisions/0051-a-kernel-may-carry-a-device-form-beside-its-portable-one.md;
 notes/findings/2026-09-13-block-sums-in-shared-memory.md measures the two on
-the card with bounds checks, and
+the card with bounds checks,
 notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
-measures them with the reads under `@inbounds` and is where each limit is
-read from. On `GPU` below the limit the workgroup is `blocksize`, so a
+with the reads under `@inbounds`, and
+notes/findings/2026-09-13-the-launch-workgroup-is-set-by-blocks-at-once-and-the-warp.md
+with the portable kernel at `Backends.launch_workgroup`, and is where each
+limit is read from. On `GPU` below the limit the workgroup is `blocksize`, so a
 `blocksize` above the device's threads per block raises at the launch.
 """
 function launch_block_sums!(cpu_kernel, shared_kernel, backend::Backend, partials::AbstractArray,
@@ -136,11 +139,11 @@ end
 The largest element count `launch_block_sums!` launches
 `pairwise_block_shared_kernel!` over on `GPU`; above it the portable
 `pairwise_block_kernel!` runs there instead. The largest count at which
-notes/findings/2026-09-13-the-block-sum-device-forms-against-one-inbounds-text.md
+notes/findings/2026-09-13-the-launch-workgroup-is-set-by-blocks-at-once-and-the-warp.md
 measured the device form faster than the portable text on the card, at
-`BLOCKSIZE` and the bench's workgroup.
+`BLOCKSIZE` and the portable text at `Backends.launch_workgroup`.
 """
-const PAIRWISE_DEVICE_FORM_MAX = 245760
+const PAIRWISE_DEVICE_FORM_MAX = 184320
 
 """
     device_form_limit(shared_kernel)
@@ -210,7 +213,7 @@ function combine_fixed_order(v::AbstractVector{A}) where {A<:Number}
 end
 
 """
-    pairwise_sum(::Type{A}, xs, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
+    pairwise_sum(::Type{A}, xs, backend = CPU(); blocksize = BLOCKSIZE) where A
 
 The fixed-order pairwise sum of `xs`, accumulated in type `A`: an explicit
 argument rather than inferred from `eltype(xs)`. `xs` is split into blocks
@@ -231,7 +234,7 @@ A device-scalar form beside this one, walking the same fixed-order tree on
 the device and returning a one-element device array, was built and measured
 in notes/findings/2026-09-11-device-scalar-reduction-contract.md.
 """
-function pairwise_sum(::Type{A}, xs::AbstractVector, backend::Backend = CPU(BLOCKSIZE);
+function pairwise_sum(::Type{A}, xs::AbstractVector, backend::Backend = CPU();
                        blocksize::Integer = BLOCKSIZE) where {A<:Number}
     partials = pairwise_block_sums(A, xs, backend; blocksize = blocksize)
     return combine_fixed_order(on(partials, CPU(1)))

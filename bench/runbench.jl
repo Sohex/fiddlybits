@@ -29,14 +29,6 @@ using TOML
 include(joinpath(@__DIR__, "..", "test", "reductions", "fixtures.jl"))
 
 """
-    WORKGROUP
-
-The workgroup size every case launches at. `segmented_quantile` replaces it with
-the segment length on its own (`Reductions.at_workgroup`) and is unaffected.
-"""
-const WORKGROUP = 256
-
-"""
     FINE, COARSE
 
 The levels the segmented cases cross. `FINE` holds the elements and each `COARSE`
@@ -385,7 +377,7 @@ end
 function main()
     isempty(CASES) && return println("no benchmark case is registered")
 
-    backend = Backends.GPU(WORKGROUP)
+    backend = Backends.GPU()
     startup = process_age()
     held = held_shards()
     before = occupancy()
@@ -430,7 +422,7 @@ function main()
         "startup_s" => startup,
         "load_s" => LOAD_SECONDS,
         "measuring_s" => spent,
-        "workgroup" => WORKGROUP,
+        "workgroup" => "Backends.launch_workgroup",
     ), "case" => rows); sorted = true)
 
     for control in CONTROLS
