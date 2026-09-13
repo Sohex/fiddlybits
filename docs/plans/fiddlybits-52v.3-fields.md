@@ -127,6 +127,7 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 | `coarsen(VectorComponent{:east_north})` | lift to `:cartesian` at the source frames first, because east at one longitude is not east at another |
 | `coarsen(Quantiles)` | a quantile table is not re-aggregable; recompute from the fine field |
 | `refine(Quantiles)` | the same |
+| `coarsen(CategoricalFraction)`, until a field carrying components reduces | a class-fraction field holds one column per class |
 | `refine(CategoricalFraction)` | a histogram does not carry which child held which class |
 | `refine(VectorComponent{:east_north})` | project at the destination frames instead, for the reason coarsening refuses them |
 | `time_reduce(Instantaneous)` with no sampling rule | an instantaneous value has no interval to reduce over |
@@ -139,7 +140,10 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 `coarsen(Extensive)` is a segmented sum; `coarsen(FluxDensity)` and
 `coarsen(Fraction)` are area-weighted means so the integral is conserved;
 `coarsen(CategoricalLabel)` is a histogram into `CategoricalFraction` over the legend
-the call names. Each calls `Reductions` and names the measure it integrates over, per
+the call names; `coarsen(CategoricalFraction)` is the area-weighted mean of each class
+column, which conserves each class's area and on fractions histogrammed from labels is
+the histogram, a second door to that quantity rather than a second definition of it.
+Each calls `Reductions` and names the measure it integrates over, per
 REQ-TER-011: no call here passes an unqualified "area". The naming is a type,
 `Measured{Name}`, which is a measure's values together with which measure they are,
 from a closed pair. A reduction takes one of those and never a bare vector of weights,
@@ -161,11 +165,28 @@ every field in the series agree in semantics, dimension and support by construct
 `IntervalMean` reduces by a duration-weighted mean, an `IntervalAccumulation` by a sum,
 an `EndpointState` to the state at the last interval's end.
 
-**One value per cell, for now.** The segmented reductions take a vector, so a field
-carrying levels or components is refused by name rather than reduced along the wrong
-axis. `fiddlybits-52v.3.12` carries it, and it carries the choice that comes with it:
-a loop over columns launches one kernel per column, which at the level counts a coupled
-run uses is the launch-bound case decision 0011 warns about.
+**A field carrying levels or components reduces every column in one launch.** Cells
+are the first axis (`Backends.LAYOUT`), so a coarsening or refinement runs down the cell
+axis of each column independently and keeps the trailing axes: `(cells, levels)` goes to
+`(coarse cells, levels)` and `(cells, 3)` to `(coarse cells, 3)`. The reduction is a
+segmented or pairwise reduction in `Reductions` that takes the cells-first array and
+reduces every column in one launch, with the measure one value per cell, and it is not a
+loop over columns at this boundary. Three forms were weighed. A loop over columns
+calling the vector reductions launches one kernel per column and reads a host total per
+column for every ledger total, so its launches and synchronisations grow with the
+trailing extent; decision 0011 names launches as what binds a coupled run at its column
+counts, and lays arrays out cells first so the vertical loop sits inside the thread,
+which a loop outside the launch undoes. Nothing a caller sees would change on replacing
+it, and that locality is its whole case. The vector reductions over the column-major
+flattening of the array, with the block segmentation repeated once per column, launch
+once and give each column the vector form's own bits, but a measure-weighted reduction
+then needs the measure repeated to the size of the field, the temporary the size of its
+input that `test/reductions/no_input_sized_temporary.jl` refuses, and a column's ledger
+total is still one pairwise sum per column. The form taken costs new kernels with their
+reference paths and edge-shape tests, and is the one whose launches, host reads and
+temporaries stay fixed as the trailing extent grows. `fiddlybits-52v.7.59` builds it
+and merges before `fiddlybits-52v.3.12` reduces on it; until then a field whose data is
+not one value per cell is refused by name rather than reduced along the wrong axis.
 
 **Every mismatch refuses by name; none is left to be a `MethodError`.** A declared
 refusal carrying a sentence is what this table is made of, and an absent method is the
@@ -323,6 +344,22 @@ rather than a named refusal. Returning the field alone from those operators woul
 two return shapes and let a caller of a conserving operator reach for the shape without
 the ledger. `ClassLedgers` costs a consumer a third form beside `Ledger` and
 `NotConserved`.
+
+A field carrying levels or components conserves its quantity in each column, and an
+operator on one returns `ColumnLedgers{Q}`: one `Ledger{Q}` per column in column-major
+order with the trailing shape, each column's tolerance `error_bound` over that column's
+own terms and magnitude, closed when every column is. A `CategoricalFraction` holds its
+legend on its last axis, so its coarsening returns `ClassLedgers`, one per class, each
+class's entry a `ColumnLedgers` when the field carries levels besides its legend. A
+`time_reduce` over a series of such fields returns the same form as a crossing of them.
+A field of one value per cell keeps its `Ledger`. Two alternatives were weighed. One
+ledger over every column lets an error confined to one column hide under a tolerance
+whose magnitude and term count grow with every column while the error does not. A total
+ledger beside the column ledgers adds nothing a consumer can act on: every column
+closing bounds the total's residual by the sum of the column tolerances, which is within
+the total's own bound because `error_bound` is linear in the magnitude, so the total is a
+derived summary of the columns. `ColumnLedgers` costs a consumer a fourth form beside
+`Ledger`, `ClassLedgers` and `NotConserved`.
 
 The tolerance is `error_bound(T, n, M)` over the reduction the operator ran: `T` its
 accumulator, `n` its term count, the fine cells of a crossing or the cells times the
