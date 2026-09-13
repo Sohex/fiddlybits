@@ -62,8 +62,9 @@ Microseconds per call, the minimum statistic, mean and sd over twenty samples:
 The scatter finding puts what a difference has to clear at about one per cent on the
 mean of twenty. Five cases clear it by more than twenty per cent. The six cases that
 call neither changed kernel move by under a third of a per cent, except
-`segmented_sum` at depth two, where one base sample of 4.39 against a typical 4.29
-carries the whole difference and the branch arm is the tighter of the two.
+`segmented_sum` at depth two, where one base sample of 6.146, against 4.232 to 4.374
+for the other nineteen, carries the whole difference: without it the base mean is
+4.293 and the branch arm sits 0.6 per cent above it.
 `segmented_mean` calls `pairwise_sum` over its per-segment zero-weight indicator, one
 element per segment, so it moves with `pairwise_sum` at the small size.
 
