@@ -81,13 +81,31 @@ record_move(array::AbstractArray, from, to) =
 `x` with every array it carries moved to `backend`, through
 `Adapt.adapt_structure`.
 
-The `CPU` form completes the device first, because the arrays `x` carries may
-be arrays a kernel is still writing; it completes nothing when CUDA reports no
-functional device, there being no device work to wait for on such a host.
+The `CPU` form completes each device array `x` carries immediately before
+copying it, through `HostAdaptor`, rather than draining the device before the
+structure is walked: a structure holding no device array completes nothing.
 """
 adapt_for(x, backend::GPU) = Adapt.adapt(array_type(backend), x)
 
-function adapt_for(x, backend::CPU)
-    CUDA.functional() && complete_on(CUDA.CUDABackend())
-    return Adapt.adapt(array_type(backend), x)
+adapt_for(x, backend::CPU) = Adapt.adapt(HostAdaptor(array_type(backend)), x)
+
+"""
+    HostAdaptor(to)
+
+The `Adapt` target `adapt_for` walks a structure with for a move to `CPU`.
+`to` is the array type `array_type(backend::CPU)` names.
+"""
+struct HostAdaptor{T}
+    to::Type{T}
 end
+
+"""
+    Adapt.adapt_storage(a::HostAdaptor, x::AbstractArray)
+
+`x` completed and converted to `a.to`. The completion sits here, at the one
+leaf `Adapt.adapt` converts, rather than at the top of the walk: an array
+already on the host completes nothing, through the same test `complete!`
+carries at every other call site, and an array still being written by a
+kernel is waited for immediately before this call reads it.
+"""
+Adapt.adapt_storage(a::HostAdaptor, x::AbstractArray) = (complete!(x); convert(a.to, x))
