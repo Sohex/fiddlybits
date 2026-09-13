@@ -93,18 +93,15 @@ end
 VerdictPayload(; kwargs...) = build_payload(VerdictPayload, "VerdictPayload"; kwargs...)
 
 """
-    RefusalPayload(; component, refused, quantity, bound)
+    RefusalPayload(; quantity, site, reason)
 
-The payload of a `refusal` event: the component, what was refused, the
-quantity, and the bound it violated.
+The payload of a `refusal` event, which is the `Verdicts.Refusal` that was
+raised: what was refused, where it was refused, and why. `RefusalPayload` is
+`Verdicts.Refusal` under the name the other payloads follow, so a caught
+refusal is handed to `Event` as it is (decision 0042, Amendments).
 """
-struct RefusalPayload
-    component::String
-    refused::String
-    quantity::Float64
-    bound::Float64
-end
-RefusalPayload(; kwargs...) = build_payload(RefusalPayload, "RefusalPayload"; kwargs...)
+const RefusalPayload = Verdicts.Refusal
+Verdicts.Refusal(; kwargs...) = build_payload(Verdicts.Refusal, "RefusalPayload"; kwargs...)
 
 """
     LedgerOpenPayload(; ledger, imbalance, tolerance, exchange)

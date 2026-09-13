@@ -23,7 +23,7 @@ written against one kind keeps working when another is added.
 | kind | payload |
 | --- | --- |
 | `verdict` | the loop or predicate by name, its verdict from decision 0009's five, the statistic, the bracket it was judged against |
-| `refusal` | the component, what was refused, the quantity and the bound it violated |
+| `refusal` | the `Verdicts.Refusal` that was raised: what was refused, where it was refused, and why |
 | `ledger_open` | the ledger, the imbalance, the derived tolerance, the exchange it closed over |
 | `refresh` | the trigger that fired, the boundary field that changed and by how much, the restart length in seconds and in orbits |
 | `topology_change` | the connectivity-graph edit, the cells involved, the quantity that crossed |
@@ -112,3 +112,36 @@ where the deciding happened, and the artifacts remain the only thing the model c
   0036 (TOML for every record).
 - User direction, 2026-09-10: the full vocabulary rather than the two kinds that have a
   named use today.
+
+## Amendments
+
+- 2026-09-13: the `refusal` payload is the `Verdicts.Refusal` that was raised, its
+  quantity, site and reason, and `Events.RefusalPayload` names that type rather than
+  declaring a second one; carried by `fiddlybits-52v.6.10`. The founding row read "the
+  quantity and the bound it violated" as two numbers, while every refusal the tree
+  raises is `Verdicts.refuse(quantity, site, reason)`, so no raised refusal could reach
+  an event without a field invented for it. Three other readings were weighed.
+  *`Refusal` gains the violated value and bound as numbers*: lost on what the refusals
+  are. Most have no numeric bound at all (two supports whose digests differ, operands of
+  different semantics, a backend given by something that is not a name, a device the
+  driver does not report), so each would carry a number nobody measured; and the
+  numeric ones do not fit one bound, since a closed or half-open range has two, a
+  finiteness or power-of-four test has none, and an extent mismatch compares two lengths
+  neither of which is the bound. *The strings plus optional typed numbers*: lost on the
+  boundary rule. A three-argument `refuse` leaves the numbers absent at every site that
+  has one and did not pass it, TOML writes an absent number as no key, and a reader of
+  the journal cannot tell a refusal with no bound from one whose bound was dropped; the
+  number would also stand twice in one record, in its field and in the reason sentence.
+  *A closed vocabulary of violation shapes carried on `Refusal`*: lossless in
+  principle, and lost because it is a second predicate language written beside the
+  checks it describes, and because a statistic judged against a threshold already has a
+  typed kind: `verdict` carries the statistic and the bracket, a loop's `Refused`
+  included; `ledger_open` the imbalance and the tolerance; `oracle` the statistic and
+  the threshold; `budget` the cap. The structure the first alternative above says a
+  message string flattens is a loop's, and it is journalled through `verdict`. What is
+  left to `refusal` is a read that could not be answered, whose structure is what, where
+  and why, and those stay three fields a query filters on rather than one message. The
+  founding `component` field is dropped because the header carries the emitting
+  component and the refusal's site names where it was refused. A query that needs a
+  refusal's numbers as numbers is met by a kind that carries them, added the way this
+  record adds a kind, and not by widening `Refusal`.
