@@ -1,5 +1,5 @@
 using Test
-using Fiddlybits: Events, Verdicts, Orbit
+using Fiddlybits: Events, Verdicts, Reductions
 
 # The event vocabulary is closed by this check rather than by the language: a
 # subtype added anywhere fails the suite until the enumeration and decision
@@ -132,7 +132,7 @@ const VALID_PAYLOAD_ARGS = Dict(
 
     @testset "a refusal event is built from a raised refusal, no field fabricated or lost" begin
         sites = (
-            () -> Orbit.check_eccentricity(1.5, "Systems.System"),
+            () -> Reductions.error_bound(Float64, -1, 1.0),
             () -> Events.moved([1.0], "cpu", :gpu),
         )
         for site in sites
