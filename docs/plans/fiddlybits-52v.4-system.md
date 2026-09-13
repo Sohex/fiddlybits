@@ -71,13 +71,13 @@ owns every other file there.
 ### The five dispositions
 
 ```
-abstract type Disposition{T} end
+abstract type Disposition{T,D<:Dim} end
 
-Sourced{T}      value, locator
-Derived{T}      value, from::NTuple{N,Symbol}, rule::Symbol
-Bracketed{T}    value, low, high, pushes_down, pushes_up, sweep
-Irreducible{T}  value, argument, sensitivity
-Closure{T}      law::Symbol, coefficient::Bracketed{T}, levels::NTuple{N,Int}
+Sourced{T,D}      value, locator
+Derived{T,D,N}    value, from::NTuple{N,Symbol}, rule::Symbol
+Bracketed{T,D}    value, low, high, pushes_down, pushes_up, sweep
+Irreducible{T,D}  value, argument, sensitivity
+Closure{T,D,N}    law::Symbol, coefficient::Bracketed{T,D}, levels::NTuple{N,Int}
 ```
 
 `value(d)` is the one door out of every disposition, so a consumer reads a quantity
