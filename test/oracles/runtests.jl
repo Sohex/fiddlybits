@@ -4,8 +4,10 @@ using TOML
 # oracles.registry_wellformed, its verdict-shape clauses: docs/oracles/registry.toml.
 #
 # Reads every row and protocol of the registry and refuses a row carrying more than one
-# verdict semantics, a verdict named in prose, or a protocol that is not declared once
-# and named. One dirty fixture per clause, each raising exactly the problems its entry
+# verdict semantics, a verdict named in prose, a protocol that is not declared once
+# and named, a depends_on that does not resolve to a row of its tier or a lower one or
+# that cycles, a row id named in prose, or a clause of a dependency's threshold carried
+# by the row that depends on it. One dirty fixture per clause, each raising exactly the problems its entry
 # states, and one clean fixture raising none.
 
 include("wellformed.jl")
@@ -30,6 +32,13 @@ const WELLFORMED_CONTROLS = (
     (case = "duplicate_protocol",                count = 1, phrase = "protocol id is used more than once"),
     (case = "protocol_without_normalisation",    count = 1, phrase = "a protocol with no normalisation"),
     (case = "duplicate_row_id",                  count = 1, phrase = "row id is used more than once"),
+    (case = "absent_dependency",                 count = 1, phrase = "which is not a row"),
+    (case = "restated_dependency_threshold",     count = 1, phrase = "a row states no bar of a row it depends on"),
+    (case = "dependency_named_in_prose",         count = 1, phrase = "a row names another row only in depends_on"),
+    (case = "dependency_cycle",                  count = 2, phrase = "depends on itself"),
+    (case = "dependency_on_higher_tier",         count = 1, phrase = "rows of its own tier or a lower one"),
+    (case = "depends_on_not_a_list",             count = 1, phrase = "depends_on is not a list of row ids"),
+    (case = "dependency_named_twice",            count = 1, phrase = "in depends_on more than once"),
 )
 
 @testset "oracles" begin
@@ -44,7 +53,10 @@ const WELLFORMED_CONTROLS = (
         rows = doc["oracle"]
         @test length(rows) >= 150
         @test count(r -> r["verdict_kind"] == "report", rows) >= 20
-        @test count(r -> r["tier"] == 3, rows) >= 10
+        @test count(r -> r["tier"] == 3, rows) >= 9
+        @test count(r -> haskey(r, "depends_on"), rows) >= 10
+        obliquity = only(filter(r -> r["id"] == "sweep.obliquity", rows))
+        @test "system.orbit_mean_insolation" in obliquity["depends_on"]
         @test all(r -> haskey(r, "protocol"), filter(r -> r["tier"] == 3, rows))
         @test length(doc["protocol"]) >= 9
         @test count(r -> r["tier"] == 1 && haskey(r, "protocol"), rows) >= 1

@@ -21,8 +21,23 @@ verdict_kind = "report"
 threshold = "n/a"
 
 [[oracle]]
+id = "core.hadley_small_rossby_limit"
+tier = 1
+statistic = "Hadley cell edge against rotation rate in the small-Rossby limit"
+verdict_kind = "fail_bar"
+threshold = "provisional; the analytic form within discretisation error"
+
+[[oracle]]
+id = "physics.gravity_column_identities"
+tier = 1
+statistic = "surface pressure against column mass times gravity at each gravity of a sweep"
+verdict_kind = "fail_bar"
+threshold = "roundoff at every gravity of the sweep"
+
+[[oracle]]
 id = "sweep.rotation_rate"
 tier = 3
+depends_on = ["core.hadley_small_rossby_limit"]
 statistic = "exponent of the Hadley edge against rotation rate swept"
 verdict_kind = "fail_bar"
 threshold = "provisional: outside the published inter-model disagreement fails"
@@ -31,6 +46,7 @@ protocol = "held_suarez"
 [[oracle]]
 id = "sweep.gravity"
 tier = 3
+depends_on = ["physics.gravity_column_identities"]
 statistic = "circulation response against gravity swept"
 verdict_kind = "report"
 threshold = "no bar: the published studies are the reference"

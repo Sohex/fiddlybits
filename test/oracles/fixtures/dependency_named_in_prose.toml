@@ -1,0 +1,14 @@
+[[oracle]]
+id = "ledger.closure"
+tier = 1
+statistic = "residual of each ledger at every exchange, in units of the derived roundoff bound"
+verdict_kind = "fail_bar"
+threshold = "residual <= 1 bound unit"
+
+[[oracle]]
+id = "core.held_suarez"
+tier = 1
+depends_on = ["ledger.closure"]
+statistic = "jet latitude over the climatology; angular momentum conservation on this case is ledger.closure"
+verdict_kind = "fail_bar"
+threshold = "provisional; published spread"
