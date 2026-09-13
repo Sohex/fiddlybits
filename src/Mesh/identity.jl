@@ -99,6 +99,26 @@ function digest_coordinates(vertices::AbstractMatrix)
 end
 
 """
+    digest_lineage(level)
+
+The digest over the base level's vertices, the columns `1:nvertices(0)` of
+`level.vertices`. `bisect` carries every existing vertex forward unchanged at
+the same column, so those columns hold the same twelve values at every level
+one hierarchy produces, and `digest_lineage` returns the same digest for any
+of them. A level bisected from a different base icosahedra carries different
+values there and gets a different digest, whatever its kind, radius or
+element type (`fiddlybits-52v.2.14`, REQ-TER-002).
+"""
+function digest_lineage(level::Level)
+    base = nvertices(0)
+    size(level.vertices, 2) >= base || refuse(
+        "lineage extent", "Mesh.digest_lineage",
+        "a level of $(size(level.vertices, 2)) vertices holds fewer than the " *
+        "$(base) vertices of the base level")
+    return digest_coordinates(view(level.vertices, :, 1:base))
+end
+
+"""
     write_measure!(io, values, radius, power)
 
 Writes one native measure to `io`: a length prefix, then every entry of
@@ -168,6 +188,11 @@ finest-level vertex coordinates.
 `element_type` is the type the geometry was formed in. `fraction_digest`
 covers any effective fraction a field uses, empty when there is none.
 `digest` covers every field above.
+
+`lineage_digest` is `digest_lineage(level)`, carried outside `digest` because
+REQ-TER-002 does not name it among the digest's own fields: it answers
+whether a coarser support could be another's ancestor, which `require_ancestor`
+reads it for, and it is not part of what makes two supports the same support.
 """
 struct Support{L}
     kind::Symbol
@@ -180,6 +205,7 @@ struct Support{L}
     element_type::Symbol
     fraction_digest::NTuple{32,UInt8}
     digest::NTuple{32,UInt8}
+    lineage_digest::NTuple{32,UInt8}
 end
 
 """
@@ -232,6 +258,7 @@ function Support(level_index::Integer, level::Level, geometry::Geometry;
     coordinate_digest = digest_coordinates(level.vertices)
     measure_digest = digest_measures(geometry, radius)
     fraction_digest = digest_fractions(fractions)
+    lineage_digest = digest_lineage(level)
 
     digest = support_digest(; kind = kind, level = L,
                              refinement_digest = refinement_digest,
@@ -243,7 +270,7 @@ function Support(level_index::Integer, level::Level, geometry::Geometry;
 
     return Support{L}(kind, L, refinement_digest, GEOMETRY_CONSTRUCTOR_VERSION,
                        coordinate_digest, measure_digest, radius, element_type,
-                       fraction_digest, digest)
+                       fraction_digest, digest, lineage_digest)
 end
 
 """
@@ -272,6 +299,23 @@ function require_same_support(a::Support, b::Support, site::AbstractString)
     a.digest == b.digest && return nothing
     refuse("support identity", site,
            "support $(bytes2hex(a.digest)) does not match support $(bytes2hex(b.digest))")
+end
+
+"""
+    require_ancestor(from, to, site)
+
+Returns `nothing` when `to` could be a level of the same hierarchy as `from`,
+coarser or finer, and refuses at `site` naming the first field that differs
+otherwise. Compares `kind`, `radius`, `element_type`, `refinement_digest` and
+`lineage_digest` (REQ-TER-002).
+"""
+function require_ancestor(from::Support, to::Support, site::AbstractString)
+    for name in (:kind, :radius, :element_type, :refinement_digest, :lineage_digest)
+        a, b = getproperty(from, name), getproperty(to, name)
+        a == b || refuse("support ancestry", site,
+                         "the supports differ in $(name): $(repr(a)) and $(repr(b))")
+    end
+    return nothing
 end
 
 """

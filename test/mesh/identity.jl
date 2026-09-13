@@ -176,3 +176,48 @@ const SI_GEOMETRY_B = Mesh.geometry(SI_LEVEL_B, SI_STENCILS_B)
         @test support_at_r1.digest != support_at_r2.digest
     end
 end
+
+# require_ancestor: docs/oracles/registry.toml mesh.support_identity;
+# fiddlybits-52v.2.14; REQ-TER-002.
+@testset "mesh.support_identity: require_ancestor" begin
+    @testset "two levels of one hierarchy are accepted" begin
+        coarse_level = SI_HIERARCHY_A.levels[SI_LEVEL]
+        coarse_stencils = Mesh.stencils(coarse_level)
+        coarse_geometry = Mesh.geometry(coarse_level, coarse_stencils)
+        coarse = si_support(coarse_level, coarse_geometry; level_index = SI_LEVEL - 1)
+        fine = si_support(SI_LEVEL_A, SI_GEOMETRY_A)
+        @test Mesh.require_ancestor(coarse, fine, "test.site") === nothing
+    end
+
+    @testset "positive control: two hierarchies bisected from different base icosahedra share kind, radius, element type and refinement, and only lineage_digest tells them apart" begin
+        v0, c0 = Mesh.base_icosahedron(Float64)
+        perturbed_v0 = copy(v0)
+        perturbed_v0[1, 1] = nextfloat(perturbed_v0[1, 1])
+        other_level = Mesh.Level{Float64}(perturbed_v0, c0)
+        for _ in 1:SI_LEVEL
+            other_level = Mesh.bisect(other_level, true)
+        end
+        other_stencils = Mesh.stencils(other_level)
+        other_geometry = Mesh.geometry(other_level, other_stencils)
+
+        from = si_support(SI_LEVEL_A, SI_GEOMETRY_A)
+        to = si_support(other_level, other_geometry)
+
+        # what the family check fiddlybits-52v.2.14 replaces compared, and all of it
+        # agrees between two hierarchies with different base icosahedra:
+        @test from.kind == to.kind
+        @test from.radius == to.radius
+        @test from.element_type == to.element_type
+        @test from.refinement_digest == to.refinement_digest
+        @test from.lineage_digest != to.lineage_digest
+
+        caught = nothing
+        try
+            Mesh.require_ancestor(from, to, "test.site")
+        catch e
+            caught = e
+        end
+        @test caught isa Verdicts.Refusal
+        @test occursin("lineage_digest", caught.reason)
+    end
+end
