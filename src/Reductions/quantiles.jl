@@ -313,6 +313,24 @@ end
     partials[i] = acc
 end
 
+@kernel function area_weighted_block_shared_kernel!(partials, @Const(xs), @Const(areas), x,
+                                                     width, nb, lastcount)
+    block = @index(Group, Linear)
+    lane = @index(Local, Linear)
+    element = @index(Global, Linear)
+    shared = @localmem eltype(areas) (block_width(width),)
+    shared[lane] = ifelse(xs[element] >= x, areas[element], zero(eltype(areas)))
+    @synchronize
+    if lane == 1
+        T = eltype(partials)
+        acc = zero(T)
+        for j in 1:(block == nb ? lastcount : block_width(width))
+            acc += T(shared[j])
+        end
+        partials[block] = acc
+    end
+end
+
 """
     area_weighted_sum(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
 
@@ -342,10 +360,13 @@ area_weighted_sum(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
 
 `area_weighted_sum`'s block sums before they are combined: block `i` the
 fixed-order sum, accumulated in type `A`, of `areas` over that block's
-indices where `xs` is at or above `x` and zero elsewhere, one block per
-launched work item, left on `backend`. `pairwise_block_sums`' sibling, and
-the door `area_fraction_above` reads when it moves two block-sum arrays to
-the host together. Refuses when `blocksize` is not positive.
+indices where `xs` is at or above `x` and zero elsewhere, left on
+`backend`, launched by `launch_block_sums!` as `pairwise_block_sums` is: on
+`GPU` each lane copies its selected area into the workgroup's shared
+memory, so the select happens in the copy and the accumulation reads one
+array. `pairwise_block_sums`' sibling, and the door `area_fraction_above`
+reads when it moves two block-sum arrays to the host together. Refuses
+when `blocksize` is not positive.
 """
 function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
                                    backend::Backend = CPU(BLOCKSIZE);
@@ -357,8 +378,8 @@ function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::Abstract
     nb = cld(n, blocksize)
     partials = similar(areas, A, nb)
     nb == 0 && return partials
-    launch!(area_weighted_block_kernel!, backend, nb, partials, xs, areas, x, Int(blocksize), Int(n))
-    return partials
+    return launch_block_sums!(area_weighted_block_kernel!, area_weighted_block_shared_kernel!,
+                              backend, partials, n, blocksize, xs, areas, x)
 end
 
 """
