@@ -15,8 +15,16 @@ function per_lane_block_sums(kernel, ::Type{A}, backend, n, blocksize, inputs...
     return Backends.on(partials, Backends.CPU(1))
 end
 
-bits(v::AbstractVector{Float64}) = reinterpret(UInt64, v)
-bits(v::AbstractVector{Float32}) = reinterpret(UInt32, v)
+"The nb-by-2 block sums `kernel` writes when launched on `backend` one work item per block."
+function per_lane_area_fraction_block_sums(kernel, backend, n, blocksize, inputs...)
+    nb = cld(n, blocksize)
+    partials = similar(first(inputs), Float64, nb, 2)
+    Backends.launch!(kernel, backend, size(partials, 1), partials, inputs..., blocksize, n)
+    return Backends.on(partials, Backends.CPU(1))
+end
+
+bits(v::AbstractArray{Float64}) = reinterpret(UInt64, v)
+bits(v::AbstractArray{Float32}) = reinterpret(UInt32, v)
 
 @testset "block sums in workgroup shared memory" begin
     @test CUDA.functional()
@@ -64,6 +72,25 @@ bits(v::AbstractVector{Float32}) = reinterpret(UInt32, v)
         @test bits(shared) == bits(on_cpu)
     end
 
+    @testset "area_fraction_block_sums: n=$n, blocksize=$bs, threshold=$which" for
+            (n, bs) in shapes, which in (:lowest, :middle, :above_all)
+        xs = ReductionFixtures.seeded_vector(Float64, n)
+        areas = abs.(ReductionFixtures.seeded_vector(Float64, n)) .+ 0.1
+        x = which === :lowest ? minimum(xs) : which === :middle ? xs[cld(n, 2)] : maximum(xs) + 1.0
+        xs_gpu = Backends.on(xs, gpu)
+        areas_gpu = Backends.on(areas, gpu)
+
+        shared = Backends.on(Reductions.area_fraction_block_sums(Float64, xs_gpu, areas_gpu, x, gpu;
+                                                                  blocksize = bs), cpu)
+        per_lane = per_lane_area_fraction_block_sums(Reductions.area_fraction_block_kernel!, gpu, n, bs,
+                                                      xs_gpu, areas_gpu, x)
+        on_cpu = Reductions.area_fraction_block_sums(Float64, xs, areas, x, cpu; blocksize = bs)
+
+        @test size(shared) == (cld(n, bs), 2)
+        @test bits(shared) == bits(per_lane)
+        @test bits(shared) == bits(on_cpu)
+    end
+
     @testset "positive control: every lane's element reaches its block's sum" begin
         # A change to the last lane of a full block, and to the last element of a
         # partial last block, each moves exactly that block's sum. Without this the
@@ -89,5 +116,33 @@ bits(v::AbstractVector{Float32}) = reinterpret(UInt32, v)
         amoved = Backends.on(Reductions.area_weighted_block_sums(Float64, Backends.on(xs, gpu),
                                                                  Backends.on(mutated, gpu), x, gpu), cpu)
         @test findall(amoved .!= abase) == [nb]
+
+        # A threshold with elements on both sides, so the two columns can be
+        # told apart: an excluded element's area moves only the total column,
+        # an included element's area moves both.
+        fx = xs[cld(n, 2)]
+        excluded_index = findfirst(v -> v < fx, xs)
+        included_index = findfirst(v -> v >= fx, xs)
+        excluded_block = cld(excluded_index, B)
+        included_block = cld(included_index, B)
+
+        fbase = Backends.on(Reductions.area_fraction_block_sums(Float64, Backends.on(xs, gpu),
+                                                                 Backends.on(areas, gpu), fx, gpu), cpu)
+
+        mutated_excluded = copy(areas)
+        mutated_excluded[excluded_index] += 1.0
+        excluded_moved = Backends.on(Reductions.area_fraction_block_sums(Float64, Backends.on(xs, gpu),
+                                                                          Backends.on(mutated_excluded, gpu),
+                                                                          fx, gpu), cpu)
+        @test findall(excluded_moved[:, 1] .!= fbase[:, 1]) == [excluded_block]
+        @test findall(excluded_moved[:, 2] .!= fbase[:, 2]) == []
+
+        mutated_included = copy(areas)
+        mutated_included[included_index] += 1.0
+        included_moved = Backends.on(Reductions.area_fraction_block_sums(Float64, Backends.on(xs, gpu),
+                                                                          Backends.on(mutated_included, gpu),
+                                                                          fx, gpu), cpu)
+        @test findall(included_moved[:, 1] .!= fbase[:, 1]) == [included_block]
+        @test findall(included_moved[:, 2] .!= fbase[:, 2]) == [included_block]
     end
 end

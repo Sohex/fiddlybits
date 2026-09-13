@@ -377,9 +377,10 @@ indices where `xs` is at or above `x` and zero elsewhere, left on
 `backend`, launched by `launch_block_sums!` as `pairwise_block_sums` is: on
 `GPU` each lane copies its selected area into the workgroup's shared
 memory, so the select happens in the copy and the accumulation reads one
-array. `pairwise_block_sums`' sibling, and the door `area_fraction_above`
-reads when it moves two block-sum arrays to the host together. Refuses
-when `blocksize` is not positive or when `xs` and `areas` differ in length.
+array. `pairwise_block_sums`' sibling; `area_fraction_above` uses its own
+fused door, `area_fraction_block_sums`, rather than this one, so it reads
+`areas` once instead of once per column. Refuses when `blocksize` is not
+positive or when `xs` and `areas` differ in length.
 """
 function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
                                    backend::Backend = CPU(BLOCKSIZE);
@@ -398,41 +399,113 @@ function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::Abstract
                               backend, partials, n, blocksize, xs, areas, x)
 end
 
+@kernel function area_fraction_block_kernel!(partials, @Const(xs), @Const(areas), x, blocksize, n)
+    i = @index(Global)
+    base = blocksize * i
+    lo = base - blocksize + 1
+    hi = min(i * blocksize, n)
+    T = eltype(partials)
+    total = zero(T)
+    above = zero(T)
+    for j in lo:hi
+        total += T(areas[j])
+        above += T(ifelse(xs[j] >= x, areas[j], zero(eltype(areas))))
+    end
+    partials[i, 1] = total
+    partials[i, 2] = above
+end
+
+@kernel function area_fraction_block_shared_kernel!(partials, @Const(xs), @Const(areas), x,
+                                                     width, nb, lastcount)
+    block = @index(Group, Linear)
+    lane = @index(Local, Linear)
+    element = @index(Global, Linear)
+    shared_total = @localmem eltype(areas) (block_width(width),)
+    shared_above = @localmem eltype(areas) (block_width(width),)
+    shared_total[lane] = areas[element]
+    shared_above[lane] = ifelse(xs[element] >= x, areas[element], zero(eltype(areas)))
+    @synchronize
+    if lane == 1
+        T = eltype(partials)
+        total = zero(T)
+        above = zero(T)
+        for j in 1:(block == nb ? lastcount : block_width(width))
+            total += T(shared_total[j])
+            above += T(shared_above[j])
+        end
+        partials[block, 1] = total
+        partials[block, 2] = above
+    end
+end
+
+"""
+    area_fraction_block_sums(::Type{A}, xs, areas, x, backend = CPU(BLOCKSIZE); blocksize = BLOCKSIZE) where A
+
+`area_fraction_above`'s block sums before they are combined: block `i`'s
+row holds, in column 1, the fixed-order sum accumulated in type `A` of
+`areas` over that block's indices (`pairwise_block_kernel!`'s own
+accumulator expression and order, read here from `areas`), and in column 2
+the fixed-order sum, same type, of `areas` where `xs` is at or above `x`
+and zero elsewhere (`area_weighted_block_kernel!`'s own accumulator
+expression and order). One kernel walks each block's indices once, so
+`areas` is read from the device once per element rather than once per
+column. Left on `backend`, launched by `launch_block_sums!` as
+`pairwise_block_sums` is: on `GPU` each lane copies its own element of
+`areas` into one workgroup-shared array and its selected element into a
+second, so the select happens in the copy and each column's accumulation
+reads its own shared array. Refuses when `blocksize` is not positive or
+when `xs` and `areas` differ in length.
+"""
+function area_fraction_block_sums(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
+                                   backend::Backend = CPU(BLOCKSIZE);
+                                   blocksize::Integer = BLOCKSIZE) where {A<:Number}
+    blocksize > 0 ||
+        refuse("pairwise blocksize", "Reductions.area_fraction_block_sums",
+               "blocksize $blocksize is not positive")
+    n = length(xs)
+    n == length(areas) ||
+        refuse("area fraction extent", "Reductions.area_fraction_block_sums",
+               "xs has length $n, areas has length $(length(areas))")
+    nb = cld(n, blocksize)
+    partials = similar(areas, A, nb, 2)
+    nb == 0 && return partials
+    return launch_block_sums!(area_fraction_block_kernel!, area_fraction_block_shared_kernel!,
+                              backend, partials, n, blocksize, xs, areas, x)
+end
+
 """
     area_fraction_above(xs, areas, x, backend = CPU(BLOCKSIZE))
 
-The area-weighted fraction of `xs` at or above `x`: the fixed-order sum
-(`area_weighted_sum`) of `areas` where `xs .>= x`, divided by the
-fixed-order sum of `areas` (`pairwise_sum`). Neither call materialises an
-array the size of `xs` (`area_weighted_sum`'s own docstring states the
-rule this follows). The exact inverse of `segmented_quantile` rather than
-an interpolation of it: it reads back a fraction from a value with no rule
-of its own about what lies between two data points, so calling it on the
-value `segmented_quantile` selected counts that element itself as being at
-or above the threshold, while calling it on any value absent from the data
-(an interpolated value, among others) does not. `xs` and `areas` must have
-the same length and must already live on `backend`. Refuses when they
-differ in length, or when the total area is not positive.
+The area-weighted fraction of `xs` at or above `x`: the fixed-order sum of
+`areas` where `xs .>= x`, divided by the fixed-order sum of `areas`, from
+one pass over each block's indices (`area_fraction_block_sums`) that reads
+`areas` once and launches one kernel rather than two. Neither column
+materialises an array the size of `xs`. The exact inverse of
+`segmented_quantile` rather than an interpolation of it: it reads back a
+fraction from a value with no rule of its own about what lies between two
+data points, so calling it on the value `segmented_quantile` selected
+counts that element itself as being at or above the threshold, while
+calling it on any value absent from the data (an interpolated value, among
+others) does not. `xs` and `areas` must have the same length and must
+already live on `backend`. Refuses when they differ in length, or when the
+total area is not positive.
 
-The return is a host scalar, and the two block-sum arrays are joined on
-`backend` and read back in one move, so on device-resident input this is one
-`Events.moved` record per call and one completion, not one of each per sum.
-Each half is combined on its own afterwards, over the same block sums and by
-the same tree, whose shape `combine_tree` takes from the half's length
-alone. The two forms and their cost are in
-notes/findings/2026-09-11-area-fraction-in-one-read.md.
+The return is a host scalar, and the block-sum matrix is read back in one
+move, so on device-resident input this is one `Events.moved` record per
+call and one completion. Each column is combined on its own afterwards, by
+the same tree `combine_tree` builds from the column's length alone. The two
+forms and their cost are in notes/findings/2026-09-11-area-fraction-in-one-
+read.md; the fused kernel and its cost are in
+notes/findings/2026-09-13-area-fraction-above-fused-block-sums.md.
 """
 function area_fraction_above(xs::AbstractVector, areas::AbstractVector, x::Real,
                               backend::Backend = CPU(BLOCKSIZE))
     length(xs) == length(areas) ||
         refuse("area fraction extent", "Reductions.area_fraction_above",
                "xs has length $(length(xs)), areas has length $(length(areas))")
-    total_blocks = pairwise_block_sums(Float64, areas, backend)
-    weighted_blocks = area_weighted_block_sums(Float64, xs, areas, x, backend)
-    nb = length(total_blocks)
-    both = on(vcat(total_blocks, weighted_blocks), CPU(1))
-    total = combine_fixed_order(view(both, 1:nb))
-    weighted = combine_fixed_order(view(both, nb+1:lastindex(both)))
+    blocks = on(area_fraction_block_sums(Float64, xs, areas, x, backend), CPU(1))
+    total = combine_fixed_order(view(blocks, :, 1))
+    weighted = combine_fixed_order(view(blocks, :, 2))
     total > 0 ||
         refuse("area fraction total", "Reductions.area_fraction_above",
                "total area $total is not positive")

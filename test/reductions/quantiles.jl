@@ -255,6 +255,56 @@ end
         end
     end
 
+    @testset "area_fraction_block_sums refuses a length mismatch (decision 0051, condition 4)" begin
+        xs = [1.0, 2.0, 3.0]
+        areas_short = [1.0, 1.0]
+        areas_long = [1.0, 1.0, 1.0, 1.0]
+        x = 1.5
+
+        @testset "short areas array refuses on CPU, naming both lengths" begin
+            caught = try
+                Reductions.area_fraction_block_sums(Float64, xs, areas_short, x)
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "area fraction extent"
+            @test occursin("xs has length 3", caught.reason)
+            @test occursin("areas has length 2", caught.reason)
+        end
+
+        @testset "long areas array refuses on CPU, naming both lengths" begin
+            caught = try
+                Reductions.area_fraction_block_sums(Float64, xs, areas_long, x)
+            catch e
+                e
+            end
+            @test caught isa Verdicts.Refusal
+            @test caught.quantity == "area fraction extent"
+            @test occursin("xs has length 3", caught.reason)
+            @test occursin("areas has length 4", caught.reason)
+        end
+
+        @testset "matched-length input does not refuse and produces correct value" begin
+            areas = [1.0, 1.0, 1.0]
+            partials = Reductions.area_fraction_block_sums(Float64, xs, areas, x)
+            total = Reductions.combine_fixed_order(view(partials, :, 1))
+            weighted = Reductions.combine_fixed_order(view(partials, :, 2))
+            @test total == 3.0
+            @test weighted == 2.0
+        end
+
+        @testset "and on the card" begin
+            @test CUDA.functional()
+            gpu = Backends.GPU(8)
+            xs_gpu = Backends.on(xs, gpu)
+            areas_short_gpu = Backends.on(areas_short, gpu)
+            areas_long_gpu = Backends.on(areas_long, gpu)
+            @test_throws Verdicts.Refusal Reductions.area_fraction_block_sums(Float64, xs_gpu, areas_short_gpu, x, gpu)
+            @test_throws Verdicts.Refusal Reductions.area_fraction_block_sums(Float64, xs_gpu, areas_long_gpu, x, gpu)
+        end
+    end
+
     @testset "area_fraction_above's one read is bitwise the two reads it replaced" begin
         # The form it replaced: each sum read back to the host on its own.
         # Joining the two block-sum arrays on the device changes where the
