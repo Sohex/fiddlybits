@@ -1,0 +1,21 @@
+[[oracle]]
+id = "repro.backend_ulp_envelope"
+tier = 1
+statistic = "CPU versus GPU divergence at every step against the ensemble envelope"
+verdict_kind = "fail_bar"
+threshold = "inside the envelope at every step"
+instrument = "ulp_ensemble"
+
+[[oracle]]
+id = "repro.fp32_kernel_certification"
+tier = 1
+statistic = "each FP32 kernel against its FP64 self"
+verdict_kind = "fail_bar"
+threshold = "inside the envelope; reservoirs never FP32. The ensemble holds Backends.ENSEMBLE_MEMBERS members drawn without replacement from the case's usable sites; a certification of a case that declares an Obligation is not admissible from the sampled arm alone."
+instrument = "ulp_ensemble"
+
+[[instrument]]
+id = "ulp_ensemble"
+definition = "The ensemble holds Backends.ENSEMBLE_MEMBERS members drawn without replacement from the case's usable sites. A certification of a case that declares an Obligation is not admissible from the sampled arm alone."
+parameters = { "Backends.ENSEMBLE_MEMBERS" = 766 }
+

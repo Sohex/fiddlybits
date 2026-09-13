@@ -2,7 +2,7 @@ module Wellformed
 
 using TOML
 
-"A place the registry's verdict shape is wrong: the row or protocol it is on, and what is wrong."
+"A place the registry's verdict shape is wrong: the row, protocol or instrument it is on, and what is wrong."
 struct Problem
     site::String
     reason::String
@@ -21,6 +21,9 @@ const WITHOUT_BAR = r"\b[Rr]eport\b|\b[Nn]o bar\b|\b[Nn]/[Aa]\b"
 
 "A constituent given a failing or passing edge."
 const WITH_BAR = r"\b[Ff]ail(?:s|ed)?\b|\b[Pp]ass(?:es|ed)?\b"
+
+"A constant qualified from a module: dotted identifiers, with at least one dot."
+const CONSTANT_NAME = r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+$"
 
 "Every distinct match of `pattern` in `text`, in order of first appearance."
 matches(pattern::Regex, text::AbstractString) = unique(String[m.match for m in eachmatch(pattern, text)])
@@ -45,6 +48,19 @@ function clauses(text::AbstractString)
     end
     return found
 end
+
+"The clauses of a row's statistic and threshold together."
+function row_clauses(row::AbstractDict)
+    own = Set{String}()
+    for key in ("statistic", "threshold")
+        value = get(row, key, nothing)
+        value isa AbstractString && union!(own, clauses(value))
+    end
+    return own
+end
+
+"Whether `value` is a number a parameter may state: a real that is not a boolean."
+stated_number(value) = value isa Real && !(value isa Bool)
 
 """
     named_rows(row, id, ids, found)
@@ -124,11 +140,7 @@ function restatements(row::AbstractDict, id::AbstractString, edges::AbstractDict
                       found::Vector{Problem})
     deps = reachable(edges, id)
     id in deps && push!(found, Problem(id, "depends on itself, directly or through the rows it depends on"))
-    own = Set{String}()
-    for key in ("statistic", "threshold")
-        value = get(row, key, nothing)
-        value isa AbstractString && union!(own, clauses(value))
-    end
+    own = row_clauses(row)
     for d in sort!(collect(deps))
         d == id && continue
         dep = by_id[d]
@@ -173,6 +185,87 @@ function protocol_table(doc::AbstractDict, registry::AbstractString, found::Vect
 end
 
 """
+    parameter_shape(parameters, id, found)
+
+Adds a problem to `found` when the `parameters` of instrument `id` is not a table, and
+one for each of its entries whose key is not a qualified constant name or whose value
+is not a number.
+"""
+function parameter_shape(parameters, id::AbstractString, found::Vector{Problem})
+    if !(parameters isa AbstractDict)
+        push!(found, Problem(id, "parameters is not a table of constant names each stating a number"))
+        return nothing
+    end
+    for name in sort!(collect(keys(parameters)))
+        (occursin(CONSTANT_NAME, name) && stated_number(parameters[name])) ||
+            push!(found, Problem(id, "parameter " * name * " is not a qualified constant name stating a number"))
+    end
+    return nothing
+end
+
+"""
+    instrument_table(doc, registry, ids, found)
+
+The instruments declared in `doc`, as `(named, definitions)`: each id mapped to `false`
+(named by no row yet), and each id with a definition mapped to that definition's
+clauses. An instrument with no id, an id used twice, a missing or empty `definition`, a
+definition naming a verdict in capitals or a row id in `ids`, and a `parameters` of the
+wrong shape add a problem to `found`.
+"""
+function instrument_table(doc::AbstractDict, registry::AbstractString, ids::AbstractSet, found::Vector{Problem})
+    named = Dict{String,Bool}()
+    definitions = Dict{String,Set{String}}()
+    for instrument in get(doc, "instrument", Any[])
+        id = get(instrument, "id", nothing)
+        if !(id isa AbstractString)
+            push!(found, Problem(registry, "an instrument with no id"))
+            continue
+        end
+        if haskey(named, id)
+            push!(found, Problem(id, "instrument id is used more than once"))
+            continue
+        end
+        named[id] = false
+        definition = get(instrument, "definition", nothing)
+        if definition isa AbstractString && !isempty(strip(definition))
+            definitions[id] = clauses(definition)
+            names = matches(VERDICT_NAME, definition)
+            isempty(names) ||
+                push!(found, Problem(id, "definition names the verdict " * join(names, ", ") *
+                                         "; only verdict_kind names a verdict"))
+            for other in matches(ROW_ID_TOKEN, definition)
+                other in ids &&
+                    push!(found, Problem(id, "definition names row " * other *
+                                             "; a row names an instrument in instrument, and an instrument names no row"))
+            end
+        else
+            push!(found, Problem(id, "an instrument with no definition"))
+        end
+        haskey(instrument, "parameters") && parameter_shape(instrument["parameters"], id, found)
+    end
+    return named, definitions
+end
+
+"""
+    instrument_restatements(row, id, definitions, found)
+
+Adds a problem to `found` for each declared instrument whose definition shares a clause
+with the row's statistic or threshold.
+"""
+function instrument_restatements(row::AbstractDict, id::AbstractString, definitions::AbstractDict,
+                                 found::Vector{Problem})
+    own = row_clauses(row)
+    for instrument in sort!(collect(keys(definitions)))
+        shared = sort!(collect(intersect(own, definitions[instrument])))
+        isempty(shared) ||
+            push!(found, Problem(id, "carries " * join(repr.(shared), ", ") * " from the definition of instrument " *
+                                     instrument * "; an instrument is defined once, in its [[instrument]] entry, " *
+                                     "and a row names it in instrument"))
+    end
+    return nothing
+end
+
+"""
     prose(row, id, kind, found)
 
 Adds a problem to `found` for each of the row's statistic and threshold that is absent,
@@ -207,9 +300,9 @@ end
 """
     problems(registry)
 
-Every place the registry file at `registry` breaks the verdict shape of decision 0053 or
-the dependency shape of decision 0054, sorted. These are the verdict-shape and dependency
-clauses of oracles.registry_wellformed:
+Every place the registry file at `registry` breaks the verdict shape of decision 0053,
+the dependency shape of decision 0054 or the instrument shape of decision 0057, sorted.
+These are the clauses of oracles.registry_wellformed that read the registry alone:
 
 - a row id is used once;
 - every row carries a `verdict_kind` from `VERDICT_KINDS`, a statistic and a threshold;
@@ -227,7 +320,16 @@ clauses of oracles.registry_wellformed:
 - no row depends on itself, directly or through the rows it depends on;
 - no statistic or threshold names another row's id;
 - no statistic or threshold carries a clause of the threshold of a fail_bar row the row
-  depends on, directly or through other rows (decision 0054).
+  depends on, directly or through other rows;
+- a row's `instrument`, where present, is an instrument id and is declared;
+- an instrument id is used once, every instrument carries a definition, and every
+  instrument is named by at least one row;
+- no instrument's definition names a verdict in capitals or a row id;
+- an instrument's `parameters`, where present, is a table of qualified constant names
+  each stating a number;
+- no statistic or threshold carries a clause of an instrument's definition.
+
+`parameter_problems` is the clause that reads the code as well.
 """
 function problems(registry::AbstractString)
     found = Problem[]
@@ -246,6 +348,7 @@ function problems(registry::AbstractString)
     end
     ids = Set(keys(by_id))
     edges = dependency_edges(rows, by_id, found)
+    instruments, definitions = instrument_table(doc, registry, ids, found)
 
     seen = Set{String}()
     for row in rows
@@ -265,6 +368,7 @@ function problems(registry::AbstractString)
         prose(row, id, kind, found)
         named_rows(row, id, ids, found)
         repeated || restatements(row, id, edges, by_id, found)
+        instrument_restatements(row, id, definitions, found)
 
         haskey(row, "protocol_system") &&
             push!(found, Problem(id, "carries protocol_system; a row names a [[protocol]] entry in protocol"))
@@ -284,10 +388,76 @@ function problems(registry::AbstractString)
         elseif tier == 3
             push!(found, Problem(id, "a tier 3 row with no protocol"))
         end
+
+        if haskey(row, "instrument")
+            i = row["instrument"]
+            if !(i isa AbstractString)
+                push!(found, Problem(id, "instrument is not an instrument id"))
+            elseif !haskey(instruments, i)
+                push!(found, Problem(id, "names instrument " * i * ", which is not declared"))
+            else
+                instruments[i] = true
+            end
+        end
     end
 
     for (p, used) in named
         used || push!(found, Problem(p, "a protocol no row names"))
+    end
+    for (i, used) in instruments
+        used || push!(found, Problem(i, "an instrument no row names"))
+    end
+    return sort(found, by = q -> (q.site, q.reason))
+end
+
+"""
+    resolve(root, name)
+
+`Some(value)` of the constant the qualified `name` names under module `root`, following
+every dotted segment but the last into a submodule; `nothing` when a segment is not
+defined, a segment but the last is not a module, or the last is not a constant binding.
+"""
+function resolve(root::Module, name::AbstractString)
+    segments = Symbol.(split(name, '.'))
+    mod = root
+    for s in segments[1:end-1]
+        isdefined(mod, s) || return nothing
+        inner = getfield(mod, s)
+        inner isa Module || return nothing
+        mod = inner
+    end
+    s = segments[end]
+    (isdefined(mod, s) && isconst(mod, s)) || return nothing
+    return Some(getfield(mod, s))
+end
+
+"""
+    parameter_problems(registry, root)
+
+Every parameter of an instrument in the registry file at `registry` that does not state
+the constant it names under module `root`, sorted: a name that resolves to no constant,
+and a constant that is not a number equal to the one the parameter states. A parameter
+whose shape `problems` refuses is skipped here.
+"""
+function parameter_problems(registry::AbstractString, root::Module)
+    found = Problem[]
+    for instrument in get(TOML.parsefile(registry), "instrument", Any[])
+        id = get(instrument, "id", nothing)
+        parameters = get(instrument, "parameters", nothing)
+        (id isa AbstractString && parameters isa AbstractDict) || continue
+        for name in sort!(collect(keys(parameters)))
+            stated = parameters[name]
+            (occursin(CONSTANT_NAME, name) && stated_number(stated)) || continue
+            held = resolve(root, name)
+            if held === nothing
+                push!(found, Problem(id, "parameter " * name * " names no constant of " * string(nameof(root))))
+                continue
+            end
+            value = something(held)
+            (stated_number(value) && value == stated) ||
+                push!(found, Problem(id, "parameter " * name * " states " * repr(stated) *
+                                         ", and the constant it names is " * repr(value)))
+        end
     end
     return sort(found, by = q -> (q.site, q.reason))
 end

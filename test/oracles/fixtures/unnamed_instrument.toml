@@ -1,0 +1,12 @@
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+statistic = "sum of primal cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
+threshold = "roundoff"
+
+[[instrument]]
+id = "ulp_ensemble"
+definition = "The ensemble holds Backends.ENSEMBLE_MEMBERS members drawn without replacement from the case's usable sites. A certification of a case that declares an Obligation is not admissible from the sampled arm alone."
+parameters = { "Backends.ENSEMBLE_MEMBERS" = 766 }
+

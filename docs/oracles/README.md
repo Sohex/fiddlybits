@@ -89,6 +89,18 @@ metric is REPORT.
   and none carries a clause of the threshold of a `fail_bar` entry it depends on,
   directly or through other entries. `oracles.registry_wellformed` refuses each
   (decision 0054).
+- An entry whose statistic or bar is measured with an instrument no entry judges names
+  it in `instrument`. The instrument is declared once, in an `[[instrument]]` entry of
+  `registry.toml` carrying what it is, how it is run and what a measurement by it is
+  admissible as in `definition`, and the numbers it is run with in `parameters`, each
+  keyed by the constant that holds it, qualified from the `Fiddlybits` module, and
+  named by that key in the definition. Every declared instrument is named by an entry;
+  no statistic or threshold carries a clause of an instrument's definition; a
+  definition names no verdict and no entry's id; and every parameter equals the
+  constant it names. An instrument is not a dependency: `depends_on` names an entry
+  whose verdict a row rests on, and an instrument an entry judges is named there.
+  `oracles.registry_wellformed` refuses each
+  (`docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md`).
 - Every tier-1 identity of the system layer (the `system.*` section) runs on
   `Earth()` and on a synthetic non-Earth instance with closed forms, so a `Derived`
   field is never validated on one configuration alone.
@@ -131,3 +143,4 @@ never deleted.
 - 2026-09-08: statistics in seconds with the spread-arm rule, dimensionless exits, sigma diagnostics, the protocol_system field for tier 3, and the two-instance rule for system.* identities, from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-13: one verdict semantics per entry, the two verdict kinds, no verdict named in prose, where a bar applies, the protocol table in place of the protocol_system field, and a provisional entry blocking no gate, from docs/decisions/0053-one-verdict-semantics-per-registry-row.md.
 - 2026-09-13: the depends_on field, no entry id named in prose, and no clause of a dependency's threshold restated, from docs/decisions/0054-a-row-names-the-rows-it-rests-on.md.
+- 2026-09-13: the instrument table and field, no clause of an instrument's definition restated, and parameters checked against the constants they name, from docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md.
