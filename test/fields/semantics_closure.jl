@@ -51,20 +51,11 @@ using .VocabularyClosure: closed_type_set, TypeFixture
     end
 end
 
-# The operator enumeration of fiddlybits-52v.3.4:
-# docs/plans/fiddlybits-52v.3-fields.md, section "The operators and the refusal
-# table", and decision 0006's "an enumeration test walks every semantics type
-# against every operator and asserts each pair either has a method or appears
-# in the declared refusal table". test/fields/reduce.jl already walks
-# coarsen, refine and time_reduce against Fields.REFUSAL_TABLE and
-# Fields.NOT_CONSERVED_TABLE to assert the return form of every method that
-# exists; that walk cannot ask the question this one does, because a method
-# that was never written never reaches a `Set` built from `methods`. For every
-# one of the eight heads above, this closes coarsen, refine and time_reduce
-# against Semantics the same way the enumeration above closes Semantics
-# against itself. test/fields/inference.jl rides the same two doors,
-# Fields.semantics_types() and Time.time_semantics(), for its @inferred
-# assertion.
+# The operator enumeration: docs/plans/fiddlybits-52v.3-fields.md, section "The
+# operators and the refusal table"; decision 0006. Every member of
+# Fields.semantics_types() is checked against coarsen, refine and time_reduce: each
+# has a method or an entry in Fields.REFUSAL_TABLE. test/fields/inference.jl walks
+# the same Fields.semantics_types() and Time.time_semantics() for @inferred.
 
 """
     head(T)
