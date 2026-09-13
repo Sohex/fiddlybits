@@ -11,7 +11,8 @@ date = 2026-09-10
 ## Scope
 
 This plan builds the layer every physics kernel is written against: one device
-abstraction with a CPU fallback that runs the same kernel text, the reductions whose
+abstraction with a CPU fallback that runs the same kernel text (a kernel may also
+carry a device form the GPU backend runs in its place, under decision 0051), the reductions whose
 answer cannot depend on how the work was partitioned, the segmented quantiles the
 mesh hierarchy needs, the memory budget a run refuses to start over, and the
 ulp-ensemble harness that decides whether a single-precision kernel may enter a

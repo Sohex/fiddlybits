@@ -121,7 +121,9 @@ row closed with its subject half-true and the remainder filed is not completed.
 1. The branch's acceptance oracles passed in the worktree, by name, in the notes.
 2. The diff stays inside the file boundary.
 3. The per-commit gate passes; a moved reference hash carries an `answers:` line.
-4. The change matches the plan section it cites; a deviation is a new plan row.
+4. The change matches the plan section it cites; a deviation is a new plan row. A
+   kernel given a device form (decision 0051) carries the test that holds it bitwise to
+   its portable form on the device, and its dispatch names the finding that measured it.
 5. Merge and remove the worktree. The row is already closed, in the branch's own
    commit; a review that rejects reopens it with what it found, and that reopen rides
    the next commit rather than standing alone.

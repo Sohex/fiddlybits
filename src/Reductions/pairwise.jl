@@ -61,8 +61,10 @@ itself. On `GPU`, `shared_kernel` over `n` work items at a workgroup of
 `blocksize` (`at_workgroup`), one workgroup per block: every lane copies
 its own element of `inputs` into the workgroup's shared memory, and after
 the barrier lane 1 accumulates that shared copy in index order. The
-accumulation order is the same on both; notes/findings/2026-09-13-block-sums-in-shared-memory.md
-measures the two on the card. On `GPU` the workgroup is `blocksize`, so a
+GPU kernel is a device form under
+docs/decisions/0051-a-kernel-may-carry-a-device-form-beside-its-portable-one.md;
+notes/findings/2026-09-13-block-sums-in-shared-memory.md measures the two on
+the card. On `GPU` the workgroup is `blocksize`, so a
 `blocksize` above the device's threads per block raises at the launch.
 """
 function launch_block_sums!(cpu_kernel, shared_kernel, backend::CPU, partials, n::Integer,
