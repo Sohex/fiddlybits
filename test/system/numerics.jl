@@ -23,11 +23,7 @@ end
 
     @testset "the field names of Numerics and Profile are disjoint" begin
         @test shared(Systems.Numerics, OverlappingProfileFixture) == [:exner_reference_pressure]
-        if isdefined(Systems, :Profile)
-            @test isempty(shared(Systems.Numerics, Systems.Profile))
-        else
-            @test_broken isdefined(Systems, :Profile)
-        end
+        @test isempty(shared(Systems.Numerics, Systems.Profile))
     end
 
     @testset "the geometry is formed in double precision" begin
