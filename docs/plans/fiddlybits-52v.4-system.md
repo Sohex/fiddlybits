@@ -141,10 +141,30 @@ and transit geometry of decision 0032 reads it. Variability is zero or more cycl
 components; a component of zero amplitude is admissible, and its period is never read
 as a window.
 
-`Planet` carries the bulk (mass; radius or a composition vector; sidereal rotation
-period with its sense relative to the orbit normal; obliquity from the orbit normal)
-and the lithosphere block, every member of which is `Bracketed` with both ends argued
-from the declared mass, age and bulk composition.
+`Planet` carries the bulk and the lithosphere block. The bulk is the mass, the radius
+or a composition vector, the sidereal rotation period, the obliquity, and
+`sub_primary_longitude_at_epoch`. Every member of the lithosphere block is `Bracketed`,
+with both ends argued from the declared mass, age and bulk composition.
+
+Decision 0004, section The spin axis and the rotation phase in the orbit frame, defines
+the two angles:
+
+- `obliquity` is the angle from the planet's orbit normal to the positive pole of
+  rotation of decision 0005, admitted in `[0, pi]`, with the dispositions of any
+  declared angle.
+- The sense of rotation relative to the orbit normal is `Derived` from it and is never a
+  keyword. `rotation_sense(planet)` is `:prograde` where `cos(obliquity)` exceeds its
+  rounding, `:retrograde` where `-cos(obliquity)` does, and `NotEvaluable` by name
+  between. The threshold comes from `Reductions.error_bound`, as the equinox kind's does.
+- `sub_primary_longitude_at_epoch` is the body-fixed longitude, in `(-pi, pi]` (the
+  range `Mesh.longitude` returns), of the direction from the planet toward
+  `orbits.planet.primary` at `t = 0`. It is `Irreducible` on a generated configuration
+  and `Sourced` on one standing for a body with a published orientation model.
+- `strip` carries both angles as plain `FT`.
+
+The readers are `Orbit.positive_pole`, `Orbit.body_orientation`,
+`Orbit.sub_source_longitude` and `Orbit.hour_angle`, all in the time plan's section The
+orbit. `fiddlybits-52v.4.13` adds the fields after `fiddlybits-52v.4.3` merges.
 
 `Numerics` and `Profile` both describe a run, and the plan has to say where the line
 is or they become two homes for one quantity. `Numerics` holds declared conventions
@@ -169,6 +189,9 @@ The constructor is keyword-only with no defaults. Its refusals:
 | a stellar model evaluated outside its declared mass, age and metallicity domain, named | a relation is silent about the sample it was not fitted on | a mass above the model's domain |
 | a spectrum interpolated outside the grid's convex hull in its own axes | the same | a point outside the hull |
 | a scalar assigned where the ladder's length is required | REQ-SYS-103 item 5 | a scalar for a per-level parameter |
+| a `sense` keyword on a rotation | the sense is `Derived` from the obliquity (decision 0004), and a second declaration of it could disagree | a rotation declared with a sense |
+| an obliquity outside `[0, pi]`, or a sub-primary longitude at the epoch outside `(-pi, pi]` | each is one angle with one range, and a value outside it is a second name for a value inside | an obliquity of 3.2, and a longitude of 3.5 |
+| a synchronous rotation whose `Derived` sense is not prograde | a rotation turning against its orbit at the orbital period does not keep one face to the primary | a synchronous rotation at an obliquity of three quarters of pi, and at `pi / 2` |
 | an orbital eccentricity outside the elliptic range `[0, 1)` | the Kepler solve refuses nothing itself, because a refusal inside a per-cell kernel has nowhere to go (decision 0008, amendment of 2026-09-10) | an eccentricity of one, and of one and a half |
 
 `g(r, phi)` is the canonical `Derived` field: computed from the mass, the radial

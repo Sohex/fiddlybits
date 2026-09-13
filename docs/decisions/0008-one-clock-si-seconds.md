@@ -18,7 +18,10 @@ cycle factor are all pure functions of the system struct and a `SimTime`. The tr
 anomaly is obtained by solving Kepler's equation to rounding for any eccentricity
 below one, never by a series truncated in eccentricity. For a synchronous rotator the
 solar day of that source is undefined and the function returns `NotEvaluable` by
-name; for a retrograde rotator the solar day is shorter than the sidereal day; a
+name; for a retrograde rotator the solar day is shorter than the sidereal day; the
+sense is the one decision 0004 derives from the obliquity, and where the positive pole
+lies in the orbit plane within rounding there is no sense, and the solar and mean solar
+day of every source return `NotEvaluable` by name; a
 consumer that needs a day reads the mean solar day of the source of largest
 instellation and declares its fallback where that is undefined (decision 0023).
 Secular variation of the orbital elements and of the spin axis is a declared absence:
@@ -50,11 +53,20 @@ is admissible only when the obliquity exceeds a threshold derived from rounding
 (below it the subsolar point never leaves the equator and the instant does not
 exist) and when exactly one source is declared primary; otherwise construction
 refuses by name and the caller declares another kind. The reference direction for
-the argument of periapsis of decision 0004 is the equinox of the primary where it
-exists and the ascending node on the orbit's reference plane otherwise. The pair,
+the argument of periapsis of the planet's orbit is the equinox direction `gamma` of
+decision 0004 (section The spin axis and the rotation phase in the orbit frame),
+wherever the sine of the obliquity exceeds its rounding and whatever the number of
+stars, and the ascending node on the orbit's reference plane otherwise. The pair,
 the offset and that direction are recorded in every run's identity. "Vernal" is a
 label for a geometric event, not a season; which hemisphere calls it spring is a
 rendering choice.
+
+`t = 0` also fixes the rotation phase. The planet's sub-primary longitude at the epoch
+(decision 0004, same section) is read at `t = 0`, not at the event. The offset
+therefore sets where in the orbit `t = 0` falls, and the longitude sets which body-fixed
+longitude faces the primary there, independently of the offset. Every hour angle and
+sub-source longitude at a later `t` is `Derived` from the two, with the sidereal
+rotation period.
 
 ### Calendar
 
@@ -83,6 +95,14 @@ everywhere in the system, which the predecessor's terrain generator could not of
   zero obliquity and "the primary star" is undefined for an equal binary, so a rule
   that fills the epoch silently would fill it with nothing on exactly those
   configurations.
+- **The equinox direction as the argument of periapsis's reference only where a single
+  primary is declared.** Lost. The direction is the ascending node of the primary's
+  apparent path on the planet's equator, fixed by the positive pole and the orbit normal
+  alone (decision 0004), so it exists whatever the number of stars. Without it, a tilted
+  planet about a barycentre would have a pole with no declared azimuth.
+- **The rotation phase read at the epoch event rather than at `t = 0`.** Lost. It would
+  make the orientation at `t = 0` move with the offset, so the orbital phase of `t = 0`
+  and the longitude facing the primary there could not be declared independently.
 - **Integer timesteps as the time axis** (the predecessor's climatology files
   carried `units = timesteps` with no calendar). It made every downstream tool that
   assumed a calendar either refuse or silently impose one. Lost; SI seconds are a
@@ -122,6 +142,7 @@ everywhere in the system, which the predecessor's terrain generator could not of
   absent.
 - Murray and Dermott (1999), Solar System Dynamics (locator in decision 0032):
   Kepler's equation and the orbital-element conventions.
+- Archinal, B. A., et al. "Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2015." Celestial Mechanics and Dynamical Astronomy 130 (2018), article 22. DOI: 10.1007/s10569-017-9805-5. Page 6 (W0 as the value of the prime meridian angle W at a named epoch, and W varying with time from it): the form the rotation phase read at `t = 0` takes.
 
 ## Amendments
 
@@ -137,3 +158,4 @@ everywhere in the system, which the predecessor's terrain generator could not of
   a per-cell kernel. From `notes/findings/2026-09-10-kepler-in-a-portable-kernel.md` and
   `notes/findings/2026-09-10-sampling-the-kepler-hard-region.md`, carried by
   `fiddlybits-52v.10`.
+- 2026-09-13: the planet's argument of periapsis is measured from the equinox direction of decision 0004 wherever the sine of the obliquity exceeds its rounding, whatever the number of stars; the rotation phase is the planet's sub-primary longitude read at t = 0, not at the event; the solar and mean solar day return NotEvaluable where the positive pole lies in the orbit plane; carried by fiddlybits-52v.5.7.
