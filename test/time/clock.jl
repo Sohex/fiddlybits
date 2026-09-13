@@ -101,5 +101,6 @@ const INSTANTS = (0.0, 0.5, 1.0, -1.5, 3600.25, 1.2345e9, -1.2345e9, 8.64e12 + 0
         @test_throws Verdicts.Refusal Time.decode(1, 1.0)
         @test_throws Verdicts.Refusal Time.decode(1, -0.25)
         @test_throws Verdicts.Refusal Time.decode(1, NaN)
+        @test_throws Verdicts.Refusal Time.decode(typemin(Int64), 0.0)
     end
 end
