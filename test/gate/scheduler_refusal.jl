@@ -1,8 +1,7 @@
 using Test
 
-# gate.sh refuses to run when SLURM_JOB_ID is set, preventing nested scheduler jobs.
-# Each test must set the environment it needs explicitly: withenv() for isolated tests.
-# The gate suite itself runs INSIDE a scheduler job, so SLURM_JOB_ID is already set.
+# gate.sh refuses when SLURM_JOB_ID is set and reaches qrun when it is not,
+# against a stand-in qrun on PATH.
 
 const GATE_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const GATE_SCRIPT = joinpath(GATE_ROOT, "tools", "gate", "gate.sh")
@@ -17,7 +16,7 @@ function stand_in_qrun(record_file::AbstractString)
 end
 
 @testset "gate.sh scheduler refusal" begin
-    @testset "gate.sh refuses with SLURM_JOB_ID set" begin
+    @testset "positive control: gate.sh refuses with SLURM_JOB_ID set, before calling qrun" begin
         tmpdir = mktempdir()
         try
             qrun_record = joinpath(tmpdir, "qrun_calls")
@@ -59,13 +58,7 @@ end
                     "PATH" => tmpdir * ":" * get(ENV, "PATH", "")) do
                 stderr_capture = IOBuffer()
                 cmd = Cmd(`$GATE_SCRIPT`; dir = GATE_ROOT)
-
-                try
-                    run(pipeline(cmd; stderr = stderr_capture))
-                catch
-                    # The stand-in qrun will exit 0 and cause gate.sh to continue,
-                    # which may fail for other reasons; we only care that qrun was called.
-                end
+                @test success(pipeline(cmd; stderr = stderr_capture))
 
                 # The stand-in qrun should have been called exactly once
                 @test isfile(qrun_record)
