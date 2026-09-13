@@ -231,28 +231,45 @@ function segmented_weighted_sum(::Type{A}, xs::AbstractVector, weights::Abstract
     return out
 end
 
+@kernel function segmented_mean_kernel!(out, zeroflag, @Const(xs), @Const(weights), @Const(lo), @Const(hi))
+    seg = @index(Global)
+    T = eltype(out)
+    num = zero(T)
+    den = zero(T)
+    for j in lo[seg]:hi[seg]
+        num += T(nofuse_mul(xs[j], weights[j]))
+        den += T(weights[j])
+    end
+    out[seg] = num / den
+    zeroflag[seg] = iszero(den)
+end
+
 """
     segmented_mean(::Type{A}, xs, starts, weights, backend = CPU(BLOCKSIZE)) where A
     segmented_mean(::Type{A}, xs, segmentation, weights, backend = CPU(BLOCKSIZE)) where A
 
 The per-segment weighted mean of `xs` by `weights`, accumulated in type
-`A`: the segmented sum of `xs[j] * weights[j]` (`segmented_weighted_sum`)
-divided elementwise by the segmented sum of `weights` (`segmented_sum`),
-both on `backend`. Neither call materialises an array the size of `xs`
-(`segmented_weighted_sum`'s own docstring states the rule this follows).
-Refuses when `xs` and `weights` differ in length, or when any segment's
-total weight is zero, naming how many. The boundaries reach both sums
-once, so the `Segmentation` form checks them no times and the
-boundary-array form once rather than twice.
+`A`: the weighted numerator and the total weight accumulated in the same
+loop `segmented_weighted_sum_kernel!` and `segmented_sum_kernel!` each walk
+on their own, one workgroup pass per segment, the division and the
+zero-weight test written out at the end of that same pass. No array the
+size of `xs`, nor a numerator or a denominator array, is ever materialised.
+The product is computed through `Backends.nofuse_mul` rather than a bare
+`*`, exactly as `segmented_weighted_sum` states (decision 0044). Refuses
+when `xs` and `weights` differ in length, or when `xs` does not have the
+length `segmentation` was checked against, or when any segment's total
+weight is zero, naming how many. The boundaries reach the kernel once, so
+the `Segmentation` form checks them no times and the boundary-array form
+once rather than twice.
 
 The result is a device array on `backend`, so nothing here reads the
 result back; the zero-weight refusal is raised on the host and pays a
 device-to-host read of its own. That read is the one `pairwise_sum` makes
-over the per-segment zero-weight indicator: one `Events.moved` record per
-call on device-resident input, of the block sums of that indicator rather
-than of `denominator` itself, and none on host-resident input. It is the
-device-move record of decision 0010, not an event of decision 0042's
-journal vocabulary. It is not a read of the boundary array, which the
+over the per-segment zero-weight flag the kernel writes: one
+`Events.moved` record per call on device-resident input, of the block
+sums of that flag, and none on host-resident input. It is the device-move
+record of decision 0010, not an event of decision 0042's journal
+vocabulary. It is not a read of the boundary array, which the
 `Segmentation` form still reads no times.
 """
 function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentation,
@@ -260,13 +277,17 @@ function segmented_mean(::Type{A}, xs::AbstractVector, segmentation::Segmentatio
     length(xs) == length(weights) ||
         refuse("segmented mean extent", "Reductions.segmented_mean",
                "xs has length $(length(xs)), weights has length $(length(weights))")
-    numerator = segmented_weighted_sum(A, xs, weights, segmentation, backend)
-    denominator = segmented_sum(A, weights, segmentation, backend)
-    nzero = pairwise_sum(Int, ifelse.(iszero.(denominator), 1, 0), backend)
+    require_extent(segmentation, xs, "Reductions.segmented_mean")
+    out = similar(xs, A, segmentation.nseg)
+    segmentation.nseg == 0 && return out
+    zeroflag = similar(xs, Bool, segmentation.nseg)
+    launch!(segmented_mean_kernel!, backend, segmentation.nseg,
+            out, zeroflag, xs, weights, segmentation.lo, segmentation.hi)
+    nzero = pairwise_sum(Int, zeroflag, backend)
     nzero == 0 ||
         refuse("segmented mean weight", "Reductions.segmented_mean",
                "$nzero of $(segmentation.nseg) segments have zero total weight")
-    return numerator ./ denominator
+    return out
 end
 
 function segmented_mean(::Type{A}, xs::AbstractVector, starts::AbstractVector{<:Integer},
