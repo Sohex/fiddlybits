@@ -160,15 +160,9 @@ refusal_entries(operator::Symbol) =
     end
 
     @testset "coarsen" begin
-        # fiddlybits-52v.3.16: coarsen dispatches to neither a method nor a
-        # REFUSAL_TABLE entry for CategoricalFraction. Visible rather than
-        # assumed (docs/workflow.md): @test_broken fails the moment the gap
-        # closes, which is what forces this line back to a plain @test rather
-        # than staying green on its own.
-        missing = missing_coverage(Fields.coarsen, field_semantics_head,
-                                   refusal_entries(:coarsen), universe, Fields.Semantics)
-        @test missing == [Fields.CategoricalFraction]
-        @test_broken isempty(missing)
+        @test isempty(missing_coverage(Fields.coarsen, field_semantics_head,
+                                       refusal_entries(:coarsen), universe,
+                                       Fields.Semantics))
     end
 end
 

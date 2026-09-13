@@ -474,6 +474,9 @@ end
              () -> R.refine(coarse(R.Quantiles{(0.5,)}()), RM.FINE_SUPPORT)),
             (:refine, R.CategoricalFraction{:lithology},
              () -> R.refine(coarse(R.CategoricalFraction{:lithology}()), RM.FINE_SUPPORT)),
+            (:coarsen, R.CategoricalFraction{:lithology},
+             () -> R.coarsen(fine(R.CategoricalFraction{:lithology}()), RM.COARSE_SUPPORT;
+                             backend = BACKEND)),
         )
         for (operator, S, thunk) in cases
             err = raised_by(thunk)
@@ -594,6 +597,7 @@ end
              (backend = BACKEND,)),
             ((fine(R.Quantiles{(0.5,)}()), coarse_to), (backend = BACKEND,)),
             ((fine(R.Quantiles{(0.5,)}()), coarse_to, R.AreaMean()), (backend = BACKEND,)),
+            ((fine(R.CategoricalFraction{:lithology}()), coarse_to), (backend = BACKEND,)),
         ],
         :refine => [
             ((coarse(R.Extensive()), fine_to), (; fine_measure..., conserving...)),
