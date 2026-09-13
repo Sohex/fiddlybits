@@ -82,6 +82,13 @@ metric is REPORT.
   entry; an oracle id is never written in a manifest's `anchors`, which carry the
   requirements, decisions and milestones in prose. `oracles.dataset_links` checks both
   directions (`test/datasets/`).
+- An entry that rests on a constituent another entry decides names that entry's id in
+  `depends_on`, on its own tier or a lower one, and states no bar for it: the named
+  entry is judged by its own threshold, and a report of the depending entry names each
+  dependency's verdict beside its own. No statistic or threshold names an entry's id,
+  and none carries a clause of the threshold of a `fail_bar` entry it depends on,
+  directly or through other entries. `oracles.registry_wellformed` refuses each
+  (decision 0054).
 - Every tier-1 identity of the system layer (the `system.*` section) runs on
   `Earth()` and on a synthetic non-Earth instance with closed forms, so a `Derived`
   field is never validated on one configuration alone.
@@ -123,3 +130,4 @@ never deleted.
 
 - 2026-09-08: statistics in seconds with the spread-arm rule, dimensionless exits, sigma diagnostics, the protocol_system field for tier 3, and the two-instance rule for system.* identities, from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-13: one verdict semantics per entry, the two verdict kinds, no verdict named in prose, where a bar applies, the protocol table in place of the protocol_system field, and a provisional entry blocking no gate, from docs/decisions/0053-one-verdict-semantics-per-registry-row.md.
+- 2026-09-13: the depends_on field, no entry id named in prose, and no clause of a dependency's threshold restated, from docs/decisions/0054-a-row-names-the-rows-it-rests-on.md.

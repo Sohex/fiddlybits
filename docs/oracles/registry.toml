@@ -18,16 +18,17 @@
 # manifests under docs/oracles/data/ and docs/inputs/data/ the row reads, empty where
 # it reads none that is held; each manifest names the row back in its oracles key, and
 # oracles.dataset_links checks both directions.
+# depends_on (optional on every tier): the ids of the rows deciding a constituent this
+# row's metric rests on and does not judge, each on this row's tier or a lower one. The
+# row states no bar of theirs and names no row in its statistic or threshold
+# (docs/decisions/0054-a-row-names-the-rows-it-rests-on.md).
 # Conventions: statistics and thresholds in SI seconds and dimensionless or
 # system-derived units; a published case's day written as its seconds on the arm
 # where the published bar applies, with the spread-arm rule stated; vertical
 # diagnostics in sigma, never a fixed pressure (docs/oracles/README.md).
 #
-# Two rows are open against this file's schema and the rule behind it, and
-# fiddlybits-52v.8.2 waits on both so the loader is not written against a shape
-# already known to be wrong:
-#   fiddlybits-w7p  sweep.obliquity restates a threshold system.orbit_mean_insolation
-#                   states differently; a row needs a way to name what it depends on
+# One row is open against the rule behind this file's schema, and fiddlybits-52v.8.2
+# waits on it so the loader is not written against a shape already known to be wrong:
 #   fiddlybits-5d1  the registration rule is stated as before the artifact exists, and
 #                   decision 0025 cites a source saying before the results are seen
 
@@ -90,7 +91,8 @@ id = "build.inference_suite_cost"
 tier = 1
 subsystem = "build"
 dataset_or_reference = "known quantity"
-statistic = "wall time of the enumerated inference walk of fields.inference_tight on the recorded host, with the load average beside it, and the count of distinct Dim signatures the walk instantiates; the walk compiles every combination it asserts on, so its time is the specialization cost of Field's four type parameters paid in one visible place"
+depends_on = ["fields.inference_tight"]
+statistic = "wall time of the enumerated inference walk its depends_on row defines, on the recorded host, with the load average beside it, and the count of distinct Dim signatures the walk instantiates; the walk compiles every combination it asserts on, so its time is the specialization cost of Field's four type parameters paid in one visible place"
 verdict_kind = "fail_bar"
 threshold = "provisional; no ceiling until the A/A scatter of this instrument is measured and written as a dated finding, because a bar narrower than its instrument's scatter is refused at registration (decision 0029), and because the two closed vocabularies are not the combinatorial source: Dim{M,L,T,Theta,N} carries five open integer exponents and the signature count is what a later bar would judge (fiddlybits-52v.3.9). Positive control: the measurement judged against a ceiling below the measured value must fail"
 provisional = true
@@ -216,9 +218,10 @@ id = "system.gravity_and_figure"
 tier = 1
 subsystem = "system"
 dataset_or_reference = "identity"
-statistic = "g(r, phi) reduces to the point-mass form at zero rotation and its equator-pole difference equals the centrifugal closed form; the Derived hydrostatic figure reproduces its closed-form flattening for a declared interior model; the surface value refuses a disagreeing caller"
+depends_on = ["system.derived_fields_reproduce"]
+statistic = "g(r, phi) reduces to the point-mass form at zero rotation and its equator-pole difference equals the centrifugal closed form; the Derived hydrostatic figure reproduces its closed-form flattening for a declared interior model"
 verdict_kind = "fail_bar"
-threshold = "roundoff; the refusal fires"
+threshold = "roundoff"
 provisional = true
 registered_at = ""
 holdout = false
@@ -691,7 +694,8 @@ id = "core.held_suarez"
 tier = 1
 subsystem = "atmosphere"
 dataset_or_reference = "A Proposal for the Intercomparison of the Dynamical Cores of Atmospheric General Circulation Models"
-statistic = "jet strength and latitude over the published case's 86400000 s (1000 x 86400 s) climatology with the published relaxation rates in seconds, all owned by the case's forcing struct and read by nothing in the core; on spread arms, which change the rotation period, the window and the relaxation rates scale with it. Angular momentum conservation on this case is the angular momentum ledger of ledger.closure"
+depends_on = ["ledger.closure"]
+statistic = "jet strength and latitude over the published case's 86400000 s (1000 x 86400 s) climatology with the published relaxation rates in seconds, all owned by the case's forcing struct and read by nothing in the core; on spread arms, which change the rotation period, the window and the relaxation rates scale with it"
 verdict_kind = "fail_bar"
 threshold = "provisional; published spread"
 provisional = true
@@ -704,8 +708,8 @@ protocol = "held_suarez"
 id = "core.dcmip_small_planet"
 tier = 1
 subsystem = "atmosphere"
-dataset_or_reference = "DCMIP test case suite, reduced-radius cases"
-statistic = "published norms for the small-planet tests at radius/X, rotation*X"
+dataset_or_reference = "DCMIP test case suite, reduced-radius cases (Wedi and Smolarkiewicz small-planet; DCMIP 2012/2016)"
+statistic = "published norms for the small-planet tests at radius/X, rotation*X, elapsed times in seconds scaled by the reduction factor as the published cases scale them"
 verdict_kind = "fail_bar"
 threshold = "provisional; published norms"
 provisional = true
@@ -733,6 +737,7 @@ tier = 3
 subsystem = "atmosphere"
 dataset_or_reference = "published rotation-rate sweeps of the Held-Suarez configuration"
 datasets = []
+depends_on = ["core.hadley_small_rossby_limit"]
 statistic = "Hadley cell edge and jet count against rotation rate swept, with the Held-Suarez relaxation rates held in seconds as the published sweeps hold them and the averaging window scaled with the rotation period"
 verdict_kind = "fail_bar"
 threshold = "provisional; within the published inter-model disagreement"
@@ -762,9 +767,10 @@ id = "column.richards_philip"
 tier = 1
 subsystem = "land"
 dataset_or_reference = "Philip infiltration series (sorptivity, gravity-free early time) and its late-time gravity-driven limit (infiltration rate tending to K_s); Srivastava and Yeh transient solution; Gardner steady evaporation"
-statistic = "early-time infiltration exponent; late-time infiltration rate against K_s = k rho_w g / mu across a gravity sweep; mass conservation on the finest grid"
+depends_on = ["land.gravity_identities"]
+statistic = "early-time infiltration exponent; late-time infiltration rate against K_s = k rho_w g / mu at each gravity of a sweep; mass conservation on the finest grid"
 verdict_kind = "fail_bar"
-threshold = "provisional; departure from t^(1/2) below 2 percent; late-time rate at K_s within discretisation error and scaling linearly with g across the sweep; mass to roundoff"
+threshold = "provisional; departure from t^(1/2) below 2 percent; late-time rate at K_s within discretisation error at every gravity of the sweep; mass to roundoff"
 provisional = true
 registered_at = ""
 holdout = false
@@ -789,9 +795,9 @@ id = "terrain.stream_power_steady"
 tier = 1
 subsystem = "terrain"
 dataset_or_reference = "steady-state stream-power profile; slope-area relation under Hack's law"
-statistic = "concavity equals m/n under uniform runoff (the law is in discharge, decision 0015); relief scales as (U/K)^(1/n), hence as g^(-1/n) through K = rho_w g k_e, which is 1/g only at n = 1"
+statistic = "concavity equals m/n under uniform runoff (the law is in discharge, decision 0015); relief scales as (U/K)^(1/n)"
 verdict_kind = "fail_bar"
-threshold = "exact at n = 1 for the implicit scheme; otherwise discretisation error; the g^(-1/n) exponent recovered across a gravity sweep within discretisation error"
+threshold = "exact at n = 1 for the implicit scheme; otherwise discretisation error"
 provisional = true
 registered_at = ""
 holdout = false
@@ -815,6 +821,7 @@ id = "terrain.incision_gravity_identity"
 tier = 1
 subsystem = "terrain"
 dataset_or_reference = "identity: steady-state stream-power profile under a gravity sweep with every other System field held"
+depends_on = ["terrain.stream_power_steady"]
 statistic = "log-log slope of steady relief against g, per declared n; the coefficient k_e bitwise unchanged across the sweep"
 verdict_kind = "fail_bar"
 threshold = "exponent -1/n within discretisation error; any change in k_e across the sweep fails (gravity entered twice or through the coefficient)"
@@ -1007,9 +1014,10 @@ id = "seaice.mass_salt_conservation"
 tier = 1
 subsystem = "sea ice"
 dataset_or_reference = "conservation"
-statistic = "ice mass, snow mass and ice salt before and after advection and ridging, and across the freezing and melting exchange with the ocean, in units of the derived roundoff bound"
+depends_on = ["ledger.closure"]
+statistic = "ice mass, snow mass and ice salt before and after advection and ridging, in units of the derived roundoff bound"
 verdict_kind = "fail_bar"
-threshold = "residual <= 1 bound unit"
+threshold = "residual of each across advection and ridging <= 1 bound unit"
 provisional = true
 registered_at = ""
 holdout = false
@@ -1062,9 +1070,10 @@ id = "physics.water_roughness_identity"
 tier = 1
 subsystem = "atmosphere"
 dataset_or_reference = "identity; Charnock 1955"
-statistic = "neutral drag over open water reproduces the log law with the Charnock roughness at the declared gravity and friction velocity; the roughness scales inversely with gravity between two declared gravities at fixed friction velocity"
+depends_on = ["physics.monin_obukhov_neutral"]
+statistic = "the open-water roughness the neutral drag reads, against the Charnock form at the declared gravity and friction velocity; the roughness scaling inversely with gravity between two declared gravities at fixed friction velocity"
 verdict_kind = "fail_bar"
-threshold = "published function to 1e-6; gravity scaling to roundoff"
+threshold = "the Charnock form to roundoff; gravity scaling to roundoff"
 provisional = true
 registered_at = ""
 holdout = false
@@ -1313,7 +1322,8 @@ id = "rad.line_by_line_reference"
 tier = 1
 subsystem = "radiation"
 dataset_or_reference = "RFMIP clear-sky profiles with line-by-line fluxes for the Sun (one composition at one gravity: the Earth arm); generated line-by-line references for each declared (composition, spectrum, pressure-temperature range, gravity through the column mass of each pressure level) on profiles drawn from the declared system's own state brackets"
-statistic = "clear-sky OLR and surface flux per profile, and the profile-set mean, per declared (composition, spectrum, pressure-temperature range, gravity); the oracle shares its spectroscopy with the table generator and validates the k-distribution reduction, not the spectroscopy's applicability to the declared bulk gas (rad.broadening_partner_identity is that positive control)"
+depends_on = ["rad.broadening_partner_identity"]
+statistic = "clear-sky OLR and surface flux per profile, and the profile-set mean, per declared (composition, spectrum, pressure-temperature range, gravity); the oracle shares its spectroscopy with the table generator and validates the k-distribution reduction, not the spectroscopy's applicability to the declared bulk gas"
 verdict_kind = "fail_bar"
 threshold = "provisional; the reference's own stated accuracy; bias across profiles or correlation with water path is a defect"
 provisional = true
@@ -1381,9 +1391,9 @@ id = "oracles.registry_wellformed"
 tier = 1
 subsystem = "oracles"
 dataset_or_reference = "identity"
-statistic = "every entry of docs/oracles/registry.toml parsed and checked for its required fields including a source_kind from the closed set (identity, conservation, analytic, known quantity, published spread), for its conditional fields (instances on every tier 1 system.* row, a protocol on every tier 3 row and on no tier 2 row, non-empty anchors on every tier 2 and tier 3 row), for anchors that resolve to rows marked read in docs/references/INDEX.md, and for its verdict shape (docs/decisions/0053-one-verdict-semantics-per-registry-row.md): row ids used once, one verdict_kind from the closed set of that record, no verdict named in capitals in a statistic or threshold, no constituent of a barred row left unbarred, no constituent of an unbarred row given an edge, no protocol_system field, and every protocol a row names declared once in the protocol table with its system and normalisation and named by at least one row"
+statistic = "every entry of docs/oracles/registry.toml parsed and checked for its required fields including a source_kind from the closed set (identity, conservation, analytic, known quantity, published spread), for its conditional fields (instances on every tier 1 system.* row, a protocol on every tier 3 row and on no tier 2 row, non-empty anchors on every tier 2 and tier 3 row), for anchors that resolve to rows marked read in docs/references/INDEX.md, for its verdict shape (docs/decisions/0053-one-verdict-semantics-per-registry-row.md): row ids used once, one verdict_kind from the closed set of that record, no verdict named in capitals in a statistic or threshold, no constituent of a barred row left unbarred, no constituent of an unbarred row given an edge, no protocol_system field, and every protocol a row names declared once in the protocol table with its system and normalisation and named by at least one row; and for its dependency shape (docs/decisions/0054-a-row-names-the-rows-it-rests-on.md): every depends_on a list of distinct ids each resolving to a row on the same tier or a lower one, no row depending on itself directly or through others, no row id named in a statistic or threshold, and no clause of the threshold of a barred row a row depends on carried in that row's statistic or threshold"
 verdict_kind = "fail_bar"
-threshold = "exact; every entry parses and satisfies its schema, and a malformed entry is refused rather than skipped (positive controls: a fixture row with no threshold, a fixture tier 1 system.* row with no instances, and a fixture tier 2 row with empty anchors, all of which must be refused; a fixture row mixing an exact identity and an unbarred constituent under one bar, which must be refused; one fixture for each remaining verdict-shape clause, each of which must be refused; and a clean fixture that must be accepted). A skipped entry is a threshold nobody checks. This entry fails on the tree until fiddlybits-52v.8.7 anchors every published bar"
+threshold = "exact; every entry parses and satisfies its schema, and a malformed entry is refused rather than skipped (positive controls: a fixture row with no threshold, a fixture tier 1 system.* row with no instances, and a fixture tier 2 row with empty anchors, all of which must be refused; a fixture row mixing an exact identity and an unbarred constituent under one bar, which must be refused; a fixture row depending on an absent row and a fixture row carrying a clause of its dependency's threshold, both of which must be refused; one fixture for each remaining verdict-shape and dependency clause, each of which must be refused; and a clean fixture that must be accepted). A skipped entry is a threshold nobody checks. This entry fails on the tree until fiddlybits-52v.8.7 anchors every published bar"
 provisional = true
 registered_at = ""
 holdout = false
@@ -2188,9 +2198,10 @@ tier = 2
 subsystem = "terrain"
 dataset_or_reference = "cosmogenic denudation compilations (OCTOPUS; Portenga and Bierman); relief-denudation relations"
 datasets = []
+depends_on = ["terrain.age_rate_identity"]
 statistic = "basin-averaged denudation at a given mean slope against the compilation's interquartile band, on the Earth test instance"
 verdict_kind = "fail_bar"
-threshold = "provisional: outside the interquartile band fails. The internal age-times-rate check lives in terrain.age_rate_identity and does not pass through an Earth relation"
+threshold = "provisional: outside the interquartile band fails"
 provisional = true
 registered_at = ""
 holdout = false
@@ -2228,7 +2239,7 @@ id = "terrain.drainage_isotropy"
 tier = 1
 subsystem = "terrain"
 dataset_or_reference = "identity"
-statistic = "drainage density by azimuth on a symmetric synthetic uplift (the Hack exponent is an Earth empirical value, moved to terrain.hack_exponent)"
+statistic = "drainage density by azimuth on a symmetric synthetic uplift"
 verdict_kind = "fail_bar"
 threshold = "provisional: no azimuthal lattice bias beyond sampling noise"
 provisional = true
@@ -2244,7 +2255,7 @@ dataset_or_reference = "Hack (1957) length-area relation; HydroSHEDS-derived mai
 datasets = []
 statistic = "fitted Hack exponent on the model's drainage graph, against the Earth value at matched scale, on the Earth test instance"
 verdict_kind = "report"
-threshold = "n/a (an Earth empirical exponent, not an identity; moved out of terrain.drainage_isotropy)"
+threshold = "n/a (an Earth empirical exponent, not an identity)"
 provisional = true
 registered_at = ""
 holdout = false
@@ -2273,7 +2284,8 @@ tier = 3
 subsystem = "atmosphere"
 dataset_or_reference = "published rotation-rate sweeps (Kaspi and Showman; Merlis and Schneider); Held and Hou scaling"
 datasets = []
-statistic = "exponent of the Hadley edge against rotation rate swept. The small-Rossby limit of the same relation is core.hadley_small_rossby_limit"
+depends_on = ["core.hadley_small_rossby_limit"]
+statistic = "exponent of the Hadley edge against rotation rate swept"
 verdict_kind = "fail_bar"
 threshold = "provisional: exponent within the published inter-model disagreement"
 provisional = true
@@ -2303,7 +2315,8 @@ tier = 3
 subsystem = "coupled"
 dataset_or_reference = "published obliquity studies (Williams and Pollard; Ferreira et al.; Kang; Colose et al.)"
 datasets = []
-statistic = "reversal of the pole-equator gradient at high obliquity; mid-latitude glaciation; each against obliquity swept. The orbit-mean insolation pattern these rest on is system.orbit_mean_insolation"
+depends_on = ["system.orbit_mean_insolation"]
+statistic = "reversal of the pole-equator gradient at high obliquity; mid-latitude glaciation; each against obliquity swept"
 verdict_kind = "fail_bar"
 threshold = "provisional: within the published spread"
 provisional = true
@@ -2318,7 +2331,8 @@ tier = 3
 subsystem = "atmosphere"
 dataset_or_reference = "published gravity sweeps at fixed column mass (Thomson and Vallis; Yang et al.)"
 datasets = []
-statistic = "circulation response against gravity swept. The surface pressure, scale height and lapse rate identities of the sweep are physics.gravity_column_identities"
+depends_on = ["physics.gravity_column_identities"]
+statistic = "circulation response against gravity swept"
 verdict_kind = "report"
 threshold = "n/a"
 provisional = true
@@ -2371,21 +2385,6 @@ registered_at = ""
 holdout = false
 anchors = []
 protocol = "stellar_type_equal_instellation"
-
-[[oracle]]
-id = "sweep.dcmip_reduced_radius"
-tier = 3
-subsystem = "atmosphere"
-dataset_or_reference = "Wedi and Smolarkiewicz small-planet; DCMIP 2012/2016"
-datasets = []
-statistic = "published small-planet test norms, elapsed times in seconds scaled by the reduction factor as the published cases scale them"
-verdict_kind = "fail_bar"
-threshold = "provisional: published norms"
-provisional = true
-registered_at = ""
-holdout = false
-anchors = []
-protocol = "dcmip_small_planet"
 
 # ---------------------------------------------------------------- protocols
 #

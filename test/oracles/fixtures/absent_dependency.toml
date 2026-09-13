@@ -1,0 +1,13 @@
+[[oracle]]
+id = "sweep.obliquity"
+tier = 3
+depends_on = ["system.orbit_mean_insolation"]
+statistic = "reversal of the pole-equator gradient against obliquity swept"
+verdict_kind = "fail_bar"
+threshold = "provisional: within the published spread"
+protocol = "obliquity_sweep"
+
+[[protocol]]
+id = "obliquity_sweep"
+system = "each published study's base system as a Sourced constructor"
+normalisation = "the base system's instellation and eccentricity"
