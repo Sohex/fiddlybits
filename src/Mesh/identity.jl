@@ -305,15 +305,9 @@ end
     require_ancestor(from, to, site)
 
 Returns `nothing` when `to` could be a level of the same hierarchy as `from`,
-coarser or finer, and refuses at `site` naming what differs otherwise
-(`fiddlybits-52v.2.14`, REQ-TER-002). Compares `kind`, `radius`,
-`element_type` and `refinement_digest`, which is everything two levels of one
-hierarchy share, and `lineage_digest`, which is the field that tells two
-hierarchies with those four fields equal apart: `digest_lineage` differs
-between two bisections of different base icosahedra even where the
-coordinate and measure digests, which differ by level regardless, cannot be
-compared at all. `Mesh` owns `Support` and this check, and `Fields` calls it
-in place of comparing the four fields on its own.
+coarser or finer, and refuses at `site` naming the first field that differs
+otherwise. Compares `kind`, `radius`, `element_type`, `refinement_digest` and
+`lineage_digest` (REQ-TER-002).
 """
 function require_ancestor(from::Support, to::Support, site::AbstractString)
     for name in (:kind, :radius, :element_type, :refinement_digest, :lineage_digest)
