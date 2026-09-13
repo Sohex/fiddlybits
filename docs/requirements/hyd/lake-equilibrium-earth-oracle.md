@@ -55,9 +55,10 @@ correlation.
 
 ## What this system must do
 
-- Register the terminal-lake oracle with its bar, its three verdicts and the refusal on
-  error correlation (against runoff, catchment area, aridity index and lake area) before
-  any Earth lake data is fetched, per C2.
+- Register the terminal-lake oracle with its failing edge on the median and the refusal
+  on error correlation (against runoff, catchment area, aridity index and lake area), one
+  bar under one verdict kind (decision 0053), before any Earth lake data is fetched, per
+  C2.
 - Score the full lake cascade of B5 (depression hierarchy, fill-spill-merge, hypsometry
   from the terrain level, groundwater exchange), not the bare relation. Classify each
   scored basin as evaporation-limited or spill-limited from the solution; the

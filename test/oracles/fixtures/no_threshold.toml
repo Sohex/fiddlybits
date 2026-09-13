@@ -1,0 +1,5 @@
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+statistic = "sum of primal cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
