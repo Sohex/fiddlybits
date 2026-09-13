@@ -19,15 +19,15 @@ draw digest and byte layout).
 
 **Licence.** MIT (SHA.jl); Julia stdlib. **Version.** stdlib on Julia 1.12.
 
-**Ensemble draw byte layout.** `Backends.draw_key` computes the ensemble draw key as
-the SHA-256 digest of the seed, field and cell, each written as eight little-endian
-bytes (seed and field as `UInt64`, cell as `UInt64`), read as four big-endian
-`UInt64` words in order. The key is a pure function of the site identity `(field,
-cell)` and the seed alone, independent of the site's position in any list.
+**Ensemble draw byte layout.** `Backends.draw_key` orders a site `(field, cell)`
+under a seed by the SHA-256 digest of the seed, the field and the cell, each written
+as the eight little-endian bytes of a `UInt64`, read as four big-endian `UInt64`
+words and followed by `field` and `cell`. The key depends on the seed and the site
+alone, not on the site's position in any list.
 
-**Checklist items applied.** C5 (artifact key and ensemble draw key each computed
-in exactly one function: `Provenance.Artifact` digest and `Backends.draw_key` for
-the ensemble draw); certify.sampled_draw_is_unchanged asserts the stand-in envelope's
-members and bit-for-bit layout unchanged, and certify.sampled_draw_is_seeded
-confirms the miss frequency over an ensemble of seeds against the exact hypergeometric
-probability.
+**Checklist items applied.** C5 (a key is computed in exactly one function; the
+ensemble draw key in `Backends.draw_key`). A changed digest or byte layout is caught
+by `certify.sampled_draw_is_unchanged`, which holds the stand-in case's envelope and
+its members bit for bit to the recorded finding, and `certify.sampled_draw_is_seeded`,
+which asserts a repeated seed repeats the draw, a changed seed changes it, and a
+site's key does not depend on the rest of the list or its order.
