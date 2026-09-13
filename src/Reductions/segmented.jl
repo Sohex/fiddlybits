@@ -193,7 +193,7 @@ end
     T = eltype(out)
     acc = zero(T)
     for j in lo[seg]:hi[seg]
-        acc += T(nofuse_mul(xs[j], weights[j]))
+        acc += nofuse_mul(T(xs[j]), T(weights[j]))
     end
     out[seg] = acc
 end
@@ -208,13 +208,13 @@ array the size of `xs` is ever materialised. `Reductions.BLOCKSIZE`'s
 sibling rule for a segmented reduction: a reduction allocates no
 temporary the size of its input, so a later reduction fuses its own
 elementwise step into its accumulation loop the same way rather than
-asking `Backends.budget` to account for a transient. The product is
-computed through `Backends.nofuse_mul` rather than a bare `*`, so it is
-rounded once on its own before the loop's `T(...)` conversion and the add
-that follows, on both CPU and GPU, the same two roundings a materialised
-`xs .* weights` array followed by a plain summation kernel produced
-before this fusion (decision 0044): the sum this function returns is
-unchanged from that, term for term, not merely close to it. Refuses when
+asking `Backends.budget` to account for a transient. Each term is
+`nofuse_mul(A(xs[j]), A(weights[j]))`: both operands converted to `A`,
+then multiplied through `Backends.nofuse_mul`, so the product is rounded
+once on its own in `A` before the add that follows, on both CPU and GPU
+(decisions 0055 and 0044). The sum this function returns is bitwise
+`segmented_weighted_sum_reference`, and bitwise the `segmented_sum` in
+`A` of the materialised array `A.(xs) .* A.(weights)`. Refuses when
 `xs` and `weights` differ in length, or when `xs` does not have the
 length `segmentation` was checked against.
 """
@@ -231,13 +231,43 @@ function segmented_weighted_sum(::Type{A}, xs::AbstractVector, weights::Abstract
     return out
 end
 
+"""
+    segmented_weighted_sum_reference(::Type{A}, xs, weights, starts) where A
+    segmented_weighted_sum_reference(::Type{A}, xs, weights, segmentation) where A
+
+The naive serial reference for `segmented_weighted_sum` (decision 0027):
+the products `A(xs[j]) * A(weights[j])` written one index at a time into an
+array of type `A`, each operand converted to `A` before it is multiplied
+(decision 0055), and that array then reduced by `segmented_sum_reference`
+in `A`. Refuses when `xs` and `weights` differ in length. The
+`Segmentation` form reads the boundaries it holds and checks them again
+here.
+"""
+function segmented_weighted_sum_reference(::Type{A}, xs::AbstractVector, weights::AbstractVector,
+                                           starts::AbstractVector{<:Integer}) where {A<:Number}
+    length(xs) == length(weights) ||
+        refuse("segmented weighted sum extent", "Reductions.segmented_weighted_sum_reference",
+               "xs has length $(length(xs)), weights has length $(length(weights))")
+    terms = Vector{A}(undef, length(xs))
+    for j in eachindex(terms, xs, weights)
+        terms[j] = A(xs[j]) * A(weights[j])
+    end
+    return segmented_sum_reference(A, terms, starts)
+end
+
+function segmented_weighted_sum_reference(::Type{A}, xs::AbstractVector, weights::AbstractVector,
+                                           segmentation::Segmentation) where {A<:Number}
+    require_extent(segmentation, xs, "Reductions.segmented_weighted_sum_reference")
+    return segmented_weighted_sum_reference(A, xs, weights, segmentation.starts_host)
+end
+
 @kernel function segmented_mean_kernel!(out, zeroflag, @Const(xs), @Const(weights), @Const(lo), @Const(hi))
     seg = @index(Global)
     T = eltype(out)
     num = zero(T)
     den = zero(T)
     for j in lo[seg]:hi[seg]
-        num += T(nofuse_mul(xs[j], weights[j]))
+        num += nofuse_mul(T(xs[j]), T(weights[j]))
         den += T(weights[j])
     end
     out[seg] = num / den
@@ -254,8 +284,10 @@ loop `segmented_weighted_sum_kernel!` and `segmented_sum_kernel!` each walk
 on their own, one workgroup pass per segment, the division and the
 zero-weight test written out at the end of that same pass. No array the
 size of `xs`, nor a numerator or a denominator array, is ever materialised.
-The product is computed through `Backends.nofuse_mul` rather than a bare
-`*`, exactly as `segmented_weighted_sum` states (decision 0044). Refuses
+Each numerator term is `nofuse_mul(A(xs[j]), A(weights[j]))` and each
+denominator term `A(weights[j])`, exactly as `segmented_weighted_sum`
+states (decisions 0055 and 0044), so the result is bitwise
+`segmented_mean_reference`. Refuses
 when `xs` and `weights` differ in length, or when `xs` does not have the
 length `segmentation` was checked against, or when any segment's total
 weight is zero, naming how many. The boundaries reach the kernel once, so
@@ -301,7 +333,9 @@ end
 
 The naive serial reference for `segmented_mean` (decision 0027): each
 segment's weighted numerator and total weight accumulated one term at a
-time in index order, one segment after another. Refuses when `xs` and
+time in index order, one segment after another, each numerator term
+`A(xs[j]) * A(weights[j])` with both operands converted to `A` before they
+are multiplied (decision 0055). Refuses when `xs` and
 `weights` differ in length, or when a segment's total weight is zero. The
 `Segmentation` form reads the boundaries it holds and checks them again
 here.
