@@ -54,14 +54,16 @@ end
 """
     launch_block_sums!(cpu_kernel, shared_kernel, backend, partials, n, blocksize, inputs...)
 
-Queues the block sums of `n` elements into `partials` (length
-`cld(n, blocksize)`) on `backend`. On `CPU`, `cpu_kernel` over one work
-item per block, each reading its block of `inputs` from `(i-1)*blocksize+1`
-itself. On `GPU`, `shared_kernel` over `n` work items at a workgroup of
-`blocksize` (`at_workgroup`), one workgroup per block: every lane copies
-its own element of `inputs` into the workgroup's shared memory, and after
-the barrier lane 1 accumulates that shared copy in index order. The
-GPU kernel is a device form under
+Queues the block sums of `n` elements into `partials`, whose first
+dimension has length `cld(n, blocksize)` (one row per block; a second
+dimension carries more than one accumulator per block, as
+`area_fraction_block_sums` does), on `backend`. On `CPU`, `cpu_kernel` over
+one work item per block, each reading its block of `inputs` from
+`(i-1)*blocksize+1` itself. On `GPU`, `shared_kernel` over `n` work items at
+a workgroup of `blocksize` (`at_workgroup`), one workgroup per block: every
+lane copies its own element of `inputs` into the workgroup's shared memory,
+and after the barrier lane 1 accumulates that shared copy in index order.
+The GPU kernel is a device form under
 docs/decisions/0051-a-kernel-may-carry-a-device-form-beside-its-portable-one.md;
 notes/findings/2026-09-13-block-sums-in-shared-memory.md measures the two on
 the card. On `GPU` the workgroup is `blocksize`, so a
@@ -69,13 +71,13 @@ the card. On `GPU` the workgroup is `blocksize`, so a
 """
 function launch_block_sums!(cpu_kernel, shared_kernel, backend::CPU, partials, n::Integer,
                              blocksize::Integer, inputs...)
-    launch!(cpu_kernel, backend, length(partials), partials, inputs..., Int(blocksize), Int(n))
+    launch!(cpu_kernel, backend, size(partials, 1), partials, inputs..., Int(blocksize), Int(n))
     return partials
 end
 
 function launch_block_sums!(cpu_kernel, shared_kernel, backend::GPU, partials, n::Integer,
                              blocksize::Integer, inputs...)
-    nb = length(partials)
+    nb = size(partials, 1)
     lastcount = mod1(n, blocksize)
     launch!(shared_kernel, at_workgroup(backend, blocksize), n,
             partials, inputs..., Val(Int(blocksize)), Int(nb), Int(lastcount))
