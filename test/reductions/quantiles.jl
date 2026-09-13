@@ -42,9 +42,22 @@ end
     end
 
     @testset "bitonic_network refuses a non-power-of-two" begin
-        @test_throws Verdicts.Refusal Reductions.bitonic_network(3)
+        @testset "refuses non-powers-of-two, naming the requirement and value" begin
+            for n in (0, 3, -4)
+                caught = try
+                    Reductions.bitonic_network(n)
+                    nothing
+                catch e
+                    e
+                end
+                @test caught isa Verdicts.Refusal
+                @test caught.site == "Reductions.bitonic_network"
+                @test occursin("power of two", caught.reason)
+                @test occursin("n=$n", caught.reason)
+            end
+        end
 
-        @testset "positive control: powers of two do not refuse" begin
+        @testset "powers of two do not refuse" begin
             for n in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
                 partner, ascending = Reductions.bitonic_network(n)
                 @test size(partner, 1) == n
