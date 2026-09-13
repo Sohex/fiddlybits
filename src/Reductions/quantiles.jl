@@ -345,9 +345,9 @@ barrier is needed to keep this the same two-step rounding (the select,
 then the `T(...)` conversion the block sum's add reads) a materialised
 `ifelse.(xs .>= x, areas, zero(eltype(areas)))` array followed by a plain
 summation kernel produced before this fusion. `xs` and `areas` must
-already live on `backend` and have the same length; the block sums are
-combined on the host through `combine_fixed_order`, the same door
-`pairwise_sum` uses. Refuses when `blocksize` is not positive.
+already live on `backend`; the block sums are combined on the host through
+`combine_fixed_order`, the same door `pairwise_sum` uses. Refuses when
+`blocksize` is not positive or when `xs` and `areas` differ in length.
 """
 area_weighted_sum(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
                    backend::Backend = CPU(BLOCKSIZE);
@@ -366,7 +366,7 @@ indices where `xs` is at or above `x` and zero elsewhere, left on
 memory, so the select happens in the copy and the accumulation reads one
 array. `pairwise_block_sums`' sibling, and the door `area_fraction_above`
 reads when it moves two block-sum arrays to the host together. Refuses
-when `blocksize` is not positive.
+when `blocksize` is not positive or when `xs` and `areas` differ in length.
 """
 function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::AbstractVector, x::Real,
                                    backend::Backend = CPU(BLOCKSIZE);
@@ -375,6 +375,9 @@ function area_weighted_block_sums(::Type{A}, xs::AbstractVector, areas::Abstract
         refuse("pairwise blocksize", "Reductions.area_weighted_block_sums",
                "blocksize $blocksize is not positive")
     n = length(xs)
+    n == length(areas) ||
+        refuse("area weighted extent", "Reductions.area_weighted_block_sums",
+               "xs has length $n, areas has length $(length(areas))")
     nb = cld(n, blocksize)
     partials = similar(areas, A, nb)
     nb == 0 && return partials
