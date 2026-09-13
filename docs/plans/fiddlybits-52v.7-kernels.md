@@ -63,9 +63,12 @@ struct GPU <: Backend   ...
 
 on(array, backend)           move, recording it through Events.moved
 adapt_for(x, backend)        Adapt.adapt_structure through to the device
-launch!(kernel, backend, n)  one launch, workgroup size from the backend, queued
+launch!(kernel, backend, n)  one launch at launch_workgroup(backend, n), queued
+launch_workgroup(backend, n) the one door choosing a launch's workgroup (decision 0058)
+at_workgroup(backend, w)     the backend pinned to workgroup w, for a fixed layout
 complete!(backend | array)   the wait, and the only wait in this module
 queued(backend)              the kernels launched and not yet waited for
+queued_launches(backend)     the same launches with their workgroup and item count
 handoff(backend)             a point in this task's queue, for another task
 after!(backend, handoff)     queue behind that point, waiting on the device
 order_explicitly!(array)     leave the library's per-array ordering to these
