@@ -325,8 +325,21 @@ function stationary_envelope(env::Backends.Envelope)
         gains[j + 1, s] = env.amplification[1, s - j]
     end
     return Backends.Envelope(env.case, env.steps, env.precision, env.members, env.sites,
-                             env.exhaustive, env.miss_rate, gains, env.perturbed, env.scope)
+                             env.exhaustive, env.miss_rate, env.seed, gains, env.perturbed,
+                             env.scope)
 end
+
+"""
+    bit_reversed_prefix(n, m)
+
+The first `m` positions of `1:n` in the radix-2 van der Corput order, the order
+of the reversed bit pattern of the zero-based position. The draw
+`Backends.sampled_sites` replaced, kept here as the control a test holds the
+seeded draw against
+(notes/findings/2026-09-13-the-bit-reversed-prefix-perturbs-one-residue-class.md).
+"""
+bit_reversed_prefix(n::Integer, m::Integer) =
+    sortperm([bitreverse(UInt64(j)) for j in 0:(n - 1)])[1:m]
 
 end # module CertifyFixtures
 
