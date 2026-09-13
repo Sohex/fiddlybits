@@ -74,7 +74,7 @@ and says nothing about groups.
 | F | `Connectivity` | the connectivity graph derived from a terrain-level field | 52v.2 |
 | F | `Coupling` | `WorldState`, `assemble`, `Exchange`, `FixedPointLoop`, `Ladder` | 52v.11 |
 | F | `Provenance` | `ArtifactKey`, `CodeVersion`, `RunID`, the Zarr store, the journal, the RNG | 52v.6 |
-| G | `ShallowWater` | the triangle C-grid discretisation, the step, the standard cases | 52v.9.2 |
+| G | `ShallowWater` | the triangle C-grid discretisation, the step, the standard cases | 52v.9 |
 | G | `Oracles` | the registry loader, the runner, the mutation harness | 52v.8 |
 | G | `Render` | calendar rendering and NetCDF export, and nothing else | 52v.5, 52v.6 |
 
