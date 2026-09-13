@@ -38,7 +38,7 @@ end
         gate = only(CT_GRAPH.ocean_gates)
         @test gate.edge == CF.EDGE
         @test Set(gate.cells) == Set((CF.A, CF.B))
-        @test gate.crossings == length(CF.STRAIT)
+        @test gate.section == sort!(Int32.(last.(CF.STRAIT)))
         @test gate.sill_depth == CF.DATUM - CF.STRAIT_FLOOR
         @test gate.width == CT_STRAIT_WIDTH
         @test !any(g -> g.edge == CF.EDGE, CT_GRAPH.land_gates)

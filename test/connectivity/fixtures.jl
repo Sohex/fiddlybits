@@ -123,6 +123,75 @@ const OCEAN_SEED = first(i for i in Mesh.descendants(A, DEPTH)
                          if !(i in SHORE) && i != A_CENTRE && i != SILT &&
                             !any(p -> first(p) == i, STRAIT))
 
+"""
+    distances_from(cell, starts)
+
+The breadth-first distance, through edge neighbours within coarse cell `cell`, of each
+of its terrain cells from the cells `starts`. A cell at distance `d` lies in row
+`d ÷ 2` counted from the shared edge.
+"""
+function distances_from(cell::Integer, starts)
+    distance = Dict{Int,Int}(s => 0 for s in starts)
+    queue = collect(Int, starts)
+    head = 1
+    while head <= length(queue)
+        i = queue[head]
+        head += 1
+        for j in neighbours(i)
+            (Mesh.ancestor(j, DEPTH) == cell && !haskey(distance, j)) || continue
+            distance[j] = distance[i] + 1
+            push!(queue, j)
+        end
+    end
+    return distance
+end
+
+const A_DISTANCE = distances_from(A, first.(PAIRS))
+const B_DISTANCE = distances_from(B, [p[2] for p in PAIRS])
+const A_BODY = minimum(i for (i, d) in A_DISTANCE if d >= 4)
+const B_BODY = minimum(i for (i, d) in B_DISTANCE if d >= 4)
+
+"The global terrain edge cells `i` and `j` share."
+edge_between(i, j) = Int(TERRAIN.stencils.cell_edge[findfirst(==(j), neighbours(i)), i])
+
+"The row-0 cell of A between the fourth and fifth pairs, where the neck leaves the strip."
+const NECK_MOUTH = between(first(PAIRS[4]), first(PAIRS[5]))
+const GAP_UP = only(j for j in neighbours(NECK_MOUTH) if get(A_DISTANCE, j, -1) == 2)
+const GAP_DOWN = minimum(j for j in neighbours(GAP_UP) if get(A_DISTANCE, j, -1) == 3)
+const GAP_INNER = only(j for j in neighbours(GAP_DOWN) if get(A_DISTANCE, j, -1) == 4)
+
+"The three terrain edges along the one-cell neck through A's wall, from the strip inward."
+const NECK = [edge_between(NECK_MOUTH, GAP_UP), edge_between(GAP_UP, GAP_DOWN),
+              edge_between(GAP_DOWN, GAP_INNER)]
+
+const BAR_FLOOR = -35.0
+
+"""
+    gate_world(; gap_floor, strip_floor, walled_b, islet)
+
+A second synthetic world, land everywhere but A and B. In A, row 0 along the shared
+edge is a strip at `strip_floor`, row 1 a wall of land pierced by the two-cell neck
+`GAP_UP`, `GAP_DOWN` at `gap_floor`, and every further row A's body at `A_FLOOR`. B is
+its body at `B_FLOOR` throughout, or, when `walled_b`, a strip, a wall with no neck and
+a body laid out as A's. `islet` raises the two cells of the seventh pair to land.
+"""
+function gate_world(; gap_floor, strip_floor = STRAIT_FLOOR, walled_b = false, islet = false)
+    z = fill(LAND, NCELLS)
+    for (i, d) in A_DISTANCE
+        z[i] = d < 2 ? strip_floor : (d < 4 ? LAND : A_FLOOR)
+    end
+    z[GAP_UP] = gap_floor
+    z[GAP_DOWN] = gap_floor
+    for (i, d) in B_DISTANCE
+        z[i] = !walled_b ? B_FLOOR : (d < 2 ? strip_floor : (d < 4 ? LAND : B_FLOOR))
+    end
+    if islet
+        z[first(PAIRS[7])] = LAND
+        z[PAIRS[7][2]] = LAND
+    end
+    return z
+end
+
 "The terrain elevation of the synthetic world, before any edit."
 function elevation()
     z = fill(LAND, NCELLS)
