@@ -258,6 +258,67 @@ end
         @test_throws Verdicts.Refusal Mesh.build_vertex_neighbour(fan, 9)
     end
 
+    @testset "build_edges refuses an edge shared by three faces, naming it" begin
+        # Three copies of the same triangle: the third occurrence of edge
+        # (2, 3) is the third face sharing it, named with the first two
+        # cells that already share it.
+        triple = Int32[1 1 1; 2 2 2; 3 3 3]
+        caught = nothing
+        try
+            Mesh.build_edges(triple)
+        catch e
+            caught = e
+        end
+        @test caught isa Verdicts.Refusal
+        @test occursin("(2, 3)", caught.reason)
+        @test occursin("cells 1, 2 and 3", caught.reason)
+    end
+
+    @testset "a cell list that would yield fewer than ne edges is refused at its third face" begin
+        # Two triangles on edge (1, 2, 3), two more on edge (1, 2, 4): edge
+        # (1, 2) is claimed by cells 1 and 2, then a third time by cell 3,
+        # which is refused before cell 3's other two edges and cell 4 are
+        # ever reached.
+        short = Int32[1 1 1 1; 2 2 2 2; 3 3 4 4]
+        @test Mesh.edge_count(size(short, 2)) == 6
+        caught = nothing
+        try
+            Mesh.build_edges(short)
+        catch e
+            caught = e
+        end
+        @test caught isa Verdicts.Refusal
+        @test caught.quantity == "edge incidence"
+        @test occursin("(1, 2)", caught.reason)
+        @test occursin("cells 1, 2 and 3", caught.reason)
+    end
+
+    @testset "build_edges refuses an open surface before any edge is left unpaired" begin
+        # Two triangles sharing edge (1, 2): nc = 2 makes edge_count 3, but
+        # the first triangle alone already claims all three edges, so the
+        # second triangle's other two sides exceed edge_count before either
+        # cell's neighbour is left at zero.
+        open_surface = Int32[1 2; 2 1; 3 4]
+        @test Mesh.edge_count(size(open_surface, 2)) == 3
+        caught = nothing
+        try
+            Mesh.build_edges(open_surface)
+        catch e
+            caught = e
+        end
+        @test caught isa Verdicts.Refusal
+        @test caught.quantity == "edge count"
+        @test occursin("2 cells", caught.reason)
+        @test occursin("3 edges", caught.reason)
+    end
+
+    @testset "no column of edge_cell is left unpaired on a level bisect built" begin
+        for l in EDGE_LEVELS
+            st = stencils_at(l)
+            @test !any(iszero, st.edge_cell)
+        end
+    end
+
     @testset "the leak check catches mesh geometry named directly in a kernel" begin
         dirty = joinpath(@__DIR__, "fixtures", "dirty")
         clean = joinpath(@__DIR__, "fixtures", "clean")

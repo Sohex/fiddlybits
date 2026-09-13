@@ -68,6 +68,11 @@ scanning cells in index order and local edges 1, 2, 3 within a cell, into an
 `edge_cell` sized by `edge_count`.
 `edge_cell[1, e]` is the cell that created edge `e`, `edge_cell[2, e]` the
 other cell sharing it.
+
+Refuses an edge claimed by a third cell, naming the edge and the three
+cells, and refuses a cell list yielding more than `edge_count(nc)` edges. A
+cell list this accepts has exactly `edge_count(nc)` edges, each shared by
+exactly two cells, so every column of `edge_cell` is written.
 """
 function build_edges(cells::Matrix{Int32})
     nc = size(cells, 2)
@@ -91,6 +96,9 @@ function build_edges(cells::Matrix{Int32})
                 edge_cell[2, e] = Int32(0)
                 seen[key] = e
             else
+                edge_cell[2, e] == 0 ||
+                    refuse("edge incidence", "Mesh.build_edges",
+                           "edge ($(key[1]), $(key[2])) is shared by cells $(edge_cell[1, e]), $(edge_cell[2, e]) and $i, a third face a closed triangulated surface does not carry")
                 edge_cell[2, e] = Int32(i)
             end
             cell_edge[k, i] = e
