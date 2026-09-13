@@ -1,0 +1,14 @@
+[[oracle]]
+id = "ledger.closure"
+tier = 1
+statistic = "residual of each ledger at every exchange, in units of the derived roundoff bound"
+verdict_kind = "fail_bar"
+threshold = "residual <= 1 bound unit"
+
+[[oracle]]
+id = "seaice.mass_salt_conservation"
+tier = 1
+depends_on = "ledger.closure"
+statistic = "ice mass and ice salt before and after advection and ridging"
+verdict_kind = "fail_bar"
+threshold = "residual of each across advection and ridging within 1 bound unit"

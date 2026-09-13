@@ -1,0 +1,12 @@
+[[oracle]]
+id = "sweep.gravity"
+tier = 3
+statistic = "surface pressure, scale height and lapse rate identities (exact); circulation response (report)"
+verdict_kind = "fail_bar"
+threshold = "identities at roundoff; circulation is report"
+protocol = "gravity_sweep"
+
+[[protocol]]
+id = "gravity_sweep"
+system = "the published sweep's base system as a Sourced constructor"
+normalisation = "column mass"

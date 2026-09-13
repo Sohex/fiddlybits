@@ -33,7 +33,7 @@ oracles for one question is the thing REQ-SYS-103 forbids.
 | `src/Oracles/registry.jl` | the loader, the entry type, the registration rule | 52v.8.2 |
 | `src/Oracles/run.jl` | the runner, the verdict report, the `oracle` event through `Events.emit` | 52v.8.3 |
 | `src/Oracles/mutate.jl` | the named mutation list and the harness that applies it | 52v.8.4 |
-| `test/oracles/` | the loader suite, the registration-rule fixtures, the mutation suite | 52v.8.2 to 52v.8.4 |
+| `test/oracles/` | `oracles.registry_wellformed` in `wellformed.jl` with its fixtures, the loader suite, the registration-rule fixtures, the mutation suite | fiddlybits-dvk, fiddlybits-w7p, 52v.8.2 to 52v.8.4 |
 | `test/datasets/` | the link between each entry's `datasets` and each manifest's `oracles`, both directions, with its fixtures | fiddlybits-3vq |
 
 `Oracles` sits in group G and may reference anything below it. It is the one module
@@ -46,9 +46,11 @@ that reads the registry, so a threshold has one reader as well as one declaratio
 ```
 Entry     id, tier, subsystem, dataset_or_reference, statistic, verdict_kind,
           threshold, provisional, registered_at, holdout, anchors,
-          instances (tier 1 system.*), protocol_system (tier 3),
-          datasets (tier 2 and tier 3; optional on tier 1)
-load(path)              every entry, refusing a malformed one rather than skipping it
+          instances (tier 1 system.*), protocol (tier 3; optional on tier 1),
+          datasets (tier 2 and tier 3; optional on tier 1),
+          depends_on (optional on every tier)
+Protocol  id, system, normalisation
+load(path)              every entry and protocol, refusing a malformed one rather than skipping it
 entry(id)               one, refusing an unknown id
 ```
 
@@ -56,9 +58,25 @@ The loader refuses rather than skips. An entry that does not parse is not a
 mis-typed row to be ignored; it is a threshold nobody is checking, and skipping it
 would be a check that cannot fail.
 
-`instances` and `protocol_system` are optional in the schema and conditional in the
-rule: every tier-1 `system.*` entry must name its instances, and every tier-3 entry
-must name its protocol system. The loader checks the condition, not just the shape.
+`instances` and `protocol` are optional in the schema and conditional in the rule:
+every tier-1 `system.*` entry must name its instances, every tier-3 entry must name
+its protocol, and no tier-2 entry may name one.
+
+The verdict shape of decision 0053 is decided in `test/oracles/wellformed.jl`, which is
+`oracles.registry_wellformed`'s one implementation: one `verdict_kind` from `fail_bar`
+and `report` per entry, no verdict named in a statistic or threshold, the protocol
+conditions above, and every protocol declared once and named by an entry. The loader
+carries `verdict_kind` and `protocol` on `Entry`, resolves a protocol id to its
+`Protocol`, and does not decide the shape a second time. The remaining clauses of the
+oracle (required fields, `source_kind`, `instances`, anchors) join the same file beside
+their fixtures, so the oracle is not implemented twice.
+
+`depends_on` names the rows a row rests on (decision 0054). The same file decides its
+shape: every id resolves to a row on the depending row's tier or a lower one, no row
+depends on itself, no statistic or threshold names a row id, and no statistic or
+threshold carries a clause of the threshold of a `fail_bar` row it depends on. The loader
+carries `depends_on` on `Entry` and resolves each id to its `Entry`; the runner reports
+each dependency's verdict beside the depending row's and changes neither.
 
 `datasets` names the hashed manifests an entry reads, by manifest id. The loader
 carries it on `Entry`; whether each id resolves, and whether the manifest names the
@@ -147,7 +165,7 @@ Three entries are added for the frame itself, plus `repro.mutation_run` which ex
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
-| `oracles.registry_wellformed` | every entry parses, carries every required field including a closed `source_kind`, satisfies its conditional fields, has anchors if it is tier 2 or 3, and every anchor resolves in the references index | a row with a missing `threshold`, a tier-1 `system.*` row with no `instances`, and a tier-2 row with empty anchors, all of which must be refused rather than skipped |
+| `oracles.registry_wellformed` | every entry parses, carries every required field including a closed `source_kind`, satisfies its conditional fields, has anchors if it is tier 2 or 3, and every anchor resolves in the references index; every entry carries one verdict semantics and names no verdict in prose, and every protocol is declared once and named (decision 0053); every `depends_on` id resolves to a row on the same tier or a lower one without a cycle, no row id is named in prose, and no row carries a clause of a dependency's threshold (decision 0054) | a row with a missing `threshold`, a tier-1 `system.*` row with no `instances`, and a tier-2 row with empty anchors, all of which must be refused rather than skipped; a row mixing an exact identity and a report under one bar, which must be refused; a row depending on an absent row and a row restating a dependency's threshold, both of which must be refused; one fixture for each remaining verdict-shape and dependency clause, and a clean fixture that must be accepted |
 | `oracles.registration_rule` | no commit changes a registered entry's `threshold` or `registered_at` and also touches `src/` or `notes/findings/`; no bar is narrower than its observation's uncertainty | a fixture commit doing both on a registered entry, which must fail, and the same commit on a provisional entry, which must pass; a fixture bar set below a stated observational uncertainty, which must be refused |
 | `oracles.dataset_links` | every manifest id in an entry's `datasets` resolves to a manifest that names the entry back in `oracles`; every entry a manifest names exists and names the manifest back; every tier-2 and tier-3 entry carries `datasets`; every oracle manifest names an entry; no manifest anchor carries an oracle id | a fixture row naming an absent manifest and a fixture manifest naming an absent oracle, both refused, with one fixture for each remaining clause and a clean fixture that must pass |
 | `repro.mutation_run` | every mutation in the list is caught by at least one oracle | the list itself is the control; a mutation nothing catches files a row and the suite is not green |
@@ -162,7 +180,9 @@ first real check finding 47 published bars with no source is the check working.
 
 | row | tier | boundary | acceptance |
 | --- | --- | --- | --- |
-| 52v.8.2 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl` | `oracles.registry_wellformed` and `oracles.registration_rule` run with every control firing; the loader refuses a malformed entry rather than skipping it; the tree's own wellformed verdict is recorded, FAIL until 52v.8.7 merges |
+| fiddlybits-dvk | frontier | `docs/decisions/`, `docs/oracles/registry.toml`, `docs/oracles/README.md`, `docs/oracles/data/`, this plan, `test/oracles/wellformed.jl`, `test/oracles/runtests.jl`, `test/oracles/fixtures/` | decision 0053 settles the shape; no row carries constituents with different verdicts under one `verdict_kind`; `oracles.registry_wellformed`'s verdict-shape clauses pass on the tree with the mixed-bar fixture and every other control refused |
+| fiddlybits-w7p | frontier | `docs/oracles/registry.toml`, `docs/oracles/README.md`, `docs/decisions/`, this plan, `test/oracles/wellformed.jl`, `test/oracles/runtests.jl`, `test/oracles/fixtures/` | `sweep.obliquity` names `system.orbit_mean_insolation` in `depends_on` and states no threshold for it; every `depends_on` id resolves; no row restates the threshold of a row it depends on; the absent-dependency and restated-threshold fixtures are refused |
+| 52v.8.2 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl`, `test/oracles/wellformed.jl` | `oracles.registry_wellformed` and `oracles.registration_rule` run with every control firing; the loader refuses a malformed entry rather than skipping it; the tree's own wellformed verdict is recorded, FAIL until 52v.8.7 merges |
 | 52v.8.7 | local | `docs/oracles/registry.toml`, `docs/oracles/README.md`, `docs/references/INDEX.md` | every entry carries `source_kind`; no tier-2 or tier-3 entry has empty anchors; every anchor resolves by verbatim title; `oracles.registry_wellformed` passes on the tree |
 | 52v.8.3 | sonnet | `src/Oracles/run.jl`, `test/oracles/run.jl` | a verdict is one of the three and never a boolean; every result is emitted as an `oracle` journal event through the one emitter; a tier-2 entry with only a global mean is refused at load |
 | 52v.8.4 | frontier | `src/Oracles/mutate.jl`, `test/oracles/mutate.jl` | `repro.mutation_run` runs the whole list; a mutation nothing catches files a row and the suite is not reported green |

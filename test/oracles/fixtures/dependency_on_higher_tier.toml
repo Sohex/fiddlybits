@@ -1,0 +1,14 @@
+[[oracle]]
+id = "earth.era5_hadley_edge"
+tier = 2
+statistic = "Hadley cell edge from the streamfunction zero crossing at sigma 0.5"
+verdict_kind = "fail_bar"
+threshold = "provisional 4 degrees"
+
+[[oracle]]
+id = "core.hadley_small_rossby_limit"
+tier = 1
+depends_on = ["earth.era5_hadley_edge"]
+statistic = "Hadley cell edge against rotation rate in the small-Rossby limit"
+verdict_kind = "fail_bar"
+threshold = "provisional; the analytic form within discretisation error"
