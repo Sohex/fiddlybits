@@ -89,23 +89,12 @@ function quantile_rank(n::Integer, q::Real)
 end
 
 """
-    bitonic_network(n)
+    bitonic_network_pow2(n)
 
-`(partner, ascending)` for a bitonic sort of `n` (`ispow2(n)`) elements,
-each 1-based, `n` by `nsteps`, one column per step of the standard
-iterative bitonic network (stage in `1:log2(n)`, pass in `stage:-1:1`).
-Column `step`: `partner[pos, step]` is the 1-based position `pos` compares
-against, and `ascending[pos, step]` is whether `pos` sorts its pair
-ascending, both at that step. Computed once at the host boundary so a
-bitonic-sort kernel reads its own comparisons by position with no
-arithmetic on the position at all (decision F7): the kernel binds its
-local position through `@index` and only ever indexes `partner` and
-`ascending` with it, never offsets it.
+`(partner, ascending)` for a bitonic sort of `n` elements, where `n` is
+a power of two. Builds the network for a power-of-two `n` without checking it.
 """
-function bitonic_network(n::Integer)
-    ispow2(n) ||
-        refuse("bitonic network size", "Reductions.bitonic_network",
-               "n=$n is not a power of two")
+function bitonic_network_pow2(n::Integer)
     nbits = trailing_zeros(n)
     steps = Tuple{Int,Int}[]
     for stage in 1:nbits, pass in stage:-1:1
@@ -128,12 +117,33 @@ function bitonic_network(n::Integer)
 end
 
 """
+    bitonic_network(n)
+
+`(partner, ascending)` for a bitonic sort of `n` (`ispow2(n)`) elements,
+each 1-based, `n` by `nsteps`, one column per step of the standard
+iterative bitonic network (stage in `1:log2(n)`, pass in `stage:-1:1`).
+Column `step`: `partner[pos, step]` is the 1-based position `pos` compares
+against, and `ascending[pos, step]` is whether `pos` sorts its pair
+ascending, both at that step. Computed once at the host boundary so a
+bitonic-sort kernel reads its own comparisons by position with no
+arithmetic on the position at all (decision F7): the kernel binds its
+local position through `@index` and only ever indexes `partner` and
+`ascending` with it, never offsets it.
+"""
+function bitonic_network(n::Integer)
+    ispow2(n) ||
+        refuse("bitonic network size", "Reductions.bitonic_network",
+               "n=$n is not a power of two")
+    return bitonic_network_pow2(n)
+end
+
+"""
     QUANTILE_BITONIC_NETWORK
 
-`k => bitonic_network(4^k)` for every `k` in `QUANTILE_K_MIN:
+`k => bitonic_network_pow2(4^k)` for every `k` in `QUANTILE_K_MIN:
 QUANTILE_K_MAX`, computed once at module load.
 """
-const QUANTILE_BITONIC_NETWORK = Dict(k => bitonic_network(4^k) for k in QUANTILE_K_MIN:QUANTILE_K_MAX)
+const QUANTILE_BITONIC_NETWORK = Dict(k => bitonic_network_pow2(4^k) for k in QUANTILE_K_MIN:QUANTILE_K_MAX)
 
 # One bitonic-sort kernel per declared k, generated with its segment length
 # and its step count as literal constants so @localmem's size is fixed at
