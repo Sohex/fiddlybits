@@ -320,6 +320,16 @@ function held_shards()
     return -1
 end
 
+"""
+    held_all_shards(held, total)
+
+`true` when `held` and `total` are both positive and equal: this job was
+allocated every share the node has. `false` when either is not positive, the
+way `held_shards` and `shard_counts` read `-1` on failure; a failed reading of
+one is not the same as a successful reading that found less than the other.
+"""
+held_all_shards(held::Integer, total::Integer) = held > 0 && held == total
+
 "The card's utilisation in per cent, its memory in use in MiB, and the compute processes it carries."
 function card_counts()
     try
@@ -378,8 +388,14 @@ function main()
     backend = Backends.GPU(WORKGROUP)
     startup = process_age()
     held = held_shards()
-    readings = Occupancy[occupancy()]
-    held_all = held == first(readings).shards_total
+    before = occupancy()
+
+    held_all_shards(held, before.shards_total) ||
+        Verdicts.refuse("benchmark occupancy", "bench/runbench.jl",
+                        "the bed measured holding $held of $(before.shards_total) shares; " *
+                        "a counted timing holds all four")
+
+    readings = Occupancy[before]
 
     measured = Dict{String, Float64}()
     rows = Dict{String, Any}[]
@@ -408,19 +424,14 @@ function main()
         "card" => card(),
         "load" => load1(),
         "held_shards" => held,
-        "held_all_shards" => held_all,
-        "occupancy_before" => table(first(readings), held),
+        "held_all_shards" => held_all_shards(held, before.shards_total),
+        "occupancy_before" => table(before, held),
         "julia" => string(VERSION),
         "startup_s" => startup,
         "load_s" => LOAD_SECONDS,
         "measuring_s" => spent,
         "workgroup" => WORKGROUP,
     ), "case" => rows); sorted = true)
-
-    held_all ||
-        Verdicts.refuse("benchmark occupancy", "bench/runbench.jl",
-                        "the bed measured holding $held of $(first(readings).shards_total) shares; " *
-                        "a counted timing holds all four")
 
     for control in CONTROLS
         got = verdict(control.bar, measured[control.case])
