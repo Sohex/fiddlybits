@@ -1,5 +1,6 @@
 module Mesh
 
+include("frame.jl")
 include("hierarchy.jl")
 include("stencils.jl")
 include("geometry.jl")

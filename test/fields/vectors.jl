@@ -1,7 +1,7 @@
 using Test
 using CUDA
 using LinearAlgebra: cross, dot
-using Fiddlybits: Fields, Dimensions, Backends
+using Fiddlybits: Fields, Dimensions, Backends, Mesh
 using Fiddlybits.Verdicts: Refusal
 import Adapt
 
@@ -16,8 +16,8 @@ import Adapt
 const V = Fields
 const VX = FieldFixtures
 
-"The rotation vector a solid-body test uses, tilted off the mesh's own polar
-axis so no cell lands at a pole by symmetry."
+"The rotation vector a solid-body test uses, tilted off the mesh's spin axis so
+no cell lands at a pole by symmetry."
 const OMEGA = (sin(0.3), 0.0, cos(0.3))
 
 """
@@ -57,7 +57,7 @@ const NORMAL = VX.GEOMETRY.edge_normal
             p = (LOCATIONS[1, j], LOCATIONS[2, j], LOCATIONS[3, j])
             n = sqrt(p[1]^2 + p[2]^2 + p[3]^2)
             x, y, z = p[1] / n, p[2] / n, p[3] / n
-            (ex, ey, ez), (nx, ny, nz) = V.local_east_north(x, y, z)
+            (ex, ey, ez), (nx, ny, nz) = V.local_east_north(Mesh.BODY_FRAME, x, y, z)
             @test ex^2 + ey^2 + ez^2 ≈ 1.0 atol=1e-14
             @test nx^2 + ny^2 + nz^2 ≈ 1.0 atol=1e-14
             @test ex * x + ey * y + ez * z ≈ 0.0 atol=1e-14
@@ -67,12 +67,12 @@ const NORMAL = VX.GEOMETRY.edge_normal
 
         @testset "positive control: the pole itself has no east" begin
             err = try
-                V.local_east_north(0.0, 0.0, 1.0)
+                V.local_east_north(Mesh.BODY_FRAME, Mesh.BODY_FRAME.spin_axis...)
             catch e
                 e
             end
             @test err isa Refusal
-            @test occursin("polar axis", err.reason)
+            @test occursin("spin axis", err.reason)
         end
     end
 

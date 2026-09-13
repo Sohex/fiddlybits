@@ -11,6 +11,7 @@
 # (decision 0044).
 
 using ..Backends: Backend, CPU, GPU, backend_of, on
+using ..Mesh: BODY_FRAME, BodyFrame, cross_fma
 using ..Reductions: error_bound
 
 """
@@ -45,31 +46,21 @@ LocalFrame{Basis}(axes::NTuple{N,M}) where {Basis,N,M<:AbstractMatrix} =
     LocalFrame{Basis,N,M}(axes)
 
 """
-    POLAR_AXIS
-
-The Cartesian direction `(0, 0, 1)` this module reads as the sphere's pole,
-the one direction east and north are declared against. The one place this
-module names it; `local_east_north` is the one place it is read. This is the
-one site of the pole in the tree until fiddlybits-52v.2.16 declares the
-body-fixed frame in `Mesh` and this constant reads it by name instead.
-"""
-const POLAR_AXIS = (zero(Float64), zero(Float64), one(Float64))
-
-"""
-    local_east_north(x, y, z)
+    local_east_north(frame, x, y, z)
 
 The east and north unit tangent vectors at the point `(x, y, z)` on the unit
-sphere, as two `(x, y, z)` tuples: `east` is `POLAR_AXIS` crossed with the
-point, normalised; `north` is the point crossed with `east`, which completes
-a right-handed frame without a second normalisation. Refuses a point on the
-polar axis itself, where east has no direction.
+sphere, as two `(x, y, z)` tuples, against the `Mesh.BodyFrame` `frame`:
+`east` is `frame.spin_axis` crossed with the point, normalised; `north` is the
+point crossed with `east`, which completes a right-handed frame without a
+second normalisation. Refuses a point on the spin axis itself, where east has
+no direction.
 """
-function local_east_north(x::Float64, y::Float64, z::Float64)
-    ex, ey, ez = -y, x, zero(x)
+function local_east_north(frame::BodyFrame, x::Float64, y::Float64, z::Float64)
+    ex, ey, ez = cross_fma(frame.spin_axis, (x, y, z))
     en = sqrt(ex^2 + ey^2 + ez^2)
     en > zero(en) || refuse(
         "local frame", "Fields.local_east_north",
-        "the point ($(x), $(y), $(z)) sits on the polar axis; east has no direction there")
+        "the point ($(x), $(y), $(z)) sits on the spin axis; east has no direction there")
     ex, ey, ez = ex / en, ey / en, ez / en
     nx = fma(y, ez, -(z * ey))
     ny = fma(z, ex, -(x * ez))
@@ -81,9 +72,10 @@ end
     east_north_frame(locations)
 
 The `LocalFrame{:east_north}` at every column of `locations`, 3 by n points
-on the unit sphere. Each column is normalised before `local_east_north` reads
-it, so a caller passing a point at any radius still gets unit tangent
-vectors.
+on the unit sphere in the mesh's coordinates, read against `Mesh.BODY_FRAME`,
+the frame those coordinates are declared in. Each column is normalised before
+`local_east_north` reads it, so a caller passing a point at any radius still
+gets unit tangent vectors.
 """
 function east_north_frame(locations::AbstractMatrix{<:Real})
     size(locations, 1) == 3 || refuse(
@@ -96,7 +88,7 @@ function east_north_frame(locations::AbstractMatrix{<:Real})
         px, py, pz = Float64(locations[1, j]), Float64(locations[2, j]), Float64(locations[3, j])
         r = sqrt(px^2 + py^2 + pz^2)
         x, y, z = px / r, py / r, pz / r
-        (ex, ey, ez), (nx, ny, nz) = local_east_north(x, y, z)
+        (ex, ey, ez), (nx, ny, nz) = local_east_north(BODY_FRAME, x, y, z)
         east[1, j], east[2, j], east[3, j] = ex, ey, ez
         north[1, j], north[2, j], north[3, j] = nx, ny, nz
     end
