@@ -1,0 +1,8 @@
+# lint_sourced: REQ-SYS-001, decision 0007, docs/plans/fiddlybits-52v.4-system.md,
+# section "The five dispositions". Every Sourced locator's identifier is checked
+# against docs/references/INDEX.md.
+
+index = "docs/references/INDEX.md"
+
+# The areas a Sourced locator may appear in.
+areas = ["src", "test/planets"]
