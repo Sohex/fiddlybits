@@ -55,6 +55,13 @@ metric is REPORT.
 - A tier-3 entry names its protocol system in `protocol_system` as a `Sourced`
   constructor call and the normalisation the protocol held fixed; its bar applies to
   that instance only, and any other configuration run through the case is REPORT.
+- An entry that reads a hashed dataset names its manifest ids in `datasets`, and the
+  manifest, under `docs/oracles/data/` or `docs/inputs/data/`, names the entry back in
+  its `oracles` key. Every tier-2 and tier-3 entry carries `datasets`, empty where it
+  reads no held dataset; every manifest under `docs/oracles/data/` names at least one
+  entry; an oracle id is never written in a manifest's `anchors`, which carry the
+  requirements, decisions and milestones in prose. `oracles.dataset_links` checks both
+  directions (`test/datasets/`).
 - Every tier-1 identity of the system layer (the `system.*` section) runs on
   `Earth()` and on a synthetic non-Earth instance with closed forms, so a `Derived`
   field is never validated on one configuration alone.

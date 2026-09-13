@@ -7,7 +7,8 @@ doi = "10.7265/a98x-0f50"
 supersedes = "Sea Ice Index, Version 3, doi 10.7265/N5K072F8 (the version the request list named)"
 fetched = 2026-09-08
 local_path = "oracles/data/seaice-index-v4"  # untracked extract
-anchors = ["earth.sea_ice_extent_cycle (M6)", "C1 tier 2 cryosphere"]
+oracles = ["earth.sea_ice_extent"]
+anchors = ["M6", "C1 tier 2 cryosphere"]
 kept = ["csv and xlsx time series", "monthly extent and median GeoTIFFs", "monthly extent and median shapefiles", "region mask"]
 dropped = ["browse PNG images (11576 files)"]
 

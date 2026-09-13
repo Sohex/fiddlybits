@@ -9,6 +9,7 @@ identifier = "no DOI; the per-state zip packages, hashed below"
 fetched = 2026-08-20  # by the predecessor project; zips carried over from /home/cfutro/docs/world/references/aus_groundwater on 2026-09-08
 local_path = "oracles/data/aus-groundwater"  # untracked payload
 recipe = "oracles/recipes/aus_gw_sites.py"
+oracles = ["earth.fan_water_table"]
 anchors = ["REQ-HYD-002 water-table skill oracle (the arid analogue; Fan et al. 2013 Australian bars; bore purpose as the drawdown filter)", "M2"]
 contents = "each zip: gdb_<STATE>/ngis_<STATE>.gdb (bores, logs, aquifers, management zones), level_<state>.csv (hydroid, hydrocode, bore_id, data_owner, bore_date, obs_point_datum in {DTW, RSWL, SWL, UNKNOWN}, result, quality_flag), salinity_<state>.csv, gw_state_README.txt"
 note = "obs_point_datum DTW is depth below ground, Fan et al. 2013 quantity directly; RSWL is a head to subtract from land elevation; SWL is measured from the casing top and needs the bore stickup; quality flag codes are per agency and undefined in the README, so they are reported, never filtered."

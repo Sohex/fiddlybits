@@ -3,7 +3,7 @@ epic = "fiddlybits-52v.8"
 title = "The registry loader, the registration rule as a build check, the identity oracles, and the mutation run"
 decisions = ["0025", "0026", "0027", "0034", "0036", "0042"]
 requirements = ["REQ-TER-004", "REQ-NUM-008", "REQ-SYS-103"]
-oracles = ["oracles.registration_rule", "oracles.registry_wellformed", "repro.mutation_run"]
+oracles = ["oracles.registration_rule", "oracles.registry_wellformed", "oracles.dataset_links", "repro.mutation_run"]
 status = "filed"
 date = 2026-09-10
 +++
@@ -34,6 +34,7 @@ oracles for one question is the thing REQ-SYS-103 forbids.
 | `src/Oracles/run.jl` | the runner, the verdict report, the `oracle` event through `Events.emit` | 52v.8.3 |
 | `src/Oracles/mutate.jl` | the named mutation list and the harness that applies it | 52v.8.4 |
 | `test/oracles/` | the loader suite, the registration-rule fixtures, the mutation suite | 52v.8.2 to 52v.8.4 |
+| `test/datasets/` | the link between each entry's `datasets` and each manifest's `oracles`, both directions, with its fixtures | fiddlybits-3vq |
 
 `Oracles` sits in group G and may reference anything below it. It is the one module
 that reads the registry, so a threshold has one reader as well as one declaration.
@@ -45,7 +46,8 @@ that reads the registry, so a threshold has one reader as well as one declaratio
 ```
 Entry     id, tier, subsystem, dataset_or_reference, statistic, verdict_kind,
           threshold, provisional, registered_at, holdout, anchors,
-          instances (tier 1 system.*), protocol_system (tier 3)
+          instances (tier 1 system.*), protocol_system (tier 3),
+          datasets (tier 2 and tier 3; optional on tier 1)
 load(path)              every entry, refusing a malformed one rather than skipping it
 entry(id)               one, refusing an unknown id
 ```
@@ -57,6 +59,12 @@ would be a check that cannot fail.
 `instances` and `protocol_system` are optional in the schema and conditional in the
 rule: every tier-1 `system.*` entry must name its instances, and every tier-3 entry
 must name its protocol system. The loader checks the condition, not just the shape.
+
+`datasets` names the hashed manifests an entry reads, by manifest id. The loader
+carries it on `Entry`; whether each id resolves, and whether the manifest names the
+entry back, is `oracles.dataset_links` in `test/datasets/harness.jl`, and the loader
+does not decide it a second time. The runner reads the manifest through that id when it
+checks a payload's hashes and keys an artifact on it.
 
 ### The registration rule as a build check
 
@@ -135,12 +143,13 @@ named is recorded, not silently accepted.
 
 ## Oracles
 
-Two entries are added for the frame itself, plus `repro.mutation_run` which exists.
+Three entries are added for the frame itself, plus `repro.mutation_run` which exists.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
 | `oracles.registry_wellformed` | every entry parses, carries every required field including a closed `source_kind`, satisfies its conditional fields, has anchors if it is tier 2 or 3, and every anchor resolves in the references index | a row with a missing `threshold`, a tier-1 `system.*` row with no `instances`, and a tier-2 row with empty anchors, all of which must be refused rather than skipped |
 | `oracles.registration_rule` | no commit changes a registered entry's `threshold` or `registered_at` and also touches `src/` or `notes/findings/`; no bar is narrower than its observation's uncertainty | a fixture commit doing both on a registered entry, which must fail, and the same commit on a provisional entry, which must pass; a fixture bar set below a stated observational uncertainty, which must be refused |
+| `oracles.dataset_links` | every manifest id in an entry's `datasets` resolves to a manifest that names the entry back in `oracles`; every entry a manifest names exists and names the manifest back; every tier-2 and tier-3 entry carries `datasets`; every oracle manifest names an entry; no manifest anchor carries an oracle id | a fixture row naming an absent manifest and a fixture manifest naming an absent oracle, both refused, with one fixture for each remaining clause and a clean fixture that must pass |
 | `repro.mutation_run` | every mutation in the list is caught by at least one oracle | the list itself is the control; a mutation nothing catches files a row and the suite is not green |
 
 `oracles.registry_wellformed` runs today against the registry as it stands and fails
@@ -158,7 +167,8 @@ first real check finding 47 published bars with no source is the check working.
 | 52v.8.3 | sonnet | `src/Oracles/run.jl`, `test/oracles/run.jl` | a verdict is one of the three and never a boolean; every result is emitted as an `oracle` journal event through the one emitter; a tier-2 entry with only a global mean is refused at load |
 | 52v.8.4 | frontier | `src/Oracles/mutate.jl`, `test/oracles/mutate.jl` | `repro.mutation_run` runs the whole list; a mutation nothing catches files a row and the suite is not reported green |
 | 52v.8.5 | sonnet | none; re-pointed | the M0 Earth derived-quantity question is `system.derived_fields_reproduce`, carried by `fiddlybits-52v.4.5` on all five instances; this row closes as superseded rather than writing a second oracle for it |
-| 52v.8.6 | sonnet | none; reports only | all three oracles ran; verdicts by name |
+| fiddlybits-3vq | frontier | `docs/oracles/registry.toml`, `docs/oracles/README.md`, `docs/oracles/data/`, `docs/inputs/`, `docs/references/INDEX.md`, this plan, `test/datasets/` | every tier-2 and tier-3 entry carries `datasets`; every link resolves in both directions; `earth.sea_ice_extent_cycle` corrected; `oracles.dataset_links` passes on the tree with every control refused |
+| 52v.8.6 | sonnet | none; reports only | all four oracles ran; verdicts by name |
 
 52v.8.3 and 52v.8.4 depend on 52v.8.2; 52v.8.3 depends on `fiddlybits-52v.6.8`; the
 verify row depends on 52v.8.7. The mutation row depends on every other area's

@@ -10,7 +10,8 @@ fetched = 2026-09-08
 local_path = "oracles/data/mcd12c1"  # untracked extract
 recipe = "oracles/recipes/mcd12c1_reduce.py"
 recipe_sha256 = "15201bc9e5e401d36f26f3c0a645eed38c1aaa6636c759b2a49698c62c8d419b"
-anchors = ["earth.modis_albedo_by_class (per-class key)", "M5", "M7"]
+oracles = ["earth.modis_albedo_by_class"]  # the per-class key
+anchors = ["M5", "M7"]
 
 [reduction]
 kept = ["Majority_Land_Cover_Type_1 (IGBP)", "Majority_Land_Cover_Type_1_Assessment", "Land_Cover_Type_1_Percent (17 classes)"]

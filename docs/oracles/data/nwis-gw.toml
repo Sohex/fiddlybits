@@ -9,6 +9,7 @@ fetched = 2026-09-08
 bbox = "-125,24,-66,50"
 local_path = "oracles/data/nwis-gw"  # untracked payload
 recipe = "oracles/recipes/nwis_gw_fetch.py"
+oracles = ["earth.fan_water_table"]
 anchors = ["REQ-HYD-002 water-table skill oracle", "M2"]
 kept = ["raw API pages (gzip JSON)", "sites.csv: id, lon, lat, altitude, vertical_datum, well_constructed_depth, hole_constructed_depth, aquifer_code, aquifer_type_code, national_aquifer_code, state_name", "levels.csv per site: n, first, last, mean_depth_m, median_depth_m, sd_depth_m, n_static, n_approved (feet to metres; only unit ft)"]
 note = "The oracle applies its two-sided consistency filter (0 < depth <= well depth) and the confinement labels at scoring time, from these tables; nothing is filtered here."

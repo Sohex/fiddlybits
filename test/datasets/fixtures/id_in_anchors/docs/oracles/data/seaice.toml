@@ -1,0 +1,3 @@
+id = "seaice"
+oracles = ["earth.sea_ice_extent"]
+anchors = ["earth.sea_ice_extent_cycle (M6)", "C1 tier 2 cryosphere"]

@@ -1,0 +1,3 @@
+id = "seaice"
+oracles = ["earth.sea_ice_extent"]
+anchors = ["M6", "REQ-CRY-001 sea ice extent (Fan et al. 2013 style prose with a period)"]

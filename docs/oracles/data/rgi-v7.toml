@@ -8,6 +8,7 @@ doi = "10.5067/f6jmovy5navz"
 documentation = "https://www.glims.org/rgi_user_guide"
 local_path = "oracles/data/rgi-v7"  # untracked payload
 fetched = 2026-09-08
+oracles = ["earth.rgi_glacier_area"]
 anchors = ["M5", "M10", "C1 cryosphere metrics: glacier area outside the ice sheets"]
 products = ["G glacier", "C glacier complex", "I intersects", "L centerlines"]
 

@@ -1,0 +1,9 @@
+[[oracle]]
+id = "earth.sea_ice_extent"
+tier = 2
+datasets = ["seaice"]
+
+[[oracle]]
+id = "earth.snow_cover_extent"
+tier = 2
+datasets = ["seaice"]
