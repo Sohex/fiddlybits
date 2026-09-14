@@ -123,7 +123,7 @@ struct StrippedNumerics{FT,Kind,Source}
     exner_reference_pressure::FT
 end
 
-"The isbits constants of a `System`."
+"The isbits constants of a `System`, its root seed a plain `UInt64`."
 struct StrippedSystem{FT,S,P,O,M,I,N}
     stars::S
     planet::P
@@ -131,6 +131,7 @@ struct StrippedSystem{FT,S,P,O,M,I,N}
     moons::M
     inventories::I
     numerics::N
+    root_seed::UInt64
 end
 
 """
@@ -183,10 +184,10 @@ strip_named(x::Fractions{FT,N}) where {FT,N} =
 """
     strip(system)
 
-The `StrippedSystem` of `system`: every scalar constant it holds as a plain `FT`, in
-named fields, with the names a kernel reads members by carried as type parameters.
-A function of `system` alone; the spectra and the reflectance tables are not scalars
-and stay on the host.
+The `StrippedSystem` of `system`: every scalar constant it holds as a plain `FT`, and
+its root seed as a plain `UInt64`, in named fields, with the names a kernel reads
+members by carried as type parameters. A function of `system` alone; the spectra and
+the reflectance tables are not scalars and stay on the host.
 """
 function strip(s::System{FT}) where {FT}
     inv = s.inventories
@@ -204,5 +205,5 @@ function strip(s::System{FT}) where {FT}
         value(epoch.offset), value(s.numerics.exner_reference_pressure))
     return StrippedSystem{FT,typeof(stars),typeof(planet),typeof(orbits),typeof(moons),
                           typeof(inventories),typeof(numerics)}(
-        stars, planet, orbits, moons, inventories, numerics)
+        stars, planet, orbits, moons, inventories, numerics, value(s.root_seed))
 end

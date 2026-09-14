@@ -22,7 +22,8 @@ readers() = Dict{Symbol,Any}(
                       s.orbits.planet.primary),
     :crustal => s -> (s.planet.lithosphere.province_classes,
                       map(value, s.planet.lithosphere.crustal_density)),
-    :lunar => s -> sum((value(moon.mass) for moon in s.moons); init = 0.0))
+    :lunar => s -> sum((value(moon.mass) for moon in s.moons); init = 0.0),
+    :stochastic => s -> value(s.root_seed))
 
 "The paths the fixture readers declare, as plain data."
 declared() = Dict{Symbol,Any}(
@@ -31,7 +32,8 @@ declared() = Dict{Symbol,Any}(
     :orbital => [(:planet, :mass), (:stars, :, :mass), (:orbits, :planet, :semi_major_axis),
                  (:orbits, :planet, :primary)],
     :crustal => [(:planet, :lithosphere)],
-    :lunar => [(:moons, :, :mass)])
+    :lunar => [(:moons, :, :mass)],
+    :stochastic => [(:root_seed,)])
 
 "A reader that reaches `path` by property access and indexing, and returns what it reaches."
 path_reader(path) = s -> foldl((y, step) -> step isa Symbol ? getproperty(y, step) : y[step],
@@ -142,6 +144,16 @@ moonless() = SF.system(moons = (), orbits = Systems.OrbitHierarchy(
         @test isempty(Systems.affected((:stars, 1, :age), g))
         @test Systems.affected((:moons,), g) == Set([:lunar])
         @test Systems.affected((:moons, 1, :radius), g) == Set{Symbol}()
+        @test Systems.affected((:root_seed,), g) == Set([:stochastic])
+        @test Systems.affected((:root_seed, :value), g) == Set([:stochastic])
+    end
+
+    @testset "a read of the root seed is recorded as (:root_seed,) and returns the seed's declaration" begin
+        s = SF.system(root_seed = SF.seed(0xD1CE5EED00000001))
+        t = Systems.TrackingSystem(s)
+        @test t.root_seed === s.root_seed
+        @test Dispositions.value(t.root_seed) === 0xD1CE5EED00000001
+        @test Systems.recorded_reads(t) == Set{Tuple}([(:root_seed,)])
     end
 
     @testset "control: a declared edge removed stops being reported by affected" begin

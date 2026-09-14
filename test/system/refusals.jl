@@ -24,6 +24,35 @@ import .SystemFixtures as SF
         end
     end
 
+    @testset "a root seed omitted, and a root seed of another type" begin
+        one_ = Dimensions.DIMENSIONLESS
+        without = Base.structdiff(SF.system_keywords(), NamedTuple{(:root_seed,)})
+        @test SF.refused(SF.caught(() -> Systems.System(; without...)), "root_seed", "missing")
+        @test SF.refused(SF.caught(() -> SF.system(root_seed = UInt64(7))),
+                         "root_seed", "disposition is required")
+        @test SF.refused(SF.caught(() -> SF.system(root_seed = SF.irreducible(7, one_))),
+                         "root_seed", "not a UInt64")
+        @test SF.refused(SF.caught(() -> SF.system(root_seed = SF.irreducible(7.0, one_))),
+                         "root_seed", "not a UInt64")
+        @test SF.refused(SF.caught(() -> SF.system(root_seed = SF.irreducible(UInt64(7), Dimensions.TIME))),
+                         "root_seed", "dimension")
+        @test SF.refused(SF.caught(() -> SF.system(root_seed = SF.bracket(UInt64(7), UInt64(0), UInt64(9), one_))),
+                         "root_seed", "Bracketed is not admitted")
+        sourced = Dispositions.Sourced(value = UInt64(7), dim = one_,
+                                       locator = Dispositions.Locator(identifier = "fixture", table = "fixture table"))
+        @test SF.refused(SF.caught(() -> SF.system(root_seed = sourced)), "root_seed", "Sourced is not admitted")
+
+        @testset "positive control: an Irreducible UInt64 seed at each end of its range constructs and carries its argument" begin
+            for v in (typemin(UInt64), typemax(UInt64))
+                s = SF.system(root_seed = SF.seed(v))
+                @test s.root_seed isa Dispositions.Irreducible{UInt64}
+                @test Dispositions.value(s.root_seed) === v
+                @test !isempty(s.root_seed.argument)
+                @test Systems.ROOT_SEED_DISPOSITIONS == (Dispositions.Irreducible,)
+            end
+        end
+    end
+
     @testset "a keyword spelled day" begin
         @test SF.refused(SF.caught(() -> SF.system(day = 1.0)), "day", "field named day")
         @test SF.refused(SF.caught(() -> SF.system(mean_solar_day = 1.0)),

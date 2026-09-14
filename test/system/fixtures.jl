@@ -136,12 +136,16 @@ function numerics(T = Float64; kw...)
     return S.Numerics(; merge(base, values(kw))...)
 end
 
+"A root seed: an `Irreducible` over the `UInt64` of `value`."
+seed(value = 20260913) = irreducible(UInt64(value), ONE)
+
 "The keywords of a one-star, one-moon system over `T`; `kw` replaces any."
 system_keywords(T = Float64; kw...) = merge(
     (stars = (star(T),), planet = planet(T),
      orbits = S.OrbitHierarchy(planet = planet_orbit(T), moons = (moon_orbit(T),),
                                companions = ()),
-     moons = (moon(T),), inventories = inventories(T), numerics = numerics(T)),
+     moons = (moon(T),), inventories = inventories(T), numerics = numerics(T),
+     root_seed = seed()),
     values(kw))
 
 "A one-star, one-moon system over `T`; `kw` replaces any keyword."
