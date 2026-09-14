@@ -3,11 +3,8 @@ using CUDA
 using KernelAbstractions: @kernel, @index, @Const
 using Fiddlybits: Backends
 
-# The device compiler refuses a kernel whose compiled code keeps a call left to
-# runtime dispatch, and compiles every non-concrete type that host inference
-# resolves; the CPU backend runs all of them. docs/imports/cuda.md and
-# docs/imports/kernelabstractions.md, section "Dynamic dispatch", carry the
-# source locators.
+# The leak test docs/imports/cuda.md and docs/imports/kernelabstractions.md,
+# section "Dynamic dispatch", name.
 #
 # One kernel writes out[i] = x[i] * scale(i). Each arm passes a different
 # `scale`, every one of which returns a value equal to 2, so an arm that runs
