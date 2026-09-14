@@ -47,14 +47,18 @@ fi
 # --- END FIDDLYBITS RECORDS ---
 
 # --- BEGIN FIDDLYBITS GATE ---
-# The cheap half of the suite when source is staged: the lints and the module order.
+# The cheap half of the suite when source is staged: the lints and the module order,
+# each in its own process through the checkout's depot rule (tools/gate/depot.jl).
 # Decision 0043.
 if git diff --cached --name-only --diff-filter=ACMRD | grep -qE '^(src/|test/|docs/)'; then
   _fb_root=$(git rev-parse --show-toplevel)
   if [ -f "$_fb_root/Project.toml" ] && command -v julia >/dev/null 2>&1; then
-    if ! julia --startup-file=no --project="$_fb_root" -e '
-          include(joinpath("'"$_fb_root"'", "test", "lint", "runtests.jl"))
-          include(joinpath("'"$_fb_root"'", "test", "build", "runtests.jl"))' >/dev/null 2>&1; then
+    if ! julia --startup-file=no --project="$_fb_root" - "$_fb_root" >/dev/null 2>&1 <<'FIDDLYBITS_PRECOMMIT'
+include(joinpath(ARGS[1], "tools/gate/run.jl"))
+exit((success(suite_command(ARGS[1], "lint", 1)) &&
+      success(suite_command(ARGS[1], "build", 1))) ? 0 : 1)
+FIDDLYBITS_PRECOMMIT
+    then
       echo >&2 "gate: the lints or the module order did not pass; commit refused"
       echo >&2 "      run: julia --project -e 'using Pkg; Pkg.test()'"
       exit 1

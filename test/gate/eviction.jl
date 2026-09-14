@@ -267,6 +267,36 @@ function env_value(cmd::Cmd, key::AbstractString)
     return i === nothing ? nothing : cmd.env[i][length(key)+2:end]
 end
 
+"Whether `text` names a suite's `runtests.jl` directly, rather than by the suite's name."
+hook_names_runtests(text::AbstractString) = occursin("runtests.jl", text)
+
+"""
+    hook_carries_rule(text)
+
+Whether the FIDDLYBITS GATE block of pre-commit hook shell `text` names
+`tools/gate/run.jl` and `suite_command`, sets no `JULIA_DEPOT_PATH` of its own, and
+names no suite's `runtests.jl` directly.
+"""
+hook_carries_rule(text::AbstractString) =
+    occursin("tools/gate/run.jl", text) && occursin("suite_command", text) &&
+    !occursin("JULIA_DEPOT_PATH", text) && !hook_names_runtests(text)
+
+"The FIDDLYBITS GATE block of `.beads/hooks/pre-commit` before fiddlybits-52v.1.21."
+const PRECOMMIT_BEFORE_ROW = """
+if git diff --cached --name-only --diff-filter=ACMRD | grep -qE '^(src/|test/|docs/)'; then
+  _fb_root=\$(git rev-parse --show-toplevel)
+  if [ -f "\$_fb_root/Project.toml" ] && command -v julia >/dev/null 2>&1; then
+    if ! julia --startup-file=no --project="\$_fb_root" -e '
+          include(joinpath("'"\$_fb_root"'", "test", "lint", "runtests.jl"))
+          include(joinpath("'"\$_fb_root"'", "test", "build", "runtests.jl"))' >/dev/null 2>&1; then
+      echo >&2 "gate: the lints or the module order did not pass; commit refused"
+      echo >&2 "      run: julia --project -e 'using Pkg; Pkg.test()'"
+      exit 1
+    fi
+  fi
+fi
+"""
+
 end # module EvictionFixture
 
 @testset "gate.checkout_depot" begin
@@ -323,6 +353,16 @@ end # module EvictionFixture
         hook = read_tool(".beads", "hooks", "pre-push")
         @test isempty(F.shell_julia_lines(hook))
         @test occursin("tools/gate/gate.sh", hook)
+
+        @testset "the pre-commit hook carries the depot rule through tools/gate/run.jl" begin
+            precommit = read_tool(".beads", "hooks", "pre-commit")
+            @test F.hook_carries_rule(precommit)
+
+            @testset "positive control: the hook before this row does not" begin
+                @test F.hook_names_runtests(F.PRECOMMIT_BEFORE_ROW)
+                @test !F.hook_carries_rule(F.PRECOMMIT_BEFORE_ROW)
+            end
+        end
 
         @testset "positive control: a julia command built bare is found" begin
             @test length(F.julia_outside_rule("cmd = `julia --project=\$(root) -e 1`")) == 1
