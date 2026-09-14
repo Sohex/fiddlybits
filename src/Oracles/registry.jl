@@ -291,8 +291,8 @@ end
     read_registry(path, index)
 
 `(registry, found)`: the `Registry` the file at `path` holds and every problem that
-stops an entry or protocol loading. When `index` is not `nothing` it maps each row of the
-references index to its status, and `found` also carries every anchor that is not a key
+stops an entry or protocol loading. When `index` is not `nothing` it maps a references
+index row's title to its status, and `found` also carries every anchor that is not a key
 of `index` and every anchor of a `registered` entry whose status is not `read`.
 `registry` is `nothing` when `found` is not empty.
 """
@@ -345,7 +345,7 @@ end
 
 Every problem the registry file at `path` carries, sorted: each one `load` refuses it
 for, each anchor that is not a key of `index`, and each anchor of a `registered` entry
-whose status in `index` is not `read`. `index` maps each row of the references index to
+whose status in `index` is not `read`. `index` maps a references index row's title to
 its status.
 """
 problems(path::AbstractString, index::AbstractDict) = last(read_registry(path, index))

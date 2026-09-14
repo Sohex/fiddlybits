@@ -44,22 +44,33 @@ function extract_doi(cell::AbstractString)
     return m === nothing ? nothing : m.match
 end
 
+"`cell` with backticks and surrounding space stripped, and one trailing period dropped."
+function normalize_title(cell::AbstractString)
+    t = strip(cell, ['`', ' '])
+    return endswith(t, ".") ? t[1:end-1] : t
+end
+
 """
     read_index(path)
 
-`(status, unplaced)`: every row of `path` under a table whose header names
+`(status, unplaced, titles)`: every row of `path` under a table whose header names
 `filename`, `identifier` and `status` columns, keyed by its file key and, where its
 identifier cell carries one, its DOI, to its status column; and every row under such
 a header whose cell count does not match the header's, or whose status cell is none
 of read/held/requested, as `(line, text)`. A table whose header does not name all
-three columns is not a references table and its rows are not read.
+three columns is not a references table and its rows are not read. `titles` keys
+every placed row's normalised title cell, read from a header column naming `title`,
+to its status column; a normalised title two placed rows share is a key of neither.
 """
 function read_index(path::AbstractString)
     status = Dict{String,String}()
     unplaced = Tuple{Int,String}[]
+    title_status = Dict{String,String}()
+    title_count = Dict{String,Int}()
     valid = ("read", "held", "requested")
     ncols = nothing
     filename_col = identifier_col = status_col = 0
+    title_col = nothing
 
     lines = readlines(path)
     i = 1
@@ -75,6 +86,7 @@ function read_index(path::AbstractString)
             filename_col = findfirst(==("filename"), names)
             identifier_col = findfirst(==("identifier"), names)
             status_col = findfirst(==("status"), names)
+            title_col = findfirst(n -> occursin("title", n), names)
             ncols = (filename_col !== nothing && identifier_col !== nothing &&
                     status_col !== nothing) ? length(cells) : nothing
             i += 2
@@ -86,13 +98,19 @@ function read_index(path::AbstractString)
                 status[strip(cells[filename_col], ['`', ' '])] = s
                 doi = extract_doi(strip(cells[identifier_col], ['`', ' ']))
                 doi === nothing || (status[doi] = s)
+                if title_col !== nothing
+                    t = normalize_title(cells[title_col])
+                    title_status[t] = s
+                    title_count[t] = get(title_count, t, 0) + 1
+                end
             else
                 push!(unplaced, (i, line))
             end
         end
         i += 1
     end
-    return status, unplaced
+    titles = Dict(t => s for (t, s) in title_status if title_count[t] == 1)
+    return status, unplaced, titles
 end
 
 function lint_sourced(root::AbstractString)
