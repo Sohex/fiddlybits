@@ -205,10 +205,13 @@ values the kernels queued before this call left in `array`. The caller keeps
 `host` and `array` reachable until then. The move is recorded once through
 `Events.moved` from `:gpu` to `:cpu`, and not at all when `array` has no
 elements. An `array` last written from another task is ordered by calling
-`after!` with that task's `Handoff` before this call, as a launch is. A kernel
-that faults on the device before the copy is not raised by
-`after!(CPU(), point)`; the next `complete!` on the task that queued it raises
-it (`fiddlybits-52v.6.32`).
+`after!` with that task's `Handoff` before this call, as a launch is.
+
+`after!(CPU(), point)` raises no device fault. A kernel that faulted on the
+device before the copy is raised by the first `complete!` in the process after
+the fault, as `after!` states, and the host then holds what the faulted kernel
+left in `array`. The store's writer raises it by calling `complete!` on the
+task that submitted the write, in `settle!` (`fiddlybits-52v.6.26`).
 
 For a host array the copy is taken at the call, nothing is recorded, and the
 `Handoff` is `handoff(CPU())`.
