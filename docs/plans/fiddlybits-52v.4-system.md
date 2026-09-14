@@ -47,7 +47,7 @@ without one of the five dispositions is the failure the whole plan exists to pre
 | --- | --- | --- |
 | `src/Dispositions/` | the five types, the locator, the sweep specification, the one accessor | 52v.4.2 |
 | `src/Systems/` except `tracking.jl` and `profile.jl` | `System{FT}` and its blocks, the constructor refusals, `strip` | 52v.4.3 |
-| `src/Systems/tracking.jl` | `TrackingSystem`, the declared graph, `affected` | 52v.4.6 |
+| `src/Systems/tracking.jl` | `TrackingSystem` and `TrackingProfile`, `dependency_subset` over a declared graph of paths, `affected(change, graph)` | 52v.4.6, 52v.4.20, 52v.4.23 |
 | `src/Systems/profile.jl` | `Profile`, its `Derived` cadence ceilings and their refusals | 52v.4.8 |
 | `src/EarthRatios/` | the quarantined unit denominators | 52v.4.4 |
 | `test/dispositions/` | the disposition suite and its refusal fixtures | 52v.4.2 |
@@ -293,25 +293,134 @@ instance.
 
 ### The graph
 
-`TrackingSystem` wraps a `System` and records every field read, per component, during
-a dry run on the smallest mesh. What a component declares it reads is not this
-module's to say: the component declaration is the coupling layer's (`declare` in
-`fiddlybits-52v.11.1`), which sits above `Systems`. So this module takes the declared
-graph as plain data, a name to a set of field symbols, and never a component. The
-test is `recorded` is a subset of `declared`, run over every declaration it is given;
-a declared edge with no recorded read in the coupled case is reported rather than
-failed, because a component may legitimately not read a field on one configuration.
+`src/Systems/tracking.jl` records what a reader reads from a `System` or a `Profile`,
+checks the recorded reads against the paths the reader declares, and answers what a
+change reaches. What a component declares it reads is not this module's to say: the
+declaration is the coupling layer's (`Coupling.Declaration`, `fiddlybits-52v.11.1`),
+which sits above `Systems`. So this module takes the declared graph as plain data, a
+dictionary from a reader's name to a collection of paths, and never a component.
+`Coupling.declared_graph(assembly)` gives each component's name the `Set` of its
+`system_fields`, and `Coupling.declared_profile_graph(assembly)` the `Set` of its
+`profile_fields`.
+
+**A path is a tuple of steps from a root.** A step is a field name (a `Symbol`), a
+tuple position counted from 1 (an `Int`), or `:` (`Colon`); any other step is refused.
+The names and positions are the ones `derived_fields` reports and `at_path` follows, so
+the tracker, the key and the graph read one grammar. In a declaration or a change, `:`
+stands for every position of a tuple. A named tuple is stepped by name only:
+`Profile.components` holds each component's entry under its name, a component's own
+entry is reached as `(:components, name, ...)`, and neither a position nor `:` steps
+into a named tuple. The empty path names the root itself; a declaration refuses it as a
+profile path, where it reaches the label (decision 0010).
+
+**Two roots, one tracker.** `TrackingSystem(system)` and `TrackingProfile(profile)`
+wrap the two roots in the same `Tracked` wrapper, each over a fresh log, and
+`recorded_reads` returns the paths logged. A reader reaches values through the wrapper
+by property access; over a tuple by indexing, iteration, `map`, `length`, `keys`,
+`eachindex`, `firstindex` and `lastindex`; and over a named tuple by indexing with a
+name, iteration, `map`, `length`, `keys` and `propertynames`. Any other operation, a
+type test or a method typed on a block among them, sees the wrapper and not the block,
+so the fixture arm asserts that every reader's tracked run is `===` its run on the bare
+root.
+
+**A read ends at the first value that is not interior, and that value is returned
+itself.** An interior value is a tuple, a named tuple or a struct of `Systems` that
+holds a `Disposition` somewhere beneath it; a step that reaches one records nothing and
+returns another wrapper. Every other value ends the read, is recorded by its path and
+is handed to the reader unwrapped: a `Disposition`, whose `value` the reader then takes
+unrecorded; an array, whatever it holds; a value of another module; and a tuple, named
+tuple or struct that holds no `Disposition`. So `(:planet, :mass)` is one read however
+the reader uses the declaration it gets, and a read of one element of a
+`BracketedSpectrum`'s surface flux densities is recorded as a read of the whole array.
+Ending at the declaration rather than at its value makes the recorded path the unit a
+key hashes and a sweep varies. Ending at an array rather than at an element keeps
+array positions out of the grammar, as `derived_fields` keeps them out, and it can
+only over-record: a wider read widens what a change invalidates and never narrows it.
+
+**A read of a length is a path of its own.** A reader that iterates a tuple depends on
+how many elements it holds, which no element read records. So `length`, `keys`,
+`eachindex`, `lastindex`, each step of an iteration and `map` over a tuple record the
+tuple's path followed by `:`, and a step that reaches the empty tuple records the same.
+A reader of every moon records `(:moons, :)` whether or not the system has moons.
+Indexing by position and `firstindex` record no length. A read of a named tuple's names
+(`length`, `keys`, `propertynames`, iteration and `map`) is recorded as the named
+tuple's own path, as is a step reaching an empty named tuple, because `:` does not step
+into a named tuple and a recorded read has to be a path a declaration can state.
+
+**Covering.** `dependency_subset(readers, declared, root)` runs each reader once on its
+own tracked root, `TrackingSystem` of a `System` or `TrackingProfile` of a `Profile`, and
+compares what it recorded with the paths declared under the same name. A declared path
+covers a recorded read when, over the steps the two share, each declared step equals
+the read's step or is `:` where the read has a position, and either the declared path
+is no longer than the read or the read is a length read. So `(:planet, :lithosphere)`
+covers every read beneath it; `(:stars, :, :luminosity)` covers `(:stars, 2, :luminosity)`
+and the `(:stars, :)` its iteration records; `(:stars, 1, :luminosity)` covers neither;
+and a names read `(:components,)` is covered only by that path or a shorter one. The
+verdict is `PASS` when every recorded read of every reader is covered by one of that
+reader's declared paths and `FAIL` otherwise, and the result names each reader's
+recorded reads and its undeclared ones.
+
+A declared path counts as read only when it covers a recorded read at least as long as
+itself; a length read it continues past does not count. Each reader's declared paths
+with no such read are returned as `unread`, reported and never failed, because a
+component may legitimately not read a declared path on one configuration: on a moonless
+system `(:moons, :, :mass)` covers the recorded `(:moons, :)` and is still unread.
+
+`dependency_subset` refuses readers and declarations that name different sets, a
+malformed graph, and, naming the root, a declared path that does not reach through it
+by `reaches`: each step has to pass through an interior value or the empty tuple, a
+name has to be a field there, a position has to exist, and `:` has to stand over a
+tuple. A declared path therefore ends at a leaf or above and never steps past one:
+`(:root_seed, :value)`, a path into an array (`:size` and `:ref`, the fields of `Array`,
+among them), and a path into a named tuple by position or by `:` are refused. The key
+refuses the same paths through the same `reaches`.
+
+**What a change reaches.** `affected(change, graph)` answers what re-runs when the value
+at the path `change` changes, from the graph it is handed and never from a list kept by
+hand (REQ-SYS-008). It returns the names with a declared path that overlaps `change`:
+over the steps the two share, each pair is equal, or one is `:` and the other a
+position. Overlap is symmetric and holds across a prefix, so a change to `(:planet,)`
+reaches every name declaring a path under the planet, a change to `(:planet, :mass)`
+reaches a name declaring `(:planet,)`, and `(:stars, :)` overlaps `(:stars, 2, :luminosity)`.
+`:` never overlaps a name, so no change crosses a named tuple's entries by `:`. A change
+may continue past a leaf, as `(:root_seed, :value)` does, because it names what moved
+rather than what was read. `affected` reads no root, and refuses a graph that is not a
+dictionary, an entry that is not a collection of paths (a reader function among them),
+a path that is not a tuple, and a step outside the grammar.
+
+The declared paths are what artifact keys are computed from (decision 0010): the key
+hashes the values its declaration's `system_fields` and `profile_fields` reach, so
+changing the value at one path moves the keys of exactly the components whose declared
+paths overlap it, which `provenance.key_stability` checks against `affected` by
+reflection. The tracking test is what makes the declared paths a measured property
+rather than a claim.
 
 At M0 there are no components, so `system.dependency_subset` runs on fixture
-declarations and fixture readers in `test/system/`, which decides the machinery, and
-runs again on the real components from M1, which decides the graph. The verify row
-records which.
+declarations and fixture readers in `test/system/graph.jl`, over a `System` and over a
+`Profile`, which decides the machinery; the real components from M1, each read in a dry
+run on the smallest mesh, decide the graph. The verify row records which.
 
-`affected(field, graph)` answers "what re-runs when this changes" from the declared
-graph it is handed, never from a list kept by hand (REQ-SYS-008). The declared sets are what artifact keys
-are computed from (decision 0010), so changing one field changes the keys of exactly
-the artifacts whose components declared it, and that is a property this plan makes
-computable rather than a claim.
+Alternatives weighed:
+
+- **A graph from a name to the top-level field names a reader touches.** It cannot tell
+  a reader of one star from a reader of every star, or the planet's mass from its
+  obliquity, so a change would re-run every reader of a block and the key could hash
+  no subset narrower than a block. Lost to paths.
+- **Recording the value a reader takes rather than the declaration it reaches.** The
+  value is taken through `Dispositions.value`, a door this module does not own and would
+  have to wrap, and the unit a sweep and a key name is the declaration. Lost.
+- **Stepping into an array by position.** It records one element's read finely, at the
+  cost of array positions entering a grammar that `derived_fields` and `reaches` do not
+  step, and of a declaration naming positions whose count is part of the configuration.
+  Lost; an array ends a read.
+- **No length read.** A reader summing over the stars and declared for star 1 would
+  pass on a one-star system, where the only element it reads is star 1, and a reader of
+  every moon declaring no moon path would pass on a moonless system; the length read
+  makes each declaration fail on every configuration, one star and no moons included.
+  Lost.
+- **Recorded equal to declared.** A component may not read a declared path on one
+  configuration, so equality would fail a correct declaration. The subset is the bar,
+  and the declared paths nothing read are reported as `unread`.
 
 ### The quarantine
 
@@ -350,7 +459,7 @@ provisional until the verify row runs them.
 | --- | --- | --- |
 | `system.disposition_refusals` | every disposition refuses construction without each of its required fields, and the subtypes of `Disposition` are exactly the five | a sixth subtype declared in a fixture, which the enumeration must report; each required field omitted in turn, each of which must refuse |
 | `system.derived_fields_reproduce` | every `Derived` field of `System` recomputed from its own inputs equals the constructed value on all five instances, and a caller-supplied value that disagrees is refused | a `Derived` rule replaced by the Earth value it happens to equal, which the synthetic instances must catch |
-| `system.dependency_subset` | the recorded read set of every component is a subset of its declared set, and `affected(field)` lists exactly the components declaring that field | a component reading a field it did not declare, which must fail; a declared edge removed, which `affected` must stop reporting |
+| `system.dependency_subset` | every read a component records under `TrackingSystem` or `TrackingProfile` is covered by a path it declares, and `affected(change, graph)` lists exactly the components declaring a path that overlaps `change` | a component reading a path it did not declare, which must fail; a declared path removed, which `affected` must stop reporting |
 
 `system.derived_fields_reproduce` is the M0 gate item "every `Derived` field of
 `System` reproduced from its own inputs on `Earth()` and on the synthetic instances".
