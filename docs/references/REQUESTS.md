@@ -42,9 +42,6 @@ registry, not here.
 
 ## Hydrology (B5, M2)
 
-- Parallel algorithms for tree accumulations -- Sevilgen, F. E., Aluru, S., Futamura, N. (2005). Journal of Parallel and Distributed Computing 65 (1), 85-93. DOI: 10.1016/j.jpdc.2004.09.001. Anchors: the rake-and-compress tree accumulation FastFlow adapts, and any bound it proves on the round count (notes/findings/2026-09-13-fastflow-tree-contraction-reads-no-coordinates-and-its-fixed-round-count-leaves-trees-unfinished.md). OpenAlex reports no open copy. Suggested filename: sevilgen2005-parallel-algorithms-tree-accumulations.pdf
-- Fast minimum spanning tree for large graphs on the GPU -- Vineet, V., Harish, P., Patidar, S., Narayanan, P. J. (2009). Proceedings of the Conference on High Performance Graphics 2009, 167-171. DOI: 10.1145/1572769.1572796. Anchors: the parallel Boruvka construction FastFlow's basin merge follows. OpenAlex reports no open copy. Suggested filename: vineet2009-fast-minimum-spanning-tree-large-graphs.pdf
-- A phenomenon-based approach to upslope contributing area and depressions in DEMs -- Rieger, W. (1998). Hydrological Processes 12 (6), 857-872. DOI: 10.1002/(SICI)1099-1085(199805)12:6<857::AID-HYP659>3.0.CO;2-B. Anchors: depression carving, the receiver path reversed from pit to spill. OpenAlex reports no open copy. Suggested filename: rieger1998-phenomenon-based-approach-upslope-contributing-area.pdf
 
 ## Land column, snow and lakes (B4, M5)
 
