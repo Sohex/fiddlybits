@@ -5,12 +5,12 @@
 # A combination that has no meaning has no working method and a declared refusal
 # instead, and the refusals are the table below rather than scattered calls, so that
 # the enumeration test of fiddlybits-52v.3.4 can read them. Every working method returns
-# `(field, ledger)`; the ledger position holds a `Ledger`, a `ClassLedgers` or a
-# `NotConserved` from the table that declares it.
+# `(field, ledger)`; the ledger position holds a `Ledger`, a `ColumnLedgers`, a
+# `ClassLedgers` or a `NotConserved` from the table that declares it.
 
 using ..Mesh: ncells, require_ancestor
 using ..Reductions: Segmentation, segmented_sum, segmented_mean, segmented_quantile,
-                    segmented_weighted_sum, pairwise_sum
+                    segmented_weighted_sum, pairwise_sum, trailing_shape
 using ..Backends: Backend, CPU, on
 using ..Time: Forcing, Interval, IntervalMean, IntervalAccumulation, EndpointState,
               Instantaneous, Static, TimeSupport, duration
@@ -105,9 +105,6 @@ const REFUSAL_TABLE = (
     (operator = :refine, semantics = Quantiles, time_semantics = TimeSemantics,
      rule = nothing,
      sentence = "a quantile table is not a moment; recompute from the fine field"),
-    (operator = :coarsen, semantics = CategoricalFraction, time_semantics = TimeSemantics,
-     rule = nothing,
-     sentence = "a class-fraction field holds one column per class, and coarsen reduces one value per cell until fiddlybits-52v.3.12"),
     (operator = :refine, semantics = CategoricalFraction, time_semantics = TimeSemantics,
      rule = nothing,
      sentence = "a histogram does not carry which child held which class"),
@@ -227,8 +224,9 @@ closed(n::NotConserved) =
 """
     ClassLedgers{Q}(classes, ledgers)
 
-One `Ledger{Q}` per class of a legend: `ledgers[i]` balances the amount of `Q` held by
-`classes[i]`.
+One balance of `Q` per class of a legend: `ledgers[i]` balances the amount of `Q` held
+by `classes[i]`, a `Ledger{Q}` for a field of one value per cell besides its legend and
+a `ColumnLedgers{Q}` for a field that carries columns besides its legend.
 """
 struct ClassLedgers{Q,C<:Tuple,G<:Tuple}
     classes::C
@@ -263,23 +261,130 @@ function ledger_of(c::ClassLedgers, class)
 end
 
 """
+    ColumnLedgers{Q}(ledgers)
+
+One `Ledger{Q}` per column of a field of cells by trailing axes (`Backends.LAYOUT`):
+`ledgers` is an array of the trailing shape, and `ledgers[c...]` balances the amount of
+`Q` in column `c`.
+"""
+struct ColumnLedgers{Q,G<:AbstractArray}
+    ledgers::G
+end
+
+ColumnLedgers{Q}(ledgers::G) where {Q,G<:AbstractArray} = ColumnLedgers{Q,G}(ledgers)
+
+quantity(::ColumnLedgers{Q}) where {Q} = Q
+
+"The ledgers `c` holds, an array of the trailing shape."
+ledgers(c::ColumnLedgers) = c.ledgers
+
+"Whether every column's ledger `c` holds is closed."
+closed(c::ColumnLedgers) = all(closed, c.ledgers)
+
+"""
+    ledger_of(c::ColumnLedgers, column...)
+
+The ledger `c` holds for the column at the trailing index `column`, refusing an index
+outside the trailing shape.
+"""
+function ledger_of(c::ColumnLedgers, column::Integer...)
+    checkbounds(Bool, c.ledgers, column...) || refuse(
+        "column ledger", "Fields.ledger_of",
+        "column $(column) is outside the trailing shape $(size(c.ledgers))")
+    return c.ledgers[column...]
+end
+
+"""
+    conserved_ledger(Val(Q), T, n, magnitude, before, after; reservoir)
+
+The balance of `Q` across an operation that summed `n` terms per column in the
+accumulator `T`, from `Float64` totals. When `magnitude`, `before` and `after` are
+numbers, the totals of a field of one value per cell, it is `Ledger{Q}` of them with no
+flux. When they are arrays of one trailing shape, one total per column, it is
+`ColumnLedgers{Q}` holding that `Ledger{Q}` of each column's entries, and it refuses
+arrays of different shapes.
+"""
+conserved_ledger(::Val{Q}, ::Type{T}, n::Integer, magnitude::Real, before::Real,
+                 after::Real; reservoir::Bool) where {Q,T<:AbstractFloat} =
+    Ledger{Q}(T, n, magnitude, before, after, zero(Float64); reservoir = reservoir)
+
+function conserved_ledger(q::Val{Q}, ::Type{T}, n::Integer, magnitude::AbstractArray,
+                          before::AbstractArray, after::AbstractArray;
+                          reservoir::Bool) where {Q,T<:AbstractFloat}
+    size(magnitude) == size(before) == size(after) || refuse(
+        "column ledger", "Fields.conserved_ledger",
+        "magnitude, before and after have sizes $(size(magnitude)), $(size(before)) " *
+        "and $(size(after))")
+    column(m, b, a) = conserved_ledger(q, T, n, m, b, a; reservoir = reservoir)
+    return ColumnLedgers{Q}(map(column, magnitude, before, after))
+end
+
+"""
+    legend_ledgers(Val(Q), T, n, legend, magnitude, before, after; reservoir)
+
+The `ClassLedgers{Q}` of `legend` from `Float64` totals whose last axis is the legend:
+class `k`'s entry is the `conserved_ledger` of slice `k` of `magnitude`, `before` and
+`after` along that axis (`legend_slice`).
+"""
+function legend_ledgers(q::Val{Q}, ::Type{T}, n::Integer, legend::Tuple,
+                        magnitude::AbstractArray, before::AbstractArray,
+                        after::AbstractArray; reservoir::Bool) where {Q,T<:AbstractFloat}
+    class_ledger(k) = conserved_ledger(q, T, n, legend_slice(magnitude, k),
+                                       legend_slice(before, k), legend_slice(after, k);
+                                       reservoir = reservoir)
+    return ClassLedgers{Q}(legend, ntuple(class_ledger, Val(length(legend))))
+end
+
+"""
+    legend_slice(xs, k)
+
+Slice `k` of `xs` along its last axis: a number when `xs` is a vector, and an array of
+its other axes otherwise.
+"""
+legend_slice(xs::AbstractVector, k::Integer) = xs[k]
+legend_slice(xs::AbstractArray{E,N}, k::Integer) where {E,N} =
+    xs[ntuple(_ -> Colon(), Val(N - 1))..., k]
+
+"""
     float64_total(xs, backend)
 
-`Reductions.pairwise_sum` of `xs` in `Float64` on `backend`, a host scalar.
+`Reductions.pairwise_sum` of `xs` in `Float64` on `backend`: a host scalar for a vector,
+and for an array of cells by trailing axes a host array of the trailing shape holding
+each column's total.
 """
-float64_total(xs::AbstractVector, backend::Backend) = pairwise_sum(Float64, xs, backend)
+float64_total(xs::AbstractArray, backend::Backend) = pairwise_sum(Float64, xs, backend)
+
+"""
+    zero_total(xs)
+
+The zero `float64_total` of `xs`'s shape takes: `zero(Float64)` for a vector, and a host
+array of zeros of the trailing shape otherwise.
+"""
+zero_total(::AbstractVector) = zero(Float64)
+zero_total(xs::AbstractArray) = zeros(Float64, trailing_shape(xs))
 
 """
     weighted_total(xs, weights, backend)
 
-The sum of `xs[j] * weights[j]` in `Float64` on `backend`: one segment of
-`Reductions.segmented_weighted_sum`, read to the host through `Backends.on`.
+The sum over the cells `j` of `xs[j, c...] * weights[j]` in `Float64` on `backend`, one
+segment of `Reductions.segmented_weighted_sum` over every column, read to the host
+through `Backends.on`: a host scalar for a vector, and a host array of the trailing
+shape holding each column's sum otherwise.
 """
-function weighted_total(xs::AbstractVector, weights::AbstractVector, backend::Backend)
-    starts = on([1, length(xs) + 1], backend)
+function weighted_total(xs::AbstractArray, weights::AbstractVector, backend::Backend)
+    starts = on([1, size(xs, CELL_AXIS) + 1], backend)
     total = segmented_weighted_sum(Float64, xs, weights, Segmentation(xs, starts), backend)
-    return only(on(total, CPU()))
+    return one_segment(on(total, CPU()))
 end
+
+"""
+    one_segment(total)
+
+The entries of a reduction over one segment with its segment axis dropped: the number
+a vector holds, or an array of the trailing shape.
+"""
+one_segment(total::AbstractVector) = only(total)
+one_segment(total::AbstractArray) = reshape(total, trailing_shape(total))
 
 """
     coarse_measure(T, measure, seg, backend)
@@ -293,62 +398,64 @@ coarse_measure(::Type{T}, measure::Measured, seg::Segmentation, backend::Backend
 """
     total_ledger(T, n, source, result; reservoir, backend)
 
-The `Ledger{:total}` of an operation that summed `n` terms in the accumulator `T` to
-take `source` to `result`: `before` and `after` the `Float64` totals of `source` and
-`result`, and the magnitude the `Float64` total of `abs.(source)`, all on `backend`.
+The balance of `:total` across an operation that summed `n` terms per column in the
+accumulator `T` to take `source` to `result`: `conserved_ledger` of `before` and `after`
+the `float64_total` of `source` and `result`, and the magnitude the `float64_total` of
+`abs.(source)`, all on `backend`.
 """
-function total_ledger(::Type{T}, n::Integer, source::AbstractVector,
-                      result::AbstractVector; reservoir::Bool,
+function total_ledger(::Type{T}, n::Integer, source::AbstractArray,
+                      result::AbstractArray; reservoir::Bool,
                       backend::Backend) where {T<:AbstractFloat}
-    return Ledger{:total}(T, n, float64_total(abs.(source), backend),
-                          float64_total(source, backend), float64_total(result, backend),
-                          zero(Float64); reservoir = reservoir)
+    return conserved_ledger(Val(:total), T, n, float64_total(abs.(source), backend),
+                            float64_total(source, backend), float64_total(result, backend);
+                            reservoir = reservoir)
 end
 
 """
     integral_ledger(T, n, measure, before, after, terms; reservoir, backend)
 
-The `Ledger` of the integral under `measure` across an operation that summed `n` terms
-in the accumulator `T`. `before`, `after` and `terms` are each a pair of a value array
-and the measure array it is weighted by: `before` and `after` the `weighted_total` of
-their pairs, and the magnitude the `weighted_total` of the absolute values of `terms`,
-all on `backend`.
+The balance of the integral under `measure` across an operation that summed `n` terms
+per column in the accumulator `T`. `before`, `after` and `terms` are each a pair of a
+value array and the measure vector it is weighted by: `conserved_ledger` of `before`
+and `after` the `weighted_total` of their pairs, and the magnitude the `weighted_total`
+of the absolute values of `terms`, all on `backend`.
 """
 function integral_ledger(::Type{T}, n::Integer, measure::Measured,
-                         before::NTuple{2,AbstractVector}, after::NTuple{2,AbstractVector},
-                         terms::NTuple{2,AbstractVector}; reservoir::Bool,
+                         before::NTuple{2,AbstractArray}, after::NTuple{2,AbstractArray},
+                         terms::NTuple{2,AbstractArray}; reservoir::Bool,
                          backend::Backend) where {T<:AbstractFloat}
-    return Ledger{integral_quantity(measure)}(
-        T, n, weighted_total(abs.(terms[1]), abs.(terms[2]), backend),
-        weighted_total(before[1], before[2], backend),
-        weighted_total(after[1], after[2], backend), zero(Float64); reservoir = reservoir)
+    return conserved_ledger(Val(integral_quantity(measure)), T, n,
+                            weighted_total(abs.(terms[1]), abs.(terms[2]), backend),
+                            weighted_total(before[1], before[2], backend),
+                            weighted_total(after[1], after[2], backend);
+                            reservoir = reservoir)
 end
 
 """
     block_segmentation(fine, coarse_level, fine_level, site, backend)
 
 The contiguous ranges the cells of `fine_level` occupy under the cells of
-`coarse_level`, checked against `fine`'s own length, with the boundaries moved to
-`backend` through `Backends.on`. A crossing between two levels is a segmented reduction
-because the bisection numbers a cell's descendants contiguously (decision 0005,
-`Mesh.descendants`).
+`coarse_level`, checked against the cell count of `fine` along `CELL_AXIS`, with the
+boundaries moved to `backend` through `Backends.on`. A crossing between two levels is a
+segmented reduction because the bisection numbers a cell's descendants contiguously
+(decision 0005, `Mesh.descendants`).
 
-Refuses a pair of levels that is not strictly finer to coarser, and a length that is
-not the coarse cell count times the block size, which is what a locally refined support
-would give and what `fiddlybits-52v.3.12` carries.
+Refuses a pair of levels that is not strictly finer to coarser, and a cell count that
+is not the coarse cell count times the block size, which is what a locally refined
+support would give, or an array whose cells do not lie on `CELL_AXIS`.
 """
-function block_segmentation(fine::AbstractVector, coarse_level::Integer,
+function block_segmentation(fine::AbstractArray, coarse_level::Integer,
                              fine_level::Integer, site::AbstractString, backend::Backend)
     fine_level > coarse_level || refuse(
         "level crossing", site,
         "level $(fine_level) is not finer than level $(coarse_level)")
     block = 4^(fine_level - coarse_level)
     ncoarse = ncells(coarse_level)
-    n = length(fine)
+    n = size(fine, CELL_AXIS)
     n == block * ncoarse || refuse(
         "level crossing extent", site,
         "level $(fine_level) under level $(coarse_level) is $(block * ncoarse) cells " *
-        "in blocks of $(block), and the array holds $(n)")
+        "in blocks of $(block), and the array holds $(n) along its cell axis")
     return Segmentation(fine, on(collect(1:block:(n + 1)), backend))
 end
 
@@ -360,6 +467,15 @@ How many cells of `fine_level` each cell of `coarse_level` holds.
 block_size(coarse_level::Integer, fine_level::Integer) = 4^(fine_level - coarse_level)
 
 """
+    cell_blocks(xs, block)
+
+The `inner` counts of `repeat` that repeat each cell of `xs` `block` times along
+`CELL_AXIS` and keep every trailing axis as it is.
+"""
+cell_blocks(::AbstractArray{E,N}, block::Integer) where {E,N} =
+    ntuple(d -> d == CELL_AXIS ? block : 1, Val(N))
+
+"""
     child_segmentation(f, to, backend)
 
 The segmentation a coarsening of `f` onto the coarser support `to` reduces over on
@@ -369,46 +485,54 @@ child_segmentation(f::Field{S,T,D,L}, to::Support{L2}, backend::Backend) where {
     block_segmentation(f.data, L2, L, "Fields.coarsen", backend)
 
 """
-    require_columnar(f, site)
-
-Returns `nothing` when `f`'s data is one value per cell. The segmented reductions take
-a vector, so a field carrying levels or components reduces column by column, which
-`fiddlybits-52v.3.12` adds; until it does, the shape is refused here rather than
-reduced along the wrong axis.
-"""
-require_columnar(f::Field, site::AbstractString) =
-    f.data isa AbstractVector ? nothing : refuse(
-        "field shape", site,
-        "$(ndims(f.data)) dimensions; only one value per cell reduces here, and " *
-        "fiddlybits-52v.3.12 carries the rest")
-
-"""
     require_measure_extent(values, m, site)
 
-Returns `nothing` when `m` has one value per element of `values`, and refuses naming
-both lengths otherwise.
+Returns `nothing` when `m` has one value per cell of `values` along `CELL_AXIS`, and
+refuses naming both counts otherwise.
 """
 require_measure_extent(values::AbstractArray, m::Measured, site::AbstractString) =
-    length(values_of(m)) == length(values) ? nothing : refuse(
+    length(values_of(m)) == size(values, CELL_AXIS) ? nothing : refuse(
         "measure extent", site,
-        "the field holds $(length(values)) cells and the " *
+        "the field holds $(size(values, CELL_AXIS)) cells and the " *
         "$(measure_name(m)) measure holds $(length(values_of(m)))")
+
+"""
+    position_phrase(i)
+
+How a refusal names the entry `i` of a field's array: `cell i` for a vector, and the
+cell and the trailing index of its column otherwise.
+"""
+position_phrase(i::CartesianIndex{1}) = "cell $(i[1])"
+position_phrase(i::CartesianIndex) = "cell $(i[1]) of column $(Base.tail(Tuple(i)))"
 
 """
     require_in_legend(labels, legend, site)
 
 Returns `nothing` when every label of `labels` is a class of `legend`, and refuses
-naming the first cell whose label is not.
+naming the first entry, by `position_phrase`, whose label is not.
 """
-function require_in_legend(labels::AbstractVector, legend::Tuple, site::AbstractString)
-    for (i, label) in enumerate(labels)
-        label in legend || refuse(
+function require_in_legend(labels::AbstractArray, legend::Tuple, site::AbstractString)
+    for i in CartesianIndices(labels)
+        labels[i] in legend || refuse(
             "categorical label", site,
-            "cell $(i) holds $(repr(label)), which the legend " *
+            "$(position_phrase(i)) holds $(repr(labels[i])), which the legend " *
             "$(join(map(repr, legend), ", ")) does not name")
     end
     return nothing
 end
+
+"""
+    require_legend_axis(fractions, legend, site)
+
+Returns `nothing` when `fractions` holds one column per class of `legend` on its last
+axis, after its cell axis, and refuses naming its size and the class count otherwise.
+"""
+require_legend_axis(fractions::AbstractArray, legend::Tuple, site::AbstractString) =
+    ndims(fractions) >= 2 && size(fractions, ndims(fractions)) == length(legend) ?
+    nothing : refuse(
+        "class-fraction shape", site,
+        "a class-fraction field holds one column per class on its last axis; the array " *
+        "has size $(size(fractions)) and the legend $(length(legend)) classes")
 
 """
     reduced(f, semantics, data, support, writer)
@@ -426,11 +550,10 @@ reduced(f::Field{S,T,D}, semantics::Semantics, data::AbstractArray,
     setup(f, to, site, backend)
 
 The checks every coarsening makes before it reduces, and the segmentation it reduces
-over on `backend`: one value per cell, a destination that could be a coarser level of
-the same mesh, and the contiguous child ranges.
+over on `backend`: a destination that could be a coarser level of the same mesh, and
+the contiguous child ranges along `CELL_AXIS`.
 """
 function setup(f::Field, to::Support, site::AbstractString, backend::Backend)
-    require_columnar(f, site)
     require_ancestor(f.support, to, site)
     return child_segmentation(f, to, backend)
 end
@@ -444,20 +567,28 @@ end
 `(field, ledger)`: `f` on the coarser support `to`, by the rule its semantics fixes or
 the rule the caller names, and the balance of what that rule conserves. Every form that
 integrates over a measure takes a `Measured`, so no call here passes an unqualified area
-(REQ-TER-011). Every form that returns a `Ledger` takes `reservoir`, which the ledger
+(REQ-TER-011). Every form that returns a ledger takes `reservoir`, which the ledger
 reads.
+
+A field of cells by trailing axes (`Backends.LAYOUT`) is reduced down its cell axis in
+every column at once, through the column form of the same reduction, and keeps its
+trailing axes; where a field of one value per cell returns a `Ledger`, it returns a
+`ColumnLedgers` of one `Ledger` per column.
 
 `Extensive` is a segmented sum in the field's element type and takes no measure; its
 ledger is `coarsen_total_ledger`. `FluxDensity`, `Fraction` and `Intensive` under
 `AreaMean` are means weighted by the named measure in the field's element type; their
-ledger is `coarsen_integral_ledger`. `CategoricalLabel` is a histogram into
-`CategoricalFraction` over the legend the call names, in the measure's element type,
-never a centre sample; it refuses a label the legend does not name, and its ledgers are
-`coarsen_class_ledgers`. `Intensive` under `ToQuantiles` returns the `NotConserved`
-`NOT_CONSERVED_TABLE` declares.
+ledger is `coarsen_integral_ledger`. `CategoricalFraction` is the mean of each class
+column, the legend the call names on the data's last axis, weighted by the named
+measure in the field's element type; it refuses data without that axis, and its ledgers
+are `class_ledgers`. `CategoricalLabel` is that coarsening taken class by class from
+each class's indicator (`label_coarsening`) over the legend the call names, in the
+measure's element type, never a centre sample, into `CategoricalFraction`; it refuses a label the legend does not name. `Intensive`
+under `ToQuantiles` is a table of the quantiles on a new last axis and returns the
+`NotConserved` `NOT_CONSERVED_TABLE` declares.
 
-`Intensive` has no form without a rule; `Quantiles` has no form, and
-`CategoricalFraction` none until multi-column fields reduce: see `REFUSAL_TABLE`.
+`Intensive` has no form without a rule, and `Quantiles` has no form: see
+`REFUSAL_TABLE`.
 """
 function coarsen(f::Field{Extensive}, to::Support; reservoir::Bool, backend::Backend)
     seg = setup(f, to, "Fields.coarsen", backend)
@@ -489,29 +620,138 @@ function coarsen(f::Field{Intensive}, to::Support, ::ToQuantiles{P};
            not_conserved(:coarsen, f, ToQuantiles{P})
 end
 
+function coarsen(f::Field{CategoricalFraction{Legend}}, to::Support;
+                  legend::Tuple, measure::Measured, reservoir::Bool,
+                  backend::Backend) where {Legend}
+    seg = setup(f, to, "Fields.coarsen", backend)
+    require_measure_extent(f.data, measure, "Fields.coarsen")
+    require_legend_axis(f.data, legend, "Fields.coarsen")
+    data, ledgers = class_coarsening(f.data, seg, legend, measure, reservoir, backend)
+    return reduced(f, CategoricalFraction{Legend}(), data, to, :coarsen), ledgers
+end
+
 function coarsen(f::Field{CategoricalLabel{Legend}}, to::Support;
                   legend::Tuple, measure::Measured, reservoir::Bool,
                   backend::Backend) where {Legend}
     seg = setup(f, to, "Fields.coarsen", backend)
     require_measure_extent(f.data, measure, "Fields.coarsen")
     require_in_legend(f.data, legend, "Fields.coarsen")
-    weights = values_of(measure)
-    share(class) = segmented_mean(eltype(weights),
-                                  on(indicator(f.data, class, eltype(weights)), backend),
-                                  seg, weights, backend)
-    data = stack(map(share, legend))
-    ledgers = coarsen_class_ledgers(f, to, data, legend, measure; reservoir = reservoir,
-                                    backend = backend)
+    data, ledgers = label_coarsening(f.data, seg, legend, measure, reservoir, backend)
     return reduced(f, CategoricalFraction{Legend}(), data, to, :coarsen), ledgers
 end
 
 """
     indicator(labels, class, T)
 
-One where `labels` equals `class` and zero elsewhere, in `T`, on the host.
+One where `labels` equals `class` and zero elsewhere, in `T`, on the host, in the shape
+of `labels`.
 """
-indicator(labels::AbstractVector, class, ::Type{T}) where {T} =
+indicator(labels::AbstractArray, class, ::Type{T}) where {T} =
     map(l -> l == class ? one(T) : zero(T), labels)
+
+"""
+    indicator!(buffer, labels, class)
+
+`buffer` overwritten with one where `labels` equals `class` and zero elsewhere, and
+returned; `buffer` has the shape of `labels`.
+"""
+indicator!(buffer::AbstractArray{T}, labels::AbstractArray, class) where {T} =
+    map!(l -> l == class ? one(T) : zero(T), buffer, labels)
+
+"""
+    class_shares(fractions, seg, measure, backend)
+
+The share of each coarse cell of `seg` the class fractions `fractions` hold: the mean
+of every column of `fractions` weighted by `measure`, in `fractions`'s element type, on
+`backend`.
+"""
+class_shares(fractions::AbstractArray, seg::Segmentation, measure::Measured,
+             backend::Backend) =
+    segmented_mean(eltype(fractions), fractions, seg, values_of(measure), backend)
+
+"""
+    class_area_totals(fine, fine_magnitude, coarse, held, weights, magnitude_weights, backend)
+
+`(magnitude, before, after)`, the `Float64` totals a class-area ledger closes: the
+`weighted_total` of `fine_magnitude`, the absolute values of the fine class fractions
+`fine`, by `magnitude_weights`, the absolute values of `weights`; that of `fine` by
+`weights`; and that of the coarse shares `coarse` by the coarse measure `held`.
+"""
+function class_area_totals(fine::AbstractArray, fine_magnitude::AbstractArray,
+                           coarse::AbstractArray, held::AbstractVector,
+                           weights::AbstractVector, magnitude_weights::AbstractVector,
+                           backend::Backend)
+    return weighted_total(fine_magnitude, magnitude_weights, backend),
+           weighted_total(fine, weights, backend),
+           weighted_total(coarse, held, backend)
+end
+
+"""
+    class_coarsening(fractions, seg, legend, measure, reservoir, backend)
+
+`(data, ledgers)` for the class fractions `fractions`, cells by trailing axes with
+`legend` on the last, coarsened over `seg` on `backend`: `data` the `class_shares` of
+every column in one launch, and `ledgers` the `class_ledgers` of it.
+"""
+function class_coarsening(fractions::AbstractArray, seg::Segmentation, legend::Tuple,
+                          measure::Measured, reservoir::Bool, backend::Backend)
+    data = class_shares(fractions, seg, measure, backend)
+    ledgers = class_ledgers(fractions, data, seg, legend, measure; reservoir = reservoir,
+                            backend = backend)
+    return data, ledgers
+end
+
+"""
+    class_ledgers(fine, coarse, seg, legend, measure; reservoir, backend)
+
+The `ClassLedgers{Name}` of a coarsening over `seg` of the class fractions `fine` to
+`coarse` under the measure `Name`, `legend` on the last axis of both. Class `k`'s entry
+is `legend_ledgers` in `fine`'s element type `T` over `fine`'s cell count, from slice
+`k` of the `class_area_totals` of `fine`, `abs.(fine)`, `coarse`, `coarse_measure` in
+`T`, the measure and its absolute values.
+"""
+function class_ledgers(fine::AbstractArray, coarse::AbstractArray, seg::Segmentation,
+                       legend::Tuple, measure::Measured{Name}; reservoir::Bool,
+                       backend::Backend) where {Name}
+    weights = values_of(measure)
+    T = eltype(fine)
+    held = coarse_measure(T, measure, seg, backend)
+    magnitude, before, after = class_area_totals(fine, abs.(fine), coarse, held, weights,
+                                                 abs.(weights), backend)
+    return legend_ledgers(Val(Name), T, size(fine, CELL_AXIS), legend, magnitude, before,
+                          after; reservoir = reservoir)
+end
+
+"""
+    label_coarsening(labels, seg, legend, measure, reservoir, backend)
+
+`(data, ledgers)` for the labels `labels`, cells by trailing axes, histogrammed over
+`seg` into the shares of `legend`, the classes on a new last axis of `data`. Class by
+class, the `indicator!` of the class is written into one host buffer in the measure's
+element type `T` and moved to `backend`; its `class_shares` are the class's slice of
+`data`, and its ledger is the `conserved_ledger` in `T` over the cell count of its
+`class_area_totals`, the indicator standing for its own absolute values. One class's
+indicator is held at a time; the class fractions of every class are never built.
+"""
+function label_coarsening(labels::AbstractArray, seg::Segmentation, legend::Tuple,
+                          measure::Measured{Name}, reservoir::Bool,
+                          backend::Backend) where {Name}
+    weights = values_of(measure)
+    T = eltype(weights)
+    held = coarse_measure(T, measure, seg, backend)
+    magnitude_weights = abs.(weights)
+    buffer = similar(labels, T)
+    n = size(labels, CELL_AXIS)
+    function class_part(k)
+        fine = on(indicator!(buffer, labels, legend[k]), backend)
+        shares = class_shares(fine, seg, measure, backend)
+        totals = class_area_totals(fine, fine, shares, held, weights, magnitude_weights,
+                                   backend)
+        return shares, conserved_ledger(Val(Name), T, n, totals...; reservoir = reservoir)
+    end
+    parts = ntuple(class_part, Val(length(legend)))
+    return stack(map(first, parts)), ClassLedgers{Name}(legend, map(last, parts))
+end
 
 """
     mean_coarsening(f, semantics, to, measure, reservoir, backend)
@@ -532,57 +772,30 @@ end
 """
     coarsen_total_ledger(f, data; reservoir, backend)
 
-The `Ledger{:total}` of a coarsening of the `Extensive` field `f` to the coarse values
-`data`: `total_ledger` in `f`'s element type over `f`'s cell count, from `f`'s data to
-`data`.
+The balance of `:total` across a coarsening of the `Extensive` field `f` to the coarse
+values `data`: `total_ledger` in `f`'s element type over `f`'s cell count, from `f`'s
+data to `data`.
 """
-coarsen_total_ledger(f::Field, data::AbstractVector; reservoir::Bool, backend::Backend) =
-    total_ledger(eltype(f.data), length(f.data), f.data, data; reservoir = reservoir,
-                 backend = backend)
+coarsen_total_ledger(f::Field, data::AbstractArray; reservoir::Bool, backend::Backend) =
+    total_ledger(eltype(f.data), size(f.data, CELL_AXIS), f.data, data;
+                 reservoir = reservoir, backend = backend)
 
 """
     coarsen_integral_ledger(f, to, data, measure; reservoir, backend)
 
-The ledger of the integral under `measure` across a mean coarsening of `f` onto `to` to
+The balance of the integral under `measure` across a mean coarsening of `f` onto `to` to
 the coarse values `data`: `integral_ledger` in `f`'s element type `T` over `f`'s cell
 count, from `f`'s data weighted by `measure` to `data` weighted by `coarse_measure` in
 `T`, with the terms `f`'s data weighted by `measure`.
 """
-function coarsen_integral_ledger(f::Field, to::Support, data::AbstractVector,
+function coarsen_integral_ledger(f::Field, to::Support, data::AbstractArray,
                                  measure::Measured; reservoir::Bool, backend::Backend)
     T = eltype(f.data)
     seg = child_segmentation(f, to, backend)
     weights = values_of(measure)
-    return integral_ledger(T, length(f.data), measure, (f.data, weights),
+    return integral_ledger(T, size(f.data, CELL_AXIS), measure, (f.data, weights),
                            (data, coarse_measure(T, measure, seg, backend)),
                            (f.data, weights); reservoir = reservoir, backend = backend)
-end
-
-"""
-    coarsen_class_ledgers(f, to, data, legend, measure; reservoir, backend)
-
-The `ClassLedgers{Name}` of a histogram of the labels of `f` onto `to` over `legend` to
-the class shares `data`, column `k` the share of `legend[k]`, under the measure `Name`.
-Class `k`'s ledger is in the measure's element type `T` over `f`'s cell count: `before`
-the `weighted_total` of `indicator` of `legend[k]` by `measure`, `after` that of column
-`k` by `coarse_measure` in `T`, and the magnitude that of the indicator by the absolute
-measure.
-"""
-function coarsen_class_ledgers(f::Field, to::Support, data::AbstractMatrix, legend::Tuple,
-                               measure::Measured{Name}; reservoir::Bool,
-                               backend::Backend) where {Name}
-    weights = values_of(measure)
-    T = eltype(weights)
-    held = coarse_measure(T, measure, child_segmentation(f, to, backend), backend)
-    n = length(f.data)
-    function class_ledger(k)
-        mask = on(indicator(f.data, legend[k], T), backend)
-        return Ledger{Name}(T, n, weighted_total(mask, abs.(weights), backend),
-                            weighted_total(mask, weights, backend),
-                            weighted_total(data[:, k], held, backend), zero(Float64);
-                            reservoir = reservoir)
-    end
-    return ClassLedgers{Name}(legend, ntuple(class_ledger, Val(length(legend))))
 end
 
 coarsen(f::Field{Intensive}, ::Support; kwargs...) = refuse_declared(:coarsen, f)
@@ -592,8 +805,6 @@ coarsen(f::Field{VectorComponent{:east_north}}, ::Support, ::Rule; kwargs...) =
     refuse_declared(:coarsen, f)
 coarsen(f::Field{<:Quantiles}, ::Support; kwargs...) = refuse_declared(:coarsen, f)
 coarsen(f::Field{<:Quantiles}, ::Support, ::Rule; kwargs...) = refuse_declared(:coarsen, f)
-coarsen(f::Field{<:CategoricalFraction}, ::Support; kwargs...) =
-    refuse_declared(:coarsen, f)
 
 """
     refine(f, to; measure, reservoir, backend)
@@ -601,8 +812,12 @@ coarsen(f::Field{<:CategoricalFraction}, ::Support; kwargs...) =
     refine(f, to)
 
 `(field, ledger)`: `f` on the finer support `to`, and the balance of what the
-refinement conserves. Every form that returns a `Ledger` or `ClassLedgers` takes
-`reservoir`, which the ledger reads.
+refinement conserves. Every form that returns a ledger takes `reservoir`, which the
+ledger reads.
+
+A field of cells by trailing axes (`Backends.LAYOUT`) is refined along its cell axis in
+every column and keeps its trailing axes; where a field of one value per cell returns a
+`Ledger`, it returns a `ColumnLedgers` of one `Ledger` per column.
 
 `Extensive` splits each cell's total among its children in proportion to the named
 measure at the fine level, the measure's totals summed in its element type; its ledger
@@ -617,14 +832,13 @@ not name, and its ledgers are `refine_class_ledgers`. `Intensive` and
 """
 function refine(f::Field{Extensive,T,D,L}, to::Support{L2};
                  measure::Measured, reservoir::Bool, backend::Backend) where {T,D,L,L2}
-    require_columnar(f, "Fields.refine")
     require_ancestor(f.support, to, "Fields.refine")
     fine = values_of(measure)
     seg = block_segmentation(fine, L, L2, "Fields.refine", backend)
     totals = segmented_sum(eltype(fine), fine, seg, backend)
     block = block_size(L, L2)
     shares = fine ./ repeat(totals, inner = block)
-    data = repeat(f.data, inner = block) .* shares
+    data = repeat(f.data, inner = cell_blocks(f.data, block)) .* shares
     ledger = total_ledger(eltype(fine), length(fine), f.data, data;
                           reservoir = reservoir, backend = backend)
     return reduced(f, Extensive(), data, to, :refine), ledger
@@ -665,37 +879,37 @@ end
     spread(f, to, from_level, to_level)
 
 Each cell's value repeated over the cells it holds at `to_level`, in the order the
-bisection numbers them, with the checks a refinement makes first: one value per cell, a
-destination that could be a finer level of the same mesh, and the extents.
+bisection numbers them, along `CELL_AXIS` in every column, with the checks a refinement
+makes first: a destination that could be a finer level of the same mesh, and the
+extents.
 """
 function spread(f::Field, to::Support, from_level::Integer, to_level::Integer)
-    require_columnar(f, "Fields.refine")
     require_ancestor(f.support, to, "Fields.refine")
     to_level > from_level || refuse(
         "level crossing", "Fields.refine",
         "level $(to_level) is not finer than level $(from_level)")
-    length(f.data) == ncells(from_level) || refuse(
+    size(f.data, CELL_AXIS) == ncells(from_level) || refuse(
         "level crossing extent", "Fields.refine",
         "level $(from_level) is $(ncells(from_level)) cells and the field holds " *
-        "$(length(f.data))")
-    return repeat(f.data, inner = block_size(from_level, to_level))
+        "$(size(f.data, CELL_AXIS)) along its cell axis")
+    return repeat(f.data, inner = cell_blocks(f.data, block_size(from_level, to_level)))
 end
 
 """
     refine_integral_ledger(f, to, data, measure; reservoir, backend)
 
-The ledger of the integral under `measure` across a refinement of `f` onto `to` to the
+The balance of the integral under `measure` across a refinement of `f` onto `to` to the
 fine values `data`, `measure` holding one value per fine cell: `integral_ledger` in
 `Float64` over the fine cell count, from `f`'s data weighted by `coarse_measure` in
 `Float64` to `data` weighted by `measure`, with the terms `data` weighted by `measure`.
 """
-function refine_integral_ledger(f::Field{S,T,D,L}, to::Support{L2}, data::AbstractVector,
+function refine_integral_ledger(f::Field{S,T,D,L}, to::Support{L2}, data::AbstractArray,
                                 measure::Measured; reservoir::Bool,
                                 backend::Backend) where {S,T,D,L,L2}
     require_measure_extent(data, measure, "Fields.refine")
     weights = values_of(measure)
     seg = block_segmentation(weights, L, L2, "Fields.refine", backend)
-    return integral_ledger(Float64, length(data), measure,
+    return integral_ledger(Float64, size(data, CELL_AXIS), measure,
                            (f.data, coarse_measure(Float64, measure, seg, backend)),
                            (data, weights), (data, weights); reservoir = reservoir,
                            backend = backend)
@@ -705,26 +919,31 @@ end
     refine_class_ledgers(f, to, data, legend, measure; reservoir, backend)
 
 The `ClassLedgers{Name}` of a refinement of the labels of `f` onto `to` to the fine
-labels `data`, under the measure `Name`, one value per fine cell. Class `k`'s ledger is
-in `Float64` over the fine cell count: `before` the `weighted_total` of `indicator` of
-`legend[k]` over `f`'s labels by `coarse_measure` in `Float64`, `after` that over
-`data` by `measure`, and the magnitude that over `data` by the absolute measure.
+labels `data`, under the measure `Name`, one value per fine cell. Class by class, the
+`indicator!` of the class over `f`'s labels and over `data` is written into one host
+buffer each and moved to `backend`, and class `k`'s entry is the `conserved_ledger` in
+`Float64` over the fine cell count of three totals: `before` the `weighted_total` of the
+coarse indicator by `coarse_measure` in `Float64`, `after` that of the fine indicator by
+`measure`, and the magnitude that of the fine indicator by the absolute measure.
 """
-function refine_class_ledgers(f::Field{S,T,D,L}, to::Support{L2}, data::AbstractVector,
+function refine_class_ledgers(f::Field{S,T,D,L}, to::Support{L2}, data::AbstractArray,
                               legend::Tuple, measure::Measured{Name}; reservoir::Bool,
                               backend::Backend) where {S,T,D,L,L2,Name}
     require_measure_extent(data, measure, "Fields.refine")
     weights = values_of(measure)
     held = coarse_measure(Float64, measure,
                           block_segmentation(weights, L, L2, "Fields.refine", backend), backend)
-    n = length(data)
+    magnitude_weights = abs.(weights)
+    coarse_buffer = similar(f.data, Float64)
+    fine_buffer = similar(data, Float64)
+    n = size(data, CELL_AXIS)
     function class_ledger(k)
-        coarse_mask = on(indicator(f.data, legend[k], Float64), backend)
-        fine_mask = on(indicator(data, legend[k], Float64), backend)
-        return Ledger{Name}(Float64, n, weighted_total(fine_mask, abs.(weights), backend),
-                            weighted_total(coarse_mask, held, backend),
-                            weighted_total(fine_mask, weights, backend), zero(Float64);
-                            reservoir = reservoir)
+        coarse = on(indicator!(coarse_buffer, f.data, legend[k]), backend)
+        fine = on(indicator!(fine_buffer, data, legend[k]), backend)
+        return conserved_ledger(Val(Name), Float64, n,
+                                weighted_total(fine, magnitude_weights, backend),
+                                weighted_total(coarse, held, backend),
+                                weighted_total(fine, weights, backend); reservoir = reservoir)
     end
     return ClassLedgers{Name}(legend, ntuple(class_ledger, Val(length(legend))))
 end
@@ -749,10 +968,11 @@ in it agree in semantics, dimension and support.
 An `IntervalMean` reduces by the sum over the series of each field weighted by its
 interval's duration divided by the union's duration, and its ledger is
 `time_mean_ledger`. An `IntervalAccumulation` reduces by a sum starting from a copy of
-the first field, and its ledger is `accumulation_ledger`. An `EndpointState` reduces to
-a copy of the state at the last interval's end and returns the `NotConserved`
-`NOT_CONSERVED_TABLE` declares. `Instantaneous` and `Static` have no form: see
-`REFUSAL_TABLE`.
+the first field, and its ledger is `accumulation_ledger`. A series of fields of cells
+by trailing axes returns a `ColumnLedgers` of one `Ledger` per column. An
+`EndpointState` reduces to a copy of the state at the last interval's end and returns
+the `NotConserved` `NOT_CONSERVED_TABLE` declares. `Instantaneous` and `Static` have no
+form: see `REFUSAL_TABLE`.
 """
 function time_reduce(series::Forcing{FT,F}; reservoir::Bool,
                      backend::Backend) where {FT,S,F<:Field{S,IntervalMean}}
@@ -796,47 +1016,49 @@ wider_roundoff(::Type{A}, ::Type{B}) where {A<:AbstractFloat,B<:AbstractFloat} =
 """
     time_mean_ledger(series, data; reservoir, backend)
 
-The `Ledger{:duration_integral}` of a duration-weighted mean of the `IntervalMean`
-`series` to `data`, in `wider_roundoff` of the interval type and `data`'s element type,
-over the series length times the cell count. `before` accumulates, over the series by
-`fma`, each duration times the `float64_total` of its field; the magnitude does the same
-over the absolute fields; `after` is the sum of the durations times the `float64_total`
-of `data`.
+The balance of `:duration_integral` across a duration-weighted mean of the
+`IntervalMean` `series` to `data`, in `wider_roundoff` of the interval type and
+`data`'s element type, over the series length times the cell count. `before`
+accumulates, over the series by `fma` in each column, each duration times the
+`float64_total` of its field, from `zero_total`; the magnitude does the same over the
+absolute fields; `after` is the sum of the durations times the `float64_total` of
+`data`.
 """
-function time_mean_ledger(series::Forcing{FT}, data::AbstractVector; reservoir::Bool,
+function time_mean_ledger(series::Forcing{FT}, data::AbstractArray; reservoir::Bool,
                           backend::Backend) where {FT}
     weights = map(duration, series.intervals)
     total = sum(weights)
-    before = zero(Float64)
-    magnitude = zero(Float64)
+    before = zero_total(data)
+    magnitude = zero_total(data)
     for (w, f) in zip(weights, series.values)
-        before = fma(Float64(w), float64_total(f.data, backend), before)
-        magnitude = fma(Float64(w), float64_total(abs.(f.data), backend), magnitude)
+        before = fma.(Float64(w), float64_total(f.data, backend), before)
+        magnitude = fma.(Float64(w), float64_total(abs.(f.data), backend), magnitude)
     end
-    after = Float64(total) * float64_total(data, backend)
-    return Ledger{:duration_integral}(wider_roundoff(FT, eltype(data)),
-                                      length(series) * length(data), magnitude, before,
-                                      after, zero(Float64); reservoir = reservoir)
+    after = Float64(total) .* float64_total(data, backend)
+    return conserved_ledger(Val(:duration_integral), wider_roundoff(FT, eltype(data)),
+                            length(series) * size(data, CELL_AXIS), magnitude, before,
+                            after; reservoir = reservoir)
 end
 
 """
     accumulation_ledger(series, data; reservoir, backend)
 
-The `Ledger{:total}` of a sum of the `IntervalAccumulation` `series` to `data`, in
-`data`'s element type over the series length times the cell count: `before` the sum
-over the series of each field's `float64_total`, the magnitude that of each absolute
-field's, and `after` the `float64_total` of `data`.
+The balance of `:total` across a sum of the `IntervalAccumulation` `series` to `data`,
+in `data`'s element type over the series length times the cell count: `before` the sum
+over the series of each field's `float64_total` in each column, from `zero_total`, the
+magnitude that of each absolute field's, and `after` the `float64_total` of `data`.
 """
-function accumulation_ledger(series::Forcing, data::AbstractVector; reservoir::Bool,
+function accumulation_ledger(series::Forcing, data::AbstractArray; reservoir::Bool,
                              backend::Backend)
-    before = zero(Float64)
-    magnitude = zero(Float64)
+    before = zero_total(data)
+    magnitude = zero_total(data)
     for f in series.values
-        before += float64_total(f.data, backend)
-        magnitude += float64_total(abs.(f.data), backend)
+        before = before .+ float64_total(f.data, backend)
+        magnitude = magnitude .+ float64_total(abs.(f.data), backend)
     end
-    return Ledger{:total}(eltype(data), length(series) * length(data), magnitude, before,
-                          float64_total(data, backend), zero(Float64); reservoir = reservoir)
+    return conserved_ledger(Val(:total), eltype(data),
+                            length(series) * size(data, CELL_AXIS), magnitude, before,
+                            float64_total(data, backend); reservoir = reservoir)
 end
 
 """

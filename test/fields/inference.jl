@@ -67,16 +67,36 @@ fine_labels() = field(Fields.CategoricalLabel{:inference_closure}(),
 coarse_labels() = field(Fields.CategoricalLabel{:inference_closure}(),
                        inference_alternating(IM.NCOARSE), IM.COARSE_SUPPORT;
                        dimension = Dimensions.DIMENSIONLESS)
+fine_fractions() = field(Fields.CategoricalFraction{:inference_closure}(),
+                         hcat(fill(0.25, IM.NFINE), fill(0.75, IM.NFINE)), IM.FINE_SUPPORT;
+                         dimension = Dimensions.DIMENSIONLESS)
+
+"`n` cells by two levels, each level varying cell by cell."
+inference_layered(n) = inference_varying(n) .* [1.0 2.0]
+
+fine_layered(semantics) = field(semantics, inference_layered(IM.NFINE), IM.FINE_SUPPORT)
+coarse_layered(semantics) = field(semantics, inference_layered(IM.NCOARSE), IM.COARSE_SUPPORT)
+fine_layered_labels() = field(Fields.CategoricalLabel{:inference_closure}(),
+                              hcat(inference_alternating(IM.NFINE),
+                                   inference_alternating(IM.NFINE)), IM.FINE_SUPPORT;
+                              dimension = Dimensions.DIMENSIONLESS)
+coarse_layered_labels() = field(Fields.CategoricalLabel{:inference_closure}(),
+                                hcat(inference_alternating(IM.NCOARSE),
+                                     inference_alternating(IM.NCOARSE)), IM.COARSE_SUPPORT;
+                                dimension = Dimensions.DIMENSIONLESS)
+fine_layered_fractions() = field(Fields.CategoricalFraction{:inference_closure}(),
+                                 stack((hcat(fill(0.25, IM.NFINE), fill(0.75, IM.NFINE)),
+                                        hcat(fill(0.5, IM.NFINE), fill(0.5, IM.NFINE)));
+                                       dims = 2),
+                                 IM.FINE_SUPPORT; dimension = Dimensions.DIMENSIONLESS)
 
 """
     COARSEN_CALLS
 
 One representative, working `Fields.coarsen` call per `Fields.semantics_types()`
-head that has one. `CategoricalFraction`, `VectorComponent` and `Quantiles` carry
-no working coarsen form (the first two of those are read as pure refusals here;
-the third, coarsen(CategoricalFraction), is the gap fiddlybits-52v.3.16 carries,
-which test/fields/semantics_closure.jl's operator-closure walk already names) and
-are absent rather than forced through a call meant to raise.
+head that has one, on a field of one value per cell (a class-fraction field holds its
+legend on a second axis). `VectorComponent` and `Quantiles` carry no working coarsen
+form and are absent rather than forced through a call meant to raise.
 """
 const COARSEN_CALLS = (
     Extensive = () -> Fields.coarsen(fine_field(Fields.Extensive()), IM.COARSE_SUPPORT;
@@ -91,6 +111,32 @@ const COARSEN_CALLS = (
     CategoricalLabel = () -> Fields.coarsen(fine_labels(), IM.COARSE_SUPPORT;
                                             legend = LEGEND, measure = AREA,
                                             reservoir = false, backend = BACKEND),
+    CategoricalFraction = () -> Fields.coarsen(fine_fractions(), IM.COARSE_SUPPORT;
+                                               legend = LEGEND, measure = AREA,
+                                               reservoir = false, backend = BACKEND),
+)
+
+"""
+    COLUMN_COARSEN_CALLS
+
+The heads of `COARSEN_CALLS` again, each called on a field of cells by two levels.
+"""
+const COLUMN_COARSEN_CALLS = (
+    Extensive = () -> Fields.coarsen(fine_layered(Fields.Extensive()), IM.COARSE_SUPPORT;
+                                     reservoir = false, backend = BACKEND),
+    FluxDensity = () -> Fields.coarsen(fine_layered(Fields.FluxDensity()), IM.COARSE_SUPPORT;
+                                       measure = AREA, reservoir = false, backend = BACKEND),
+    Fraction = () -> Fields.coarsen(fine_layered(Fields.Fraction()), IM.COARSE_SUPPORT;
+                                    measure = AREA, reservoir = false, backend = BACKEND),
+    Intensive = () -> Fields.coarsen(fine_layered(Fields.Intensive()), IM.COARSE_SUPPORT,
+                                     Fields.AreaMean(); measure = AREA, reservoir = false,
+                                     backend = BACKEND),
+    CategoricalLabel = () -> Fields.coarsen(fine_layered_labels(), IM.COARSE_SUPPORT;
+                                            legend = LEGEND, measure = AREA,
+                                            reservoir = false, backend = BACKEND),
+    CategoricalFraction = () -> Fields.coarsen(fine_layered_fractions(), IM.COARSE_SUPPORT;
+                                               legend = LEGEND, measure = AREA,
+                                               reservoir = false, backend = BACKEND),
 )
 
 """
@@ -111,6 +157,26 @@ const REFINE_CALLS = (
                                            legend = LEGEND, measure = AREA,
                                            reservoir = false, backend = BACKEND),
     VectorComponent = () -> Fields.refine(coarse_field(Fields.VectorComponent{:cartesian}()),
+                                          IM.FINE_SUPPORT),
+)
+
+"""
+    COLUMN_REFINE_CALLS
+
+The heads of `REFINE_CALLS` again, each called on a field of cells by two levels.
+"""
+const COLUMN_REFINE_CALLS = (
+    Extensive = () -> Fields.refine(coarse_layered(Fields.Extensive()), IM.FINE_SUPPORT;
+                                    measure = AREA, reservoir = false, backend = BACKEND),
+    FluxDensity = () -> Fields.refine(coarse_layered(Fields.FluxDensity()), IM.FINE_SUPPORT;
+                                      measure = AREA, reservoir = false, backend = BACKEND),
+    Fraction = () -> Fields.refine(coarse_layered(Fields.Fraction()), IM.FINE_SUPPORT;
+                                   measure = AREA, reservoir = false, backend = BACKEND),
+    Intensive = () -> Fields.refine(coarse_layered(Fields.Intensive()), IM.FINE_SUPPORT),
+    CategoricalLabel = () -> Fields.refine(coarse_layered_labels(), IM.FINE_SUPPORT;
+                                           legend = LEGEND, measure = AREA,
+                                           reservoir = false, backend = BACKEND),
+    VectorComponent = () -> Fields.refine(coarse_layered(Fields.VectorComponent{:cartesian}()),
                                           IM.FINE_SUPPORT),
 )
 
@@ -148,45 +214,84 @@ const TIME_REDUCE_CALLS = (
               [inference_varying(IM.NFINE), inference_varying(IM.NFINE)])),
 )
 
+"""
+    COLUMN_TIME_REDUCE_CALLS
+
+The members of `TIME_REDUCE_CALLS` again, each over a series of fields of cells by two
+levels.
+"""
+const COLUMN_TIME_REDUCE_CALLS = (
+    IntervalMean = () -> Fields.time_reduce(
+        series(Fields.FluxDensity(), Time.IntervalMean(),
+              [inference_layered(IM.NFINE), inference_layered(IM.NFINE)]);
+        reservoir = false, backend = BACKEND),
+    IntervalAccumulation = () -> Fields.time_reduce(
+        series(Fields.Extensive(), Time.IntervalAccumulation(),
+              [inference_layered(IM.NFINE), inference_layered(IM.NFINE)]);
+        reservoir = false, backend = BACKEND),
+    EndpointState = () -> Fields.time_reduce(
+        series(Fields.Intensive(), Time.EndpointState(),
+              [inference_layered(IM.NFINE), inference_layered(IM.NFINE)])),
+)
+
 "Whether `x` is a `(Field, ledger)` pair of a concrete type."
 pair(x) = x isa Tuple{Fields.Field,Any} && isconcretetype(typeof(x))
 
+"The data shapes each operator is walked over, with the call tables for each."
+const SHAPES = (
+    (name = "one value per cell", coarsen = COARSEN_CALLS, refine = REFINE_CALLS,
+     time_reduce = TIME_REDUCE_CALLS),
+    (name = "cells by levels", coarsen = COLUMN_COARSEN_CALLS, refine = COLUMN_REFINE_CALLS,
+     time_reduce = COLUMN_TIME_REDUCE_CALLS),
+)
+
 @testset "fields.inference_tight" begin
     @testset "the call tables name only real heads" begin
-        @test issubset(keys(COARSEN_CALLS), Tuple(nameof(S) for S in Fields.semantics_types()))
-        @test issubset(keys(REFINE_CALLS), Tuple(nameof(S) for S in Fields.semantics_types()))
-        @test issubset(keys(TIME_REDUCE_CALLS),
-                       Tuple(nameof(typeof(T)) for T in Time.time_semantics()))
+        for shape in SHAPES
+            @test issubset(keys(shape.coarsen), Tuple(nameof(S) for S in Fields.semantics_types()))
+            @test issubset(keys(shape.refine), Tuple(nameof(S) for S in Fields.semantics_types()))
+            @test issubset(keys(shape.time_reduce),
+                           Tuple(nameof(typeof(T)) for T in Time.time_semantics()))
+        end
     end
 
-    @testset "coarsen" begin
-        for S in Fields.semantics_types()
-            name = nameof(S)
-            haskey(COARSEN_CALLS, name) || continue
-            @testset "$(name)" begin
-                @test pair(@inferred(getfield(COARSEN_CALLS, name)()))
+    for shape in SHAPES
+        @testset "coarsen, $(shape.name)" begin
+            for S in Fields.semantics_types()
+                name = nameof(S)
+                haskey(shape.coarsen, name) || continue
+                @testset "$(name)" begin
+                    @test pair(@inferred(getfield(shape.coarsen, name)()))
+                end
+            end
+        end
+
+        @testset "refine, $(shape.name)" begin
+            for S in Fields.semantics_types()
+                name = nameof(S)
+                haskey(shape.refine, name) || continue
+                @testset "$(name)" begin
+                    @test pair(@inferred(getfield(shape.refine, name)()))
+                end
+            end
+        end
+
+        @testset "time_reduce, $(shape.name)" begin
+            for T in Time.time_semantics()
+                name = nameof(typeof(T))
+                haskey(shape.time_reduce, name) || continue
+                @testset "$(name)" begin
+                    @test pair(@inferred(getfield(shape.time_reduce, name)()))
+                end
             end
         end
     end
 
-    @testset "refine" begin
-        for S in Fields.semantics_types()
-            name = nameof(S)
-            haskey(REFINE_CALLS, name) || continue
-            @testset "$(name)" begin
-                @test pair(@inferred(getfield(REFINE_CALLS, name)()))
-            end
-        end
-    end
-
-    @testset "time_reduce" begin
-        for T in Time.time_semantics()
-            name = nameof(typeof(T))
-            haskey(TIME_REDUCE_CALLS, name) || continue
-            @testset "$(name)" begin
-                @test pair(@inferred(getfield(TIME_REDUCE_CALLS, name)()))
-            end
-        end
+    @testset "the walk over cells by levels returns one ledger per level" begin
+        _, ledger = COLUMN_COARSEN_CALLS.Extensive()
+        @test ledger isa Fields.ColumnLedgers{:total}
+        _, class_ledgers = COLUMN_COARSEN_CALLS.CategoricalFraction()
+        @test Fields.ledger_of(class_ledgers, :rock) isa Fields.ColumnLedgers
     end
 
     @testset "positive control: an operator that picks its semantics at runtime fails @inferred" begin
