@@ -322,7 +322,7 @@ function encode_stage!(w::Writer, s::Submission)
         failed && (s.chunks = Vector{UInt8}[])
         drop!(w, s, failed ? s.holding : s.holding - kept)
     end
-    release!(w.pool, encode_part(s.charge))
+    encode_part(s.charge) > 0 && release!(w.pool, encode_part(s.charge))
     if failed
         release!(w.pool, s.charge.compressed)
         mark_landed!(w, s, refusal)
