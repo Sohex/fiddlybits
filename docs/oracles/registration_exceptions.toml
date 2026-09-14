@@ -1,0 +1,32 @@
+# The merges the history check of oracles.registration_rule (Oracles.history_problems,
+# src/Oracles/registry.jl) accepts against clause (4) of decision 0025's amendment of
+# 2026-09-13: a merge that changes an existing entry's threshold together with a path under
+# src/ or a file holding the testset named by that entry (docs/oracles/README.md,
+# Registration).
+#
+# Nothing is ever added to this list without the user's explicit permission for that
+# entry. An executor, a reviewer or an orchestrator never adds one to make a gate pass;
+# a merge the check flags is redone unless the user permits its entry.
+#
+# The check drops a violation of clause (4) whose merge and oracle equal one entry's, and
+# fails on every entry that matches no violation, which it reports as stale. The reader
+# refuses the file before git is read when it is missing, holds a key other than
+# exception, or holds an entry missing a field, carrying another key, with an empty
+# permitted_by, with a merge that is not a forty-digit commit id, or naming the merge and
+# oracle of another entry.
+#
+# Fields of each [[exception]], every one required:
+#   merge         the full forty-digit id of the merge commit
+#   oracle        the id of the registry entry whose threshold the merge changed
+#   reason        what the merge changed and why it stands
+#   row           the tracker row of the merge
+#   date          the date the entry was added, a TOML date
+#   permitted_by  the user's explicit permission for this entry: its date and wording
+
+[[exception]]
+merge = "0d09de52c917768be851e8205fcad2c5e8e30088"
+oracle = "system.epoch_event"
+reason = "the threshold was rewritten to the Derived event instants of decision 0008 as amended, in the same merge as the src/Systems change implementing it, and the merge was pushed before the check existed"
+row = "fiddlybits-52v.4.17"
+date = 2026-09-14
+permitted_by = "the user's explicit permission, 2026-09-14: option A chosen for this merge on row fiddlybits-52v.8.2"

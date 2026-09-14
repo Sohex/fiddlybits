@@ -82,9 +82,17 @@ class has a residual to quote, the metric is REPORT.
   entry's threshold together with `src/` or a testset named by that entry.
 - `oracles.registration_rule` decides each clause above (`test/oracles/`), reading
   git from the commit that carries decision 0025's amendment of 2026-09-13 and a
-  merge over its whole branch. A value read outside the runner and the testsets, and
+  merge on the first-parent chain from HEAD over its whole branch; a merge off that
+  chain, such as a merge of main into a feature branch, is read in the merge that
+  brings it onto the chain. A value read outside the runner and the testsets, and
   a bar chosen knowing another model's value of its statistic, are outside what it
   decides; the basis each bar states names any such value it knew.
+- The history check accepts a merge that `registration_exceptions.toml` lists by its
+  full commit id and the oracle whose threshold it changed, and fails on a listed
+  exception that matches no merge it refuses, reported as stale. Nothing is ever added
+  to that list without the user's explicit permission for that entry, which the entry
+  records in `permitted_by`; an executor, reviewer or orchestrator never adds one to
+  make a gate pass, and a merge the check refuses is otherwise redone.
 - Every entry names its source kind (identity, conservation, analytic, known
   quantity, published spread) and its anchors in `docs/references/INDEX.md`.
 - Every entry in `registry.toml` is `provisional = true` with an empty
