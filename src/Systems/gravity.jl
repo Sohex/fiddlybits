@@ -1,7 +1,8 @@
 # Gravity as the canonical Derived field g(r, phi), and the two-body orbital period,
 # at the Newtonian constant of gravitation. docs/plans/fiddlybits-52v.4-system.md,
-# section "The struct"; decision 0004, the planet's bulk. The source these rules are
-# read from is fiddlybits-52v.4.11.
+# section "The struct"; decision 0004, the planet's bulk. The relations are read from
+# Murray and Dermott (2000), Solar System Dynamics, 10.1017/CBO9781139174817, at the
+# locators each docstring names.
 
 using ..Verdicts: refuse
 using ..Dispositions: value
@@ -10,7 +11,8 @@ using ..Reductions: error_bound
 """
     gravitational_parameter(FT, mass)
 
-`G mass` at the constant of `gravitational_constant(FT)`.
+`G mass` at the constant of `gravitational_constant(FT)`: the `mu = G (m1 + m2)` of
+Murray and Dermott (2000), p. 24, below Eq. (2.5), for `mass` the masses summed.
 """
 gravitational_parameter(::Type{FT}, mass::FT) where {FT<:AbstractFloat} =
     value(gravitational_constant(FT)) * mass
@@ -18,7 +20,9 @@ gravitational_parameter(::Type{FT}, mass::FT) where {FT<:AbstractFloat} =
 """
     rotation_rate(FT, period)
 
-`2 pi / period`: the magnitude of the angular velocity of a rotation of `period`.
+`2 pi / period`: the magnitude of the angular velocity of a rotation of `period`, the
+`n = 2 pi / T` of Murray and Dermott (2000), Eq. (2.25), p. 29, for an angle covering
+`2 pi` in one period.
 """
 rotation_rate(::Type{FT}, period::FT) where {FT<:AbstractFloat} = 2 * FT(pi) / period
 
@@ -28,8 +32,12 @@ rotation_rate(::Type{FT}, period::FT) where {FT<:AbstractFloat} = 2 * FT(pi) / p
 The magnitude of the effective gravity at `radial_distance` from the planet's centre
 and at `geocentric_latitude` in radians: the point-mass attraction `G M / r^2` of
 the planet's mass and the centrifugal acceleration `omega^2 r cos(phi)` of its
-rotation, combined as a radial and a tangential component. Refuses a planet whose
-rotation is a `SynchronousRotation` not yet resolved by `System`.
+rotation, combined as a radial and a tangential component. The total potential
+`-G m / r + V_cf` of Murray and Dermott (2000), Eq. (4.97), p. 150, with the
+centrifugal potential `V_cf = -(1 / 2) omega^2 r^2 sin^2(theta)` of Eq. (4.96) and its
+acceleration `omega^2 (x, y)` of Eq. (4.95), p. 149, at the colatitude
+`theta = pi / 2 - phi`. Refuses a planet whose rotation is a `SynchronousRotation`
+not yet resolved by `System`.
 """
 function gravity(p::Planet{FT,B,R}, r::FT, phi::FT) where
         {FT<:AbstractFloat,B,R<:Union{SiderealRotation,SynchronousPeriod}}
@@ -84,7 +92,8 @@ gravity_rounding(p::Planet{FT}, r::FT, phi::FT) where {FT<:AbstractFloat} =
     orbital_period(FT, semi_major_axis, masses)
 
 `2 pi sqrt(a^3 / (G sum(masses)))`: the period of a two-body orbit of semi-major
-axis `a` whose two bodies hold `masses` together.
+axis `a` whose two bodies hold `masses` together, `T^2 = 4 pi^2 a^3 / mu` of Murray
+and Dermott (2000), Eq. (2.22), p. 28, with `mu = G (m1 + m2)` of p. 24.
 """
 orbital_period(::Type{FT}, a::FT, masses::Tuple) where {FT<:AbstractFloat} =
     2 * FT(pi) * sqrt((a * a * a) / (value(gravitational_constant(FT)) * sum(masses)))
