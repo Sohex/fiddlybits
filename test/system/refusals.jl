@@ -13,6 +13,7 @@ import .SystemFixtures as SF
         @test SF.two_star_system() isa Systems.System
         @test SF.synchronous_system() isa Systems.System
         @test SF.flux_system() isa Systems.System
+        @test SF.circumbinary_system() isa Systems.System
     end
 
     @testset "each block omitted in turn" begin
@@ -187,27 +188,123 @@ import .SystemFixtures as SF
         @test SF.synchronous_system() isa Systems.System
     end
 
-    @testset "the equinox kind at zero obliquity" begin
+    @testset "a mean_longitude_at_epoch on the planet's orbit" begin
         one_ = Dimensions.DIMENSIONLESS
-        @test SF.refused(SF.caught(() -> SF.flux_system(planet = SF.planet(obliquity = SF.irreducible(0.0, one_)))),
-                         "obliquity", "vernal equinox")
-        @test SF.refused(SF.caught(() -> SF.flux_system(planet = SF.planet(obliquity = SF.bracket(0.4, 0.0, 0.6, one_)))),
-                         "obliquity", "vernal equinox")
-        @test SF.flux_system(planet = SF.planet(obliquity = SF.irreducible(1e-10, one_))) isa Systems.System
+        l0 = SF.irreducible(0.5, one_)
+        @test SF.refused(SF.caught(() -> SF.planet_orbit(mean_longitude_at_epoch = l0)),
+                         "mean_longitude_at_epoch", "second declaration")
+        @test SF.refused(SF.caught(() -> SF.flux_orbit(mean_longitude_at_epoch = l0)),
+                         "mean_longitude_at_epoch", "second declaration")
+
+        @testset "control: the planet's is the zero of the root origin, and every other orbit declares its own" begin
+            for l in (SF.planet_orbit().mean_longitude_at_epoch, SF.flux_orbit().elements[5],
+                      SF.flux_system().orbits.planet.mean_longitude_at_epoch)
+                @test l isa Dispositions.Derived
+                @test l.rule === :root_origin
+                @test Dispositions.value(l) === 0.0
+            end
+            @test Dispositions.value(SF.planet_orbit(Float32).mean_longitude_at_epoch) === 0.0f0
+            @test SF.moon_orbit(mean_longitude_at_epoch = l0).mean_longitude_at_epoch === l0
+            for form in (SF.moon_orbit, SF.companion_orbit)
+                without = (; primary = form().primary, secondary = form().secondary)
+                keywords = Base.structdiff(
+                    merge(SF.elements(Float64), without,
+                          (reference_plane = form().reference_plane,
+                           semi_major_axis = form().semi_major_axis)),
+                    NamedTuple{(:mean_longitude_at_epoch,)})
+                @test SF.refused(SF.caught(() -> Systems.Orbit(; keywords...)),
+                                 "mean_longitude_at_epoch", "missing")
+            end
+        end
     end
 
-    @testset "the equinox kind with no single primary" begin
-        epoch(i) = SF.numerics(epoch = Systems.EpochReference(
-            kind = :vernal_equinox, source = Systems.StarBody(i),
-            offset = SF.irreducible(0.0, Dimensions.TIME)))
-        circumbinary = Systems.OrbitHierarchy(
-            planet = SF.planet_orbit(primary = Systems.StarBarycentre(1, 2)),
-            moons = (SF.moon_orbit(),), companions = (SF.companion_orbit(),))
-        @test SF.refused(SF.caught(() -> SF.two_star_system(orbits = circumbinary, numerics = epoch(1))),
-                         "epoch", "single primary")
-        @test SF.refused(SF.caught(() -> SF.two_star_system(numerics = epoch(2))),
-                         "epoch", "single primary")
-        @test SF.two_star_system(numerics = epoch(1)) isa Systems.System
+    @testset "the replaced orbit keywords" begin
+        one_ = Dimensions.DIMENSIONLESS
+        for name in (:argument_of_periapsis, :mean_anomaly_at_epoch)
+            @test SF.refused(SF.caught(() -> SF.planet_orbit(; name => SF.irreducible(1.0, one_))),
+                             String(name), "not a keyword")
+            @test SF.refused(SF.caught(() -> SF.moon_orbit(; name => SF.irreducible(1.0, one_))),
+                             String(name), "not a keyword")
+        end
+        without = Base.structdiff(
+            merge(SF.elements(Float64), (primary = Systems.StarBody(1), secondary = Systems.PlanetBody(),
+                                         reference_plane = :invariable_plane,
+                                         semi_major_axis = SF.wide(1.8e11, Dimensions.LENGTH))),
+            NamedTuple{(:longitude_of_periapsis,)})
+        @test SF.refused(SF.caught(() -> Systems.Orbit(; without...)), "longitude_of_periapsis", "missing")
+    end
+
+    @testset "a longitude outside [0, 2 pi)" begin
+        one_ = Dimensions.DIMENSIONLESS
+        for x in (2 * pi, -0.1)
+            d = SF.irreducible(x, one_)
+            @test SF.refused(SF.caught(() -> SF.planet(equator_ascending_node_longitude = d)),
+                             "equator_ascending_node_longitude", "lies outside")
+            @test SF.refused(SF.caught(() -> SF.planet_orbit(longitude_of_ascending_node = d)),
+                             "longitude_of_ascending_node", "lies outside")
+            @test SF.refused(SF.caught(() -> SF.planet_orbit(longitude_of_periapsis = d)),
+                             "longitude_of_periapsis", "lies outside")
+            @test SF.refused(SF.caught(() -> SF.moon_orbit(mean_longitude_at_epoch = d)),
+                             "mean_longitude_at_epoch", "lies outside")
+        end
+        @test SF.refused(SF.caught(() -> SF.planet(
+                             equator_ascending_node_longitude = SF.bracket(1.0, 0.5, 2 * pi, one_))),
+                         "equator_ascending_node_longitude", "lies outside")
+        without = Base.structdiff(SF.planet_keywords(), NamedTuple{(:equator_ascending_node_longitude,)})
+        @test SF.refused(SF.caught(() -> Systems.Planet(; without...)),
+                         "equator_ascending_node_longitude", "missing")
+        @test SF.refused(SF.caught(() -> SF.planet(
+                             equator_ascending_node_longitude = SF.irreducible(1.0f0, one_))),
+                         "equator_ascending_node_longitude", "not a Float64")
+
+        @testset "control: zero and the float below 2 pi construct, in every admitted disposition" begin
+            for x in (0.0, prevfloat(2 * pi))
+                d = SF.irreducible(x, one_)
+                @test Dispositions.value(SF.planet(equator_ascending_node_longitude = d).equator_ascending_node_longitude) === x
+                @test SF.planet_orbit(longitude_of_ascending_node = d) isa Systems.Orbit
+                @test SF.planet_orbit(longitude_of_periapsis = d) isa Systems.Orbit
+                @test SF.moon_orbit(mean_longitude_at_epoch = d) isa Systems.Orbit
+            end
+            sourced = Dispositions.Sourced(value = 1.0, dim = one_,
+                locator = Dispositions.Locator(identifier = "fixture", table = "fixture table"))
+            @test SF.planet(equator_ascending_node_longitude = sourced) isa Systems.Planet
+            @test SF.planet(equator_ascending_node_longitude = SF.bracket(1.0, 0.5, 1.5, one_)) isa Systems.Planet
+            derived = Dispositions.Derived(value = 1.0, dim = one_, from = (:obliquity,),
+                                           rule = :fixture, fields = Systems.PLANET_FIELDS)
+            @test SF.refused(SF.caught(() -> SF.planet(equator_ascending_node_longitude = derived)),
+                             "equator_ascending_node_longitude", "Derived is not admitted")
+            @test SF.refused(SF.caught(() -> SF.planet(obliquity = derived)),
+                             "obliquity", "Derived is not admitted")
+        end
+    end
+
+    @testset "primary_equator named by a planet orbit about StarBarycentre(1, 2)" begin
+        barycentre = Systems.StarBarycentre(1, 2)
+        @test SF.refused(SF.caught(() -> SF.planet_orbit(primary = barycentre,
+                                                         reference_plane = :primary_equator)),
+                         "reference_plane", "barycentre has no equator")
+
+        @testset "control: primary_equator about a star, and invariable_plane about the barycentre, construct" begin
+            @test SF.planet_orbit(reference_plane = :primary_equator).reference_plane === :primary_equator
+            @test SF.planet_orbit(primary = barycentre).primary === barycentre
+            @test SF.circumbinary_system() isa Systems.System
+        end
+    end
+
+    @testset "a companion on invariable_plane beside a planet orbit on primary_equator" begin
+        on_equator = SF.planet_orbit(reference_plane = :primary_equator)
+        e = SF.caught(() -> Systems.OrbitHierarchy(planet = on_equator, moons = (SF.moon_orbit(),),
+                                                   companions = (SF.companion_orbit(),)))
+        @test SF.refused(e, "companions", "names primary_equator")
+
+        @testset "control: the companion on planet_orbit beside it, and on invariable_plane beside a planet orbit on invariable_plane, construct" begin
+            beside = Systems.OrbitHierarchy(
+                planet = on_equator, moons = (SF.moon_orbit(),),
+                companions = (SF.companion_orbit(reference_plane = :planet_orbit),))
+            @test SF.two_star_system(orbits = beside) isa Systems.System
+            @test SF.two_star_system().orbits.companions[1].reference_plane === :invariable_plane
+            @test SF.two_star_system().orbits.planet.reference_plane === :invariable_plane
+        end
     end
 
     @testset "an orbit hierarchy that does not name every body once" begin

@@ -1,5 +1,5 @@
 using Test
-using Fiddlybits: Systems, Dispositions, Provenance
+using Fiddlybits: Systems, Dispositions, Dimensions, Provenance
 import .SystemFixtures as SF
 
 # strip(system): an isbits struct of plain FT for every instance, a function of the
@@ -9,7 +9,10 @@ import .SystemFixtures as SF
 @testset "system strip" begin
     value = Dispositions.value
     instances = (SF.system(), SF.system(Float32), SF.two_star_system(), SF.synchronous_system(),
-                 SF.flux_system(),
+                 SF.flux_system(), SF.circumbinary_system(),
+                 SF.system(orbits = Systems.OrbitHierarchy(
+                     planet = SF.planet_orbit(reference_plane = :primary_equator),
+                     moons = (SF.moon_orbit(),), companions = ())),
                  SF.system(stars = (SF.star(structure = SF.linear_model(), spectrum = SF.grid()),)),
                  SF.system(inventories = SF.inventories(condensable =
                      Systems.NoCondensable(argument = "the fixture's volatiles do not condense"))))
@@ -53,6 +56,35 @@ import .SystemFixtures as SF
         @test st.numerics.exner_reference_pressure === value(s.numerics.exner_reference_pressure)
         @test st.planet.sub_primary_longitude_at_epoch ===
               value(s.planet.sub_primary_longitude_at_epoch)
+    end
+
+    @testset "strip carries the longitudes of the orbit hierarchy and the equator's node" begin
+        for T in (Float64, Float32)
+            s = SF.two_star_system(T)
+            st = Systems.strip(s)
+            @test st.planet.equator_ascending_node_longitude === value(s.planet.equator_ascending_node_longitude)
+            for (o, so) in ((s.orbits.planet, st.orbits.planet), (s.orbits.moons[1], st.orbits.moons[1]),
+                            (s.orbits.companions[1], st.orbits.companions[1]))
+                @test so.longitude_of_ascending_node === value(o.longitude_of_ascending_node)
+                @test so.longitude_of_periapsis === value(o.longitude_of_periapsis)
+                @test so.mean_longitude_at_epoch === value(o.mean_longitude_at_epoch)
+            end
+            @test st.orbits.planet.mean_longitude_at_epoch === zero(T)
+            @test Systems.strip(SF.flux_system(T)).orbits.planet.mean_longitude_at_epoch === zero(T)
+        end
+
+        @testset "control: a changed declaration moves its stripped value" begin
+            one_ = Dimensions.DIMENSIONLESS
+            moved = SF.system(planet = SF.planet(equator_ascending_node_longitude = SF.irreducible(3.0, one_)),
+                              orbits = Systems.OrbitHierarchy(
+                                  planet = SF.planet_orbit(longitude_of_periapsis = SF.irreducible(4.0, one_)),
+                                  moons = (SF.moon_orbit(mean_longitude_at_epoch = SF.irreducible(5.0, one_)),),
+                                  companions = ()))
+            st, base = Systems.strip(moved), Systems.strip(SF.system())
+            @test st.planet.equator_ascending_node_longitude === 3.0 !== base.planet.equator_ascending_node_longitude
+            @test st.orbits.planet.longitude_of_periapsis === 4.0 !== base.orbits.planet.longitude_of_periapsis
+            @test st.orbits.moons[1].mean_longitude_at_epoch === 5.0 !== base.orbits.moons[1].mean_longitude_at_epoch
+        end
     end
 
     @testset "members are read by name" begin

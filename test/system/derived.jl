@@ -11,18 +11,22 @@ import .SystemFixtures as SF
 
     @testset "derived_fields enumerates every Derived value from the struct" begin
         paths(s) = [p for (p, _) in Systems.derived_fields(s)]
-        @test paths(SF.system()) == [(:stars, 1, :effective_temperature)]
+        @test paths(SF.system()) == [(:stars, 1, :effective_temperature),
+                                     (:orbits, :planet, :mean_longitude_at_epoch)]
+        @test (:orbits, :planet, :mean_longitude_at_epoch) in paths(SF.flux_system())
+        @test !((:orbits, :moons, 1, :mean_longitude_at_epoch) in paths(SF.system()))
         @test (:planet, :rotation, :period) in paths(SF.synchronous_system())
         @test (:orbits, :planet, :semi_major_axis) in paths(SF.flux_system())
         modelled = SF.system(stars = (SF.star(structure = SF.linear_model(), spectrum = SF.grid()),))
         @test Set(paths(modelled)) == Set([(:stars, 1, :luminosity), (:stars, 1, :radius),
                                            (:stars, 1, :effective_temperature),
-                                           (:stars, 1, :spectrum, :surface_flux_density)])
+                                           (:stars, 1, :spectrum, :surface_flux_density),
+                                           (:orbits, :planet, :mean_longitude_at_epoch)])
     end
 
     @testset "rederive reproduces every Derived field" begin
         instances = (SF.system(), SF.system(Float32), SF.two_star_system(),
-                     SF.synchronous_system(), SF.flux_system(),
+                     SF.synchronous_system(), SF.flux_system(), SF.circumbinary_system(),
                      SF.system(stars = (SF.star(structure = SF.linear_model(), spectrum = SF.grid()),)))
         for s in instances, (path, d) in Systems.derived_fields(s)
             @test Systems.rederive(s, path) == value(d)

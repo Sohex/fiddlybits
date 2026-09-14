@@ -5,7 +5,6 @@
 using ..Verdicts: refuse
 using ..Dimensions: TIME, LENGTH, DIMENSIONLESS
 using ..Dispositions: Derived, Irreducible, value
-using ..Reductions: error_bound
 
 "The dispositions `root_seed` is declared with."
 const ROOT_SEED_DISPOSITIONS = (Irreducible,)
@@ -187,47 +186,12 @@ end
 
 """
 The rounded operations of the subsolar latitude `asin(sin(obliquity) sin(longitude))`:
-three library transcendentals at two each, being within one ulp, and one multiply.
+three library transcendentals at two each, being within one ulp, and one multiply. The
+count `Reductions.error_bound(FT, DECLINATION_TERMS, 1)` takes for the vernal
+equinox's `NotEvaluable` threshold of decision 0008 (section The epoch) and for
+`rotation_sense`.
 """
 const DECLINATION_TERMS = 7
-
-"""
-    require_epoch(site, epoch, planet, orbits, n_stars, n_moons)
-
-`epoch` when its source is declared and its kind is admissible. A periapsis read of a
-star needs that star to have an orbit. The vernal equinox needs the named star to be
-the planet's single primary, and the sine of every obliquity the planet declares to
-exceed `Reductions.error_bound(FT, DECLINATION_TERMS, 1)`, the rounding of the
-subsolar latitude. The superior conjunction needs a synchronous rotator. Refuses at
-`site` otherwise, naming decision 0008.
-"""
-function require_epoch(site::AbstractString, epoch::EpochReference, p::Planet{FT},
-                       orbits::OrbitHierarchy, n_stars::Int, n_moons::Int) where {FT}
-    source = require_body(site, epoch.source, n_stars, n_moons)
-    if epoch.kind === :periapsis && source isa StarBody
-        any(o -> o.secondary == source, orbits.companions) || refuse(
-            "epoch", site, "the periapsis of $(source) is named, and that star has no orbit")
-    elseif epoch.kind === :vernal_equinox
-        primary = orbits.planet.primary
-        primary == source || refuse(
-            "epoch", site,
-            "the vernal equinox of $(source) needs that star as the planet's single " *
-            "primary, and the planet orbits $(primary) (decision 0008)")
-        threshold = error_bound(FT, DECLINATION_TERMS, one(FT))
-        for obliquity in declared_values(p.obliquity)
-            sin(obliquity) > threshold || refuse(
-                "obliquity", site,
-                "the vernal equinox is refused at obliquity $(obliquity): its sine does " *
-                "not exceed $(threshold), the rounding of the subsolar latitude, so the " *
-                "equinox instant does not exist (decision 0008)")
-        end
-    elseif epoch.kind === :superior_conjunction
-        p.rotation isa SynchronousPeriod || refuse(
-            "epoch", site, "the superior conjunction kind is declared for a synchronous " *
-            "rotator, and the planet's rotation is not synchronous (decision 0008)")
-    end
-    return epoch
-end
 
 function System(; kwargs...)
     site = "Systems.System"
@@ -269,7 +233,6 @@ function System(; kwargs...)
             String(name), site, supplied[name], gravity(held, radius, phi),
             GRAVITY_TERMS, gravity_magnitude(held, radius, phi))
     end
-    require_epoch(site, numerics.epoch, held, orbits, length(stars), length(moons))
 
     return System{FT,typeof(stars),typeof(held),typeof(orbits),typeof(moons),
                   typeof(inventories),typeof(numerics)}(
