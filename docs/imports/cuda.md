@@ -123,14 +123,44 @@ generation: `check_invocation`, `src/validation.jl` lines 75-115, throws a
   its dispatch: `docs/imports/kernelabstractions.md`, section "Dynamic dispatch".
 
 **Against the argument that relies on it.** `docs/plans/fiddlybits-52v.3-fields.md`,
-section "Inference, and what it costs", says a drop to a non-concrete type
-degrades loudly on the device, so the device needs no instrument. That holds for a
-call left to dispatch inside device-compiled kernel code, and it is narrower than
-the paragraph in four ways: resolved non-concrete types compile quietly as
-branches; a box with no call on its contents compiles; host-side non-concreteness,
-including a `Field` operator's return, never reaches the device compiler; and a
-kernel run only on the CPU backend, or at a signature never compiled for the
-device, is never checked. `fiddlybits-52v.3.17` carries the change to the argument.
+section "Inference, and what it costs", states the refusal at this width and names,
+for each case above that compiles, what catches it or why nothing need:
+`kernels.body_types_concrete` for a split union, a box that survives optimisation,
+and a kernel run only on the CPU backend or never compiled for the device;
+`fields.inference_tight` for host-side non-concreteness; and nothing for a folded
+call, which leaves a constant of a concrete type.
+
+**The reflection `kernels.body_types_concrete` reads.**
+
+- GPUCompiler `src/GPUCompiler.jl`, lines 49-66: `compile_hook` is a `ScopedValue`
+  (line 66) called with the `CompilerJob` of each compilation in the task that sets it.
+  `compile(target, job)` in `src/driver.jl` calls it at lines 57-60, and CUDACore
+  `src/compiler/compilation.jl` line 574, in `compile_or_lookup`, takes the compile
+  path whenever the hook is set, so a launch whose kernel is already cached still
+  passes its job to the hook.
+- GPUCompiler `src/interface.jl`, `get_interpreter(job)` at lines 380-387: the
+  `GPUInterpreter` at the job's world, with its method table view, its
+  `cache_owner(job)` (line 438), its inference and optimisation parameters and its
+  `always_inline`. `code_typed(job)` in `src/reflection.jl`, lines 199-212, is
+  `Base.code_typed_by_type(job.source.specTypes; interp = get_interpreter(job))`, and
+  `Base.code_typed_by_type` (`/usr/share/julia/base/reflection.jl` lines 293-325)
+  runs `typeinf_code` through that interpreter, optimised by default.
+- GPUCompiler `src/reflection.jl`, `code_llvm(io, job; dump_module)` at lines 263-280:
+  the device module of the job, in which a surviving `Core.Box` is a call to
+  `gc_pool_alloc` (`src/optim.jl` line 556).
+- What counts as a value whose type is not concrete is what `code_warntype` highlights.
+  `warntype_type_printer`, `/usr/share/julia/stdlib/v1.12/InteractiveUtils/src/codeview.jl`
+  lines 30-43, highlights a type that is not `Base.isdispatchelem` or is `Core.Box`
+  (line 37), and prints a type only for a used statement. `stmts_used`,
+  `Compiler/src/ssair/show.jl` lines 896-903, is the set of statements another
+  statement reads, and `should_print_ssa_type`, lines 164-171, leaves out
+  `gc_preserve_begin`, `gc_preserve_end`, `meta` and `leave` expressions, `PiNode`,
+  branches, returns, `QuoteNode` and `EnterNode`. `isdispatchelem`,
+  `/usr/share/julia/base/runtime_internals.jl` lines 918-921.
+- The CPU backend has no compile hook. `Base.specializations`,
+  `/usr/share/julia/base/runtime_internals.jl` line 1661, lists every method instance
+  of the CPU function, and those at a dispatch tuple hold every signature a CPU launch
+  in the process compiled.
 
 **How the leak is caught.** `test/backends/dispatch_refusal.jl` launches one kernel
 through `Backends.launch!` with a call that differs per arm. The arms that must be
@@ -141,6 +171,15 @@ known answer: a concrete call (the positive control), a split union, a folded
 union, a box with no call on its contents, and a non-concrete value at the launch.
 A device compiler that fell back to dispatch instead of refusing fails the refused
 arms.
+
+`test/backends/body_types.jl` (`kernels.body_types_concrete`) covers what compiles.
+It launches every kernel the package defines through its own door on both backends,
+reads the typed code of each device job through the reflection above and of each CPU
+specialization, and fails on a highlighted value in a kernel body or a package method
+it invokes, on a kernel compiled for the device at no signature, and on a table entry
+naming no kernel. A split union and a box that survives optimisation fail on both
+arms, a folded union and a concrete call come out empty, and a fixture kernel no
+launch compiles is named by the coverage check.
 
 ## Page-locked memory and the queued copy
 
