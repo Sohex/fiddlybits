@@ -17,9 +17,11 @@
 # 8 cpus, one of the card's four shares, 3G of vram.
 profile = "gpu-share"
 
-# The suite does not fit the 12G that profile carries. tools/gate/gate.sh has
-# asked for 16G since the gate moved to this machine.
-mem = "16G"
+# Sized for one Julia process with the package loaded, about 2G resident
+# (measured 2026-09-14). This key overrides every profile, `-p light` included.
+# tools/gate/gate.sh runs up to eight suites at once and passes its own -m 16G;
+# any other job that holds more than one such process passes its own -m.
+mem = "4G"
 
 # Long enough for an exhaustive sweep over a Float32 domain, short enough that a
 # job nobody is watching is not a lost day. A longer job passes -t.
