@@ -15,7 +15,9 @@ reference path beside every optimised kernel.
 2. **Earth as a distance.** An Earth instance is one constructor call on the same
    parameter set every other configuration uses. The suite produces a *distance
    report*, never an objective function. Every metric is scored on pattern (zonal
-   structure, seasonal amplitude, land/ocean contrast), not only its global mean.
+   structure, seasonal amplitude, land/ocean contrast), not only its global mean: a
+   tier-2 entry's statistic is that structure, or the entry names the tier-2 entry
+   that judges it (Registration).
 3. **Published spreads in the non-Earth direction.** Aquaplanet, rotation,
    obliquity, gravity and stellar-type sweeps that have published multi-model
    results; the inter-model spread is the bar. Landing inside a spread is evidence
@@ -117,6 +119,22 @@ class has a residual to quote, the metric is REPORT.
   entry of `registry.toml` carrying its system as `Sourced` constructor calls in
   `system` and what the protocol held fixed in `normalisation`, and every entry run on
   it names that one declaration. Every declared protocol is named by an entry.
+- Every tier-2 entry declares `form`, `pattern` or `scalar`. It is `pattern` when its
+  statistic is itself spatial, seasonal or class structure, or locates a feature of it;
+  `scalar` when its statistic is one number over the whole domain. A scalar entry names
+  in `pattern_entry` a tier-2 entry of form `pattern`, and no other entry carries that
+  key; no tier-1 or tier-3 entry carries either. Each entry keeps one statistic, one bar
+  and one set of anchors: the runner judges each against its own bar, and the distance
+  report shows a scalar beside its partner, neither verdict changing the other. The
+  loader refuses a tier-2 entry with no form or a form outside the closed set, a scalar
+  with no partner, and a partner that does not exist, is not tier 2 or is not of form
+  `pattern` (`src/Oracles/registry.jl`). A metric with no published pattern spread gets
+  a partner with its own sourced bar, or leaves tier 2. One entry carrying a scalar and a
+  pattern statistic with a bar each was weighed and lost, because registration, anchors
+  and verdicts are per bar; so was a run-time check that a payload carries a pattern,
+  which enforced nothing at load and judged a pattern with no bar of its own. The
+  classification of every tier-2 entry and the rows carrying it are in
+  `docs/plans/fiddlybits-52v.8-oracles.md`, The form of a tier-2 entry.
 - An entry that reads a hashed dataset names its manifest ids in `datasets`, and the
   manifest, under `docs/oracles/data/` or `docs/inputs/data/`, names the entry back in
   its `oracles` key. Every tier-2 and tier-3 entry carries `datasets`, empty where it
@@ -190,3 +208,4 @@ never deleted.
 - 2026-09-13: the depends_on field, no entry id named in prose, and no clause of a dependency's threshold restated, from docs/decisions/0054-a-row-names-the-rows-it-rests-on.md.
 - 2026-09-13: the instrument table and field, no clause of an instrument's definition restated, and parameters checked against the constants they name, from docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md.
 - 2026-09-13: a bar is fixed before the value it judges is seen; what an unregistered entry executes; registration fixing statistic, verdict_kind, threshold and holdout; a later registration resting on a change of source; the tier-1 testset rule; hold-out membership fixed at registration, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-13).
+- 2026-09-14: every tier-2 entry declares form, pattern or scalar; a scalar names its tier-2 pattern partner in pattern_entry; one statistic and one bar per entry, the report showing a scalar beside its partner, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-14, fiddlybits-zar).
