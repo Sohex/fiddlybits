@@ -1470,6 +1470,45 @@ holdout = false
 anchors = []
 
 [[oracle]]
+id = "provenance.pooled_write_is_reference"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "fields of amounts and of cell ids in several element types and chunk levels, on CPU and on the card, submitted to the store's writer and drained into one store and put through put_field! into another, the two trees compared path by path and byte by byte; and a field whose array is overwritten after submit! returns, compared with the reference path's artifact of the values it held at submission"
+verdict_kind = "fail_bar"
+threshold = "the same paths and byte-identical files (positive control: chunks compressed at another level, two chunks written under each other's chunk keys, which a comparison of decoded totals passes, and the host copy deferred to the encode stage while the array is overwritten, each of which must differ)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "provenance.write_order_independent"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "submissions of unequal size drained at store_writers of one and of more, on CPU and on the card, each tree compared byte by byte with the reference path's, with the order the disk stage finished them; and with a rename collided and a cell id outside its level injected, the artifacts stored, the staging directories left and the refusal settle! raises"
+verdict_kind = "fail_bar"
+threshold = "byte-identical trees with a later submission finishing before an earlier one; with a refusal injected, exactly the submissions before the earliest refused one stored, no staging directory left, and settle! naming that write and the count discarded, once (positive control: a commit renaming in finish order, and a manifest recording the finish order, each of which must differ; a finish record with no later submission first fails the arm)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "provenance.write_ceiling_held"
+tier = 1
+subsystem = "provenance"
+dataset_or_reference = "identity"
+statistic = "a burst of submissions whose charges sum above the ceiling, on CPU and on the card: the pool's high water and the most bytes of host buffers alive at once; and a submission whose charge is above the ceiling"
+verdict_kind = "fail_bar"
+threshold = "neither high water above write_ceiling; the charge above it refused at once naming both counts, with nothing charged or allocated (positive control: a submission taking no charge, whose host bytes exceed the ceiling, and the oversize check removed, which leaves the submitter waiting)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "provenance.journal_is_inert"
 tier = 1
 subsystem = "provenance"
