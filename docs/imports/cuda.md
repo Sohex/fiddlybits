@@ -238,6 +238,28 @@ package root; Julia's base library is `/usr/share/julia/base`.
   copies by calling `complete!` on the task that submitted the write, in `settle!`, at the
   settle point of decision 0060 (`fiddlybits-52v.6.26`).
 
+**A kernel the host releases with a write to host memory.** `test/provenance/writer.jl` holds
+a submission's host copy behind a kernel that loops while a gate cell holds a sentinel and its
+iteration count is below a ceiling, and releases it by writing the cell from the host.
+
+- CUDACore `src/array.jl`, lines 304-330: `unsafe_wrap(CuArray{T,N,HostMemory}, p, dims)`
+  registers the host memory at `p` with `MEMHOSTREGISTER_DEVICEMAP` and returns a `CuArray`
+  over it, unregistered when the array is collected. The gate cell and the kernel's iteration
+  counter are two such arrays over host `Vector`s, so the release is a host assignment and the
+  count is read on the host, with no copy queued on any stream and no `complete!`.
+- CUDACore `src/array.jl`, lines 399-426: `pointer` of an array backed by `HostMemory` gives a
+  device-accessible address for `type=DeviceMemory`, which is what a kernel launch converts it
+  through.
+- A release written as a `copyto!` from a second task into a device cell (CUDACore
+  `src/array.jl`, lines 590-608, queued with `async = true` on that task's stream) was queued
+  and did not end the kernel in one run on this card, and that process then faulted every
+  client of the card's MPS server when it was killed:
+  `notes/findings/2026-09-14-a-device-kernel-killed-mid-read-faults-every-mps-client.md`.
+- A kernel still to be compiled did not launch from any task while the looping kernel ran; the
+  source of that wait was not located, and `fiddlybits-52v.6.26`'s notes carry what was
+  observed. The test compiles, at their work item counts, every kernel its held interval
+  launches before the hold.
+
 **How the leak is caught.** `test/backends/host_copy.jl`. A copy that was not queued at
 its stream position holds the second kernel's values instead of the first's (check 1);
 a door that synchronizes, by `complete!` or by a bare device synchronize, leaves nothing
