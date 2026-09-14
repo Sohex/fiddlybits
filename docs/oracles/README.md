@@ -100,11 +100,12 @@ inter-model spread of its protocol.
   a bar chosen knowing another model's value of its statistic, are outside what it
   decides; the basis each bar states names any such value it knew.
 - The history check accepts a merge that `registration_exceptions.toml` lists by its
-  full commit id and the oracle whose threshold it changed, and fails on a listed
-  exception that matches no merge it refuses, reported as stale. Nothing is ever added
-  to that list without the user's explicit permission for that entry, which the entry
-  records in `permitted_by`; an executor, reviewer or orchestrator never adds one to
-  make a gate pass, and a merge the check refuses is otherwise redone.
+  full commit id and the oracle whose threshold, `form` or `pattern_entry` it changed,
+  and fails on a listed exception that matches no merge it refuses, reported as stale.
+  Nothing is ever added to that list without the user's explicit permission for that
+  entry, which the entry records in `permitted_by`; an executor, reviewer or
+  orchestrator never adds one to make a gate pass, and a merge the check refuses is
+  otherwise redone.
 - Every entry names its source kind (identity, conservation, analytic, known
   quantity, published spread) and its anchors in `docs/references/INDEX.md`.
 - Every entry in `registry.toml` is `provisional = true` with an empty

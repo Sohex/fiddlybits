@@ -1,6 +1,6 @@
 # The registry loader and the registration rule: docs/plans/fiddlybits-52v.8-oracles.md,
 # sections "The loader" and "The registration rule as a build check"; decision 0025
-# (amendment of 2026-09-13); docs/oracles/README.md, Registration.
+# (amendments of 2026-09-13 and 2026-09-14); docs/oracles/README.md, Registration.
 
 using TOML
 using ..Verdicts: refuse
@@ -38,10 +38,13 @@ const SOURCE_KINDS = ("identity", "conservation", "analytic", "known quantity", 
 const VERDICT_KINDS = ("fail_bar", "report")
 
 "The fields a registration fixes: an entry is registered when its `registered_at` commit holds these as loaded."
-const REGISTERED_FIELDS = ("statistic", "verdict_kind", "threshold", "holdout")
+const REGISTERED_FIELDS = ("statistic", "verdict_kind", "threshold", "holdout", "form", "pattern_entry")
 
 "The path prefixes a commit re-registering a tier-2 or tier-3 entry touches none of."
 const REREGISTRATION_BARRED = ("src/", "notes/findings/")
+
+"The fields no mainline merge, or branch judged as its own merge, may change together with src/ or a testset named by the entry."
+const CLAUSE4_FIELDS = ("threshold", "form", "pattern_entry")
 
 "A registered_at value naming a commit: forty lowercase hexadecimal digits."
 const COMMIT_ID = r"^[0-9a-f]{40}$"
@@ -535,9 +538,9 @@ registered_fields(e::Entry) = Tuple(getfield(e, Symbol(k)) for k in REGISTERED_F
 
 Whether `e` is registered: its `registered_at` names a commit, an ancestor of the
 repository's HEAD, at which the registry file `e` was loaded from holds an entry of the
-same id whose statistic, verdict_kind, threshold and holdout equal `e`'s. An empty
-`registered_at` reads false without git. Refuses a `registered_at` that names no commit
-of the repository or one that is not an ancestor of HEAD.
+same id whose statistic, verdict_kind, threshold, holdout, form and pattern_entry equal
+`e`'s. An empty `registered_at` reads false without git. Refuses a `registered_at` that
+names no commit of the repository or one that is not an ancestor of HEAD.
 """
 function registered(e::Entry)
     isempty(e.registered_at) && return false
@@ -842,27 +845,30 @@ function read_exceptions(path::AbstractString)
 end
 
 """
-    threshold_together!(found, matched, exceptions, id, before, after, touched, testset_a, testset_b, report_at, verb)
+    field_together!(found, matched, exceptions, id, field, before, after, touched, testset_a, testset_b, report_at, verb)
 
-Adds a problem to `found`, sited at `id` and `report_at`, when `id`'s threshold in
-`after` differs from `before`'s and that change comes together with a path of `touched`
-under `src/` or a path of `touched` in `testset_a` or `testset_b`, the files holding the
-testset named by `id` at two commits; the problem names `verb` as what changed it. An
-entry of `exceptions` naming `report_at` and `id` is marked `matched` instead of adding a
-problem. Adds nothing when `before` carries no `id` or the change carries no such path.
+Adds a problem to `found`, sited at `id` and `report_at`, when `id`'s `field` in `after`
+differs from its value in `before` and that change comes together with a path of
+`touched` under `src/` or a path of `touched` in `testset_a` or `testset_b`, the files
+holding the testset named by `id` at two commits; the problem names `verb` and `field` as
+what changed and how. An entry of `exceptions` naming `report_at` and `id` is marked
+`matched` instead of adding a problem. Adds nothing when `before` carries no `id`, `before`
+carries no `field` (adding it is not a change), or the change carries no such path.
 """
-function threshold_together!(found::Vector{Malformed}, matched::BitVector, exceptions::Vector{ListedException},
-                             id::AbstractString, before::AbstractDict, after::AbstractDict, touched::Vector{String},
-                             testset_a::Vector{String}, testset_b::Vector{String}, report_at::AbstractString,
-                             verb::AbstractString)
+function field_together!(found::Vector{Malformed}, matched::BitVector, exceptions::Vector{ListedException},
+                         id::AbstractString, field::AbstractString, before::AbstractDict, after::AbstractDict,
+                         touched::Vector{String}, testset_a::Vector{String}, testset_b::Vector{String},
+                         report_at::AbstractString, verb::AbstractString)
     haskey(before, id) || return nothing
-    get(before[id], "threshold", nothing) == get(after[id], "threshold", nothing) && return nothing
+    haskey(before[id], field) || return nothing
+    get(before[id], field, nothing) == get(after[id], field, nothing) && return nothing
     held = union(testset_a, testset_b)
     with = sort!(unique(vcat(filter(p -> startswith(p, "src/"), touched), filter(in(held), touched))))
     isempty(with) && return nothing
     k = findfirst(x -> x.merge == report_at && x.oracle == id, exceptions)
     if k === nothing
-        push!(found, Malformed(id * " at " * short(report_at), verb * " changes the threshold together with " * join(with, ", ")))
+        label = field == "threshold" ? "the threshold" : field
+        push!(found, Malformed(id * " at " * short(report_at), verb * " changes " * label * " together with " * join(with, ", ")))
     else
         matched[k] = true
     end
@@ -881,17 +887,17 @@ registrations are judged by `judge_registration!` against the registrations befo
 them, starting from the entries carrying a registered_at at the first parent of the
 amendment commit. A `registered_at` set to a commit that is not an ancestor is a
 problem. The mainline is `mainline_commit(repo)`'s own first-parent chain: a merge on it
-is a problem when, against its first parent, it changes an entry's threshold together
+is a problem when, against its first parent, it changes one of `CLAUSE4_FIELDS` together
 with a path under `src/` or a file holding the testset named by that entry at the merge
 or at its first parent, unless an entry of the exceptions list names that merge and that
 entry's id; this holds whether the mainline merge is read from the mainline itself or
-from a branch that carries it, so a listed exception stays matched from either. A merge
-of the mainline into a branch is not itself judged: it sits off the mainline chain, since
-it is a commit of the branch, not of `mainline_commit(repo)`'s own history. When HEAD is
-not on the mainline chain, the whole branch is judged once more, as its own merge into
-the mainline would be judged: by the diff from `merge-base(mainline, HEAD)` to HEAD,
-sited at HEAD. An exception naming no merge and id this walk flags is a problem, reported
-as stale.
+from a branch that carries it, so a listed exception stays matched from either. Adding a
+field an entry carried none of before is not such a change. A merge of the mainline into
+a branch is not itself judged: it sits off the mainline chain, since it is a commit of
+the branch, not of `mainline_commit(repo)`'s own history. When HEAD is not on the
+mainline chain, the whole branch is judged once more, as its own merge into the mainline
+would be judged: by the diff from `merge-base(mainline, HEAD)` to HEAD, sited at HEAD. An
+exception naming no merge and id this walk flags is a problem, reported as stale.
 """
 function history_problems(repo::AbstractString)
     exceptions = read_exceptions(joinpath(repo, EXCEPTIONS_PATH))
@@ -941,10 +947,10 @@ function history_problems(repo::AbstractString)
 
         length(c.parents) >= 2 && c.sha in mainline || continue
         before = parent_rows[1]
-        for id in sort!(collect(keys(rows)))
-            threshold_together!(found, matched, exceptions, id, before, rows, c.touched,
-                                testset_files(repo, c.sha, id), testset_files(repo, c.parents[1], id),
-                                c.sha, "a merge whose branch")
+        for id in sort!(collect(keys(rows))), field in CLAUSE4_FIELDS
+            field_together!(found, matched, exceptions, id, field, before, rows, c.touched,
+                            testset_files(repo, c.sha, id), testset_files(repo, c.parents[1], id),
+                            c.sha, "a merge whose branch")
         end
     end
 
@@ -953,18 +959,18 @@ function history_problems(repo::AbstractString)
         before = rows_at(cache, base_sha)
         after = rows_at(cache, head_sha)
         branch_touched = diff_paths(repo, base_sha, head_sha)
-        for id in sort!(collect(keys(after)))
-            threshold_together!(found, matched, exceptions, id, before, after, branch_touched,
-                                testset_files(repo, head_sha, id), testset_files(repo, base_sha, id),
-                                head_sha, "a branch whose diff against main")
+        for id in sort!(collect(keys(after))), field in CLAUSE4_FIELDS
+            field_together!(found, matched, exceptions, id, field, before, after, branch_touched,
+                            testset_files(repo, head_sha, id), testset_files(repo, base_sha, id),
+                            head_sha, "a branch whose diff against main")
         end
     end
 
     for (k, x) in enumerate(exceptions)
         matched[k] ||
             push!(found, Malformed(x.oracle * " at " * short(x.merge), "a stale exception of " * EXCEPTIONS_PATH *
-                                                                        ": no merge of the history changes this entry's threshold " *
-                                                                        "together with src/ or its testset"))
+                                                                        ": no merge of the history changes this entry's threshold, " *
+                                                                        "form or pattern_entry together with src/ or its testset"))
     end
     return sort(found; by = m -> (m.site, m.reason))
 end
