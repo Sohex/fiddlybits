@@ -9,48 +9,35 @@ using ..Events: Events
 using ..Systems: read_keywords, require_type
 
 """
-    Payload(; value, reference, pattern = nothing, pattern_reference = nothing, hashes = String[])
+    Payload(; value, reference, hashes)
 
 A model result the runner reads for one entry: `value`, the entry's statistic on the
-run, and `reference`, the value it is judged against; `pattern` and
-`pattern_reference`, the entry's pattern statistic beside its global mean, both
-`nothing` where the entry carries none; `hashes`, the sha256 digest of every dataset
-file the statistic was read from, checked against the manifests `entry.datasets`
-names. Refuses one of `pattern` and `pattern_reference` given without the other.
+run, and `reference`, the value it is judged against; `hashes`, the sha256 digest of
+every dataset file the statistic was read from, checked against the manifests
+`entry.datasets` names, empty where the entry names none. Every keyword is required;
+a caller reading no dataset states `hashes = String[]` explicitly.
 """
 struct Payload
     value::Float64
     reference::Float64
-    pattern::Union{Nothing,Float64}
-    pattern_reference::Union{Nothing,Float64}
     hashes::Vector{String}
 end
 
-function Payload(; value, reference, pattern = nothing, pattern_reference = nothing, hashes = String[])
-    (pattern === nothing) == (pattern_reference === nothing) ||
-        refuse("payload", "Oracles.Payload", pattern === nothing ?
-                                             "states pattern_reference with no pattern" :
-                                             "states pattern with no pattern_reference")
-    return Payload(Float64(value), Float64(reference),
-                  pattern === nothing ? nothing : Float64(pattern),
-                  pattern_reference === nothing ? nothing : Float64(pattern_reference),
-                  String[String(h) for h in hashes])
+function Payload(; value, reference, hashes)
+    return Payload(Float64(value), Float64(reference), String[String(h) for h in hashes])
 end
 
 """
     Result
 
 One entry's oracle result, held for `report`: the registry `id`; the model `value`
-and the `reference` it was judged against; the pattern statistic and its reference,
-`nothing` where the entry carries none; the reference's own `uncertainty` in the
+and the `reference` it was judged against; the reference's own `uncertainty` in the
 statistic's unit, `nothing` where the entry states no bar; and the `verdict`.
 """
 struct Result
     id::String
     value::Float64
     reference::Float64
-    pattern::Union{Nothing,Float64}
-    pattern_reference::Union{Nothing,Float64}
     uncertainty::Union{Nothing,Float64}
     verdict::OracleVerdict
 end
@@ -115,25 +102,44 @@ end
 """
     resolve_payload(entry, payload, oracle_data, input_data)
 
-`payload` when every hash of `payload.hashes` is a hash carried by a manifest of
-`entry.datasets`, read from `oracle_data` or `input_data` (fiddlybits-3vq). Refuses,
-naming `entry.id`, a dataset id resolving to no manifest under either directory, and a
-hash that is not among the hashes of `entry`'s manifests.
+`payload` when `payload.hashes` represents every manifest of `entry.datasets`, read
+from `oracle_data` or `input_data` (fiddlybits-3vq): each manifest contributes at
+least one hash to `payload.hashes`, and no hash of `payload.hashes` is outside them.
+Refuses, naming `entry.id`: an entry naming datasets and a payload with no hashes; a
+dataset id resolving to no manifest under either directory; a named manifest none of
+whose hashes appear in the payload; a payload hash that is not among the hashes of
+`entry`'s manifests; and an entry naming no dataset and a payload carrying a hash.
 """
 function resolve_payload(entry::Entry, payload::Payload, oracle_data::AbstractString, input_data::AbstractString)
-    isempty(payload.hashes) && return payload
     ids = entry.datasets === nothing ? String[] : entry.datasets
-    known = Set{String}()
+
+    if isempty(ids)
+        isempty(payload.hashes) ||
+            refuse("payload", entry.id, "carries a dataset hash, and this entry names no manifest in datasets")
+        return payload
+    end
+
+    isempty(payload.hashes) &&
+        refuse("payload", entry.id,
+              "names datasets and carries no hash; every dataset the entry names must be represented")
+
+    manifests = Dict{String,Set{String}}()
     for id in ids
         path = dataset_manifest(id, oracle_data, input_data)
         path === nothing && refuse("dataset", entry.id,
                                    "names manifest " * id * ", found under neither " * oracle_data *
                                    " nor " * input_data)
-        union!(known, manifest_hashes(path))
+        manifests[id] = manifest_hashes(path)
     end
+
+    given = Set(payload.hashes)
     for h in payload.hashes
-        h in known ||
+        any(hashes -> h in hashes, values(manifests)) ||
             refuse("payload", entry.id, "a hash " * h * " that is not among the hashes of its datasets manifests")
+    end
+    for (id, hashes) in manifests
+        isempty(intersect(hashes, given)) &&
+            refuse("payload", entry.id, "names manifest " * id * ", none of whose hashes appear in the payload")
     end
     return payload
 end
@@ -141,28 +147,14 @@ end
 """
     judge(entry, payload)
 
-The `Result` of `entry`'s statistic on `payload`. Refuses, naming `entry.id`, a tier 2
-entry whose payload carries no pattern statistic (every Earth metric is scored on
-pattern as well as a global mean). The verdict is `REPORT()` for a `report` entry or
-one carrying no numeric bar; otherwise `PASS()` when the value, and the pattern
-statistic where the payload carries one, are each within `entry.bar_half_width` of
-their reference, and `FAIL()` otherwise.
+The `Result` of `entry`'s statistic on `payload`: `REPORT()` for a `report` entry or
+one carrying no numeric bar; otherwise `PASS()` when the value is within
+`entry.bar_half_width` of its reference, and `FAIL()` otherwise.
 """
 function judge(entry::Entry, payload::Payload)
-    entry.tier == 2 && payload.pattern === nothing &&
-        refuse("payload", entry.id,
-              "a tier 2 entry is scored on pattern as well as a global mean, and this payload " *
-              "states no pattern statistic")
     bar = entry.verdict_kind == "report" ? nothing : entry.bar_half_width
-    verdict = if bar === nothing
-        REPORT()
-    else
-        within_value = abs(payload.value - payload.reference) <= bar
-        within_pattern = payload.pattern === nothing || abs(payload.pattern - payload.pattern_reference) <= bar
-        (within_value && within_pattern) ? PASS() : FAIL()
-    end
-    return Result(entry.id, payload.value, payload.reference, payload.pattern, payload.pattern_reference,
-                 entry.observation_uncertainty, verdict)
+    verdict = bar === nothing ? REPORT() : (abs(payload.value - payload.reference) <= bar ? PASS() : FAIL())
+    return Result(entry.id, payload.value, payload.reference, entry.observation_uncertainty, verdict)
 end
 
 """
@@ -176,8 +168,7 @@ a refused call returns, emits and reports nothing (decision 0025, amendment of
 2026-09-13): an unregistered entry's value is refused on anything but a `Fixture`.
 `artifact` is a `Fixture` wrapping a `Payload`, or a `Payload` model result; refuses
 one that is neither. Resolves the payload's dataset hashes against the manifests
-`entry.datasets` names, under `oracle_data` and `input_data`, and refuses a tier 2
-entry with no pattern statistic (`resolve_payload`, `judge`).
+`entry.datasets` names, under `oracle_data` and `input_data` (`resolve_payload`).
 
 Emits exactly one `oracle` journal event through `Events.emit`, the one emitter
 (decision 0042), carrying `entry.id`, the verdict, the judged distance and the

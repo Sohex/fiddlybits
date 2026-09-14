@@ -2,9 +2,9 @@
 # section "The runner".
 #
 # Every control is run against the accepted twin beside it: an unregistered fixture
-# entry handed a model result and the same entry handed a Fixture; a tier 2 payload
-# with and without its pattern statistic; a payload hash a manifest carries and one
-# that differs by one byte.
+# entry handed a model result and the same entry handed a Fixture; a payload
+# representing every named manifest and one that does not; a payload hash a manifest
+# carries and one that differs by one byte.
 
 module Runner
 
@@ -36,10 +36,8 @@ tier1_entry() = Oracles.Entry(
     "sum of fixture cell areas against the sphere", "fail_bar", "roundoff", true, "", false, String[],
     nothing, nothing, nothing, nothing, nothing, nothing, nothing, "fixture.toml")
 
-"A `Payload` with `value`, `reference`, an optional pattern pair, and `hashes`."
-payload(; value, reference, pattern = nothing, pattern_reference = nothing, hashes = String[]) =
-    Oracles.Payload(value = value, reference = reference, pattern = pattern,
-                   pattern_reference = pattern_reference, hashes = hashes)
+"A `Payload` with `value`, `reference`, and `hashes`, empty by default."
+payload(; value, reference, hashes = String[]) = Oracles.Payload(value = value, reference = reference, hashes = hashes)
 
 "Writes a manifest at `dir/<id>.toml` naming `hashes` in `[[file]]` tables, and returns its directory."
 function write_manifest(dir::AbstractString, id::AbstractString, hashes::Vector{String})
@@ -63,6 +61,17 @@ function run_it(entry, artifact, dir; oracle_data = dir, input_data = dir, seque
                       oracle_data = oracle_data, input_data = input_data)
 end
 
+"The `Verdicts.Refusal` `f()` raises, or `nothing` when it returns."
+function refusal(f)
+    try
+        f()
+        return nothing
+    catch e
+        e isa Verdicts.Refusal || rethrow()
+        return e
+    end
+end
+
 @testset "run: a verdict is one of FAIL, REPORT and PASS; a boolean return is a type error" begin
     typed()::Verdicts.OracleVerdict = Verdicts.PASS()
     @test typed() isa Verdicts.OracleVerdict
@@ -73,10 +82,8 @@ end
     mktempdir() do dir
         e = tier2_entry()
         for (case, p, expect) in (
-            ("within the bar", payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0),
-             Verdicts.PASS),
-            ("outside the bar", payload(value = 10.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0),
-             Verdicts.FAIL),
+            ("within the bar", payload(value = 1.0, reference = 0.0), Verdicts.PASS),
+            ("outside the bar", payload(value = 10.0, reference = 0.0), Verdicts.FAIL),
         )
             v = run_it(e, Oracles.Fixture(p), dir)
             @test v isa Verdicts.OracleVerdict
@@ -92,7 +99,7 @@ end
     mktempdir() do dir
         e = tier2_entry()
         model_result = 3.5
-        good = payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0)
+        good = payload(value = 1.0, reference = 0.0)
 
         @testset "positive control: an unregistered entry handed a model result is refused its value and emits nothing" begin
             sink = Events.Collector{Events.Event}()
@@ -110,39 +117,12 @@ end
     end
 end
 
-@testset "run: a tier 2 entry with only a global mean is refused at load" begin
-    mktempdir() do dir
-        e = tier2_entry()
-        no_pattern = payload(value = 1.0, reference = 0.0)
-        with_pattern = payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0)
-
-        @testset "positive control: no pattern statistic is refused" begin
-            err = try
-                run_it(e, Oracles.Fixture(no_pattern), dir)
-                nothing
-            catch caught
-                caught
-            end
-            @test err isa Verdicts.Refusal
-            @test err isa Verdicts.Refusal && occursin("no pattern statistic", err.reason)
-        end
-
-        @testset "the accepted twin: a pattern statistic beside the global mean is admitted" begin
-            @test Oracles.judge(e, with_pattern) isa Oracles.Result
-        end
-
-        @testset "a tier 3 entry states no pattern requirement" begin
-            @test Oracles.judge(tier3_entry(), no_pattern) isa Oracles.Result
-        end
-    end
-end
-
 @testset "run: every admitted run emits exactly one oracle journal event, counted with a Collector" begin
     mktempdir() do dir
         sink = Events.Collector{Events.Event}()
         Events.sink!(sink)
         e = tier2_entry()
-        good = payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0)
+        good = payload(value = 1.0, reference = 0.0)
 
         n = 3
         for i in 1:n
@@ -162,7 +142,7 @@ end
 
 @testset "run: the distance report carries the reference's own uncertainty and the distance in units of it" begin
     e = tier2_entry(bar = 2.0, uncertainty = 0.5)
-    p = payload(value = 1.5, reference = 1.0, pattern = 0.0, pattern_reference = 0.0)
+    p = payload(value = 1.5, reference = 1.0)
     result = Oracles.judge(e, p)
     @test result.uncertainty == 0.5
     @test Oracles.distance(result) == 0.5
@@ -183,29 +163,53 @@ end
 @testset "run: a payload's hashes are resolved through its datasets manifests" begin
     mktempdir() do dir
         good_hash = "a" ^ 64
+        other_hash = "c" ^ 64
         write_manifest(dir, "fixture-manifest", [good_hash])
+        write_manifest(dir, "fixture-manifest-2", [other_hash])
         e = tier2_entry(datasets = ["fixture-manifest"])
+        two = tier2_entry(datasets = ["fixture-manifest", "fixture-manifest-2"])
 
         @testset "the accepted twin: a payload hash the manifest carries is admitted" begin
-            p = payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0, hashes = [good_hash])
+            p = payload(value = 1.0, reference = 0.0, hashes = [good_hash])
             @test run_it(e, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir) isa Verdicts.OracleVerdict
+        end
+
+        @testset "the accepted twin: a payload representing every named manifest is admitted" begin
+            p = payload(value = 1.0, reference = 0.0, hashes = [good_hash, other_hash])
+            @test run_it(two, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir) isa Verdicts.OracleVerdict
         end
 
         @testset "positive control: a payload with one byte changed is refused" begin
             changed = "b" * good_hash[2:end]
-            p = payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0, hashes = [changed])
-            @test_throws Verdicts.Refusal run_it(e, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir)
+            p = payload(value = 1.0, reference = 0.0, hashes = [changed])
+            err = refusal(() -> run_it(e, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir))
+            @test err isa Verdicts.Refusal && occursin("not among the hashes of its datasets manifests", err.reason)
         end
 
         @testset "positive control: a dataset id resolving to no manifest is refused" begin
             absent = tier2_entry(datasets = ["absent-manifest"])
-            p = payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0, hashes = [good_hash])
-            @test_throws Verdicts.Refusal run_it(absent, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir)
+            p = payload(value = 1.0, reference = 0.0, hashes = [good_hash])
+            err = refusal(() -> run_it(absent, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir))
+            @test err isa Verdicts.Refusal && occursin("found under neither", err.reason)
         end
 
-        @testset "a payload declaring no hash for an entry with datasets is admitted" begin
-            p = payload(value = 1.0, reference = 0.0, pattern = 0.5, pattern_reference = 0.0)
-            @test run_it(e, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir) isa Verdicts.OracleVerdict
+        @testset "positive control: an entry naming datasets and a payload with no hashes is refused" begin
+            p = payload(value = 1.0, reference = 0.0)
+            err = refusal(() -> run_it(e, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir))
+            @test err isa Verdicts.Refusal && occursin("names datasets and carries no hash", err.reason)
+        end
+
+        @testset "positive control: a named manifest none of whose hashes appear in the payload is refused" begin
+            p = payload(value = 1.0, reference = 0.0, hashes = [good_hash])
+            err = refusal(() -> run_it(two, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir))
+            @test err isa Verdicts.Refusal && occursin("none of whose hashes appear in the payload", err.reason)
+        end
+
+        @testset "positive control: an entry naming no dataset and a payload carrying a hash is refused" begin
+            no_datasets = tier2_entry(datasets = String[])
+            p = payload(value = 1.0, reference = 0.0, hashes = [good_hash])
+            err = refusal(() -> run_it(no_datasets, Oracles.Fixture(p), dir; oracle_data = dir, input_data = dir))
+            @test err isa Verdicts.Refusal && occursin("this entry names no manifest in datasets", err.reason)
         end
     end
 end
@@ -222,6 +226,12 @@ end
         e = tier2_entry(registered_at = "")
         @test_throws Verdicts.Refusal run_it(e, Oracles.Fixture("not a payload"), dir)
     end
+end
+
+@testset "run: every Payload keyword is required" begin
+    @test_throws UndefKeywordError Oracles.Payload(reference = 0.0, hashes = String[])
+    @test_throws UndefKeywordError Oracles.Payload(value = 0.0, hashes = String[])
+    @test_throws UndefKeywordError Oracles.Payload(value = 0.0, reference = 0.0)
 end
 
 end # module Runner
