@@ -1,0 +1,4 @@
+julia_version = "1.12.7"
+manifest_format = "2.0"
+
+[deps]

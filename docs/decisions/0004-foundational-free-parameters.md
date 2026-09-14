@@ -32,10 +32,14 @@ The foundational set:
 - **The planet's bulk.** Mass; radius, or a composition vector (iron, silicate,
   water and envelope mass fractions) from which radius follows by an interior model
   where one is carried, the model a `Sourced` law with a declared domain and no
-  default composition; the sidereal rotation period, with the sense of rotation
-  relative to the planet's orbit normal (the constructor refuses any field named
-  "day"; the solar and mean solar day are derived by decision 0008); obliquity,
-  measured from the planet's orbit normal; and the planet's orbit, declared as below.
+  default composition; the sidereal rotation period (the constructor refuses any field
+  named "day"; the solar and mean solar day are derived by decision 0008); the
+  obliquity, the angle from the planet's orbit normal to the positive pole of rotation,
+  from which the sense of rotation relative to the orbit normal is `Derived` and never
+  declared; the sub-primary longitude at the epoch, which fixes the rotation phase; and
+  the planet's orbit, declared as below. How the obliquity and the sub-primary
+  longitude place the body frame in the orbit frame is the section The spin axis and
+  the rotation phase in the orbit frame.
   Gravity is a `Derived` field of radius and latitude, `g(r, phi)`, from the mass,
   the radial distance and the rotation vector with the centrifugal term included; a
   caller who also passes a surface value is refused on disagreement. The figure of
@@ -105,6 +109,93 @@ bracketed initial condition with a mechanism to remove it later:
   than the tropics and ice sat in mid-latitude relief; nothing about that generalises
   except that nothing about Earth's arrangement generalises either.
 
+### The spin axis and the rotation phase in the orbit frame
+
+Decision 0005 declares the body frame `Mesh.BODY_FRAME`. Its spin axis is the positive
+pole of rotation, the pole following the right-hand rule (Archinal et al. 2018, p. 22),
+and its prime meridian is longitude zero. Placing that frame in the orbit frame at a
+time `t` needs three angles: two for the pole and one for the prime meridian about the
+pole. The planet declares two of them, the obliquity and the rotation phase. The pole's
+azimuth is the third, and the planet's argument of periapsis carries it, measured from
+the equinox direction as decision 0008 directs.
+
+**The positive pole.** Let `n` be the planet's orbit normal, the direction about which
+the planet moves counterclockwise seen from outside. The obliquity `epsilon` is the
+angle from `n` to the positive pole `p`, admitted in `[0, pi]`. The pole in the orbit
+frame is
+
+    p = cos(epsilon) n + sin(epsilon) (n x gamma)
+
+where `gamma` is the equinox direction: the unit vector from the planet toward the
+primary of its orbit at the vernal equinox of decision 0008. It is the ascending node
+of the primary's apparent path on the planet's equator, `gamma = (p x n) / sin(epsilon)`,
+and it exists wherever `sin(epsilon)` exceeds its rounding. That is the threshold the
+equinox kind of decision 0008 already reads, and it does not depend on how many stars
+are declared.
+
+- **Azimuth.** The pole's azimuth about `n` is carried by the planet's argument of
+  periapsis, which decision 0008 measures from `gamma`. Where `gamma` does not exist,
+  `p` is `n` or `-n` and no azimuth is read.
+- **Sense.** The sense of rotation relative to the orbit normal is `Derived` from the
+  obliquity and never declared: prograde where `cos(epsilon)` exceeds its rounding,
+  retrograde where `-cos(epsilon)` does. Between the two there is no sense, because the
+  positive pole lies in the orbit plane, and every reader of the sense returns
+  `NotEvaluable` by name (decision 0008).
+- **Synchronous rotation.** A synchronous rotation is admissible only where the sense is
+  prograde.
+- **Disposition.** The obliquity carries the dispositions of any declared angle.
+
+**The rotation phase.** The planet declares `lambda0`, the sub-primary longitude at the
+epoch, admitted in `(-pi, pi]`. It is the longitude by `Mesh.longitude(BODY_FRAME, ...)`
+of the direction from the planet toward the primary of its orbit at `t = 0`, expressed
+in body coordinates. The primary is the star or barycentre `orbits.planet.primary`
+names. From `lambda0`, the frame is placed at every time:
+
+- **At `t = 0`.** Let `u` be the unit projection of that direction onto the equatorial
+  plane. The prime meridian is then `m0 = cos(lambda0) u - sin(lambda0) (p x u)`, which
+  gives the direction toward the primary exactly the longitude `lambda0`.
+- **At later `t`.** The body turns about `p` through `2 pi t / P`, `P` being the
+  sidereal rotation period. The turn is positive about the positive pole on every
+  configuration.
+- **The placement rule.** The orientation whose columns are the prime meridian,
+  `p x` the prime meridian, and `p` passes `Mesh.require_body_orientation` with the
+  angular velocity `(2 pi / P) p`.
+- **The one gap.** `u` does not exist only where the primary lies on the spin axis at
+  `t = 0`, which needs `p` in the orbit plane. There the placement refuses by name, and
+  the configuration declares another epoch offset.
+
+The value is read at `t = 0`, not at the epoch event. The offset of decision 0008 sets
+where in the orbit `t = 0` falls, and `lambda0` sets which longitude faces the primary
+there, independently of it.
+
+**What reads the phase.** Every source's sub-source longitude at `t` is
+`Mesh.longitude` of that source's direction in body coordinates. The hour angle of a
+source at a cell is the cell's longitude minus the sub-source longitude, wrapped into
+`(-pi, pi]`, so both are `Derived` and neither is declared. On a synchronous rotator
+with a circular orbit at zero obliquity, the direction to the primary turns about
+`p = n` at the body's own rate, so the sub-primary longitude is `lambda0` at every `t`.
+The declared value is that rotator's permanent sub-stellar longitude by name, and a
+configuration with no solar day declares it the same way as any other.
+
+**The phase's disposition.** For a body with no accurately observable fixed surface
+features, the expression for the prime meridian angle `W` defines the prime meridian
+(Archinal et al. 2018, p. 6). A generated body is in that case: its geography is
+generated in the body frame, and no feature defines its longitudes. `lambda0` is
+`Irreducible` on such a body, for three reasons:
+
+- No component of this system derives an orientation about the spin axis; the
+  rotation-state component of decision 0032 is a declared absence.
+- It is not `Bracketed`, because nothing pushes a periodic angle up or down.
+- It is not `Derived`, because no rule computes it.
+
+The sensitivity its record names is what the value moves. On a synchronous rotator,
+that is which body-fixed longitudes face the primary for the whole run. On any other,
+it is the local time at each longitude at a given `t`. That finding belongs to the
+sweeps plan, `fiddlybits-755.1`. A configuration standing for a catalogued body carries
+`lambda0` `Sourced` instead, from the published orientation model: the rotational
+elements the report tabulates as `W` at a standard epoch plus a rate in days from it
+(Archinal et al. 2018, Table 1, p. 8).
+
 ## Alternatives considered
 
 - **Declare what the predecessor declared** (its planet file carried salinity, mixed
@@ -117,11 +208,66 @@ bracketed initial condition with a mechanism to remove it later:
   length, the year length directly). Every derived quantity that is also declarable
   is a place two values can disagree. The constructor accepts a value for a derived
   field only to check it, and refuses on disagreement.
+- **Obliquity to the pole on the orbit normal's side, in `[0, pi/2]`, with the sense
+  declared.** This is the IAU convention for planets and satellites. The north pole is
+  the pole of rotation on the north side of the invariable plane, and the rotation is
+  prograde or retrograde as `W` increases or decreases (Archinal et al. 2018, p. 6);
+  Table 1 accordingly gives some planets a north pole with a decreasing `W` (p. 8).
+  For: it matches catalogue coordinates, and the sense is written where a reader looks
+  for it. Against, three things. The two declarations reach one pole only through a
+  branch on the sense. At `pi/2` the pole on the normal's side does not exist, so the
+  declared sense has nothing to be relative to, yet the pair is admissible. And a spin
+  axis crossing the orbit plane, which the obliquity component of decision 0032 exists
+  to follow, moves continuously while both declared quantities jump. Lost.
+- **The obliquity to the positive pole and the sense both declared, the one checked
+  against the other.** For: the sense is explicit. Against: a quantity that is both
+  declarable and derivable is a place two values can disagree (the alternative of a
+  larger foundational set, above).
+  Lost.
+- **The pole as a declared unit vector in the orbit frame.** Three numbers and a
+  unit-length constraint for two degrees of freedom. Its azimuth would also declare a
+  second time what the argument of periapsis, measured from `gamma`, already carries.
+  Lost.
+- **The rotation phase as an angle from the equinox direction.** This is the analogue
+  of the IAU's `W`, measured from the node of the body's equator (Archinal et al. 2018,
+  p. 6). For: it is the catalogue form. Against: `gamma` does not exist where the sine
+  of the obliquity is within rounding, which includes the zero-obliquity synchronous
+  instance of decision 0034, so it needs a second reference direction by case. Lost.
+- **A rule instead of a declaration: the prime meridian faces the primary at the epoch
+  event, or at `t = 0`.** For: no field. Against: a rule at the event makes the time of
+  day at `t = 0` move with the offset, so the season and the orientation stop being
+  independent declarations. A rule at `t = 0` fixes a synchronous rotator's sub-stellar
+  point to wherever the terrain seed put longitude zero, and moving the one against the
+  other would then mean moving geography over the fixed mesh of decision 0005, a remap
+  that decision has no place for. Either way, a configuration standing for a catalogued
+  body cannot state its own orientation. Lost.
+- **The hour angle of the primary at the prime meridian at `t = 0`**, which is
+  `-lambda0`. Equivalent in content. Lost on the door: `Mesh.longitude` already reads
+  the longitude, the hour angle is `Derived` from it, and declaring the second form as
+  well would be a second definition.
+- **The phase measured toward the epoch reference's source rather than toward the orbit's
+  primary.** The periapsis kind of decision 0008 names an orbit, not a direction from the
+  planet, so that kind would need a second index. And for a planet about a barycentre,
+  the direction to a named star does not turn with the orbit, so a synchronous rotator's
+  permanent sub-stellar longitude would no longer be the declared value. Lost.
+- **The local time at the prime meridian at `t = 0`.** It needs a solar day, and a
+  synchronous rotator has none (decision 0008). Lost.
 
 ## Consequences
 
 - The `System` struct of decision 0007 has exactly this shape: stars, planet (with
   its lithosphere block), orbits, moons, inventories, numerics.
+- `Planet` carries `obliquity` in `[0, pi]` and `sub_primary_longitude_at_epoch`, and
+  the sense is `Derived` (`fiddlybits-52v.4.13`). `Orbit` places `Mesh.BODY_FRAME` from
+  them, and every hour angle, sub-source longitude and declination reads that placement
+  (`fiddlybits-52v.5.3`). Checks implied:
+  - the hour angle at `t = 0` reproduces the declared longitude at every cell;
+  - a synchronous rotator's sub-primary longitude is the declared value across an orbit;
+  - every placement passes `Mesh.require_body_orientation`, and a retrograde rotator
+    placed with its spin axis on the orbit normal's side is refused.
+
+  The directions the other angles of the orbit hierarchy are measured from are
+  `fiddlybits-52v.5.8`.
 - The M0 gate of decision 0034 validates every `Derived` field of this struct on
   `Earth()` and on a synthetic non-Earth instance with closed forms, so a derivation
   that is right on one configuration by coincidence has a test that can fail.
@@ -149,6 +295,7 @@ bracketed initial condition with a mechanism to remove it later:
   seawater and the anomaly tolerance the solute inventory's fence is stated against.
 - Turcotte and Schubert (2014), Geodynamics: the lithosphere quantities the terrain
   subsystem derives from the lithosphere block.
+- Archinal, B. A., et al. "Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2015." Celestial Mechanics and Dynamical Astronomy 130 (2018), article 22. DOI: 10.1007/s10569-017-9805-5. Pages 6 (the north pole by the invariable plane; W measured easterly along the body's equator from the node to the prime meridian; prograde or retrograde as W increases or decreases; for a body with no accurately observable fixed surface features the expression for W defines the prime meridian), 8 (Table 1: W at the standard epoch plus a rate in days from it, with a decreasing W among the planets), 22 (the positive pole by the right-hand rule).
 
 ## Amendments
 
@@ -159,3 +306,4 @@ bracketed initial condition with a mechanism to remove it later:
 - 2026-09-08: the lithosphere block of System is added, each field Bracketed with both ends argued, from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-08: moons carry radius, a reflectance spectrum artifact, node, argument of periapsis and a named reference plane, because decision 0032 derives their light from the start, from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-08: the ocean solute inventory carries an ionic composition with seawater thermodynamics Irreducible inside the Reference-Composition anomaly tolerance, from notes/findings/2026-09-08-implicit-earth-audit.md.
+- 2026-09-13: the obliquity is the angle from the orbit normal to the positive pole of decision 0005, in [0, pi], and the sense of rotation is Derived from it and never declared; the planet declares its sub-primary longitude at the epoch, Irreducible on a generated body and Sourced on a catalogued one, from which the prime meridian at every t, every sub-source longitude and every hour angle are Derived; section The spin axis and the rotation phase in the orbit frame and its alternatives, carried by fiddlybits-52v.5.7, with the Planet fields in fiddlybits-52v.4.13 and the reference directions of the other orbit angles in fiddlybits-52v.5.8.

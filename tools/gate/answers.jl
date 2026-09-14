@@ -5,6 +5,8 @@
 
 module Answers
 
+include(joinpath(@__DIR__, "depot.jl"))
+
 """
     verdict(; computed, staged, head, message)
 
@@ -89,8 +91,9 @@ read_head(path::AbstractString; dir::AbstractString) = at_revision("HEAD:" * pat
 Check out the git index at `root` into a fresh directory, run `script` (a path
 relative to `root`) there with `julia --project=<the fresh directory>`, and return
 its trimmed standard output. Every file the run reads, including `script` itself, is
-the index's version, never the working tree's. The directory is removed before
-returning, whether or not the run succeeded.
+the index's version, never the working tree's. The run compiles into a depot of its own,
+`DEPOT_NAME` beside the checked-out files, through `in_depot`. The directory, and that
+depot with it, is removed before returning, whether or not the run succeeded.
 """
 function staged_tree_hash(root::AbstractString, script::AbstractString)
     tree = mktempdir()
@@ -98,7 +101,8 @@ function staged_tree_hash(root::AbstractString, script::AbstractString)
         checkout = addenv(Cmd(`git checkout-index -a --prefix=$(tree * "/")`; dir = root),
                            "LC_ALL" => "C", "LANGUAGE" => "")
         run(pipeline(checkout; stdout = devnull, stderr = devnull))
-        cmd = `julia --startup-file=no --project=$(tree) $(joinpath(tree, script))`
+        cmd = in_depot(`julia --startup-file=no --project=$(tree) $(joinpath(tree, script))`,
+                       joinpath(tree, DEPOT_NAME))
         return chomp(read(cmd, String))
     finally
         rm(tree; force = true, recursive = true)

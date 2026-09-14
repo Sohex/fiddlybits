@@ -254,3 +254,116 @@ function pairwise_sum_reference(::Type{A}, xs::AbstractVector) where {A<:Number}
     end
     return acc
 end
+
+@kernel function pairwise_column_block_kernel!(partials, @Const(xs), firsts, blocksize, n, nb)
+    item = @index(Global)
+    column = fld1(item, nb)
+    i = mod1(item, nb)
+    @inbounds lo = firsts[i]
+    hi = min(lo + blocksize - 1, n)
+    T = eltype(partials)
+    acc = zero(T)
+    @inbounds for j in lo:hi
+        acc += T(xs[j, column])
+    end
+    @inbounds partials[i, column] = acc
+end
+
+"""
+    launch_column_block_sums!(backend, partials, xs, blocksize)
+
+Queues the block sums of every column of the `(n, ncol)` array `xs` into
+the `(cld(n, blocksize), ncol)` array `partials` on `backend`:
+`pairwise_column_block_kernel!` over one work item per block and column,
+`nb * ncol` of them, at `Backends.launch_workgroup`. Work item `g` is column
+`fld1(g, nb)` and block `mod1(g, nb)`, whose first element is
+`(1:blocksize:n)[block]` and whose last is `min(first + blocksize - 1, n)`.
+
+Before the launch, on the host, refuses through `Verdicts.refuse`, naming
+the array and both shapes, unless `blocksize` is positive, `xs` has two
+dimensions and `partials` has size `(cld(n, blocksize), ncol)`: the extents
+every index the kernel reads or writes is derived from.
+"""
+function launch_column_block_sums!(backend::Backend, partials::AbstractArray, xs::AbstractArray,
+                                    blocksize::Integer)
+    site = "Reductions.launch_column_block_sums!"
+    blocksize > 0 ||
+        refuse("pairwise blocksize", site, "blocksize $blocksize is not positive")
+    ndims(xs) == 2 ||
+        refuse("block sums extent", site, "xs has size $(size(xs)), not (elements, columns)")
+    n, ncol = size(xs)
+    nb = cld(n, blocksize)
+    size(partials) == (nb, ncol) ||
+        refuse("block sums extent", site,
+               "partials has size $(size(partials)), $n elements of $ncol column(s) in blocks " *
+               "of $blocksize have ($nb, $ncol)")
+    firsts = 1:Int(blocksize):n
+    launch!(pairwise_column_block_kernel!, backend, nb * ncol, partials, xs, firsts,
+            Int(blocksize), n, nb)
+    return partials
+end
+
+"""
+    pairwise_block_sums(::Type{A}, xs::AbstractArray, backend; blocksize = BLOCKSIZE) where A
+
+The column form of `pairwise_block_sums`: `xs` is an array of cells by
+trailing axes (`Backends.LAYOUT`), and the result, left on `backend`, has
+size `(cld(size(xs, 1), blocksize), trailing...)`, its column `c` the
+vector form's block sums of `xs`'s column `c`, each accumulated in `A` in
+the same fixed order, bit for bit. One launch over every block of every
+column (`launch_column_block_sums!`). Refuses when `blocksize` is not
+positive or `xs` has fewer than two dimensions.
+"""
+function pairwise_block_sums(::Type{A}, xs::AbstractArray, backend::Backend;
+                              blocksize::Integer = BLOCKSIZE) where {A<:Number}
+    site = "Reductions.pairwise_block_sums"
+    blocksize > 0 ||
+        refuse("pairwise blocksize", site, "blocksize $blocksize is not positive")
+    require_columns(xs, site)
+    nb = cld(cell_extent(xs), blocksize)
+    partials = similar(xs, A, nb, trailing_shape(xs)...)
+    (nb == 0 || column_extent(xs) == 0) && return partials
+    launch_column_block_sums!(backend, by_columns(partials), by_columns(xs), blocksize)
+    return partials
+end
+
+"""
+    pairwise_sum(::Type{A}, xs::AbstractArray, backend = CPU(); blocksize = BLOCKSIZE) where A
+
+The column form of `pairwise_sum`: the fixed-order pairwise sum of each
+column of `xs`, an array of cells by trailing axes, returned as one host
+`Array{A}` of the trailing shape, its entry `c` the vector form's sum of
+`xs`'s column `c`, bit for bit. The block sums of every column come from one
+launch (`pairwise_block_sums`'s column form) and are read to the host in one
+move through `Backends.on`, one `Events.moved` record per call on
+device-resident `xs` whatever the trailing extent and none on host-resident
+`xs`; each column is then combined on its own by `combine_fixed_order`.
+Refuses when `blocksize` is not positive or `xs` has fewer than two
+dimensions.
+"""
+function pairwise_sum(::Type{A}, xs::AbstractArray, backend::Backend = CPU();
+                       blocksize::Integer = BLOCKSIZE) where {A<:Number}
+    blocks = on(pairwise_block_sums(A, xs, backend; blocksize = blocksize), CPU(1))
+    totals = Array{A}(undef, trailing_shape(xs)...)
+    for column in CartesianIndices(trailing_shape(xs))
+        totals[column] = combine_fixed_order(view(blocks, :, column))
+    end
+    return totals
+end
+
+"""
+    pairwise_sum_reference(::Type{A}, xs::AbstractArray) where A
+
+The naive serial reference for the column form of `pairwise_sum` (decision
+0027): the vector reference over each column of `xs` in turn, into an
+`Array{A}` of the trailing shape. `xs` must be a host array. Refuses when
+`xs` has fewer than two dimensions.
+"""
+function pairwise_sum_reference(::Type{A}, xs::AbstractArray) where {A<:Number}
+    require_columns(xs, "Reductions.pairwise_sum_reference")
+    totals = Array{A}(undef, trailing_shape(xs)...)
+    for column in CartesianIndices(trailing_shape(xs))
+        totals[column] = pairwise_sum_reference(A, view(xs, :, column))
+    end
+    return totals
+end

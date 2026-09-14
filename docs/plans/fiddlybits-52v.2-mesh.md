@@ -162,9 +162,11 @@ is declared here because the identity is declared here.
 
 ### Connectivity
 
-Derived from a terrain-level field every slow step: for each pair of adjacent coarse
-ocean cells the minimum sill depth and the width of their connection; for land,
-contiguity; for basins, the drainage terminal.
+Derived from a terrain-level field every slow step. Its nodes are the ocean and land
+bodies of each coarse cell, joined through edge neighbours inside it (decision 0031);
+for each pair of bodies joined across a coarse edge there is one gate, for ocean the
+minimum sill depth and the width of their connection and for land contiguity; for
+basins, the drainage terminal.
 
 A surface class is decided by connectivity to the world ocean, never by the sign of
 elevation (REQ-TER-012). Land, ocean and inland-water fractions are exact areas from

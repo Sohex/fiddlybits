@@ -233,6 +233,8 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
         quartered_segmentation = Reductions.Segmentation(xs_gpu, quartered_gpu)
         quartered_nseg = length(quartered) - 1
         host_partials = Reductions.pairwise_block_sums(Float64, xs, cpu)
+        field = reshape(ReductionFixtures.seeded_vector(Float64, 3 * ReductionFixtures.N), ReductionFixtures.N, 3)
+        field_gpu = Backends.on(field, gpu)
 
         device_calls = [
             ("pairwise_block_sums", 0,
@@ -259,6 +261,22 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
              () -> Reductions.segmented_quantile(xs_gpu, quartered_segmentation, 0.5, gpu)),
             ("area_fraction_above", 1,
              () -> Reductions.area_fraction_above(xs_gpu, areas_gpu, 0.0, gpu)),
+            ("segmented_sum column form, boundary array", 1,
+             () -> Reductions.segmented_sum(Float64, field_gpu, starts_gpu, gpu)),
+            ("segmented_sum column form, Segmentation", 0,
+             () -> Reductions.segmented_sum(Float64, field_gpu, segmentation, gpu)),
+            ("segmented_weighted_sum column form", 0,
+             () -> Reductions.segmented_weighted_sum(Float64, field_gpu, weights_gpu, segmentation, gpu)),
+            ("segmented_mean column form, boundary array", 2,
+             () -> Reductions.segmented_mean(Float64, field_gpu, starts_gpu, weights_gpu, gpu)),
+            ("segmented_mean column form, Segmentation", 1,
+             () -> Reductions.segmented_mean(Float64, field_gpu, segmentation, weights_gpu, gpu)),
+            ("segmented_quantile column form, Segmentation", 0,
+             () -> Reductions.segmented_quantile(field_gpu, quartered_segmentation, 0.5, gpu)),
+            ("pairwise_block_sums column form", 0,
+             () -> Reductions.pairwise_block_sums(Float64, field_gpu, gpu)),
+            ("pairwise_sum column form", 1,
+             () -> Reductions.pairwise_sum(Float64, field_gpu, gpu)),
         ]
 
         for (name, expected, call) in device_calls
@@ -296,6 +314,21 @@ moves_of(f, array) = count(rec -> rec.array === array, move_log(f))
             ("area_fraction_above", () -> Reductions.area_fraction_above(xs, areas, 0.0, cpu)),
             ("area_fraction_above_reference",
              () -> Reductions.area_fraction_above_reference(xs, areas, 0.0)),
+            ("segmented_sum column form", () -> Reductions.segmented_sum(Float64, field, starts, cpu)),
+            ("segmented_sum_reference column form",
+             () -> Reductions.segmented_sum_reference(Float64, field, starts)),
+            ("segmented_weighted_sum column form",
+             () -> Reductions.segmented_weighted_sum(Float64, field, weights, Reductions.Segmentation(field, starts), cpu)),
+            ("segmented_weighted_sum_reference column form",
+             () -> Reductions.segmented_weighted_sum_reference(Float64, field, weights, starts)),
+            ("segmented_mean column form", () -> Reductions.segmented_mean(Float64, field, starts, weights, cpu)),
+            ("segmented_mean_reference column form",
+             () -> Reductions.segmented_mean_reference(Float64, field, starts, weights)),
+            ("segmented_quantile column form", () -> Reductions.segmented_quantile(field, quartered, 0.5, cpu)),
+            ("segmented_quantile_reference column form",
+             () -> Reductions.segmented_quantile_reference(field, quartered, 0.5)),
+            ("pairwise_sum column form", () -> Reductions.pairwise_sum(Float64, field, cpu)),
+            ("pairwise_sum_reference column form", () -> Reductions.pairwise_sum_reference(Float64, field)),
         ]
 
         for (name, call) in host_calls

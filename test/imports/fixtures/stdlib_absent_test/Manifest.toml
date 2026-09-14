@@ -1,0 +1,9 @@
+julia_version = "1.12.7"
+manifest_format = "2.0"
+
+[deps]
+
+[[deps.Random]]
+deps = ["SHA"]
+uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+version = "1.11.0"

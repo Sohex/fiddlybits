@@ -21,6 +21,7 @@ include("lint_front_matter.jl")
 include("lint_manifest.jl")
 include("lint_static_arrays.jl")
 include("lint_fused_multiply_add.jl")
+include("lint_sourced.jl")
 
 end # module Lints
 
@@ -40,6 +41,7 @@ const TABLE = (
     (name = "lint_manifest",         f = Lints.lint_manifest,         tree = ".",    inside = ""),
     (name = "lint_static_arrays",    f = Lints.lint_static_arrays,    tree = "src",  inside = ""),
     (name = "lint_fused_multiply_add", f = Lints.lint_fused_multiply_add, tree = "src", inside = ""),
+    (name = "lint_sourced",           f = Lints.lint_sourced,           tree = ".",    inside = ""),
 )
 
 fixture(entry, kind) = joinpath(FIXTURES, entry.name, kind, entry.inside)
@@ -116,5 +118,11 @@ fixture(entry, kind) = joinpath(FIXTURES, entry.name, kind, entry.inside)
             @test isfile(joinpath(PROJECT, e["path"]))
             @test !isempty(e["reason"])
         end
+    end
+
+    @testset "lint_sourced places every row of docs/references/INDEX.md" begin
+        _, unplaced = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        isempty(unplaced) || @info "lint_sourced: rows it could not place" unplaced
+        @test isempty(unplaced)
     end
 end

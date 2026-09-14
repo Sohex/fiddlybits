@@ -35,7 +35,8 @@ oracle_verdicts() = (FAIL(), REPORT(), PASS())
     Refusal(quantity, site, reason)
 
 A read that could not be answered. Carries what was read, where it was read and
-why it was refused, and never a substitute value.
+why it was refused, and never a substitute value. It is also the payload of a
+`refusal` event, which `Events.RefusalPayload` names (decision 0042).
 """
 struct Refusal <: Exception
     quantity::String

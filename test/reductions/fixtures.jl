@@ -51,4 +51,13 @@ end
 stagnation case of decision 0029, whose exact total is `1.0e8 + n`."
 stock_and_increments(::Type{T}, n::Integer) where {T} = vcat(T[T(1.0e8)], fill(T(1), n))
 
+"An array of `n` cells by `trailing` of the classes of `legend`, from a fixed formula."
+seeded_labels(n::Integer, trailing::Tuple, legend::Tuple) =
+    reshape([legend[mod1(i * 7919 + 13, length(legend))] for i in 1:(n * prod(trailing; init = 1))],
+            n, trailing...)
+
+"The one-hot class fractions of `labels` over `legend` in `T`, the classes on a new last axis."
+one_hot(::Type{T}, labels::AbstractArray, legend::Tuple) where {T} =
+    stack([T.(labels .== class) for class in legend])
+
 end # module ReductionFixtures

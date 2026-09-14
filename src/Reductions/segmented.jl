@@ -19,11 +19,28 @@ holding one reads the boundary array to the host no further times at all.
 starts_on_host(starts::AbstractVector{<:Integer}) = on(starts, CPU(1))
 
 """
+    cell_extent(xs)
+
+`size(xs, 1)`, the number of cells of `xs` under `Backends.LAYOUT`: its
+length for a vector, its first axis for an array of cells by trailing axes.
+"""
+cell_extent(xs::AbstractArray) = size(xs, 1)
+
+"""
+    extent_phrase(xs)
+
+How a refusal names `cell_extent(xs)`: `"xs has length n"` for a vector,
+`"xs has n cells along its first axis, size (...)"` otherwise.
+"""
+extent_phrase(xs::AbstractVector) = "xs has length $(length(xs))"
+extent_phrase(xs::AbstractArray) = "xs has $(cell_extent(xs)) cells along its first axis, size $(size(xs))"
+
+"""
     segment_extent_host(xs, starts_host)
 
 `segment_extent`'s check, given `starts` already on the host.
 """
-function segment_extent_host(xs::AbstractVector, starts_host::AbstractVector{<:Integer})
+function segment_extent_host(xs::AbstractArray, starts_host::AbstractVector{<:Integer})
     isempty(starts_host) &&
         refuse("segment boundaries", "Reductions.segment_extent", "starts is empty")
     issorted(starts_host) ||
@@ -31,9 +48,9 @@ function segment_extent_host(xs::AbstractVector, starts_host::AbstractVector{<:I
     first(starts_host) == 1 ||
         refuse("segment boundaries", "Reductions.segment_extent",
                "starts begins at $(first(starts_host)), not 1")
-    last(starts_host) == length(xs) + 1 ||
+    last(starts_host) == cell_extent(xs) + 1 ||
         refuse("segment boundaries", "Reductions.segment_extent",
-               "starts ends at $(last(starts_host)), xs has length $(length(xs))")
+               "starts ends at $(last(starts_host)), $(extent_phrase(xs))")
     return length(starts_host) - 1
 end
 
@@ -41,13 +58,15 @@ end
     segment_extent(xs, starts)
 
 Refuses unless `starts` is a non-decreasing boundary array beginning at
-`1` and ending at `length(xs) + 1`, and otherwise returns
+`1` and ending at `cell_extent(xs) + 1`, and otherwise returns
 `length(starts) - 1`, the segment count. Segment `s` is
-`xs[starts[s]:starts[s+1]-1]`. `starts` is read element by element for
-this check, so it is copied to the host first when it is not already
-there (a boundary array, not the reduced data, so the copy is cheap).
+`xs[starts[s]:starts[s+1]-1]` for a vector, and the cells
+`starts[s]:starts[s+1]-1` of every column for an array of cells by trailing
+axes. `starts` is read element by element for this check, so it is copied
+to the host first when it is not already there (a boundary array, not the
+reduced data, so the copy is cheap).
 """
-function segment_extent(xs::AbstractVector, starts::AbstractVector{<:Integer})
+function segment_extent(xs::AbstractArray, starts::AbstractVector{<:Integer})
     return segment_extent_host(xs, starts_on_host(starts))
 end
 
@@ -73,11 +92,13 @@ end
 
 A boundary array checked once against the extent it describes, holding
 everything a segmented reduction reads from it: the element count it was
-checked against, the segment count, the boundaries on the host, and the
-per-segment `lo` and `hi` on the device `starts` came from. Refuses at
-construction, exactly as `segment_extent` does, for an empty `starts`,
-for one that is not non-decreasing, for one that does not begin at `1`,
-and for one that does not end at `length(xs) + 1`.
+checked against, `cell_extent(xs)`, the segment count, the boundaries on
+the host, and the per-segment `lo` and `hi` on the device `starts` came
+from. Refuses at construction, exactly as `segment_extent` does, for an
+empty `starts`, for one that is not non-decreasing, for one that does not
+begin at `1`, and for one that does not end at `cell_extent(xs) + 1`. `xs`
+is a vector or an array of cells by trailing axes, and only its first axis
+is read.
 
 Every segmented reduction takes either a boundary array or a
 `Segmentation`. Given a boundary array it builds one, so a boundary array
@@ -100,26 +121,27 @@ struct Segmentation{D<:AbstractVector{<:Integer},H<:AbstractVector{<:Integer}}
     lo::D
     hi::D
 
-    function Segmentation(xs::AbstractVector, starts::AbstractVector{<:Integer})
+    function Segmentation(xs::AbstractArray, starts::AbstractVector{<:Integer})
         starts_host = starts_on_host(starts)
         nseg = segment_extent_host(xs, starts_host)
         lo, hi = segment_bounds(starts)
         host = copy(starts_host)
-        return new{typeof(lo),typeof(host)}(length(xs), nseg, host, lo, hi)
+        return new{typeof(lo),typeof(host)}(cell_extent(xs), nseg, host, lo, hi)
     end
 end
 
 """
     require_extent(segmentation, xs, site)
 
-Returns `nothing` when `xs` has the length `segmentation` was checked
-against, and otherwise refuses at `site`, naming both lengths.
+Returns `nothing` when `cell_extent(xs)` is the element count
+`segmentation` was checked against, and otherwise refuses at `site`, naming
+both.
 """
-function require_extent(segmentation::Segmentation, xs::AbstractVector, site::AbstractString)
-    length(xs) == segmentation.nelement && return nothing
+function require_extent(segmentation::Segmentation, xs::AbstractArray, site::AbstractString)
+    cell_extent(xs) == segmentation.nelement && return nothing
     refuse("segmentation extent", site,
            "the segmentation was checked against $(segmentation.nelement) elements, " *
-           "xs has length $(length(xs))")
+           extent_phrase(xs))
 end
 
 """
@@ -413,6 +435,349 @@ function segmented_mean_reference(::Type{A}, xs::AbstractVector, starts::Abstrac
 end
 
 function segmented_mean_reference(::Type{A}, xs::AbstractVector, segmentation::Segmentation,
+                                   weights::AbstractVector) where {A<:Number}
+    require_extent(segmentation, xs, "Reductions.segmented_mean_reference")
+    return segmented_mean_reference(A, xs, segmentation.starts_host, weights)
+end
+
+"""
+    column_extent(xs)
+
+The number of columns of `xs` under `Backends.LAYOUT`: the product of its
+axes after the first, `1` for a vector.
+"""
+column_extent(xs::AbstractArray) = prod(Base.tail(size(xs)); init = 1)
+
+"""
+    trailing_shape(xs)
+
+`size(xs)` without its first axis: the shape a column reduction of `xs`
+keeps.
+"""
+trailing_shape(xs::AbstractArray) = Base.tail(size(xs))
+
+"""
+    by_columns(xs)
+
+`xs` reshaped to `(cell_extent(xs), column_extent(xs))`, sharing its memory:
+column `c` is the `c`-th column of the trailing axes in column-major order.
+"""
+by_columns(xs::AbstractArray) = reshape(xs, cell_extent(xs), column_extent(xs))
+
+"""
+    require_columns(xs, site)
+
+Returns `nothing` when `xs` has at least two dimensions, a cell axis and a
+trailing axis, and otherwise refuses at `site`, naming its size.
+"""
+function require_columns(xs::AbstractArray, site::AbstractString)
+    ndims(xs) >= 2 && return nothing
+    refuse("column reduction shape", site,
+           "xs has size $(size(xs)); a column reduction reads an array of cells by trailing axes")
+end
+
+"""
+    launch_segment_columns!(kernel, backend, nelement, nseg, ncol, outputs, columns, cells, lo, hi, site)
+
+Queues `kernel` on `backend` over one work item per segment and column,
+`nseg * ncol` of them, at `Backends.launch_workgroup`, with the values of
+the named tuples `outputs`, `columns` and `cells`, then `lo`, `hi` and
+`nseg`, as its arguments in that order. Work item `g` is column
+`fld1(g, nseg)` and segment `mod1(g, nseg)`, and segment `s` of a column
+reads that column's cells `lo[s]:hi[s]`.
+
+Before the launch, on the host, refuses at `site` through
+`Verdicts.refuse`, naming the array and both shapes, unless every array of
+`outputs` has size `(nseg, ncol)`, every array of `columns` has size
+`(nelement, ncol)`, every array of `cells` holds `nelement` elements, and
+`lo` and `hi` each hold `nseg`: the extents every index the kernel reads or
+writes is derived from. The values of `lo` and `hi` lie inside
+`1:nelement` because a `Segmentation` is built only by its checked
+constructor.
+"""
+function launch_segment_columns!(kernel, backend::Backend, nelement::Integer, nseg::Integer,
+                                  ncol::Integer, outputs::NamedTuple, columns::NamedTuple,
+                                  cells::NamedTuple, lo::AbstractVector{<:Integer},
+                                  hi::AbstractVector{<:Integer}, site::AbstractString)
+    for (name, array) in pairs(outputs)
+        size(array) == (nseg, ncol) ||
+            refuse("segment kernel extent", site,
+                   "$name has size $(size(array)), the segmentation has $nseg segments " *
+                   "of $ncol column(s)")
+    end
+    for (name, array) in pairs(columns)
+        size(array) == (nelement, ncol) ||
+            refuse("segment kernel extent", site,
+                   "$name has size $(size(array)), the segmentation covers $nelement " *
+                   "elements of $ncol column(s)")
+    end
+    for (name, array) in pairs(cells)
+        length(array) == nelement ||
+            refuse("segment kernel extent", site,
+                   "$name has length $(length(array)), the segmentation covers " *
+                   "$nelement elements")
+    end
+    for (name, array) in (("lo", lo), ("hi", hi))
+        length(array) == nseg ||
+            refuse("segment kernel extent", site,
+                   "$name has length $(length(array)), the segmentation has $nseg segments")
+    end
+    launch!(kernel, backend, nseg * ncol, values(outputs)..., values(columns)..., values(cells)...,
+            lo, hi, Int(nseg))
+    return nothing
+end
+
+@kernel function segmented_column_sum_kernel!(out, @Const(xs), @Const(lo), @Const(hi), nseg)
+    item = @index(Global)
+    column = fld1(item, nseg)
+    seg = mod1(item, nseg)
+    T = eltype(out)
+    acc = zero(T)
+    @inbounds for j in lo[seg]:hi[seg]
+        acc += T(xs[j, column])
+    end
+    @inbounds out[seg, column] = acc
+end
+
+"""
+    segmented_sum(::Type{A}, xs::AbstractArray, starts, backend = CPU()) where A
+    segmented_sum(::Type{A}, xs::AbstractArray, segmentation, backend = CPU()) where A
+
+The column form of `segmented_sum`: `xs` is an array of cells by trailing
+axes (`Backends.LAYOUT`), and the result has size `(nseg, trailing...)`,
+its column `c` the vector form's segmented sum of `xs`'s column `c`, in the
+same fixed order, bit for bit. One launch over every segment of every
+column (`launch_segment_columns!`), whatever the trailing extent; nothing
+is read back. The segmentation is checked against `size(xs, 1)`. Refuses
+when `xs` has fewer than two dimensions, and as the vector form does.
+"""
+function segmented_sum(::Type{A}, xs::AbstractArray, segmentation::Segmentation,
+                        backend::Backend = CPU()) where {A<:Number}
+    site = "Reductions.segmented_sum"
+    require_columns(xs, site)
+    require_extent(segmentation, xs, site)
+    nseg, ncol = segmentation.nseg, column_extent(xs)
+    out = similar(xs, A, nseg, trailing_shape(xs)...)
+    (nseg == 0 || ncol == 0) && return out
+    launch_segment_columns!(segmented_column_sum_kernel!, backend, segmentation.nelement, nseg, ncol,
+                            (out = by_columns(out),), (xs = by_columns(xs),), NamedTuple(),
+                            segmentation.lo, segmentation.hi, site)
+    return out
+end
+
+function segmented_sum(::Type{A}, xs::AbstractArray, starts::AbstractVector{<:Integer},
+                        backend::Backend = CPU()) where {A<:Number}
+    return segmented_sum(A, xs, Segmentation(xs, starts), backend)
+end
+
+"""
+    segmented_sum_reference(::Type{A}, xs::AbstractArray, starts) where A
+    segmented_sum_reference(::Type{A}, xs::AbstractArray, segmentation) where A
+
+The naive serial reference for the column form of `segmented_sum`
+(decision 0027): the vector reference over each column of `xs` in turn,
+in column-major order of the trailing axes, into an array of size
+`(nseg, trailing...)`. `xs` must be a host array.
+"""
+function segmented_sum_reference(::Type{A}, xs::AbstractArray,
+                                  starts::AbstractVector{<:Integer}) where {A<:Number}
+    require_columns(xs, "Reductions.segmented_sum_reference")
+    out = Array{A}(undef, segment_extent(xs, starts), trailing_shape(xs)...)
+    for column in CartesianIndices(trailing_shape(xs))
+        out[:, column] = segmented_sum_reference(A, view(xs, :, column), starts)
+    end
+    return out
+end
+
+function segmented_sum_reference(::Type{A}, xs::AbstractArray,
+                                  segmentation::Segmentation) where {A<:Number}
+    require_extent(segmentation, xs, "Reductions.segmented_sum_reference")
+    return segmented_sum_reference(A, xs, segmentation.starts_host)
+end
+
+@kernel function segmented_column_weighted_sum_kernel!(out, @Const(xs), @Const(weights), @Const(lo),
+                                                        @Const(hi), nseg)
+    item = @index(Global)
+    column = fld1(item, nseg)
+    seg = mod1(item, nseg)
+    T = eltype(out)
+    acc = zero(T)
+    @inbounds for j in lo[seg]:hi[seg]
+        acc += nofuse_mul(T(xs[j, column]), T(weights[j]))
+    end
+    @inbounds out[seg, column] = acc
+end
+
+"""
+    require_cell_weights(xs, weights, quantity, site)
+
+Returns `nothing` when `weights` holds one value per cell of `xs`,
+`length(weights) == cell_extent(xs)`, and otherwise refuses `quantity` at
+`site`, naming both.
+"""
+function require_cell_weights(xs::AbstractArray, weights::AbstractVector, quantity::AbstractString,
+                              site::AbstractString)
+    length(weights) == cell_extent(xs) && return nothing
+    refuse(quantity, site, "$(extent_phrase(xs)), weights has length $(length(weights))")
+end
+
+"""
+    segmented_weighted_sum(::Type{A}, xs::AbstractArray, weights, segmentation, backend = CPU()) where A
+
+The column form of `segmented_weighted_sum`: `xs` is an array of cells by
+trailing axes and `weights` a vector of one value per cell, read by every
+column and never repeated to the size of `xs`. The result has size
+`(nseg, trailing...)`, its column `c` the vector form's weighted sum of
+`xs`'s column `c` by `weights`, each term
+`nofuse_mul(A(xs[j, c]), A(weights[j]))` in the same fixed order, bit for
+bit. One launch over every segment of every column; nothing is read back.
+Refuses when `xs` has fewer than two dimensions, when `weights` does not
+hold one value per cell, or when `size(xs, 1)` is not the element count
+`segmentation` was checked against.
+"""
+function segmented_weighted_sum(::Type{A}, xs::AbstractArray, weights::AbstractVector,
+                                 segmentation::Segmentation, backend::Backend = CPU()) where {A<:Number}
+    site = "Reductions.segmented_weighted_sum"
+    require_columns(xs, site)
+    require_extent(segmentation, xs, site)
+    require_cell_weights(xs, weights, "segmented weighted sum extent", site)
+    nseg, ncol = segmentation.nseg, column_extent(xs)
+    out = similar(xs, A, nseg, trailing_shape(xs)...)
+    (nseg == 0 || ncol == 0) && return out
+    launch_segment_columns!(segmented_column_weighted_sum_kernel!, backend, segmentation.nelement,
+                            nseg, ncol, (out = by_columns(out),), (xs = by_columns(xs),),
+                            (weights = weights,), segmentation.lo, segmentation.hi, site)
+    return out
+end
+
+"""
+    segmented_weighted_sum_reference(::Type{A}, xs::AbstractArray, weights, starts) where A
+    segmented_weighted_sum_reference(::Type{A}, xs::AbstractArray, weights, segmentation) where A
+
+The naive serial reference for the column form of `segmented_weighted_sum`
+(decision 0027): the vector reference over each column of `xs` in turn with
+the same `weights`, into an array of size `(nseg, trailing...)`. Refuses
+when `weights` does not hold one value per cell. `xs` and `weights` must be
+host arrays.
+"""
+function segmented_weighted_sum_reference(::Type{A}, xs::AbstractArray, weights::AbstractVector,
+                                           starts::AbstractVector{<:Integer}) where {A<:Number}
+    site = "Reductions.segmented_weighted_sum_reference"
+    require_columns(xs, site)
+    require_cell_weights(xs, weights, "segmented weighted sum extent", site)
+    out = Array{A}(undef, segment_extent(xs, starts), trailing_shape(xs)...)
+    for column in CartesianIndices(trailing_shape(xs))
+        out[:, column] = segmented_weighted_sum_reference(A, view(xs, :, column), weights, starts)
+    end
+    return out
+end
+
+function segmented_weighted_sum_reference(::Type{A}, xs::AbstractArray, weights::AbstractVector,
+                                           segmentation::Segmentation) where {A<:Number}
+    require_extent(segmentation, xs, "Reductions.segmented_weighted_sum_reference")
+    return segmented_weighted_sum_reference(A, xs, weights, segmentation.starts_host)
+end
+
+@kernel function segmented_column_mean_kernel!(out, zeroflag, @Const(xs), @Const(weights), @Const(lo),
+                                                @Const(hi), nseg)
+    item = @index(Global)
+    column = fld1(item, nseg)
+    seg = mod1(item, nseg)
+    T = eltype(out)
+    num = zero(T)
+    den = zero(T)
+    @inbounds for j in lo[seg]:hi[seg]
+        num += nofuse_mul(T(xs[j, column]), T(weights[j]))
+        den += T(weights[j])
+    end
+    @inbounds out[seg, column] = num / den
+    @inbounds zeroflag[seg, column] = iszero(den)
+end
+
+"""
+    segmented_mean_columns(::Type{A}, xs::AbstractArray, segmentation, weights, backend) where A
+
+The launch of the column form of `segmented_mean`, with nothing read back:
+`(out, zeroflag)`, both on `backend`, `out` of size `(nseg, trailing...)`
+holding each segment's weighted mean in every column and `zeroflag` of size
+`(nseg, ncol)` whether that segment's total weight in that column is zero.
+One launch over every segment of every column. Refuses as
+`segmented_mean`'s column form does, except for a zero total weight.
+"""
+function segmented_mean_columns(::Type{A}, xs::AbstractArray, segmentation::Segmentation,
+                                 weights::AbstractVector, backend::Backend) where {A<:Number}
+    site = "Reductions.segmented_mean"
+    require_columns(xs, site)
+    require_cell_weights(xs, weights, "segmented mean extent", site)
+    require_extent(segmentation, xs, site)
+    nseg, ncol = segmentation.nseg, column_extent(xs)
+    out = similar(xs, A, nseg, trailing_shape(xs)...)
+    zeroflag = similar(xs, Bool, nseg, ncol)
+    (nseg == 0 || ncol == 0) && return out, zeroflag
+    launch_segment_columns!(segmented_column_mean_kernel!, backend, segmentation.nelement, nseg, ncol,
+                            (out = by_columns(out), zeroflag = zeroflag), (xs = by_columns(xs),),
+                            (weights = weights,), segmentation.lo, segmentation.hi, site)
+    return out, zeroflag
+end
+
+"""
+    segmented_mean(::Type{A}, xs::AbstractArray, starts, weights, backend = CPU()) where A
+    segmented_mean(::Type{A}, xs::AbstractArray, segmentation, weights, backend = CPU()) where A
+
+The column form of `segmented_mean`: `xs` is an array of cells by trailing
+axes and `weights` a vector of one value per cell, never repeated to the
+size of `xs`. The result, on `backend`, has size `(nseg, trailing...)`, its
+column `c` the vector form's weighted mean of `xs`'s column `c` by
+`weights`, numerator and denominator accumulated in the same fixed order,
+bit for bit. One launch over every segment of every column
+(`segmented_mean_columns`), then the zero-weight refusal's one read: the
+zero-weight flags of every column summed by `pairwise_sum` and read back
+once, one `Events.moved` record per call on device-resident input whatever
+the trailing extent, and none on host-resident input. Refuses when `xs`
+has fewer than two dimensions, when `weights` does not hold one value per
+cell, when `size(xs, 1)` is not the element count the segmentation was
+checked against, or when any segment's total weight is zero, naming how
+many segment columns.
+"""
+function segmented_mean(::Type{A}, xs::AbstractArray, segmentation::Segmentation,
+                         weights::AbstractVector, backend::Backend = CPU()) where {A<:Number}
+    out, zeroflag = segmented_mean_columns(A, xs, segmentation, weights, backend)
+    isempty(zeroflag) && return out
+    nzero = pairwise_sum(Int, vec(zeroflag), backend)
+    nzero == 0 ||
+        refuse("segmented mean weight", "Reductions.segmented_mean",
+               "$nzero of $(length(zeroflag)) segment columns have zero total weight")
+    return out
+end
+
+function segmented_mean(::Type{A}, xs::AbstractArray, starts::AbstractVector{<:Integer},
+                         weights::AbstractVector, backend::Backend = CPU()) where {A<:Number}
+    return segmented_mean(A, xs, Segmentation(xs, starts), weights, backend)
+end
+
+"""
+    segmented_mean_reference(::Type{A}, xs::AbstractArray, starts, weights) where A
+    segmented_mean_reference(::Type{A}, xs::AbstractArray, segmentation, weights) where A
+
+The naive serial reference for the column form of `segmented_mean`
+(decision 0027): the vector reference over each column of `xs` in turn with
+the same `weights`, into an array of size `(nseg, trailing...)`. Refuses
+when `weights` does not hold one value per cell, or when a segment's total
+weight is zero. `xs` and `weights` must be host arrays.
+"""
+function segmented_mean_reference(::Type{A}, xs::AbstractArray, starts::AbstractVector{<:Integer},
+                                   weights::AbstractVector) where {A<:Number}
+    site = "Reductions.segmented_mean_reference"
+    require_columns(xs, site)
+    require_cell_weights(xs, weights, "segmented mean extent", site)
+    out = Array{A}(undef, segment_extent(xs, starts), trailing_shape(xs)...)
+    for column in CartesianIndices(trailing_shape(xs))
+        out[:, column] = segmented_mean_reference(A, view(xs, :, column), starts, weights)
+    end
+    return out
+end
+
+function segmented_mean_reference(::Type{A}, xs::AbstractArray, segmentation::Segmentation,
                                    weights::AbstractVector) where {A<:Number}
     require_extent(segmentation, xs, "Reductions.segmented_mean_reference")
     return segmented_mean_reference(A, xs, segmentation.starts_host, weights)

@@ -127,6 +127,10 @@ end
 The level-0 icosahedron in the working type `T`: 12 vertices from the golden
 ratio, normalised to the unit sphere, and 20 faces wound counterclockwise
 seen from outside.
+
+Each entry of `corners` gives a vertex's components along `BODY_FRAME`'s
+`prime_meridian`, `ninety_east` and `spin_axis`, in that order, placed through
+`in_frame`.
 """
 function base_icosahedron(::Type{T}) where {T<:AbstractFloat}
     phi = (one(T) + sqrt(T(5))) / 2
@@ -139,7 +143,8 @@ function base_icosahedron(::Type{T}) where {T<:AbstractFloat}
         (-phi, zero(T), -one(T)), (-phi, zero(T), one(T)),
     )
     vertices = Matrix{T}(undef, 3, 12)
-    for (i, v) in enumerate(corners)
+    for (i, corner) in enumerate(corners)
+        v = in_frame(BODY_FRAME, corner[1], corner[2], corner[3], T)
         n = sqrt(v[1]^2 + v[2]^2 + v[3]^2)
         vertices[1, i] = v[1] / n
         vertices[2, i] = v[2] / n

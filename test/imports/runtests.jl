@@ -40,6 +40,17 @@ end
         @test length(readdir(joinpath(PROJECT, "docs", "imports"))) > length(deps)
     end
 
+    @testset "a registered extra is read from the stdlib set, not the manifest" begin
+        t = tree()
+        reg = ImportHarness.registered(t.project, t.manifest)
+        @test "JET" in reg
+        @test !("Test" in reg)
+        @test !("Dates" in reg)
+        @test !("InteractiveUtils" in reg)
+        @test "CUDA" in reg
+        @test !("SHA" in reg)
+    end
+
     @testset "every dependency has a record naming a leak check" begin
         t = tree()
         found = ImportHarness.structural_problems(project = t.project, manifest = t.manifest,
@@ -63,6 +74,23 @@ end
         @test length(found) == 1
         @test found[1].package == "Adapt"
         @test occursin("test/nowhere/absent.jl", found[1].reason)
+    end
+
+    @testset "positive control: a record for a package Julia ships naming an absent test is refused" begin
+        t = tree(root = joinpath(FIXTURES, "stdlib_absent_test"))
+        found = ImportHarness.problems(; t...)
+        @test length(found) == 1
+        @test found[1].package == "Random"
+        @test occursin("test/nowhere/absent.jl", found[1].reason)
+    end
+
+    @testset "positive control: a registered extra with no record is refused" begin
+        t = tree(root = joinpath(FIXTURES, "extra_no_record"))
+        found = ImportHarness.structural_problems(project = t.project, manifest = t.manifest,
+                                                   imports = t.imports)
+        @test length(found) == 1
+        @test found[1].package == "FakeExtra"
+        @test occursin("no record", found[1].reason)
     end
 
     @testset "every unresolved check is owned by a row" begin

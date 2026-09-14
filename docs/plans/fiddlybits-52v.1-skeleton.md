@@ -62,11 +62,11 @@ and says nothing about groups.
 | A | `Events` | the closed journal vocabulary, typed payloads, `emit` with a no-op sink, the device-move record | 52v.6.8 |
 | A | `Dimensions` | `Dim{M,L,T,Theta,N}` and its algebra over DynamicQuantities | 52v.3 |
 | A | `Time` | `SimTime`, `Interval`, `duration`, `TimeSupport`, the `TimeSemantics` types | 52v.5 |
-| A | `EarthRatios` | the quarantined unit denominators | 52v.4 |
 | B | `Dispositions` | `Sourced`, `Derived`, `Bracketed`, `Irreducible`, `Closure` | 52v.4 |
+| C | `EarthRatios` | the quarantined unit denominators, as `Sourced` values | 52v.4 |
 | B | `Backends` | the KernelAbstractions device layer, `Adapt`, `on`, the memory budget | 52v.7 |
-| C | `Systems` | `System{FT}`, `strip`, `TrackingSystem`, `affected` | 52v.4 |
-| C | `Reductions` | fixed-order pairwise and compensated sums, segmented reductions, quantiles | 52v.7 |
+| C | `Reductions` | fixed-order pairwise and compensated sums, segmented reductions, quantiles, `error_bound` | 52v.7 |
+| C | `Systems` | `System{FT}`, `strip`, `TrackingSystem`, `affected`; reads `Reductions.error_bound` | 52v.4 |
 | D | `Orbit` | the Kepler solve, true anomaly, declination, hour angle, the epoch rule | 52v.5 |
 | D | `Mesh` | `Support{L}`, bisection, numbering, geometry, stencils, local refinement | 52v.2 |
 | E | `Fields` | `Field{S,T,D,L,A}`, `Semantics`, `coarsen`, `refine`, `time_reduce`, `Ledger` | 52v.3 |

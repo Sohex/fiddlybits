@@ -23,10 +23,10 @@ written against one kind keeps working when another is added.
 | kind | payload |
 | --- | --- |
 | `verdict` | the loop or predicate by name, its verdict from decision 0009's five, the statistic, the bracket it was judged against |
-| `refusal` | the component, what was refused, the quantity and the bound it violated |
+| `refusal` | the `Verdicts.Refusal` that was raised: what was refused, where it was refused, and why |
 | `ledger_open` | the ledger, the imbalance, the derived tolerance, the exchange it closed over |
 | `refresh` | the trigger that fired, the boundary field that changed and by how much, the restart length in seconds and in orbits |
-| `topology_change` | the connectivity-graph edit, the cells involved, the quantity that crossed |
+| `topology_change` | the connectivity-graph edit, the level whose numbering the cells are in, the cells involved as `CellId` values at that level, the quantity that crossed |
 | `level_change` | the level moved from and to, and the reconvergence window |
 | `artifact` | the content key written, its kind, its support id |
 | `checkpoint` | the key, the working precision it was written at |
@@ -112,3 +112,64 @@ where the deciding happened, and the artifacts remain the only thing the model c
   0036 (TOML for every record).
 - User direction, 2026-09-10: the full vocabulary rather than the two kinds that have a
   named use today.
+
+## Amendments
+
+- 2026-09-13: the `refusal` payload is the `Verdicts.Refusal` that was raised, its
+  quantity, site and reason, and `Events.RefusalPayload` names that type rather than
+  declaring a second one; carried by `fiddlybits-52v.6.10`. The founding row read "the
+  quantity and the bound it violated" as two numbers, while every refusal the tree
+  raises is `Verdicts.refuse(quantity, site, reason)`, so no raised refusal could reach
+  an event without a field invented for it. Three other readings were weighed.
+  *`Refusal` gains the violated value and bound as numbers*: lost on what the refusals
+  are. Most have no numeric bound at all (two supports whose digests differ, operands of
+  different semantics, a backend given by something that is not a name, a device the
+  driver does not report), so each would carry a number nobody measured; and the
+  numeric ones do not fit one bound, since a closed or half-open range has two, a
+  finiteness or power-of-four test has none, and an extent mismatch compares two lengths
+  neither of which is the bound. *The strings plus optional typed numbers*: lost on the
+  boundary rule. A three-argument `refuse` leaves the numbers absent at every site that
+  has one and did not pass it, TOML writes an absent number as no key, and a reader of
+  the journal cannot tell a refusal with no bound from one whose bound was dropped; the
+  number would also stand twice in one record, in its field and in the reason sentence.
+  *A closed vocabulary of violation shapes carried on `Refusal`*: lossless in
+  principle, and lost because it is a second predicate language written beside the
+  checks it describes, and because a statistic judged against a threshold already has a
+  typed kind: `verdict` carries the statistic and the bracket, a loop's `Refused`
+  included; `ledger_open` the imbalance and the tolerance; `oracle` the statistic and
+  the threshold; `budget` the cap. The structure the first alternative above says a
+  message string flattens is a loop's, and it is journalled through `verdict`. What is
+  left to `refusal` is a read that could not be answered, whose structure is what, where
+  and why, and those stay three fields a query filters on rather than one message. The
+  founding `component` field is dropped because the header carries the emitting
+  component and the refusal's site names where it was refused. A query that needs a
+  refusal's numbers as numbers is met by a kind that carries them, added the way this
+  record adds a kind, and not by widening `Refusal`.
+- 2026-09-13: the `topology_change` payload names the level whose numbering its cells
+  are in, as a `level` field, and carries the cells as `Mesh.CellId` values, the 0-based
+  disk base of decision 0010, so the index base is named by type; carried by
+  `fiddlybits-52v.6.13`. The founding payload held a list of integers, which the emitter
+  filled with 1-based memory indices of the graph's coarse level; a reader of the TOML
+  journal could place them only by knowing the emitter, which makes a cell index a
+  coordinate. `Events` is included before `Mesh`, so `TopologyChangePayload` is
+  parametric in the element type of its cells, and it refuses a number and a type that
+  is not concrete; the connectivity emitter fills it through `Mesh.disk_id`, and the
+  journal writer (`fiddlybits-52v.6.7`) writes a `CellId` as its disk integer at the disk
+  boundary and refuses any other element type. In the journal a `topology_change` table
+  therefore holds `level` and `cells`, and `cells` is 0-based at `level`. Four other
+  readings were weighed. *Memory integers, with the base stated in the docstring and
+  the writer converting*: lost because the base travels by a default only a reader of
+  the source knows, and the writer would have to know which integer fields of which
+  payload are cells, a translation layer keyed on field names. *0-based integers filled
+  by the emitter*: lost on REQ-TER-010, since a bare integer of the disk base in memory
+  is the mixed-base defect `CellId` makes a type error, and the translation would happen
+  before the disk boundary rather than at it. *The field typed `Vector{Mesh.CellId}`*:
+  not expressible, as `Events` cannot reach `Mesh` without breaking
+  `build.module_order_acyclic`; and giving `Mesh.CellId` a supertype declared in
+  `Events` would make the mesh's index type depend on the journal's vocabulary.
+  *The support identity in place of the level*: lost because the digest covers the
+  radius, the measures, the element type and the fractions, none of which numbers a
+  cell, while the numbering of a uniform level of a run's one hierarchy is fixed by its
+  level alone; the graph reports at a uniform level, which `Connectivity` refuses
+  otherwise. A kind whose cells lie on a refined support names that support's refinement
+  beside its level when it is added.

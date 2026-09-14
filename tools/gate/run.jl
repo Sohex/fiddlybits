@@ -16,6 +16,7 @@
 
 const ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 include(joinpath(ROOT, "test", "suites.jl"))
+include(joinpath(ROOT, "tools", "gate", "depot.jl"))
 
 import TOML
 
@@ -61,6 +62,32 @@ const BOUNDS_FLAGS = `--check-bounds=yes`
 const CHECKED_SUFFIX = "+bounds"
 
 """
+    checkout_depot(root)
+
+The depot the checkout at `root` compiles into: `DEPOT_NAME` under the checkout's own git
+directory, `git rev-parse --absolute-git-dir`, which is `.git/worktrees/<name>` for a
+worktree and `.git` for the main checkout. Refuses when git finds no checkout at `root`.
+"""
+function checkout_depot(root::AbstractString)
+    gitdir = try
+        strip(read(pipeline(git_at(root, `rev-parse --absolute-git-dir`); stderr = devnull), String))
+    catch
+        error("the gate compiles into a depot under the checkout's git directory, and " *
+              "git found no checkout at $(root)")
+    end
+    return joinpath(gitdir, DEPOT_NAME)
+end
+
+"""
+    in_checkout(cmd, root; inherited)
+
+`cmd` compiling into `checkout_depot(root)` ahead of `inherited`: `in_depot` on that
+depot. Every command this driver builds for a `julia` passes through here.
+"""
+in_checkout(cmd::Cmd, root::AbstractString; inherited::Vector{String} = DEPOT_PATH) =
+    in_depot(cmd, checkout_depot(root); inherited = inherited)
+
+"""
     suite_command(root, name)
 
 The command that runs one suite in its own process: the suite's own entry point,
@@ -78,7 +105,20 @@ the checked pass and the nightly bed.
 """
 suite_command(root::AbstractString, name::AbstractString, threads::Int;
               extra::Cmd = ``) =
-    `julia --startup-file=no $(SUITE_FLAGS) $(extra) --project=$(root) -t $(threads) -e $("include(raw\"" * joinpath(root, "test", name, "runtests.jl") * "\")")`
+    in_checkout(`julia --startup-file=no $(SUITE_FLAGS) $(extra) --project=$(root) -t $(threads) -e $("include(raw\"" * joinpath(root, "test", name, "runtests.jl") * "\")")`, root)
+
+"""
+    warm_code(package)
+
+The Julia a warm-up runs: load `package`, then, when the image it loaded is not in the
+process's first depot, compile one there with `Base.compilecache`.
+"""
+warm_code(package::AbstractString) = """
+    using $(package)
+    id = Base.PkgId($(package))
+    startswith(Base.pkgorigins[id].cachepath, joinpath(DEPOT_PATH[1], "")) ||
+        Base.compilecache(id)
+    """
 
 """
     warm_command(root; extra)
@@ -94,7 +134,7 @@ out so a test can read the two commands against each other rather than waiting f
 suite to fail on a missing image.
 """
 warm_command(root::AbstractString; extra::Cmd = ``) =
-    `julia --startup-file=no $(SUITE_FLAGS) $(extra) --project=$(root) -e "using Fiddlybits"`
+    in_checkout(`julia --startup-file=no $(SUITE_FLAGS) $(extra) --project=$(root) -e $(warm_code("Fiddlybits"))`, root)
 
 """
     warm_precompile(root; extra)
@@ -449,7 +489,7 @@ The command that runs `tools/gate/bounds_probe.jl` over `arms` in a fresh `julia
 `root`'s project, carrying `SUITE_FLAGS` and `flags`.
 """
 probe_command(root::AbstractString, flags::Cmd, arms::Vector{String}) =
-    `julia --startup-file=no $(SUITE_FLAGS) $(flags) --project=$(root) $(joinpath(root, "tools", "gate", "bounds_probe.jl")) $(arms)`
+    in_checkout(`julia --startup-file=no $(SUITE_FLAGS) $(flags) --project=$(root) $(joinpath(root, "tools", "gate", "bounds_probe.jl")) $(arms)`, root)
 
 """
     probe_verdicts(text)

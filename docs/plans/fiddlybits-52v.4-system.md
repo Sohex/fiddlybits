@@ -57,8 +57,10 @@ without one of the five dispositions is the failure the whole plan exists to pre
 
 `Dispositions` references `Verdicts` for its refusals and `Dimensions` for the
 dimension a value carries; it references nothing else, so it sits in group B of the
-skeleton plan's include order. `Systems` references `Dispositions`, `Dimensions` and
-`Verdicts`, and nothing below it. `EarthRatios` references `Dispositions` only, and
+skeleton plan's include order. `Systems` references `Dispositions`, `Dimensions`,
+`Reductions` for `error_bound`, the rounding bound of a `Derived` rule, and `Verdicts`,
+and nothing below it; `Reductions` references `Backends` and `Verdicts`, so it is
+included before `Systems`. `EarthRatios` references `Dispositions` only, and
 is read by `Render` and by no physics module, which is what `lint_earth` decides.
 
 `src/Systems/tracking.jl` and `src/Systems/profile.jl` are called out as their own
@@ -71,13 +73,13 @@ owns every other file there.
 ### The five dispositions
 
 ```
-abstract type Disposition{T} end
+abstract type Disposition{T,D<:Dim} end
 
-Sourced{T}      value, locator
-Derived{T}      value, from::NTuple{N,Symbol}, rule::Symbol
-Bracketed{T}    value, low, high, pushes_down, pushes_up, sweep
-Irreducible{T}  value, argument, sensitivity
-Closure{T}      law::Symbol, coefficient::Bracketed{T}, levels::NTuple{N,Int}
+Sourced{T,D}      value, locator
+Derived{T,D,N}    value, from::NTuple{N,Symbol}, rule::Symbol
+Bracketed{T,D}    value, low, high, pushes_down, pushes_up, sweep
+Irreducible{T,D}  value, argument, sensitivity
+Closure{T,D,N}    law::Symbol, coefficient::Bracketed{T,D}, levels::NTuple{N,Int}
 ```
 
 `value(d)` is the one door out of every disposition, so a consumer reads a quantity
@@ -120,16 +122,18 @@ no value edited.
 
 ### The struct
 
-`System{FT}` carries the blocks of decision 0004 and no others:
+`System{FT}` carries the blocks of decision 0004 and no others, and beside them the
+root seed decision 0010 places in the system:
 
 ```
-System{FT}(; stars, planet, orbits, moons, inventories, numerics)
+System{FT}(; stars, planet, orbits, moons, inventories, numerics, root_seed)
   stars        NTuple{N,Star},  N >= 1
   planet       Planet           bulk and lithosphere
   orbits       OrbitHierarchy   one Orbit per body pair, each naming its reference plane
   moons        NTuple{M,Moon},  M >= 0
   inventories  Inventories      volatiles, crustal composition, ocean solutes
   numerics     Numerics         facts about a run, not about the system
+  root_seed    Irreducible      a dimensionless UInt64, the root seed of the counter-based generator
 ```
 
 `Star` declares mass, age and metallicity as its primaries, with luminosity,
@@ -139,10 +143,30 @@ and transit geometry of decision 0032 reads it. Variability is zero or more cycl
 components; a component of zero amplitude is admissible, and its period is never read
 as a window.
 
-`Planet` carries the bulk (mass; radius or a composition vector; sidereal rotation
-period with its sense relative to the orbit normal; obliquity from the orbit normal)
-and the lithosphere block, every member of which is `Bracketed` with both ends argued
-from the declared mass, age and bulk composition.
+`Planet` carries the bulk and the lithosphere block. The bulk is the mass, the radius
+or a composition vector, the sidereal rotation period, the obliquity, and
+`sub_primary_longitude_at_epoch`. Every member of the lithosphere block is `Bracketed`,
+with both ends argued from the declared mass, age and bulk composition.
+
+Decision 0004, section The spin axis and the rotation phase in the orbit frame, defines
+the two angles:
+
+- `obliquity` is the angle from the planet's orbit normal to the positive pole of
+  rotation of decision 0005, admitted in `[0, pi]`, with the dispositions of any
+  declared angle.
+- The sense of rotation relative to the orbit normal is `Derived` from it and is never a
+  keyword. `rotation_sense(planet)` is `:prograde` where `cos(obliquity)` exceeds its
+  rounding, `:retrograde` where `-cos(obliquity)` does, and `NotEvaluable` by name
+  between. The threshold comes from `Reductions.error_bound`, as the equinox kind's does.
+- `sub_primary_longitude_at_epoch` is the body-fixed longitude, in `(-pi, pi]` (the
+  range `Mesh.longitude` returns), of the direction from the planet toward
+  `orbits.planet.primary` at `t = 0`. It is `Irreducible` on a generated configuration
+  and `Sourced` on one standing for a body with a published orientation model.
+- `strip` carries both angles as plain `FT`.
+
+The readers are `Orbit.positive_pole`, `Orbit.body_orientation`,
+`Orbit.sub_source_longitude` and `Orbit.hour_angle`, all in the time plan's section The
+orbit. `fiddlybits-52v.4.13` adds the fields after `fiddlybits-52v.4.3` merges.
 
 `Numerics` and `Profile` both describe a run, and the plan has to say where the line
 is or they become two homes for one quantity. `Numerics` holds declared conventions
@@ -156,6 +180,47 @@ fast-field precision, ceiling and exit bracket, is `Profile`'s and appears in
 which is the mechanical form of that rule. `Numerics` is a field of `System` so the
 run identity of decision 0010 hashes one object; `Profile` is hashed beside it.
 
+The root seed of the counter-based generator sits on neither side of that line. It is
+not a convention of how the system is represented, so it is not a member of
+`Numerics`; and it is not a setting a profile resolves the system with, because decision
+0010 (amendment of 2026-09-13, sections Stochastic streams and What the key names) makes
+it a field of the system: it chooses which realisation of the system's stochastic
+processes a run draws, so an ensemble over seeds is a sweep over systems, and a
+stochastic output reaches its seed through the parameter subset of the component that
+draws, exactly as a sweep member reaches its swept value. It is therefore `root_seed`, a
+top-level field of `System` beside the blocks, a required keyword like every other. Its
+value is a `UInt64`, the word `Provenance.philox_key128` reads, and `strip` carries it as
+a plain `UInt64`, so a kernel keys `philox_draw` on `strip(system).root_seed`.
+
+A seed is not a physical constant, and it still carries one of the five dispositions,
+because every constant does. It is `Irreducible`, and the constructor admits no other.
+Read against each definition of decision 0007:
+
+- `Sourced` is a measured or laboratory value with the table or equation it comes from.
+  Nothing measures a seed; a seed copied from a publication cites someone's arbitrary
+  choice, not a measurement.
+- `Derived` is computed by a named rule from other fields. A rule over the system's
+  other fields would tie the realisation to the parameters: two sweep members that
+  differ in one constant would draw unrelated streams, so the constant's effect and a
+  seed's would be confounded, and an ensemble of realisations of one system could not be
+  declared, because every member would derive the same seed.
+- `Bracketed` is a value inside an interval with the mechanism that pushes it down and
+  the one that pushes it up. Every word from 0 to `typemax(UInt64)` is equally
+  admissible and nothing pushes a seed either way, so both mechanisms would be invented,
+  and an invented mechanism is the tuning the disposition exists to exclude.
+- `Closure` stands for truncated sub-grid variance and scales with the spacing. A seed
+  stands for nothing under the grid and does not scale.
+- `Irreducible` is a value with no derivation available to this system, with the
+  argument for why none exists and the sensitivity finding that says what it moves. A
+  seed meets it exactly. Philox output is a pseudo-random function of its key (Salmon et
+  al. 2011, the construction `src/Provenance/rng.jl` cites), so any seed fixed without
+  reference to the results it serves is as good as any other and none can be derived;
+  that is the argument decision 0052 makes for `Backends.ENSEMBLE_SEED`. What a seed
+  moves is the realisation of every process that draws from it, and its sensitivity
+  names the finding that measures the spread of those outputs over an ensemble of seeds.
+  As decision 0052 says of its own seed, a seed chosen or changed after the result it
+  moves has been seen is a tuned value.
+
 The constructor is keyword-only with no defaults. Its refusals:
 
 | refusal | why | control |
@@ -167,6 +232,10 @@ The constructor is keyword-only with no defaults. Its refusals:
 | a stellar model evaluated outside its declared mass, age and metallicity domain, named | a relation is silent about the sample it was not fitted on | a mass above the model's domain |
 | a spectrum interpolated outside the grid's convex hull in its own axes | the same | a point outside the hull |
 | a scalar assigned where the ladder's length is required | REQ-SYS-103 item 5 | a scalar for a per-level parameter |
+| a `sense` keyword on a rotation | the sense is `Derived` from the obliquity (decision 0004), and a second declaration of it could disagree | a rotation declared with a sense |
+| an obliquity outside `[0, pi]`, or a sub-primary longitude at the epoch outside `(-pi, pi]` | each is one angle with one range, and a value outside it is a second name for a value inside | an obliquity of 3.2, and a longitude of 3.5 |
+| a synchronous rotation whose `Derived` sense is not prograde | a rotation turning against its orbit at the orbital period does not keep one face to the primary | a synchronous rotation at an obliquity of three quarters of pi, and at `pi / 2` |
+| a `root_seed` that is not a dimensionless `Irreducible` over `UInt64` | the seed has one disposition and one word width, above | a plain `UInt64`, an `Int64` and a `Float64` value, a seed with a dimension, and a `Bracketed` and a `Sourced` seed |
 | an orbital eccentricity outside the elliptic range `[0, 1)` | the Kepler solve refuses nothing itself, because a refusal inside a per-cell kernel has nowhere to go (decision 0008, amendment of 2026-09-10) | an eccentricity of one, and of one and a half |
 
 `g(r, phi)` is the canonical `Derived` field: computed from the mass, the radial
@@ -183,8 +252,8 @@ function `Orbit.check_eccentricity` that `fiddlybits-52v.10` merged is therefore
 second definition of this refusal, and `fiddlybits-52v.5.3` removes it and moves its
 test here.
 
-`strip(system)` returns an isbits struct of plain `FT` values and is the only route
-from parameters to a device. It is a function of the system alone, so two strips of
+`strip(system)` returns an isbits struct of plain `FT` values, and the root seed as a
+plain `UInt64`, and is the only route from parameters to a device. It is a function of the system alone, so two strips of
 one system are identical, and `isbits(strip(system))` is asserted for every test
 instance.
 

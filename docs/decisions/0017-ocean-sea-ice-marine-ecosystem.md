@@ -117,13 +117,14 @@ segments with ocean-only segments forced by the coupled segment's surface-flux
 climatology under tracer timestep acceleration; the criterion for leaving
 acceleration is a deep-temperature drift bracket declared before the run.
 
-**Straits and connectivity.** The connectivity graph (0005) supplies, for every pair
-of adjacent ocean cells, the sill depth and width. Where a strait is narrower than the
-ocean spacing its exchange is parameterised by rotating hydraulic control (sill depth,
-width against the Rossby radius, density contrast across it) rather than left to the
-coarse cell geometry; a topology change in the graph is an event that forces a
-climate refresh (0023). Refinement around a strait follows the graded-transition rule
-of 0005 when the sensitivity probe flags it.
+**Straits and connectivity.** The connectivity graph (0005, 0031) supplies, for every
+pair of ocean bodies of adjacent coarse cells joined across a coarse edge, the sill
+depth and width of their gate. Where a strait is narrower than the ocean spacing its
+exchange is parameterised by rotating hydraulic control (sill depth, width against the
+Rossby radius, density contrast across it) rather than left to the coarse cell
+geometry; a topology change in the graph is an event that forces a climate refresh
+(0023). Refinement around a strait follows the graded-transition rule of 0005 when the
+sensitivity probe flags it.
 
 **Tides.** The interface for tidal forcing (equilibrium tide potential from the
 declared moons and star, 0007 and 0008) and for tidal mixing (a dissipation field on
@@ -295,3 +296,7 @@ threshold.
 - 2026-09-08: Exchanges: reads stress, friction velocity, surface pressure, gas mole fractions and the solute composition; writes seawater vapour pressure; the exchanged mixed-layer depth has one definition (rows 11, 27), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: Consequences and references extended accordingly, from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: cross-area review: the seawater-properties door stated with a pure-water limb (IAPWS-95, `Sourced`, read at zero salinity by every fresh-water consumer) and a saline limb `Irreducible` inside the Reference-Composition tolerance, the salinity reduction applied on REQ-ATM-017's pure saturation curve, the brine rule for lakes beyond the tolerance; brine-conductivity and lateral-melt coefficients `Bracketed` between first-year and multiyear ice; Visbeck, Maykut and Perovich, and McPhee identifiers filled, from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-13: Straits and connectivity: restated over the ocean bodies of
+  adjacent coarse cells and one gate per body pair joined across a coarse
+  edge, rather than one gate per pair of adjacent ocean cells, per decision
+  0031's amendment of 2026-09-13 (row fiddlybits-52v.2.19)
