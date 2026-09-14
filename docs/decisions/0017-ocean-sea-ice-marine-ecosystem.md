@@ -300,3 +300,31 @@ threshold.
   adjacent coarse cells and one gate per body pair joined across a coarse
   edge, rather than one gate per pair of adjacent ocean cells, per decision
   0031's amendment of 2026-09-13 (row fiddlybits-52v.2.19)
+- 2026-09-14: the Reference-Composition anomaly tolerance is `Bracketed` on the
+  Absolute Salinity Anomaly dS_A = S_A - S_R of the declared composition. The low end
+  is 0.025 g kg-1, the largest open-ocean anomaly TEOS-10 corrects for (IOC 2010,
+  p. 14), since a narrower fence refuses the open ocean; it is pushed down by the
+  density-significance criterion of 10 g m-3 of Millero et al. (2008), section 7. The
+  high end is 0.087 g kg-1, the coefficient of the Baltic anomaly to which TEOS-10
+  applies its Reference-Composition functions with a salinity correction (IOC 2010,
+  eq. A.5.16), pushed up by estuarine river-borne anomalies; beyond it the correction
+  holds only for anomalies small and close to present-day conditions (Millero et al.
+  2008, section 7). An anomaly below the 0.007 g kg-1 uncertainty of S_R as an estimate
+  of S_A (IOC 2010, p. 76) is not distinguished from the Reference Composition. User
+  decision of 2026-09-14, raised by
+  notes/findings/2026-09-14-an-audit-of-source-fitness.md; the index rows are carried
+  by fiddlybits-wvu.
+- 2026-09-14: the pure-water limb's transport properties. IAPWS-95 (Wagner and Pruss
+  2002) is thermodynamic only and states neither viscosity nor thermal conductivity.
+  Viscosity is the IAPWS 2008 formulation, Huber et al. (2009), "New International
+  Formulation for the Viscosity of H2O", Journal of Physical and Chemical Reference
+  Data 38, 10.1063/1.3088050; thermal conductivity is the IAPWS 2011 formulation, Huber
+  et al. (2012), "New International Formulation for the Thermal Conductivity of H2O",
+  Journal of Physical and Chemical Reference Data 41, 10.1063/1.4738955; both are
+  evaluated at the IAPWS-95 density. Both papers are paywalled and requested, and
+  neither property is `Sourced` until its paper is read and its equations, validity
+  range and uncertainty are named here with locators; no kernel reads viscosity or
+  conductivity from IAPWS-95 meanwhile. Density, heat capacity and the other thermal
+  properties keep IAPWS-95. User decision of 2026-09-14, raised by
+  notes/findings/2026-09-14-an-audit-of-source-fitness.md; the requests are carried by
+  fiddlybits-tr8.

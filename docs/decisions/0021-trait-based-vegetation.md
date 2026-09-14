@@ -166,3 +166,13 @@ methane), terrain (cohesion, cover), aeolian (cover fraction), managed biosphere
   to Gamma*, C4, nitrogenase, fire and decomposition (audit rows 1, 5, 13, 15, 16),
   from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: cross-area review: the pigment window removed from the Irreducible list, staying Bracketed per REQ-BIO-003; von Caemmerer 2000 added to the references, from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-14: Bernacchi et al. (2001) state no measurement pressure: their plants were
+  grown in greenhouses at Urbana, Illinois and measured in an open gas-exchange system,
+  with no elevation, barometric or cuvette pressure given (Materials and methods), and
+  the constants of Table 1 are mole fractions. The pressure at which those constants
+  are converted to partial pressures is therefore `Bracketed` over plausible
+  measurement pressures, pushed down by the site's elevation and low-pressure weather
+  and pushed up by high-pressure weather at a low site, with both ends set from a read
+  site elevation or station pressure and a read barometric relation. User decision of
+  2026-09-14, raised by notes/findings/2026-09-14-an-audit-of-source-fitness.md;
+  REQ-BIO-007 and the ends are carried by fiddlybits-c25.

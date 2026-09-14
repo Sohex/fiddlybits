@@ -57,8 +57,8 @@ another record, and a fixture identifier that claims no source are not counted.
 | --- | --- | --- | --- | --- |
 | R1 registry, tier 1 build to bio | 57 | 34 | 23 | 0 |
 | R2 registry, fire to earth.fluxnet_gpp | 57 | 20 | 34 | 3 |
-| R3 registry, earth.snow_cover_extent to the end | 68 | 37 | 29 | 2 |
-| registry total | 182 | 91 | 86 | 5 |
+| R3 registry, earth.snow_cover_extent to the end | 68 | 38 | 30 | 0 |
+| registry total | 182 | 92 | 87 | 3 |
 | S src and test (with test/planets on 52v.4.5) | 43 | 21 | 22 | 0 |
 | D1 decisions 0001-0030 | 91 | 74 | 12 | 5 |
 | D2 decisions 0031 onward | 72 | 62 | 9 | 1 |
@@ -66,9 +66,9 @@ another record, and a fixture identifier that claims no source are not counted.
 | Q1 requirements atm, cry | 77 | 57 | 18 | 2 |
 | Q2 requirements bio | 103 | 86 | 16 | 1 |
 | Q3 requirements hyd, ocn | 81 | 65 | 16 | 0 |
-| Q4 requirements num, prov, sys, proc | 165 | 156 | 6 | 3 |
+| Q4 requirements num, prov, sys, proc | 165 | 157 | 6 | 2 |
 | Q5 requirements ped, ter | 104 | 83 | 18 | 3 |
-| requirements total | 530 | 447 | 74 | 9 |
+| requirements total | 530 | 448 | 74 | 8 |
 | I imports | 140 | 134 | 6 | 0 |
 | P plans | 19 | 5 | 14 | 0 |
 | X1 INDEX read rows, lines 27-129 (rows and uses) | 108 | 90 | 18 | 0 |
@@ -148,7 +148,10 @@ Each is a citation or locator correction to a source already read, in a file no 
 ## Not fit, and the row that carries each group
 
 Every not-fit case is in the appendix with its evidence. The rows below were filed from this audit,
-each linked discovered-from `fiddlybits-9j0`, each blocked by the open branch that edits its files.
+each linked discovered-from `fiddlybits-9j0`. None is blocked by another open row: two rows that
+edit one file (`registry.toml`, `INDEX.md`) are a merge order, and whichever merges second takes
+`main` first. A row editing the terminal-lake entries or REQ-HYD-001 would wait on
+`fiddlybits-k6b`; none does.
 
 | row | carries |
 | --- | --- |
@@ -168,6 +171,28 @@ each linked discovered-from `fiddlybits-9j0`, each blocked by the open branch th
 | fiddlybits-c25 | vegetation and biogeochemistry requirement citations (Q2 N1-N15; X2 NF12) |
 | fiddlybits-1us | pedology and terrain requirement citations, the Paragas 2025 paper and the 2.74 factor, INDEX rows naming absent PDFs (Q5 NF-1, 2, 4-11, 13; X2 NF4, NF9) |
 | fiddlybits-3iu | import records for Winton 2000 and Roquet et al. 2015a, the cuda.md and mesharrays locators (I 1, 3) |
+| fiddlybits-f1x | the four index rows marked held whose PDF is absent, moved to requested, and a lint that refuses a held or read row whose file is absent, with a positive control (next section) |
+
+Also on `fiddlybits-te0`: HadCRUT5 (Morice et al. 2021, on disk, abstract p.1) presents anomalies
+relative to 1961-1990, not an absolute global-mean temperature, so it cannot be the observed value
+of `earth.global_surface_temperature`, whose statistic and bar are in kelvin (R3 A12, C2).
+
+## Index rows whose file is absent
+
+Every row of `docs/references/INDEX.md` with status held or read and a filename was resolved against
+`references/pdf/`, `references/` and the tree root: 775 rows. The ten dataset rows
+(`oracles/data/*`, `inputs/data/*`) resolve. Four PDFs are absent everywhere under `references/`:
+
+| INDEX line | file | title | identifier |
+| --- | --- | --- | --- |
+| 454 | iverson_2012_a-theory-of-glacial-quarrying-for-landscape-evolution-models.pdf (the cell says "PDF on disk") | A theory of glacial quarrying for landscape evolution models | 10.1130/G33079.1 |
+| 469 | pacala1993.pdf, and the duplicate the cell names, pacala_1993_forest-models-defined-by-field-measurements-i-the-design-of-a-northeas.pdf | Forest models defined by field measurements: I. The design of a northeastern forest simulator | 10.1139/x93-249 |
+| 470 | hickler2011.pdf | Projecting the future distribution of European potential natural vegetation zones with a generalized, tree species-based dynamic vegetation model | 10.1111/j.1466-8238.2010.00613.x |
+| 486 | chadwick_2003_the-impact-of-climate-on-the-biogeochemical-functioning-of-volcanic-so.pdf | The impact of climate on the biogeochemical functioning of volcanic soils | 10.1016/j.chemgeo.2002.09.001 |
+
+Nothing checks that a held or read row's file exists. `INDEX.md` is edited by the open branch
+`fiddlybits-k6b`, so the rows are not changed here: `fiddlybits-f1x` moves them to requested, lists
+them for the user, and adds the lint with a dirty and a clean fixture.
 
 Cases carried by rows that already existed, with a note appended to each on 2026-09-14:
 `fiddlybits-52v.2.15` (Barnes and Whitehead read status and the p.121 locator), `fiddlybits-52v.4.5`
@@ -178,10 +203,11 @@ overturning profile; NPP algorithm spread), `fiddlybits-52v.8.17` (AeroCom per-m
 9), `fiddlybits-52v.8.19` (Sherwood 2020 is not AR6), `fiddlybits-52v.8.20` (per-basin
 distributions; Flint's concavity), `fiddlybits-52v.6.36` (CF 1.13 locators verified).
 
-## Cases for the user's decision
+## Cases raised for the user's decision
 
 Each fix would change a registered bar, a constant's disposition, a decision's basis or a test
-instance's declared value, so none was made or filed as settled.
+instance's declared value, so none was made before the user decided. The user accepted the
+recommendations on 2026-09-14; where each decision is applied follows the list.
 
 1. Berger's longitude of perihelion and Earth()'s orbit (S30; P8): decision 0004's seasonal-angle
    sentence, plan 52v.5-time:215, and Earth()'s `Omega_E` or `longitude_of_periapsis` on
@@ -219,16 +245,39 @@ instance's declared value, so none was made or filed as settled.
     2005 alone (fiddlybits-3t6); k_e's bracket ends if any were set from Moosdorf's 3.2
     (fiddlybits-1us).
 
+## The user's decisions of 2026-09-14, and where each is applied
+
+| decision | applied in this branch | carried by |
+| --- | --- | --- |
+| 1. Earth's perihelion: the orbit declares the heliocentric longitude of periapsis as its catalogue gives it; a comparison with Berger adds 180 degrees (Appendix p.2366) | decision 0004 amendment; plan 52v.5-time identity; no code in src/ or test/ reads Berger's value | Earth()'s `Omega_E = pi` on fiddlybits-52v.4.5 (note); fiddlybits-5r5 for system.orbit_mean_insolation |
+| 2. The volumetric mean radius is the volume-equivalent radius, Derived from Archinal Table 4's a and b | src/EarthRatios/EarthRatios.jl `radius_unit` Derived from `equatorial_radius_unit` and `polar_radius_unit`, with its testset in test/system/earth_ratios.jl; plan 52v.4 quarantine | Earth() on fiddlybits-52v.4.5; the Archinal anchor in fiddlybits-wvu |
+| 3. The Exner reference pressure is Irreducible | decision 0013 amendment; REQ-SYS-101 amendment; plan 52v.4 (The struct); test/system/fixtures.jl already declares it Irreducible | Earth() on fiddlybits-52v.4.5 |
+| 4. A bar's basis is the published spread of model residuals where one exists, never narrower than the observation's uncertainty; the observation's uncertainty alone otherwise; a pre-registration is not a basis | decision 0025 amendment; docs/oracles/README.md (Verdicts, Registration, Amendments) | acceptance of fiddlybits-iwq, 5r5, n13, te0, pi4, 2tq, 3t6, 1us, b7w; notes on 52v.8.15, 52v.8.16, 52v.8.17, 52v.8.20; fiddlybits-k6b by the coordinator |
+| 5. The seawater anomaly tolerance is Bracketed with each end argued | decision 0017 amendment (0.025 g kg-1, IOC 2010 p.14; 0.087 g kg-1, IOC 2010 eq. A.5.16; Millero et al. 2008 section 7); decision 0004 amendment points to it | index rows in fiddlybits-wvu; REQ-OCN-003 in fiddlybits-3t6 |
+| 6. Decision 0016: the water continuum broadened by CO2, Bracketed where no measurement is read | decision 0016 amendment (low end MT_CKD air-foreign; high end twenty times water-nitrogen, Baranov 2016 through Tran et al. 2018 p.2) | fetching Baranov 2016 in fiddlybits-tr8; index rows in fiddlybits-wvu |
+| 7. Decision 0017: Huber et al. 2009 and 2012 for viscosity and thermal conductivity | decision 0017 amendment names them; not Sourced until read | both paywalled, requested through fiddlybits-tr8 |
+| 8. Decision 0018: Anderson's fit on a computed wet-bulb temperature; Kok et al. 2014's one emission fit | decision 0018 amendment | REQ-ATM-010 in fiddlybits-b7w |
+| 9. Decision 0020: exponent Derived from Bahr 1997; coefficient Sourced from a read fit, otherwise Bracketed | decision 0020 amendment (exponent from n and the four closures; coefficient Bracketed, no fit read) | the ends and REQ-CRY-003 in fiddlybits-b7w |
+| 10. Decision 0021: Bernacchi's pressure Bracketed if none is stated | decision 0021 amendment (the paper states none) | the ends and REQ-BIO-007 in fiddlybits-c25 |
+| 11. Decision 0031: Whitehead, Leetmaa and Knox 1974 in place of the review | copied to references/pdf and read; decision 0031 amendment (eqs. 3.8, 3.12, 3.15, 3.19, pp.106-109); src/Connectivity/gates.jl header; the one-passage scope stays on Whitehead 1998 p.424 | index row in fiddlybits-wvu; registry anchor in fiddlybits-n13; fiddlybits-52v.2.15 (note) |
+
 ## Fetches
 
 One attempt each.
 
+Found already on disk after being listed as failed (ingested by fiddlybits-52v.8.7, or held
+before): "Mixed layer depth over the global ocean: An examination of profile data and a
+profile-based climatology", 10.1029/2004JC002378; "An Updated Assessment of Near-Surface
+Temperature Change From 1850: The HadCRUT5 Data Set", 10.1029/2019JD032361; "Perspective: A
+Method for Uniform Reporting of Grid Refinement Studies", 10.1115/1.2910291. Their verdicts are
+redone in the appendix (R3 A6 fit, R3 A12 not fit, Q4 Roache 1994 fit). Every other item below
+was checked against `references/pdf` by filename and against the INDEX filename column: none is
+held. `harris2013-two-way-nested-global-regional.pdf` is a different paper from Harris and Durran
+2010, and the held `dunne1978` is the hillslope chapter, not the Nature paper. Supplied by the user
+and ingested: "Rotating Hydraulics of Strait and Sill Flows", 10.1080/03091927409365790.
+
 Failed, open access:
 
-- "Mixed layer depth over the global ocean: An examination of profile data and a profile-based
-  climatology", 10.1029/2004JC002378 (publisher challenge page).
-- "An Updated Assessment of Near-Surface Temperature Change From 1850: The HadCRUT5 Data Set",
-  10.1029/2019JD032361 (publisher challenge page).
 - "A gridded global data set of soil, intact regolith, and sedimentary deposit thicknesses for
   regional and global land surface modeling", 10.1002/2015MS000526 (HTML returned).
 - "An Idealized Comparison of One-Way and Two-Way Grid Nesting", 10.1175/2010MWR3080.1 (empty body).
@@ -236,6 +285,9 @@ Failed, open access:
   10.1002/2015GL064291 (HTTP 403).
 - "GEOCARB II: a revised model of atmospheric CO2 over Phanerozoic time", 10.2475/ajs.294.1.56
   (a one-page file).
+- "A review of volume-area scaling of glaciers", 10.1002/2014rg000470 (publisher challenge page).
+- "On the significant enhancement of the continuum-collision induced absorption in H2O+CO2
+  mixtures", 10.1016/j.jqsrt.2016.02.017 (author manuscript returned a challenge page).
 
 Fetched and read in the audit scratchpad, not ingested: Estilow et al. 2015
 (10.5194/essd-7-137-2015), Moat et al. 2020 (10.5194/os-16-863-2020), Abramowitz et al. 2024
@@ -246,19 +298,24 @@ Paywalled, for the user by verbatim title and identifier:
 
 - "The pivot algorithm: A highly efficient Monte Carlo method for the self-avoiding walk",
   10.1007/BF01022990.
-- "Perspective: A Method for Uniform Reporting of Grid Refinement Studies", 10.1115/1.2910291.
 - "A theory of glacial quarrying for landscape evolution models", 10.1130/G33079.1 (INDEX says the
-  PDF is on disk; it is not).
+  PDF is on disk; it is not; fiddlybits-f1x).
 - "The impact of climate on the biogeochemical functioning of volcanic soils",
-  10.1016/j.chemgeo.2002.09.001 (INDEX says held; not on disk).
+  10.1016/j.chemgeo.2002.09.001 (INDEX says held; not on disk; fiddlybits-f1x).
+- "New International Formulation for the Viscosity of H2O", 10.1063/1.3088050.
+- "New International Formulation for the Thermal Conductivity of H2O", 10.1063/1.4738955.
 - "A model for the global variation in oceanic depth and heat flow with lithospheric age",
   10.1038/359123a0.
 - "Saltation threshold on Earth, Mars and Venus", 10.1111/j.1365-3091.1982.tb01713.x.
 - "Rates of chemical denudation of silicate rocks in tropical catchments", 10.1038/274244a0.
 - "Approximate Formula for the Thermal Conductivity of Gas Mixtures", 10.1063/1.1724352.
 - "Biochemical Models of Leaf Photosynthesis", 10.1071/9780643103405 (already in REQUESTS.md).
-- "Rotating hydraulics of strait and sill flows", Whitehead, Leetmaa and Knox 1974, Geophysical
-  Fluid Dynamics 6, 101-125; identifier not confirmed.
+
+Index rows held with no file on disk, open access not yet checked, carried by fiddlybits-f1x:
+"Forest models defined by field measurements: I. The design of a northeastern forest
+simulator", 10.1139/x93-249; "Projecting the future distribution of European potential natural
+vegetation zones with a generalized, tree species-based dynamic vegetation model",
+10.1111/j.1466-8238.2010.00613.x.
 
 ## Appendix: every citation, by scope
 
@@ -710,12 +767,12 @@ no anchor and no cited basis, so they contribute no citation.
 
 | kind | total | fit | not fit | not verified |
 | --- | --- | --- | --- | --- |
-| anchors | 40 | 25 | 13 | 2 |
+| anchors | 40 | 26 | 14 | 0 |
 | stated bar bases (fail_bar thresholds) | 15 | 2 | 13 | 0 |
 | dataset manifests against their anchors | 3 | 3 | 0 | 0 |
 | protocol declarations (sources for the declared system) | 9 | 6 | 3 | 0 |
 | instrument basis | 1 | 1 | 0 | 0 |
-| total | 68 | 37 | 29 | 2 |
+| total | 68 | 38 | 30 | 0 |
 
 The 29 not-fit verdicts fall into 17 cases (section 3). No entry in this range is registered
 (every registered_at is empty), so no case changes a registered bar. No case changes a
@@ -747,13 +804,13 @@ scratchpad/audit/fetch-R3/.
 | A3 | earth.rgi_glacier_area anchors | glacier area outside ice sheets | RGI v7, 10.5067/f6jmovy5navz (held, dataset) | manifest rgi-v7 | FIT | manifest doi and version 7.0 match; G glacier product held |
 | A4 | earth.woa_sst_zonal anchors | source of the zonal-mean SST residual statistic the bar is drawn from | griffies2016 OMIP protocol (held) | whole paper | NOT FIT C2 | OMIP protocol paper; grep of all 66 pages for residual/SST bias finds only "residual mean" transport and spin-up "residual drift" (0008, 0034, 0037); no zonal SST residual statistic |
 | A5 | earth.woa_salinity_sections anchors | salinity sections (report) | reagan2024 WOA23 Vol 2 (held) | volume | FIT | WOA23 Volume 2: Salinity, the climatology the statistic reads |
-| A6 | earth.mld_by_basin anchors | MLD climatology and its density-threshold definition | deboyermontegut2004 (held; not on disk) | whole paper | NOT VERIFIED | one fetch returned a 5587-byte HTML challenge page, not the PDF |
+| A6 | earth.mld_by_basin anchors | MLD climatology and its density-threshold definition | deboyermontegut2004 (held; on disk, ingested by 52v.8.7) | abstract p.1; section 3.1 p.3 | FIT (report entry) | re-checked from the held PDF (the one fetch had returned a challenge page): abstract "A new 2 deg resolution global climatology of the mixed layer depth (MLD) based on individual profiles ... a threshold value of temperature or density from a near-surface value at 10 m depth (DeltaT = 0.2 C or Delta sigma_theta = 0.03 kg m-3)"; p.3 section 3.1 the finite-difference threshold method. Note: the paper also proposes an optimal estimate from temperature and density, so the statistic should name the density-threshold field it reads |
 | A7 | earth.meridional_heat_transport anchors | observed MHT and its uncertainty | trenberth2001 (held) | abstract | FIT | 0001 l.16-18: poleward atmospheric transport peaks at 5.0 +/- 0.14 PW at 43N; variability mostly under 0.15 PW |
 | A8 | earth.amoc_strength anchors | RAPID overturning strength (report) | moat2020 (held; not on disk) | Results | FIT | F moat2020.txt: 26N overturning 17.8 +/- 1.4 Sv (mean +/- standard error), 10-day binned error +/- 1.5 Sv |
 | A9 | earth.marine_npp anchors | observational range of global marine NPP (report) | behrenfeld1997 (held) | abstract; Table 2 | FIT (note) | 0001 l.45: global PP 43.5 Pg C/yr (VGPM); 0015 Table 2: global annual PP by VGPM and LPCM. Note: a range of satellite-algorithm estimates, not a compilation of observations |
 | A10 | earth.dust_aod anchors | global dust AOD 0.02 to 0.04 | kok_2010 scaling theory (read, for emitted PSD eq. 6) | whole paper | NOT FIT C2, C6 | no global dust AOD value anywhere; 0005 l.80-83 mentions AOD only as what GCM schemes are tuned against |
 | A11 | earth.dust_emission anchors | a compilation's range of global dust emission | kok_2014 Part 1 (read, for eqs. 18a, 18b) | whole paper | NOT FIT C2, C6 | "compilation" is of quality-controlled vertical dust flux point measurements (0001 l.41-42, 0002 l.22, 0013 l.20); no global emission total or range |
-| A12 | earth.global_surface_temperature anchors | observed GMST reference | morice2021 HadCRUT5 (held; not on disk) | whole paper | NOT VERIFIED | one fetch returned a 5587-byte HTML challenge page |
+| A12 | earth.global_surface_temperature anchors | observed GMST reference for an equilibrium global-mean surface temperature in K | morice2021 HadCRUT5 (held; on disk, ingested by 52v.8.7) | abstract p.1 | NOT FIT C2 | re-checked from the held PDF: "HadCRUT5 presents monthly average near-surface temperature anomalies, relative to the 1961-1990 period, on a regular 5 deg latitude by 5 deg longitude grid"; an anomaly product states no absolute global-mean temperature, so it cannot be the observed value of a statistic and bar in kelvin; carried by fiddlybits-te0 |
 | A13 | earth.ecs_report anchors | "IPCC AR6 likely range for ECS" (dataset_or_reference) | sherwood2020 (held) | abstract; section 1 | NOT FIT C2 | 0002 l.29 and 0005 l.10-11: Sherwood's Bayesian 66% range is 2.6-3.9 K (ECS 2.6-4.1 K, 0099 l.9-10); the anchor is not AR6 and does not state AR6's range; AR6 WG1 ch. 7 has no INDEX row |
 | A14 | terrain.hypsometry_scale_matched anchors | ETOPO 2022 paper | macferrin2024 ESSD preprint 10.5194/essd-2024-250 (held) | preprint | NOT FIT C4 | Crossref for 10.5194/essd-2024-250: is-preprint-of 10.5194/essd-17-1835-2025; the final paper exists and is not the one anchored |
 | A15 | terrain.hypsometry_profile anchors | same | same | same | NOT FIT C4 | same |
@@ -2388,12 +2445,12 @@ opened in references/text (PDF page index p.NNNN) and the passage matched to the
 
 | scope | citations | fit | not fit | not verified |
 | --- | --- | --- | --- | --- |
-| num (8 records) | 50 (31 published, 19 predecessor) | 47 | 0 | 3 |
+| num (8 records) | 50 (31 published, 19 predecessor) | 48 | 0 | 2 |
 | prov (3 records) | 19 (9 published, 10 predecessor) | 18 | 1 | 0 |
 | sys (13 records) | 63 (29 published, 34 predecessor) | 59 | 4 | 0 |
 | proc (11 records) | 33 (2 published, 31 predecessor) | 32 | 1 | 0 |
 | README.md, not-carried.md | 0 (no sourced rule; not-carried.md records dispositions, and its Stephens (1978) mention is context for a not-carried decision) | 0 | 0 | 0 |
-| total | 165 | 156 | 6 | 3 |
+| total | 165 | 157 | 6 | 2 |
 
 #### Every citation
 
@@ -2469,7 +2526,7 @@ archive /home/cfutro/git/vesper. Status = docs/references/INDEX.md status.
 | :46 | integrated autocorrelation time | pred lib/autocorrelation.py | module | FIT | exists |
 | :122 | item 1, stability ceiling from the scheme's bound | Courant, Friedrichs, Lewy 1928 (held) | none | FIT | p.0002 convergence of difference schemes depends on the grid for hyperbolic initial-value problems |
 | :123 | items 2 and 5, convergence verification across levels | Roache 1998, 10.2514/2.457 (held) | none | FIT | p.0003 "discretization errors in a grid convergence test" |
-| :124 | grid refinement reporting | Roache 1994, "Perspective: A Method for Uniform Reporting of Grid Refinement Studies" (not in INDEX) | "DOI: to confirm" | NV | not held, not in INDEX or REQUESTS; DOI 10.1115/1.2910291 (Unpaywall is_oa false, paywalled) |
+| :124 | grid refinement reporting | Roache 1994, "Perspective: A Method for Uniform Reporting of Grid Refinement Studies", 10.1115/1.2910291 (held, INDEX line 747) | "DOI: to confirm" | FIT | re-checked: the audit first missed the INDEX row; the held PDF p.405: "This paper proposes the use of a Grid Convergence Index (GCI) for the uniform reporting of grid refinement studies"; the record's DOI is now filled from the INDEX row |
 | :125 | item 6, initial monotone sequence estimator | Geyer 1992, 10.1214/ss/1177011137 (held) | none | FIT | p.0005 "The initial monotone sequence estimator ... reducing the estimated Gamma_i to the minimum of the preceding ones" |
 | :126 | item 6, corrected standard error | Madras and Sokal 1988 (requested) | none | NV | as above |
 | :127 | item 6, equivalent sample size | von Storch and Zwiers 1999 (held) | none | FIT | p.0125 "The equivalent sample size n'X is defined as ..."; textbook beside the primaries Geyer and Madras-Sokal |
@@ -2795,7 +2852,7 @@ archive /home/cfutro/git/vesper. Status = docs/references/INDEX.md status.
 #### Not verified
 
 - REQ-NUM-001 :101 and REQ-NUM-005 :126: Madras and Sokal 1988, section 2.2, for the autocorrelation-corrected standard error. INDEX status requested; not on disk; Unpaywall is_oa false.
-- REQ-NUM-005 :124: Roache 1994. Not held and absent from INDEX and REQUESTS: a cited source with no index row. The row's DOI is "to confirm"; Crossref/Unpaywall resolves 10.1115/1.2910291 to that title, is_oa false. Fix class (b): add it to REQUESTS (paywalled) or drop it; boundary docs/requirements/num/resolution-ladder-three-quantities.md and docs/references/REQUESTS.md.
+- REQ-NUM-005 :124: Roache 1994. Corrected on re-check: the work is held (INDEX line 747, references/pdf/roache1994-uniform-reporting-grid-refinement-studies.pdf) and its p.405 supports the use, so the verdict is FIT and the record's DOI is filled in this branch.
 
 #### Hygiene, fit on substance (fix class (a), locator corrections; no read needed)
 

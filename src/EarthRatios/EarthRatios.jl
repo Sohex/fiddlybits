@@ -8,7 +8,7 @@
 
 module EarthRatios
 
-using ..Dispositions: Sourced, Locator
+using ..Dispositions: Sourced, Derived, Locator, value
 using ..Dimensions: LENGTH, MASS, TIME
 
 """
@@ -25,17 +25,43 @@ gravity_unit() = Sourced(
         table = "Declaration 2, p.70: 980.665 cm/sec^2"))
 
 """
-    radius_unit()
+    equatorial_radius_unit()
 
-One Earth radius: Earth's volumetric mean radius, matching the mean-radius
-convention decision 0005 uses for the mesh radius of every configuration.
+Earth's equatorial radius, one of the two radii `radius_unit` is formed from.
 """
-radius_unit() = Sourced(
-    value = 6_371_008.4,
+equatorial_radius_unit() = Sourced(
+    value = 6_378_136.6,
     dim = LENGTH,
     locator = Locator(
         identifier = "10.1007/s10569-017-9805-5",
-        table = "Table 4, Earth mean radius row"))
+        table = "Table 4, Earth equatorial radius row: 6378.1366 km"))
+
+"""
+    polar_radius_unit()
+
+Earth's polar radius, one of the two radii `radius_unit` is formed from.
+"""
+polar_radius_unit() = Sourced(
+    value = 6_356_751.9,
+    dim = LENGTH,
+    locator = Locator(
+        identifier = "10.1007/s10569-017-9805-5",
+        table = "Table 4, Earth polar radius row: 6356.7519 km"))
+
+"""
+    radius_unit()
+
+One Earth radius: Earth's volumetric mean radius, `(a^2 b)^(1/3)` of
+`equatorial_radius_unit` `a` and `polar_radius_unit` `b`, the radius of the sphere
+with the spheroid's volume, which is the mean-radius convention decision 0005 uses for
+the mesh radius of every configuration.
+"""
+radius_unit() = Derived(
+    value = cbrt(value(equatorial_radius_unit())^2 * value(polar_radius_unit())),
+    dim = LENGTH,
+    from = (:equatorial_radius_unit, :polar_radius_unit),
+    rule = :volume_equivalent_radius,
+    fields = (:equatorial_radius_unit, :polar_radius_unit))
 
 """
     solar_constant_unit()
