@@ -1,0 +1,12 @@
+# The size bound on committed dataset extracts, read by oracles.dataset_extracts
+# (test/datasets/). docs/plans/fiddlybits-unx-machine-resources.md, section The size
+# bound; decision 0043, amendment of 2026-09-14.
+#
+# Bytes are counted from the files on disk under oracles/extracts/ and inputs/extracts/,
+# every file under those directories counted, NOTICE files included.
+
+# The most bytes the files of one extract, one manifest's directory, may hold together.
+max_extract_bytes = 262144
+
+# The most bytes every extract in the tree may hold together.
+max_total_bytes = 4194304
