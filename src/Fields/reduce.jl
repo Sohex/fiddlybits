@@ -581,9 +581,9 @@ ledger is `coarsen_total_ledger`. `FluxDensity`, `Fraction` and `Intensive` unde
 ledger is `coarsen_integral_ledger`. `CategoricalFraction` is the mean of each class
 column, the legend the call names on the data's last axis, weighted by the named
 measure in the field's element type; it refuses data without that axis, and its ledgers
-are `class_ledgers`. `CategoricalLabel` is that coarsening of `one_hot` of its labels
-over the legend the call names, in the measure's element type, never a centre sample,
-into `CategoricalFraction`; it refuses a label the legend does not name. `Intensive`
+are `class_ledgers`. `CategoricalLabel` is that coarsening taken class by class from
+each class's indicator (`label_coarsening`) over the legend the call names, in the
+measure's element type, never a centre sample, into `CategoricalFraction`; it refuses a label the legend does not name. `Intensive`
 under `ToQuantiles` is a table of the quantiles on a new last axis and returns the
 `NotConserved` `NOT_CONSERVED_TABLE` declares.
 
@@ -636,8 +636,7 @@ function coarsen(f::Field{CategoricalLabel{Legend}}, to::Support;
     seg = setup(f, to, "Fields.coarsen", backend)
     require_measure_extent(f.data, measure, "Fields.coarsen")
     require_in_legend(f.data, legend, "Fields.coarsen")
-    fractions = on(one_hot(f.data, legend, eltype(values_of(measure))), backend)
-    data, ledgers = class_coarsening(fractions, seg, legend, measure, reservoir, backend)
+    data, ledgers = label_coarsening(f.data, seg, legend, measure, reservoir, backend)
     return reduced(f, CategoricalFraction{Legend}(), data, to, :coarsen), ledgers
 end
 
@@ -651,25 +650,52 @@ indicator(labels::AbstractArray, class, ::Type{T}) where {T} =
     map(l -> l == class ? one(T) : zero(T), labels)
 
 """
-    one_hot(labels, legend, T)
+    indicator!(buffer, labels, class)
 
-The class fractions `labels` holds, in `T`, on the host: the shape of `labels` with a
-last axis over `legend`, slice `k` the `indicator` of `legend[k]`.
+`buffer` overwritten with one where `labels` equals `class` and zero elsewhere, and
+returned; `buffer` has the shape of `labels`.
 """
-one_hot(labels::AbstractArray, legend::Tuple, ::Type{T}) where {T} =
-    stack(map(class -> indicator(labels, class, T), legend))
+indicator!(buffer::AbstractArray{T}, labels::AbstractArray, class) where {T} =
+    map!(l -> l == class ? one(T) : zero(T), buffer, labels)
+
+"""
+    class_shares(fractions, seg, measure, backend)
+
+The share of each coarse cell of `seg` the class fractions `fractions` hold: the mean
+of every column of `fractions` weighted by `measure`, in `fractions`'s element type, on
+`backend`.
+"""
+class_shares(fractions::AbstractArray, seg::Segmentation, measure::Measured,
+             backend::Backend) =
+    segmented_mean(eltype(fractions), fractions, seg, values_of(measure), backend)
+
+"""
+    class_area_totals(fine, fine_magnitude, coarse, held, weights, magnitude_weights, backend)
+
+`(magnitude, before, after)`, the `Float64` totals a class-area ledger closes: the
+`weighted_total` of `fine_magnitude`, the absolute values of the fine class fractions
+`fine`, by `magnitude_weights`, the absolute values of `weights`; that of `fine` by
+`weights`; and that of the coarse shares `coarse` by the coarse measure `held`.
+"""
+function class_area_totals(fine::AbstractArray, fine_magnitude::AbstractArray,
+                           coarse::AbstractArray, held::AbstractVector,
+                           weights::AbstractVector, magnitude_weights::AbstractVector,
+                           backend::Backend)
+    return weighted_total(fine_magnitude, magnitude_weights, backend),
+           weighted_total(fine, weights, backend),
+           weighted_total(coarse, held, backend)
+end
 
 """
     class_coarsening(fractions, seg, legend, measure, reservoir, backend)
 
 `(data, ledgers)` for the class fractions `fractions`, cells by trailing axes with
-`legend` on the last, coarsened over `seg` on `backend`: `data` the mean of every
-column weighted by `measure` in `fractions`'s element type, in one launch, and
-`ledgers` the `class_ledgers` of it.
+`legend` on the last, coarsened over `seg` on `backend`: `data` the `class_shares` of
+every column in one launch, and `ledgers` the `class_ledgers` of it.
 """
 function class_coarsening(fractions::AbstractArray, seg::Segmentation, legend::Tuple,
                           measure::Measured, reservoir::Bool, backend::Backend)
-    data = segmented_mean(eltype(fractions), fractions, seg, values_of(measure), backend)
+    data = class_shares(fractions, seg, measure, backend)
     ledgers = class_ledgers(fractions, data, seg, legend, measure; reservoir = reservoir,
                             backend = backend)
     return data, ledgers
@@ -681,9 +707,8 @@ end
 The `ClassLedgers{Name}` of a coarsening over `seg` of the class fractions `fine` to
 `coarse` under the measure `Name`, `legend` on the last axis of both. Class `k`'s entry
 is `legend_ledgers` in `fine`'s element type `T` over `fine`'s cell count, from slice
-`k` of three totals: `before` the `weighted_total` of `fine` by `measure`, `after` that
-of `coarse` by `coarse_measure` in `T`, and the magnitude that of `abs.(fine)` by the
-absolute measure.
+`k` of the `class_area_totals` of `fine`, `abs.(fine)`, `coarse`, `coarse_measure` in
+`T`, the measure and its absolute values.
 """
 function class_ledgers(fine::AbstractArray, coarse::AbstractArray, seg::Segmentation,
                        legend::Tuple, measure::Measured{Name}; reservoir::Bool,
@@ -691,10 +716,41 @@ function class_ledgers(fine::AbstractArray, coarse::AbstractArray, seg::Segmenta
     weights = values_of(measure)
     T = eltype(fine)
     held = coarse_measure(T, measure, seg, backend)
-    return legend_ledgers(Val(Name), T, size(fine, CELL_AXIS), legend,
-                          weighted_total(abs.(fine), abs.(weights), backend),
-                          weighted_total(fine, weights, backend),
-                          weighted_total(coarse, held, backend); reservoir = reservoir)
+    magnitude, before, after = class_area_totals(fine, abs.(fine), coarse, held, weights,
+                                                 abs.(weights), backend)
+    return legend_ledgers(Val(Name), T, size(fine, CELL_AXIS), legend, magnitude, before,
+                          after; reservoir = reservoir)
+end
+
+"""
+    label_coarsening(labels, seg, legend, measure, reservoir, backend)
+
+`(data, ledgers)` for the labels `labels`, cells by trailing axes, histogrammed over
+`seg` into the shares of `legend`, the classes on a new last axis of `data`. Class by
+class, the `indicator!` of the class is written into one host buffer in the measure's
+element type `T` and moved to `backend`; its `class_shares` are the class's slice of
+`data`, and its ledger is the `conserved_ledger` in `T` over the cell count of its
+`class_area_totals`, the indicator standing for its own absolute values. One class's
+indicator is held at a time; the class fractions of every class are never built.
+"""
+function label_coarsening(labels::AbstractArray, seg::Segmentation, legend::Tuple,
+                          measure::Measured{Name}, reservoir::Bool,
+                          backend::Backend) where {Name}
+    weights = values_of(measure)
+    T = eltype(weights)
+    held = coarse_measure(T, measure, seg, backend)
+    magnitude_weights = abs.(weights)
+    buffer = similar(labels, T)
+    n = size(labels, CELL_AXIS)
+    function class_part(k)
+        fine = on(indicator!(buffer, labels, legend[k]), backend)
+        shares = class_shares(fine, seg, measure, backend)
+        totals = class_area_totals(fine, fine, shares, held, weights, magnitude_weights,
+                                   backend)
+        return shares, conserved_ledger(Val(Name), T, n, totals...; reservoir = reservoir)
+    end
+    parts = ntuple(class_part, Val(length(legend)))
+    return stack(map(first, parts)), ClassLedgers{Name}(legend, map(last, parts))
 end
 
 """
@@ -863,11 +919,12 @@ end
     refine_class_ledgers(f, to, data, legend, measure; reservoir, backend)
 
 The `ClassLedgers{Name}` of a refinement of the labels of `f` onto `to` to the fine
-labels `data`, under the measure `Name`, one value per fine cell. Class `k`'s entry is
-`legend_ledgers` in `Float64` over the fine cell count, from slice `k` of three totals:
-`before` the `weighted_total` of `one_hot` of `f`'s labels by `coarse_measure` in
-`Float64`, `after` that of `one_hot` of `data` by `measure`, and the magnitude that of
-`one_hot` of `data` by the absolute measure.
+labels `data`, under the measure `Name`, one value per fine cell. Class by class, the
+`indicator!` of the class over `f`'s labels and over `data` is written into one host
+buffer each and moved to `backend`, and class `k`'s entry is the `conserved_ledger` in
+`Float64` over the fine cell count of three totals: `before` the `weighted_total` of the
+coarse indicator by `coarse_measure` in `Float64`, `after` that of the fine indicator by
+`measure`, and the magnitude that of the fine indicator by the absolute measure.
 """
 function refine_class_ledgers(f::Field{S,T,D,L}, to::Support{L2}, data::AbstractArray,
                               legend::Tuple, measure::Measured{Name}; reservoir::Bool,
@@ -876,12 +933,19 @@ function refine_class_ledgers(f::Field{S,T,D,L}, to::Support{L2}, data::Abstract
     weights = values_of(measure)
     held = coarse_measure(Float64, measure,
                           block_segmentation(weights, L, L2, "Fields.refine", backend), backend)
-    coarse = on(one_hot(f.data, legend, Float64), backend)
-    fine = on(one_hot(data, legend, Float64), backend)
-    return legend_ledgers(Val(Name), Float64, size(data, CELL_AXIS), legend,
-                          weighted_total(fine, abs.(weights), backend),
-                          weighted_total(coarse, held, backend),
-                          weighted_total(fine, weights, backend); reservoir = reservoir)
+    magnitude_weights = abs.(weights)
+    coarse_buffer = similar(f.data, Float64)
+    fine_buffer = similar(data, Float64)
+    n = size(data, CELL_AXIS)
+    function class_ledger(k)
+        coarse = on(indicator!(coarse_buffer, f.data, legend[k]), backend)
+        fine = on(indicator!(fine_buffer, data, legend[k]), backend)
+        return conserved_ledger(Val(Name), Float64, n,
+                                weighted_total(fine, magnitude_weights, backend),
+                                weighted_total(coarse, held, backend),
+                                weighted_total(fine, weights, backend); reservoir = reservoir)
+    end
+    return ClassLedgers{Name}(legend, ntuple(class_ledger, Val(length(legend))))
 end
 
 refine(f::Field{VectorComponent{:east_north}}, ::Support; kwargs...) =

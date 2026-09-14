@@ -462,6 +462,65 @@ end
     end
 end
 
+@testset "the label histogram and its ledgers allocate no array of the one-hot's shape" begin
+    fine_level, coarse_level = 5, 3
+    hierarchy = Mesh.hierarchy(fine_level)
+    lvl(l) = hierarchy.levels[l + 1]
+    geo(l) = Mesh.geometry(lvl(l), Mesh.stencils(lvl(l)))
+    sup(l) = Mesh.Support(l, lvl(l), geo(l); kind = :icosahedral_bisection, refinement = (),
+                          radius = 1.0, element_type = :Float64, fractions = ())
+    fine_support, coarse_support = sup(fine_level), sup(coarse_level)
+    nfine, ncoarse = Mesh.ncells(fine_level), Mesh.ncells(coarse_level)
+    weights = geo(fine_level).cell_area
+    measure = R.Measured{:primal_cell_area}(weights)
+    legend = Tuple(Symbol(:class, k) for k in 1:8)
+    cpu = Backends.CPU(8)
+    one_hot_bytes = nfine * length(legend) * sizeof(Float64)
+    allocation(f) = (f(); @allocated f())
+    one_hot(labels) = stack(map(class -> R.indicator(labels, class, Float64), legend))
+
+    fine_labels = [legend[mod1(i, length(legend))] for i in 1:nfine]
+    f = reduce_field(R.CategoricalLabel{:lithology}(), fine_labels, fine_support;
+                     dimension = RD.DIMENSIONLESS)
+    seg = R.child_segmentation(f, coarse_support, cpu)
+
+    @testset "coarsen allocates below the one-hot's size in total" begin
+        used = allocation(() -> R.coarsen(f, coarse_support; legend = legend, measure = measure,
+                                          reservoir = false, backend = cpu))
+        @test used < one_hot_bytes
+
+        @testset "positive control: the coarsening of the one-hot fractions reaches its size" begin
+            before = allocation(() -> R.class_coarsening(one_hot(fine_labels), seg, legend,
+                                                         measure, false, cpu))
+            @test before >= one_hot_bytes
+        end
+    end
+
+    @testset "refine's class ledgers allocate below the one-hot's size in total" begin
+        coarse_labels = [legend[mod1(i, length(legend))] for i in 1:ncoarse]
+        g = reduce_field(R.CategoricalLabel{:lithology}(), coarse_labels, coarse_support;
+                         dimension = RD.DIMENSIONLESS)
+        spread = repeat(coarse_labels, inner = nfine ÷ ncoarse)
+        used = allocation(() -> R.refine_class_ledgers(g, fine_support, spread, legend, measure;
+                                                       reservoir = false, backend = cpu))
+        @test used < one_hot_bytes
+
+        @testset "positive control: the ledgers of the one-hot fractions reach its size" begin
+            held = R.coarse_measure(Float64, measure,
+                                    R.block_segmentation(weights, coarse_level, fine_level,
+                                                         "test", cpu), cpu)
+            before = allocation() do
+                coarse, fine = one_hot(coarse_labels), one_hot(spread)
+                R.legend_ledgers(Val(:primal_cell_area), Float64, nfine, legend,
+                                 R.weighted_total(fine, abs.(weights), cpu),
+                                 R.weighted_total(coarse, held, cpu),
+                                 R.weighted_total(fine, weights, cpu); reservoir = false)
+            end
+            @test before >= one_hot_bytes
+        end
+    end
+end
+
 @testset "Fields.refine" begin
     for X in RM.CROSSINGS, (bname, backend) in BACKENDS
         dev(x) = Backends.on(x, backend)
