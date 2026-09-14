@@ -11,7 +11,7 @@ import .SystemFixtures as SF
 
 module KeyFixtures
 
-using Fiddlybits: Provenance, Coupling, Systems, Backends, Mesh, Verdicts
+using Fiddlybits: Provenance, Coupling, Systems, Backends, Mesh, Verdicts, Fields
 using SHA: sha256
 
 "A fixture component: its declaration and nothing else."
@@ -43,9 +43,11 @@ output(name) = Symbol(name, :_out)
 declaration(name, system_fields; reads = (), writes = (output(name),), backend = Backends.CPU()) =
     Coupling.Declaration(
         name = name, level = level(),
-        reads = Tuple(Coupling.Read(quantity = q, level = level(), operator = Coupling.AtLevel(),
+        reads = Tuple(Coupling.Read(quantity = q, level = level(),
+                                    operator = Coupling.AtLevel(measure = Coupling.NoMeasure()),
                                     lagged = false, move = false) for q in reads),
-        writes = Tuple(Coupling.Write(quantity = q, conserves = ()) for q in writes),
+        writes = Tuple(Coupling.Write(quantity = q, semantics = Fields.Intensive(),
+                                      conserves = ()) for q in writes),
         stocks = (), system_fields = system_fields, backend = backend)
 
 "The paths each fixture writer declares."
