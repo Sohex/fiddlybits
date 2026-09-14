@@ -1,6 +1,6 @@
 using Test
 using CUDA
-using KernelAbstractions: @kernel, @index
+using KernelAbstractions: @kernel, @index, @groupsize
 using Fiddlybits: Backends, Verdicts, Reductions
 
 # Backends.launch_workgroup is the one door a launch's workgroup size is chosen at
@@ -12,6 +12,11 @@ using Fiddlybits: Backends, Verdicts, Reductions
 @kernel function launch_workgroup_fill!(out)
     i = @index(Global)
     out[i] = Float64(i)
+end
+
+@kernel function launch_workgroup_groupsize!(out)
+    i = @index(Global)
+    out[i] = first(@groupsize())
 end
 
 @testset "Backends.launch_workgroup" begin
@@ -174,15 +179,16 @@ end
                 out_inside = zeros(Float64, n)
                 Backends.launch!(launch_workgroup_fill!, Backends.CPU(inside), n, out_inside)
                 @test out == out_inside
+
+                sizes = zeros(Int, n)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.CPU(w), n, sizes)
+                @test all(==(w), sizes)
             end
 
-            @testset "positive control: a fill kernel launched at an outside size, against a result with one element changed" begin
-                w = first(cpu_sizes)
-                out = zeros(Float64, n)
-                Backends.launch!(launch_workgroup_fill!, Backends.CPU(w), n, out)
-                broken = copy(out)
-                broken[1] += 1
-                @test out != broken
+            @testset "the static branch's twin: the group size at an inside size is itself" begin
+                sizes_inside = zeros(Int, n)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.CPU(inside), n, sizes_inside)
+                @test all(==(inside), sizes_inside)
             end
         end
 
@@ -203,6 +209,20 @@ end
                 Backends.launch!(launch_workgroup_fill!, Backends.GPU(inside), n, out_inside)
                 Backends.complete!(gpu)
                 @test Backends.on(out, Backends.CPU(1)) == Backends.on(out_inside, Backends.CPU(1))
+
+                sizes = CUDA.zeros(Int, n)
+                Backends.complete!(gpu)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.GPU(w), n, sizes)
+                Backends.complete!(gpu)
+                @test all(==(w), Backends.on(sizes, Backends.CPU(1)))
+            end
+
+            @testset "the static branch's twin: the group size at an inside size is itself" begin
+                sizes_inside = CUDA.zeros(Int, n)
+                Backends.complete!(gpu)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.GPU(inside), n, sizes_inside)
+                Backends.complete!(gpu)
+                @test all(==(inside), Backends.on(sizes_inside, Backends.CPU(1)))
             end
         end
     end
