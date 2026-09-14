@@ -12,21 +12,22 @@ using Fiddlybits: Backends, Events, Verdicts
 
 @testset "on records a move only when the device actually changes" begin
     @testset "already on the target backend: nothing recorded, same object returned" begin
-        log = Events.Moved[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         x = [1.0, 2.0, 3.0]
         y = Backends.on(x, Backends.CPU(1))
-        @test isempty(log)
+        @test isempty(Events.collected(sink))
         @test y === x
         Events.move_sink!(Events.noop_sink)
     end
 
     @testset "positive control: a genuine cross-device move is recorded" begin
         @test CUDA.functional()
-        log = Events.Moved[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         x = [1.0, 2.0, 3.0]
         g = Backends.on(x, Backends.GPU(1))
+        log = Events.collected(sink)
         @test length(log) == 1
         @test log[1].from == :cpu
         @test log[1].to == :gpu
@@ -38,11 +39,12 @@ using Fiddlybits: Backends, Events, Verdicts
 
     @testset "a move back is a second genuine move, also recorded" begin
         @test CUDA.functional()
-        log = Events.Moved[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         x = [1.0, 2.0, 3.0]
         g = Backends.on(x, Backends.GPU(1))
         h = Backends.on(g, Backends.CPU(1))
+        log = Events.collected(sink)
         @test length(log) == 2
         @test log[2].from == :gpu
         @test log[2].to == :cpu
@@ -50,26 +52,27 @@ using Fiddlybits: Backends, Events, Verdicts
 
         # Already on CPU: no third move.
         Backends.on(h, Backends.CPU(1))
-        @test length(log) == 2
+        @test length(Events.collected(sink)) == 2
+        Events.move_sink!(Events.noop_sink)
     end
 
     @testset "a fixture sink counts every genuine move" begin
-        count = Ref(0)
-        Events.move_sink!(ev -> (count[] += 1; nothing))
+        tally = Events.MoveTally()
+        Events.move_sink!(tally)
         n = 5
         for i in 1:n
             Backends.on([Float64(i)], Backends.GPU(1))
         end
-        @test count[] == n
+        @test Events.move_counts(tally) == Dict((:cpu, :gpu) => n)
         Events.move_sink!(Events.noop_sink)
     end
 
     @testset "positive control: no sink installed counts nothing" begin
-        count = Ref(0)
-        Events.move_sink!(ev -> (count[] += 1; nothing))
+        tally = Events.MoveTally()
+        Events.move_sink!(tally)
         Events.move_sink!(Events.noop_sink)
         Backends.on([1.0], Backends.GPU(1))
-        @test count[] == 0
+        @test Events.move_total(tally) == 0
     end
 end
 
@@ -79,10 +82,10 @@ end
     cpu = Backends.CPU(1)
 
     @testset "host to device: nothing recorded, an empty device array returned" begin
-        log = Events.Moved[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         g = Backends.on(Float64[], gpu)
-        @test isempty(log)
+        @test isempty(Events.collected(sink))
         @test g isa CuArray
         @test isempty(g)
         Events.move_sink!(Events.noop_sink)
@@ -90,10 +93,10 @@ end
 
     @testset "device to host: nothing recorded, an empty host array returned" begin
         g = Backends.on(Float64[], gpu)
-        log = Events.Moved[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         h = Backends.on(g, cpu)
-        @test isempty(log)
+        @test isempty(Events.collected(sink))
         @test h isa Array
         @test isempty(h)
         Events.move_sink!(Events.noop_sink)
@@ -109,11 +112,12 @@ end
     @testset "positive control: the same array at one element is recorded both ways" begin
         # The check above says nothing unless the same shape at a nonzero
         # length still counts, in both directions and in the tally.
-        log = Events.Moved[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         before = Events.move_counts()
         g = Backends.on([1.0], gpu)
         h = Backends.on(g, cpu)
+        log = Events.collected(sink)
         @test length(log) == 2
         @test log[1].from == :cpu && log[1].to == :gpu
         @test log[2].from == :gpu && log[2].to == :cpu

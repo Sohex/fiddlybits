@@ -41,14 +41,14 @@ end
 
 "The number of Events.Moved records `f` produces."
 function column_move_count(f)
-    count = Ref(0)
-    Events.move_sink!(rec -> (count[] += 1))
+    tally = Events.MoveTally()
+    Events.move_sink!(tally)
     try
         f()
     finally
         Events.move_sink!(Events.noop_sink)
     end
-    return count[]
+    return Events.move_total(tally)
 end
 
 "The `(kernel, work items)` of each launch `f` queues on `gpu` from this task."

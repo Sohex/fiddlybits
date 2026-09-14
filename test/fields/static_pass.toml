@@ -127,12 +127,3 @@ method = "Fiddlybits.Provenance.record_value"
 message = "no matching method found `String(::Int64)` (1/2 union split)"
 reason = "the generic record_value method converts fieldnames(T) with String, and fieldnames are integers only for a tuple type, which the tuple method receives instead"
 row = "fiddlybits-52v.3.18"
-
-[[accepted]]
-analysis = "report_opt"
-kind = "RuntimeDispatchReport"
-file = "src/Events/Events.jl"
-method = "Fiddlybits.Events.moved"
-message = "runtime dispatch detected"
-reason = "MOVE_SINK[](Moved(array, from, to)) calls a value read from a Ref{Any}, so the callee is Any; a Ref{Function} keeps the dispatch, a nospecialize helper moves it, and invokelatest hides it in a builtin (notes/findings/2026-09-14-a-caught-exception-and-an-installed-sink-dispatch-on-a-value-of-type-any.md); removing it means a declared concrete type for the sinks decision 0046 installs, which the row decides"
-row = "fiddlybits-52v.3.25"
