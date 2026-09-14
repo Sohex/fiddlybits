@@ -28,6 +28,7 @@ const value = Dispositions.value
         non_earth = P.SyntheticNonEarth()
         @test length(non_earth.stars) == 1
         @test length(non_earth.moons) == 1
+        @test non_earth.planet.figure isa Systems.HydrostaticFlattening
 
         synchronous = P.SyntheticSynchronous()
         @test synchronous.planet.rotation isa Systems.SynchronousPeriod
@@ -41,6 +42,7 @@ const value = Dispositions.value
 
         composition2 = P.SyntheticComposition2()
         @test composition2.inventories.condensable isa Systems.NoCondensable
+        @test composition2.orbits.planet.flux_at_semi_major_axis !== nothing
     end
 
     @testset "system.derived_fields_reproduce passes on all five instances" begin
@@ -76,6 +78,30 @@ const value = Dispositions.value
             @test abs(period - value(s.planet.rotation.period)) <=
                   Reductions.error_bound(Float64, Systems.orbital_period_terms(length(masses)),
                                          period)
+        end
+
+        @testset "Darwin-Radau: f = (5q/2) / (1 + (25/4)(1 - 3C/2)^2), q = omega^2 R^3 / (G M)" begin
+            s = P.SyntheticNonEarth()
+            G = value(Systems.gravitational_constant(Float64))
+            mass = value(s.planet.mass)
+            radius = value(s.planet.volumetric_mean_radius)
+            period = value(s.planet.rotation.period)
+            c = value(s.planet.figure.moment_of_inertia_factor)
+            omega = 2 * Float64(pi) / period
+            q = omega * omega * radius^3 / (G * mass)
+            u = 1 - 3 * c / 2
+            flattening = (5 * q / 2) / (1 + (25 / 4) * u * u)
+            @test abs(flattening - value(s.planet.figure.flattening)) <=
+                  Systems.flattening_rounding(Float64, flattening)
+        end
+
+        @testset "flux semi-major axis: a = sqrt(L / (4 pi F))" begin
+            s = P.SyntheticComposition2()
+            l = value(s.stars[s.orbits.planet.primary.index].luminosity)
+            f = value(s.orbits.planet.flux_at_semi_major_axis)
+            a = sqrt(l / (4 * Float64(pi) * f))
+            @test abs(a - value(s.orbits.planet.semi_major_axis)) <=
+                  Reductions.error_bound(Float64, Systems.FLUX_SEMI_MAJOR_AXIS_TERMS, a)
         end
     end
 

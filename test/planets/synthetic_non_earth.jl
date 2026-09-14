@@ -9,6 +9,8 @@ None of its fields is a real body's. The moon's reflectance table is the
 normal-incidence Fresnel reflectance of water at six wavelengths, from the read
 optical constants of Hale and Querry (1973), a real measured spectrum carried by a
 fictional moon; every other field is a declared `Bracketed` or `Irreducible` value.
+`figure` is a `HydrostaticFigure`, so the planet's flattening is `Derived` by
+`Systems.hydrostatic_flattening` as `System` holds it.
 """
 function SyntheticNonEarth(::Type{FT} = Float64) where {FT}
     star = S.Star(
@@ -46,10 +48,10 @@ function SyntheticNonEarth(::Type{FT} = Float64) where {FT}
             "a declared instance; no body is real", "none: a declared instance"),
         sub_primary_longitude_at_epoch = irreducible(FT(0.2), ONE,
             "a declared instance; no body is real", "none: a declared instance"),
-        figure = S.AbsentFigure(equator_pole_gravity_difference =
-            bracket(FT(0.08), zero(FT), FT(0.2), S.ACCELERATION,
-                "slower rotation and a denser core",
-                "faster rotation and a less centrally condensed interior",
+        figure = S.HydrostaticFigure(moment_of_inertia_factor =
+            bracket(FT(0.3), FT(0.28), FT(0.32), ONE,
+                "a more centrally condensed interior",
+                "a less centrally condensed interior, closer to uniform density",
                 :synthetic_non_earth)),
         lithosphere = lithosphere(FT;
             potential_temperature = 1800, diffusivity = 1.2e-6, expansivity = 3.5e-5,

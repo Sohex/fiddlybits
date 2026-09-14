@@ -114,6 +114,131 @@ run_synchronous_period_mutation() = run_mutation("""
     println("CLOSED_FORM Earth ", earth_agrees ? "AGREES" : "DISAGREES")
     """)
 
+"""
+    run_darwin_radau_mutation()
+
+`Systems.darwin_radau_flattening` redefined, for `Float64` only, to always return the
+flattening it gives on Earth's declared mass, volumetric mean radius and sidereal
+rotation period, at the moment-of-inertia factor 0.3307 commonly cited for Earth
+(Earth's own figure is `AbsentFigure`, so this is a value computed from Earth's
+declared inputs through the true rule, not a stored field of `Earth()`), before
+`test/planets/Planets.jl` is loaded: `SyntheticNonEarth`'s constructor
+(`hydrostatic_flattening`) and `Systems.rederive`'s `:darwin_radau_flattening` branch
+both call it with the rotation parameter and moment-of-inertia factor already
+computed, the one step both share. The instance is then checked against the closed
+form `f = (5q/2) / (1 + (25/4)(1 - 3C/2)^2)`, `q = omega^2 R^3 / (G M)`, from Murray
+and Dermott (2000), Eq. (4.112), p. 153 (`fiddlybits-52v.4.11`), written here and not
+by calling `Systems.darwin_radau_flattening` or `Systems.rotation_parameter`.
+"""
+run_darwin_radau_mutation() = run_mutation("""
+    using Fiddlybits: Systems, Dispositions, Reductions
+    value = Dispositions.value
+
+    G = value(Systems.gravitational_constant(Float64))
+    earth_mass = 3.986004e14 / G
+    earth_radius = 6_371_008.4
+    earth_period = 2 * pi / 7.292115e-5
+    earth_c = 0.3307
+    earth_q = Systems.rotation_parameter(Float64, earth_mass, earth_radius, earth_period)
+    earth_flattening = Systems.darwin_radau_flattening(Float64, earth_c, earth_q)
+    function Systems.darwin_radau_flattening(::Type{Float64}, c::Float64, q::Float64)
+        return earth_flattening
+    end
+
+    include("$PLANETS_JL")
+    import .Planets as P
+
+    instances = (("Earth", P.Earth()), ("SyntheticNonEarth", P.SyntheticNonEarth()),
+                 ("SyntheticSynchronous", P.SyntheticSynchronous()),
+                 ("SyntheticRetrograde", P.SyntheticRetrograde()),
+                 ("SyntheticComposition2", P.SyntheticComposition2()))
+
+    reproduces = true
+    for (name, s) in instances, (path, d) in Systems.derived_fields(s)
+        global reproduces
+        reproduces &= (Systems.rederive(s, path) == value(d))
+    end
+    println("DERIVED_FIELDS_REPRODUCE ", reproduces ? "PASS" : "FAIL")
+
+    s = P.SyntheticNonEarth()
+    mass = value(s.planet.mass)
+    radius = value(s.planet.volumetric_mean_radius)
+    period = value(s.planet.rotation.period)
+    c = value(s.planet.figure.moment_of_inertia_factor)
+    omega = 2 * pi / period
+    q = omega * omega * radius^3 / (G * mass)
+    u = 1 - 3 * c / 2
+    closed = (5 * q / 2) / (1 + (25 / 4) * u * u)
+    stored = value(s.planet.figure.flattening)
+    bound = Reductions.error_bound(Float64,
+        Systems.ROTATION_PARAMETER_TERMS + Systems.DARWIN_RADAU_TERMS, closed)
+    agrees = abs(closed - stored) <= bound
+    println("CLOSED_FORM SyntheticNonEarth ", agrees ? "AGREES" : "DISAGREES")
+
+    earth_u = 1 - 3 * earth_c / 2
+    earth_closed = (5 * earth_q / 2) / (1 + (25 / 4) * earth_u * earth_u)
+    earth_bound = Reductions.error_bound(Float64,
+        Systems.ROTATION_PARAMETER_TERMS + Systems.DARWIN_RADAU_TERMS, earth_closed)
+    earth_agrees = abs(earth_closed - earth_flattening) <= earth_bound
+    println("CLOSED_FORM Earth ", earth_agrees ? "AGREES" : "DISAGREES")
+    """)
+
+"""
+    run_flux_semi_major_axis_mutation()
+
+`Systems.semi_major_axis_from_flux` redefined, for `Float64` only, to always return
+the semi-major axis it gives on the Sun's declared luminosity and the IAU nominal
+total solar irradiance at one astronomical unit (Earth's own orbit declares its
+semi-major axis directly, not by flux, so this is a value computed from Earth's
+declared inputs and the published solar constant through the true rule), before
+`test/planets/Planets.jl` is loaded: `SyntheticComposition2`'s constructor
+(`resolve_planet_orbit`) and `Systems.rederive`'s `:flux_semi_major_axis` branch both
+call it. The instance is then checked against the closed form
+`a = sqrt(L / (4 pi F))`, written here and not by calling
+`Systems.semi_major_axis_from_flux`.
+"""
+run_flux_semi_major_axis_mutation() = run_mutation("""
+    using Fiddlybits: Systems, Dispositions, Reductions
+    value = Dispositions.value
+
+    earth_l = 3.828e26
+    earth_f = 1361.0
+    earth_a = Systems.semi_major_axis_from_flux(Float64, earth_l, earth_f)
+    function Systems.semi_major_axis_from_flux(::Type{Float64}, l::Float64, f::Float64)
+        return earth_a
+    end
+
+    include("$PLANETS_JL")
+    import .Planets as P
+
+    instances = (("Earth", P.Earth()), ("SyntheticNonEarth", P.SyntheticNonEarth()),
+                 ("SyntheticSynchronous", P.SyntheticSynchronous()),
+                 ("SyntheticRetrograde", P.SyntheticRetrograde()),
+                 ("SyntheticComposition2", P.SyntheticComposition2()))
+
+    reproduces = true
+    for (name, s) in instances, (path, d) in Systems.derived_fields(s)
+        global reproduces
+        reproduces &= (Systems.rederive(s, path) == value(d))
+    end
+    println("DERIVED_FIELDS_REPRODUCE ", reproduces ? "PASS" : "FAIL")
+
+    s = P.SyntheticComposition2()
+    l = value(s.stars[s.orbits.planet.primary.index].luminosity)
+    f = value(s.orbits.planet.flux_at_semi_major_axis)
+    closed = sqrt(l / (4 * pi * f))
+    stored = value(s.orbits.planet.semi_major_axis)
+    bound = Reductions.error_bound(Float64, Systems.FLUX_SEMI_MAJOR_AXIS_TERMS, closed)
+    agrees = abs(closed - stored) <= bound
+    println("CLOSED_FORM SyntheticComposition2 ", agrees ? "AGREES" : "DISAGREES")
+
+    earth_closed = sqrt(earth_l / (4 * pi * earth_f))
+    earth_bound = Reductions.error_bound(Float64, Systems.FLUX_SEMI_MAJOR_AXIS_TERMS,
+                                         earth_closed)
+    earth_agrees = abs(earth_closed - earth_a) <= earth_bound
+    println("CLOSED_FORM Earth ", earth_agrees ? "AGREES" : "DISAGREES")
+    """)
+
 @testset "mutation control: a Derived rule replaced by the Earth value it happens to equal" begin
     @testset "stefan_boltzmann_effective_temperature, on every star of every instance" begin
         out = run_effective_temperature_mutation()
@@ -130,6 +255,20 @@ run_synchronous_period_mutation() = run_mutation("""
         @test occursin("DERIVED_FIELDS_REPRODUCE PASS", out)
         @test occursin("CLOSED_FORM Earth AGREES", out)
         @test occursin("CLOSED_FORM SyntheticSynchronous DISAGREES", out)
+    end
+
+    @testset "darwin_radau_flattening, on SyntheticNonEarth" begin
+        out = run_darwin_radau_mutation()
+        @test occursin("DERIVED_FIELDS_REPRODUCE PASS", out)
+        @test occursin("CLOSED_FORM Earth AGREES", out)
+        @test occursin("CLOSED_FORM SyntheticNonEarth DISAGREES", out)
+    end
+
+    @testset "flux_semi_major_axis, on SyntheticComposition2" begin
+        out = run_flux_semi_major_axis_mutation()
+        @test occursin("DERIVED_FIELDS_REPRODUCE PASS", out)
+        @test occursin("CLOSED_FORM Earth AGREES", out)
+        @test occursin("CLOSED_FORM SyntheticComposition2 DISAGREES", out)
     end
 
     @testset "root_origin: planet_mean_longitude_at_epoch takes only the float type" begin

@@ -9,7 +9,9 @@ None of its fields is a real body's. `bulk` is a `DeclaredBulk`: no `InteriorMod
 implementation carries a `Sourced` mass-radius law in this tree yet
 (`fiddlybits-52v.4.22`), so the hydrogen-helium composition is carried at the
 inventory level instead, in `atmosphere` and `volatiles`. `condensable` is a
-`NoCondensable`, the different condensable declared absent.
+`NoCondensable`, the different condensable declared absent. The planet's orbit is a
+`FluxOrbit`, admissible because the system declares one star; `System` holds its
+semi-major axis as `Derived` by `Systems.semi_major_axis_from_flux`.
 """
 function SyntheticComposition2(::Type{FT} = Float64) where {FT}
     star = S.Star(
@@ -60,12 +62,12 @@ function SyntheticComposition2(::Type{FT} = Float64) where {FT}
             pushes_up = "the radiogenic inventory of the bulk composition and a larger mass",
             sweep = :synthetic_composition2))
 
-    orbit = S.Orbit(
+    orbit = S.FluxOrbit(
         primary = S.StarBody(1), secondary = S.PlanetBody(),
         reference_plane = :invariable_plane,
-        semi_major_axis = bracket(FT(3e10), FT(2e10), FT(4e10), D.LENGTH,
-            "the low end of the declared semi-major axis",
-            "the high end of the declared semi-major axis", :synthetic_composition2),
+        flux_at_semi_major_axis = bracket(FT(3000), FT(2000), FT(4000), S.IRRADIANCE,
+            "the low end of the declared flux", "the high end of the declared flux",
+            :synthetic_composition2),
         eccentricity = bracket(FT(0.2), FT(0.1), FT(0.3), ONE,
             "the low end of the declared eccentricity",
             "the high end of the declared eccentricity", :synthetic_composition2),
