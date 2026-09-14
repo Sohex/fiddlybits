@@ -68,3 +68,4 @@ other; a profile is data.
 ## Amendments
 
 - 2026-09-08: the radiation call interval is declared in seconds with a Derived ceiling from the configuration's shortest geometry cycle; the profile record reports spacing as a ratio to the deformation radius; the daily-tier fallback interval and the dimensionless exit brackets of decision 0023 are profile fields, from notes/findings/2026-09-08-implicit-earth-audit.md.
+- 2026-09-13: the profile carries `write_ceiling`, the byte ceiling of the store's writer pool, and `store_writers`, its disk-stage task count, beside `memory_ceiling`, each a declared count above zero with a disposition from `Systems.DECLARED`; the scheduler allocates cores and a share of the card and neither of these, so neither is read from an allocation (decision 0038, docs/plans/fiddlybits-52v.6-provenance.md, section "The writer", fiddlybits-52v.6.25).
