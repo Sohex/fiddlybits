@@ -4,19 +4,24 @@
 
 using ..Verdicts: refuse
 using ..Dimensions: TIME, LENGTH, DIMENSIONLESS
-using ..Dispositions: Derived, value
+using ..Dispositions: Derived, Irreducible, value
 using ..Reductions: error_bound
+
+"The dispositions `root_seed` is declared with."
+const ROOT_SEED_DISPOSITIONS = (Irreducible,)
 
 """
     System
 
 A declared system. Build it with the keyword constructor, which has no defaults:
 
-    System(; stars, planet, orbits, moons, inventories, numerics)
+    System(; stars, planet, orbits, moons, inventories, numerics, root_seed)
 
 `stars` is a tuple of one or more `Star`s, `planet` a `Planet`, `orbits` an
 `OrbitHierarchy`, `moons` a tuple of zero or more `Moon`s, `inventories` an
-`Inventories` and `numerics` a `Numerics`, all over one `FT`.
+`Inventories` and `numerics` a `Numerics`, all over one `FT`. `root_seed` is the root
+seed of the counter-based generator (`Provenance.philox_draw`), a dimensionless
+`Irreducible` over `UInt64`, the only disposition `ROOT_SEED_DISPOSITIONS` admits.
 
 A synchronous rotation is held as a `SynchronousPeriod` `Derived` from the planet's
 orbit, and a `FluxOrbit` as an `Orbit` whose semi-major axis is `Derived` from the
@@ -34,6 +39,7 @@ struct System{FT,S,P,O,M,I,N}
     moons::M
     inventories::I
     numerics::N
+    root_seed::Irreducible{UInt64,typeof(DIMENSIONLESS)}
 
     System{FT,S,P,O,M,I,N}(::Checked, fields...) where {FT,S,P,O,M,I,N} =
         new{FT,S,P,O,M,I,N}(fields...)
@@ -226,7 +232,8 @@ end
 function System(; kwargs...)
     site = "Systems.System"
     k, supplied = read_keywords(site, values(kwargs),
-                                (:stars, :planet, :orbits, :moons, :inventories, :numerics),
+                                (:stars, :planet, :orbits, :moons, :inventories, :numerics,
+                                 :root_seed),
                                 SYSTEM_CHECKED)
     stars = require_type("stars", site, k.stars, Tuple)
     isempty(stars) && refuse("stars", site, "declares no star; a system has one or more")
@@ -241,6 +248,8 @@ function System(; kwargs...)
     end
     inventories = require_type("inventories", site, k.inventories, Inventories{FT})
     numerics = require_type("numerics", site, k.numerics, Numerics{FT})
+    root_seed = require_disposition("root_seed", site, k.root_seed, UInt64, DIMENSIONLESS,
+                                    ROOT_SEED_DISPOSITIONS)
     declared = require_hierarchy(site, stars, moons,
         require_type("orbits", site, k.orbits, OrbitHierarchy))
     planet_orbit = resolve_planet_orbit(declared.planet, stars, supplied, site)
@@ -264,5 +273,5 @@ function System(; kwargs...)
 
     return System{FT,typeof(stars),typeof(held),typeof(orbits),typeof(moons),
                   typeof(inventories),typeof(numerics)}(
-        Checked(), stars, held, orbits, moons, inventories, numerics)
+        Checked(), stars, held, orbits, moons, inventories, numerics, root_seed)
 end

@@ -123,6 +123,7 @@ declared() = (
     lunar = ((:moons, :, :mass),),
     spectral = ((:stars, :, :spectrum), (:moons, :, :reflectance)),
     bookkeeping = ((:numerics,), (:inventories,)),
+    stochastic = ((:root_seed,),),
     idle = ())
 
 "The profile paths each fixture writer declares, by the names of `declared()`."
@@ -134,6 +135,7 @@ declared_profile() = (
     lunar = ((:exit_brackets, :, :tolerance),),
     spectral = ((:radiation,), (:memory_ceiling,)),
     bookkeeping = ((:daily_fallback_interval,),),
+    stochastic = (),
     idle = ())
 
 "The names of the fixture writers."
@@ -338,7 +340,7 @@ import .KeyFixtures as KF
         writers = Set(KF.writers())
         for system in (SF.two_star_system(),)
             base = Dict(n => KF.key(a, n, system, s1) for n in writers)
-            moved_any, moved_none = false, false
+            moved_any, moved_none, seed_moved = false, false, nothing
             for (path, x) in KF.leaves(system)
                 flipped = KF.replace_at(system, path, KF.flip)
                 moved = Set(n for n in writers if KF.key(a, n, flipped, s1) != base[n])
@@ -346,11 +348,31 @@ import .KeyFixtures as KF
                 @test moved == expected
                 moved_any |= !isempty(moved)
                 moved_none |= isempty(moved)
+                path == (:root_seed, :value) && (seed_moved = moved)
             end
 
             @testset "positive control: some flip moves a key and some flip moves none" begin
                 @test moved_any
                 @test moved_none
+            end
+
+            @testset "positive control: the root seed is a leaf the reflection flips, and its flip moves the stochastic key alone" begin
+                @test seed_moved == Set([:stochastic])
+            end
+        end
+    end
+
+    @testset "two systems differing only in the root seed give two keys for a component declaring (:root_seed,)" begin
+        system = SF.two_star_system()
+        reseeded = SF.two_star_system(root_seed = SF.seed(Dispositions.value(system.root_seed) + 1))
+        @test (:root_seed,) in KF.declared().stochastic
+        @test KF.key(a, :stochastic, reseeded, s1) != KF.key(a, :stochastic, system, s1)
+
+        @testset "positive control: a component not declaring it keeps its key" begin
+            others = [n for n in KF.writers() if !any(p -> first(p) === :root_seed, KF.declared()[n])]
+            @test length(others) == length(KF.writers()) - 1
+            for n in others
+                @test KF.key(a, n, reseeded, s1) == KF.key(a, n, system, s1)
             end
         end
     end
