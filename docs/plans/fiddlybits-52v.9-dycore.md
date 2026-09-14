@@ -3,7 +3,7 @@ epic = "fiddlybits-52v.9"
 title = "The shallow-water go/no-go on the triangle C-grid, with the reference arm beside it and the fallback ladder declared"
 decisions = ["0005", "0011", "0012", "0013", "0025", "0027", "0034"]
 requirements = ["REQ-TER-011", "REQ-NUM-002", "REQ-NUM-005", "REQ-ATM-017"]
-oracles = ["core.williamson_tc1", "core.williamson_tc2", "core.williamson_tc5_tc6", "core.checkerboard_divergence_mode", "core.hollingsworth_check", "core.laplacian_eigenvalues", "core.reference_arm_distance"]
+oracles = ["core.williamson_tc1", "core.williamson_tc2", "core.williamson_tc5_tc6", "core.checkerboard_divergence_mode", "core.hollingsworth_check", "core.fsphere_normal_modes", "core.laplacian_eigenvalues", "core.reference_arm_distance"]
 status = "filed"
 date = 2026-09-10
 +++
@@ -141,15 +141,18 @@ remedies were needed. A fail names the ladder rung it hands to and why.
 
 ## Oracles
 
-Five registry entries exist. Two are added.
+The gate is judged by these registry entries. The configurations of the two pathology
+entries and the f-sphere entry are fixed in the registry, in dimensionless groups, as
+decision 0059 requires.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
 | `core.williamson_tc1` | the cosine bell's error norms after one revolution | a tangential reconstruction shifted by one edge |
 | `core.williamson_tc2` | steady geostrophic flow does not grow beyond roundoff accumulation | the same, and a Coriolis term dropped |
 | `core.williamson_tc5_tc6` | norms against reference solutions for the mountain and the Rossby-Haurwitz wave | a mass flux counted twice |
-| `core.checkerboard_divergence_mode` | the grid-scale divergence mode is bounded and not growing with the filter, and present without it | the filter removed, which must show the mode, so the oracle is not evidenced only by the passing arm |
-| `core.hollingsworth_check` | no growth of the spurious mode under the standard trigger | the energy-consistent form replaced by the naive one, which must grow |
+| `core.checkerboard_divergence_mode` | the checkerboard in the unaveraged triangle divergence stays bounded and does not grow, in a nonlinear f-sphere run at a deformation radius of half the triangle edge, with the fourth-order filter's coefficient at zero | the triangle divergence with the four-point tangential reconstruction and no remedy of the checkerboard ladder, which must show the mode |
+| `core.hollingsworth_check` | no growing mode of the zonal balanced flow at small equivalent depth, found by the power method at every point of the declared Froude and grid Rossby bracket, with non-depth-weighted vorticity and the filter's coefficient at zero | kinetic energy taken at cells alone, with no remedy of the Hollingsworth ladder, which must grow somewhere in the bracket |
+| `core.fsphere_normal_modes` | the linearised normal modes on the f-sphere on the production mesh: as many zero-frequency modes as vertices, all geostrophic, and as many non-zero ones as cells plus edges minus vertices | tangential velocities built by projecting nearby normal velocities, whose geostrophic frequencies are not zero |
 | `core.laplacian_eigenvalues` | the discrete Laplacian's spectrum against the analytic spherical eigenvalues, on the production mesh at the production level | the same test on a synthetic near-regular mesh only, which REQ-TER-011 forbids as sufficient |
 | `core.reference_arm_distance` | the distance between the two arms on each case, reported with no bar | a default from the reference package reaching a result, which `no_defaults.jl` must catch |
 

@@ -64,8 +64,15 @@ function rederive(system::System{FT}, path::Tuple) where {FT}
         return interpolate(parent.grid, Tuple(axes[a] for a in parent.grid.axes), site)
     elseif rule === :interior_model_radius
         return value(resolve_radius(parent.bulk, parent.mass, NamedTuple(), site))
+    elseif rule === :darwin_radau_flattening
+        planet = at_path(system, path[1:end-2])
+        q = rotation_parameter(FT, value(planet.mass), value(planet.volumetric_mean_radius),
+                               value(rotation_period(planet.rotation)))
+        return darwin_radau_flattening(FT, value(parent.moment_of_inertia_factor), q)
     elseif rule === :synchronous_rotation_period
         return orbital_period(system, system.orbits.planet)
+    elseif rule === :root_origin
+        return value(planet_mean_longitude_at_epoch(FT))
     elseif rule === :flux_semi_major_axis
         return semi_major_axis_from_flux(FT, value(system.stars[parent.primary.index].luminosity),
                                          value(parent.flux_at_semi_major_axis))

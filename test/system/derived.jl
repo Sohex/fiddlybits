@@ -8,27 +8,82 @@ import .SystemFixtures as SF
 
 @testset "system Derived fields" begin
     value = Dispositions.value
+    one_ = Dimensions.DIMENSIONLESS
+    figure(T, c) = Systems.HydrostaticFigure(moment_of_inertia_factor = SF.irreducible(T(c), one_))
+    hydrostatic(T; kw...) = SF.system(T; planet = SF.planet(T; figure = figure(T, T(33) / 100), kw...))
+    hydrostatics() = Tuple(s for T in (Float64, Float32)
+                           for s in (hydrostatic(T), hydrostatic(T; rotation = Systems.SynchronousRotation())))
+    flattening_path = (:planet, :figure, :flattening)
 
     @testset "derived_fields enumerates every Derived value from the struct" begin
         paths(s) = [p for (p, _) in Systems.derived_fields(s)]
-        @test paths(SF.system()) == [(:stars, 1, :effective_temperature)]
+        @test paths(SF.system()) == [(:stars, 1, :effective_temperature),
+                                     (:orbits, :planet, :mean_longitude_at_epoch)]
+        @test paths(hydrostatic(Float64)) == [(:stars, 1, :effective_temperature), flattening_path,
+                                              (:orbits, :planet, :mean_longitude_at_epoch)]
+        @test flattening_path in paths(hydrostatic(Float32; rotation = Systems.SynchronousRotation()))
+        @test (:orbits, :planet, :mean_longitude_at_epoch) in paths(SF.flux_system())
+        @test !((:orbits, :moons, 1, :mean_longitude_at_epoch) in paths(SF.system()))
         @test (:planet, :rotation, :period) in paths(SF.synchronous_system())
         @test (:orbits, :planet, :semi_major_axis) in paths(SF.flux_system())
         modelled = SF.system(stars = (SF.star(structure = SF.linear_model(), spectrum = SF.grid()),))
         @test Set(paths(modelled)) == Set([(:stars, 1, :luminosity), (:stars, 1, :radius),
                                            (:stars, 1, :effective_temperature),
-                                           (:stars, 1, :spectrum, :surface_flux_density)])
+                                           (:stars, 1, :spectrum, :surface_flux_density),
+                                           (:orbits, :planet, :mean_longitude_at_epoch)])
     end
 
     @testset "rederive reproduces every Derived field" begin
         instances = (SF.system(), SF.system(Float32), SF.two_star_system(),
-                     SF.synchronous_system(), SF.flux_system(),
-                     SF.system(stars = (SF.star(structure = SF.linear_model(), spectrum = SF.grid()),)))
+                     SF.synchronous_system(), SF.flux_system(), SF.circumbinary_system(),
+                     SF.system(stars = (SF.star(structure = SF.linear_model(), spectrum = SF.grid()),)),
+                     hydrostatics()...)
         for s in instances, (path, d) in Systems.derived_fields(s)
             @test Systems.rederive(s, path) == value(d)
         end
         @test SF.refused(SF.caught(() -> Systems.rederive(SF.system(), (:planet, :mass))),
                          "path", "no Derived value")
+    end
+
+    # `s` holding `flattening` as its planet's figure, through the inner constructors.
+    function holding(s, flattening)
+        p = Systems.with_figure(s.planet, flattening)
+        FT = typeof(value(p.mass))
+        return Systems.System{FT,typeof(s.stars),typeof(p),typeof(s.orbits),typeof(s.moons),
+                              typeof(s.inventories),typeof(s.numerics)}(
+            Systems.Checked(), s.stars, p, s.orbits, s.moons, s.inventories, s.numerics, s.root_seed)
+    end
+
+    @testset "rederive reproduces the flattening within flattening_rounding" begin
+        for s in hydrostatics()
+            T = typeof(value(s.planet.mass))
+            f = value(Systems.at_path(s, flattening_path))
+            @test abs(Systems.rederive(s, flattening_path) - f) <= Systems.flattening_rounding(T, f)
+        end
+
+        @testset "control: a held flattening its declared factor does not give disagrees with rederive" begin
+            for s in hydrostatics()
+                T = typeof(value(s.planet.mass))
+                uniform = Systems.hydrostatic_flattening(figure(T, T(2) / 5), s.planet).flattening
+                mismatched = holding(s, Systems.HydrostaticFlattening{T,4}(
+                    Systems.Checked(), s.planet.figure.moment_of_inertia_factor, uniform))
+                f = value(Systems.at_path(mismatched, flattening_path))
+                @test abs(Systems.rederive(mismatched, flattening_path) - f) >
+                      Systems.flattening_rounding(T, f)
+            end
+        end
+
+        @testset "control: a rule renamed is refused" begin
+            s = hydrostatic(Float64)
+            d = s.planet.figure.flattening
+            renamed = Dispositions.Derived(value = value(d), dim = one_, from = d.from,
+                                           rule = :darwin_radau, fields = Systems.PLANET_FIELDS)
+            r = holding(s, Systems.HydrostaticFlattening{Float64,4}(
+                Systems.Checked(), s.planet.figure.moment_of_inertia_factor, renamed))
+            @test flattening_path in [p for (p, _) in Systems.derived_fields(r)]
+            @test SF.refused(SF.caught(() -> Systems.rederive(r, flattening_path)),
+                             "rule", "no rule named darwin_radau")
+        end
     end
 
     @testset "each rule lies within its rounding of a 256-bit evaluation" begin

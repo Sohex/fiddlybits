@@ -30,6 +30,11 @@
 # statistic or bar is measured with and no row judges. No statistic or threshold carries
 # a clause of an instrument's definition, and each of its parameters names the constant
 # it states (docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md).
+# bar_half_width, observation_uncertainty (optional, stated together or not at all, in
+# the unit of the statistic): the half-width of the row's bar and the uncertainty of the
+# observation the bar is drawn from. The loader refuses one stated without the other,
+# either not positive, and a bar_half_width narrower than observation_uncertainty
+# (docs/oracles/README.md, Verdicts).
 # Conventions: statistics and thresholds in SI seconds and dimensionless or
 # system-derived units; a published case's day written as its seconds on the arm
 # where the published bar applies, with the spread-arm rule stated; vertical
@@ -137,14 +142,14 @@ id = "system.epoch_event"
 tier = 1
 subsystem = "system"
 dataset_or_reference = "identity"
-statistic = "the instant of the declared (event kind, source index) epoch event reproduced from the declared orbit and spin for each kind (equinox, periapsis, superior conjunction); the equinox kind refuses by name at zero obliquity and when no single primary is declared"
+statistic = "the Derived event instants, never declared: the vernal equinox and the periapsis of each named orbit, each returned as the latest instant at or before a given t at which the event's definition holds (at the vernal equinox the declination of the planet orbit's primary is zero and increasing and the planet's true longitude equals its equator's ascending node longitude; at a periapsis that orbit's mean anomaly is zero), on every instance and body where the event exists, a circumbinary fixture included; nothing is refused"
 verdict_kind = "fail_bar"
-threshold = "roundoff; the refusals fire (positive control: a zero-obliquity instance and a two-primary instance)"
+threshold = "roundoff where the event exists; NotEvaluable by name for the vernal equinox where the sine of the obliquity does not exceed the rounding of the subsolar latitude, and for a periapsis where the eccentricity does not exceed the rounding of the distance (positive controls: the vernal equinox on the zero-obliquity SyntheticSynchronous() instance and the periapsis on a circular fixture, each of which must return NotEvaluable; and an equinox instant computed with the equator's ascending node longitude plus pi in place of the node, which must fail the increasing test)"
 provisional = true
 registered_at = ""
 holdout = false
 anchors = []
-instances = ["Earth()", "SyntheticNonEarth()"]
+instances = ["Earth()", "SyntheticNonEarth()", "SyntheticSynchronous()"]
 
 [[oracle]]
 id = "system.solar_sidereal_relation"
@@ -481,9 +486,9 @@ id = "fields.inference_tight"
 tier = 1
 subsystem = "fields"
 dataset_or_reference = "identity"
-statistic = "every operator over every enumerated (Semantics, TimeSemantics, Dim) pair the semantics-closure walk produces, its return type asserted concrete by @inferred on the per-commit gate; and the static pass in its optimization mode over the same operators on the nightly row of decision 0043, reporting runtime dispatch and any return that is not concrete"
+statistic = "every operator over every enumerated (Semantics, TimeSemantics, Dim) pair the semantics-closure walk produces, its return type asserted concrete by @inferred on Backends.CPU and on Backends.GPU on the per-commit gate; and the static pass in its optimization mode over the same operators, on both backends, on the nightly row of decision 0043, reporting runtime dispatch and any return that is not concrete"
 verdict_kind = "fail_bar"
-threshold = "exact; no operator returns a non-concrete type and the optimization pass reports nothing outside its accepted-findings list. The list is TOML beside the pass, every entry naming a reason and the row that removes it, because an unruled allowlist is state that makes a check pass without the thing being checked, which is the shape docs/imports/dimensionaldata-jl.md refused in strict_broadcast!. The Julia version is recorded beside the pass's result, which reads compiler internals. Positive controls: a fixture operator that selects its semantics from a runtime value, which must fail the @inferred arm; an accepted-findings entry carrying neither a reason nor a row, which must fail the pass; and, for the device arm, that no equivalent is needed because the GPU compiler refuses dynamic dispatch rather than falling back to it (fiddlybits-52v.3.10 anchors that refusal in the import records)"
+threshold = "exact; no operator returns a non-concrete type on either backend and the optimization pass reports nothing outside its accepted-findings list. The list is TOML beside the pass, every entry naming a reason and the row that removes it, because an unruled allowlist is state that makes a check pass without the thing being checked, which is the shape docs/imports/dimensionaldata-jl.md refused in strict_broadcast!. The Julia version is recorded beside the pass's result, which reads compiler internals. Positive controls: a fixture operator that selects its semantics from a runtime value, which must fail the @inferred arm on both backends; and an accepted-findings entry carrying neither a reason nor a row, which must fail the pass"
 provisional = true
 registered_at = ""
 holdout = false
@@ -616,27 +621,40 @@ anchors = ["A standard test set for numerical approximations to the shallow wate
 id = "core.checkerboard_divergence_mode"
 tier = 1
 subsystem = "atmosphere"
-dataset_or_reference = "triangle C-grid analysis"
-statistic = "amplitude of the grid-scale divergence mode over a shallow-water run, with and without the divergence filter"
+dataset_or_reference = "Inspection of hexagonal and triangular C-grid discretizations of the shallow water equations, section 8, carried from the f-plane to the f-sphere"
+statistic = "the checkerboard in the unaveraged triangle divergence: the divergence of each triangle from its own three edge normal velocities by the Gauss theorem (Wan et al. 2013, section 4.2, eq. (6), p. 740), never a divergence averaged over neighbours, under which the mode is hidden and returns once the flow is nonlinear (Gassmann 2011, section 7.2, p. 2717); its checkerboard component chi, per triangle, the triangle divergence minus the mean of its three edge neighbours' divergences, which carries the first-order error of the triangle divergence that changes sign between a triangle and its edge neighbours (Wan et al. 2013, eqs. (7) and (10), p. 740) at twice its amplitude; two constituents, the area-weighted root mean square of chi over the area-weighted root mean square of the neighbour mean at the end of the window, and the growth of chi, the maximum over the second half of the window of the area-weighted root mean square of chi divided by f against its maximum over the first half. Configuration, in dimensionless groups: shallow water on the f-sphere, the spherical production mesh with the Coriolis parameter constant (Thuburn et al. 2009, section 4.3, p. 8330), nonlinear terms on, the fourth-order filter's coefficient at zero; the Rossby deformation radius over the spacing r_d = sqrt(g H0)/(f d) = 0.5, the value the source sets to mimic small equivalent depths (Gassmann 2011, section 8, pp. 2717 and 2719), with d the distance between hexagon centres, the triangle edge length, and d/sqrt(3) the distance between triangle centres (p. 2712); the source's initial state (section 8, pp. 2717-2718): height in units of H0 equal to 1 plus h_p exp(-((x-x_c)^2/(2.5 a) + (y-y_c)^2/a)) with h_p = 5 and a = 0.075 in units of the source's domain side of 126 hexagon-centre spacings, so e-folding half-widths of 126 sqrt(0.1875) d along the major axis and 126 sqrt(0.075) d along the minor, centred on the centre of a face of the base icosahedron with the major axis along an edge of that face, and the source's discrete geostrophic wind v_i = r_d^2 delta_i of the corner height, in units of f d, the corner height the area-weighted mean of the triangle-centre heights around the vertex; the window in f t from 0 to 50 x 0.1/sqrt(1 + r_d^2), the source's 50 steps at its nondimensional step (section 8 and its footnote 4, p. 2717, and Fig. 5, p. 2718)"
 verdict_kind = "fail_bar"
-threshold = "provisional; mode amplitude bounded and not growing"
+threshold = "provisional; the ratio of chi to the neighbour mean bounded at the end of the window and the growth of chi not above one, each bound fixed at registration (positive control: the same configuration with the triangle divergence entering the dynamics unaveraged, the four-point tangential reconstruction of the source's option V4 in place of the reconstruction the core uses, and the filter's coefficient at zero, the discretisation without any remedy of the checkerboard ladder, under which the source shows a clearly developed checkerboard in the triangle divergence, more pronounced under V4 than V8 (Gassmann 2011, section 8, Table 1, p. 2717, Fig. 5, p. 2718, and p. 2719); the control must lie outside the bound, and a control inside it makes the configuration wrong, which is corrected here before any arm is judged)"
 provisional = true
 registered_at = ""
 holdout = false
-anchors = []
+anchors = ["Inspection of hexagonal and triangular C-grid discretizations of the shallow water equations", "The ICON-1.2 hydrostatic atmospheric dynamical core on triangular grids - Part 1: Formulation and performance of the baseline version", "Numerical representation of geostrophic modes on arbitrarily structured C-grids"]
 
 [[oracle]]
 id = "core.hollingsworth_check"
 tier = 1
 subsystem = "atmosphere"
-dataset_or_reference = "Hollingsworth instability analysis of vector-invariant C-grid cores"
-statistic = "growth of the spurious mode in the vector-invariant momentum form under the standard trigger configuration"
+dataset_or_reference = "Numerical instabilities of spherical shallow-water models considering small equivalent depths, section 4, the zonal balanced flow"
+statistic = "the dimensionless growth rate sigma/f_0 of the dominant unstable mode, f_0 = 2 Omega, at every point of the bracket: the mode found by the power method with a constant forcing that holds the basic state steady and a rescaling that keeps the perturbation small (Peixoto et al. 2018, Appendix B, p. 17), sigma the logarithm of the converged amplification per step divided by the step (Lapolli et al. 2023, section 4.5.1, p. 31). Basic state: the zonal balanced flow of Peixoto et al. 2018, section 4, p. 5, on the production mesh, u = u0 cos(latitude), v = 0, constant layer depth H0, the Coriolis term on with f = 2 Omega sin(latitude), and the bottom topography of its eq. (7) holding it steady, with no added perturbation; the layer depth that of an internal mode, since the instability is internal and a one-level model at the external depth does not show it (Hollingsworth et al. 1983, section 1, p. 417); the vorticity term non-depth-weighted, the shallow-water form of a level-based vertical coordinate (Peixoto et al. 2018, section 2.2, pp. 3-4); the fourth-order filter's coefficient at zero. Dimensionless groups: the Froude number F_u = u0/sqrt(g H0) and the grid Rossby number R_u = 2 u0/(f_0 d) (Bell et al. 2017, eqs. (69) to (71), p. 7), d the mean distance between neighbouring cell centres of the production mesh, whose d/a is held, so that u0/(Omega a) = R_u d/a follows. Bracket: F_u at 3.899, 12.33, 38.99, 123.3 and 389.9 with R_u at 2.206, which are the mean depths 10, 1, 0.1, 0.01 and 0.001 m spanning Peixoto et al. 2018 Fig. 3 (section 5.1, p. 7) under its u0 = 2 pi a/(12 x 86400 s), g = 9.80616 m s^-2, Omega = 7.292e-5 s^-1 and a = 6.371e6 m (section 4, p. 5) on its 240 km grid (section 5.1, p. 5); and R_u at 2.206, 4.412, 8.825 and 17.65 with F_u at 12.33, which are its 240, 120, 60 and 30 km grids at 1 m depth (section 5.3, p. 10)"
 verdict_kind = "fail_bar"
-threshold = "provisional; no growth"
+threshold = "provisional; at every point of the bracket the dominant mode's sigma/f_0 not above the power method's resolution of zero growth, whose derivation from the method's convergence is fixed at registration (positive control: the same bracket with the kinetic energy taken at cells alone on the tangential reconstruction the core uses, neither the blended kinetic energy nor the density-weighted mass matrix in place, the vorticity non-depth-weighted and the filter's coefficient at zero, the discretisation without any remedy of the Hollingsworth ladder; the cell kinetic energy grows in this test in non-depth-weighted form on the icosahedral grid (Peixoto et al. 2018, section 5.1, pp. 8-9, and Table 1, p. 15), and the triangle C-grid core is among the least stable across these depths (Lapolli et al. 2023, section 4.5.1, p. 32); the control must show sigma/f_0 above that resolution at one point of the bracket at least, and a control that does not makes the configuration wrong, which is corrected here before any arm is judged)"
 provisional = true
 registered_at = ""
 holdout = false
-anchors = []
+anchors = ["Numerical instabilities of spherical shallow-water models considering small equivalent depths", "Numerical instabilities of vector-invariant momentum equations on rectangular C-grids", "An internal symmetric computational instability", "Accuracy and stability analysis of horizontal discretizations used in unstructured grid ocean models"]
+
+[[oracle]]
+id = "core.fsphere_normal_modes"
+tier = 1
+subsystem = "atmosphere"
+dataset_or_reference = "identity; Numerical representation of geostrophic modes on arbitrarily structured C-grids, section 4.5"
+statistic = "the normal modes of the shallow-water equations linearised about rest on the f-sphere, the spherical production mesh at the production level with the Coriolis parameter constant (Thuburn et al. 2009, section 4.3, p. 8330), taken as the eigenvalues of the discrete linear operator with the tangential reconstruction and the divergence the core uses: the count of modes of zero frequency, the count of modes of non-zero frequency, and every frequency in units of f. Configuration, in dimensionless groups: the Rossby deformation radius over the radius sqrt(Phi_0)/(f a) = 0.3403, the source's f = 1.4584e-4 s^-1, Phi_0 = 1e5 m^2 s^-2 and a = 6371220 m (section 4.4, p. 8331), which section 4.5, p. 8332, carries to the triangular geodesic grid"
+verdict_kind = "fail_bar"
+threshold = "exact counts and a zero tolerance that is provisional: exactly V modes of zero frequency and exactly 2C - 2 of non-zero frequency, V and C the production mesh's vertex and cell counts, V being the V - 1 vorticity degrees of freedom and the constant-geopotential mode and 2C - 2 being the C mass and C - 1 divergence degrees of freedom less that mode (Thuburn et al. 2009, section 4.4, p. 8331, as section 4.5, p. 8332, applies it to the triangular geodesic grid); every geostrophic frequency zero (section 4.5, p. 8332, and Fig. 10, p. 8333), so that more than V modes of zero frequency, which a non-geostrophic mode of zero frequency at the shortest resolved scale gives (Gassmann 2011, section 7.2, p. 2717), and fewer than V are both outside the bar; zero decided to a tolerance derived from floating point and the eigensolver's backward error, the derivation fixed at registration (positive control: the same modes with the tangential velocity at each edge built by projecting the normal velocities of neighbouring edges onto its tangential direction, whose geostrophic frequencies are not zero (Thuburn et al. 2009, section 4.5, p. 8332, and Fig. 11, p. 8334), and which must give fewer than V modes of zero frequency)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = ["Numerical representation of geostrophic modes on arbitrarily structured C-grids", "Inspection of hexagonal and triangular C-grid discretizations of the shallow water equations"]
 
 [[oracle]]
 id = "core.laplacian_eigenvalues"

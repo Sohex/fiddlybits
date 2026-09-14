@@ -12,6 +12,10 @@ using Fiddlybits
 # named, a clause of an instrument's definition carried by a row, and an instrument
 # parameter that does not equal the constant it names. One dirty fixture per clause,
 # each raising exactly the problems its entry states, and one clean fixture raising none.
+# Verdict_kind membership, a tier 3 row naming no protocol, a protocol named but not
+# declared, a row id used twice, and a [[protocol]] entry's own shape are src/Oracles/
+# registry.jl's loader's clauses; Wellformed.problems reads them through
+# Wellformed.loader_problems rather than deciding them again.
 
 include("wellformed.jl")
 
@@ -36,13 +40,12 @@ const WELLFORMED_CONTROLS = (
     (case = "undefined_verdict_kind",            count = 1, phrase = "is not one of fail_bar, report"),
     (case = "no_threshold",                      count = 1, phrase = "no threshold to read its verdict shape from"),
     (case = "protocol_system_field",             count = 1, phrase = "carries protocol_system"),
-    (case = "tier3_without_protocol",            count = 1, phrase = "a tier 3 row with no protocol"),
+    (case = "tier3_without_protocol",            count = 1, phrase = "a tier 3 entry names no protocol"),
     (case = "tier2_with_protocol",               count = 1, phrase = "a tier 2 row names protocol"),
     (case = "absent_protocol",                   count = 1, phrase = "which is not declared"),
     (case = "unnamed_protocol",                  count = 1, phrase = "a protocol no row names"),
     (case = "duplicate_protocol",                count = 1, phrase = "protocol id is used more than once"),
-    (case = "protocol_without_normalisation",    count = 1, phrase = "a protocol with no normalisation"),
-    (case = "duplicate_row_id",                  count = 1, phrase = "row id is used more than once"),
+    (case = "duplicate_row_id",                  count = 1, phrase = "entry id is used more than once"),
     (case = "absent_dependency",                 count = 1, phrase = "which is not a row"),
     (case = "restated_dependency_threshold",     count = 1, phrase = "a row states no bar of a row it depends on"),
     (case = "dependency_named_in_prose",         count = 1, phrase = "a row names another row only in depends_on"),
@@ -59,6 +62,16 @@ const WELLFORMED_CONTROLS = (
     (case = "instrument_parameters_not_numbers", count = 2, phrase = "stating a number"),
     (case = "row_named_in_instrument_definition", count = 1, phrase = "an instrument names no row"),
     (case = "verdict_named_in_instrument_definition", count = 1, phrase = "definition names the verdict PASS"),
+)
+
+"""
+Each dirty fixture raising more than one distinct phrase, once per problem it must
+raise (`Oracles.problems`, read through `Wellformed.loader_problems`, raises the shape
+of the protocol table and the row's undeclared reference to it together).
+"""
+const WELLFORMED_MULTI_PHRASE_CONTROLS = (
+    (case = "protocol_without_normalisation",
+     phrases = ("protocol carries no normalisation", "names protocol ape, which is not declared")),
 )
 
 "Each fixture whose instrument parameters disagree with `InstrumentCode`, how many problems it raises, and their phrase."
@@ -115,6 +128,13 @@ const PARAMETER_CONTROLS = (
         length(problems) == c.count || @info "$(c.case) raised" problems
     end
 
+    @testset "registry_wellformed: positive control $(c.case) is refused" for c in WELLFORMED_MULTI_PHRASE_CONTROLS
+        problems = wellformed_found(c.case)
+        @test length(problems) == length(c.phrases)
+        @test all(p -> any(m -> occursin(p, m.reason), problems), c.phrases)
+        length(problems) == length(c.phrases) || @info "$(c.case) raised" problems
+    end
+
     @testset "registry_wellformed: positive control $(c.case) is refused" for c in PARAMETER_CONTROLS
         @test isempty(wellformed_found(c.case))
         problems = Wellformed.parameter_problems(wellformed_path(c.case), InstrumentCode)
@@ -123,3 +143,6 @@ const PARAMETER_CONTROLS = (
         length(problems) == c.count || @info "$(c.case) raised" problems
     end
 end
+
+# oracles.registry_wellformed (the loader and anchor clauses) and oracles.registration_rule.
+include("registry.jl")
