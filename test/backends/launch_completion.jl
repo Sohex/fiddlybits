@@ -9,8 +9,10 @@ using Fiddlybits.Verdicts: Refusal
 # docs/plans/fiddlybits-52v.7-kernels.md, section "The device layer", and
 # decision 0038 on stages that are not separated by a barrier.
 #
-# The checks below are timing checks and a race demonstration, because that is
-# what the property is. They run one work item over a spin whose length is a
+# Most of the checks below are timing checks and a race demonstration; the
+# testset that decides a read through Backends.on instead reads a handoff
+# event's completion flag and the values Backends.on returns, never a clock.
+# They run one work item over a spin whose length is a
 # runtime argument, so the loop cannot be folded away: the kernel adds 1.0 to
 # an accumulator `spins` times, which is exactly Float64(spins) for every
 # `spins` below 2^53, and writes src[i] + that.
@@ -143,20 +145,18 @@ end
         src = Backends.on(fill(1.0, n), gpu)
         expected = fill(1.0 + Float64(spins), n)
 
-        whole = elapsed() do
-            Backends.launch!(spin_write_kernel!, gpu, n, out, src, spins)
-            Backends.complete!(gpu)
-        end
+        # outstanding reads the kernel's own handoff event's completion flag,
+        # recorded right after the launch and read once, before the read
+        # through Backends.on runs.
+        Backends.launch!(spin_write_kernel!, gpu, n, out, src, spins)
+        point = Backends.handoff(gpu)
+        outstanding = !CUDA.isdone(point.event)
 
-        read_back = nothing
-        t_read = elapsed() do
-            Backends.launch!(spin_write_kernel!, gpu, n, out, src, spins)
-            read_back = Backends.on(out, cpu)
-        end
+        read_back = Backends.on(out, cpu)
 
+        @test outstanding
         @test read_back == expected
         @test read_back != fill(SPIN_SENTINEL, n)
-        @test t_read > whole / 2
 
         @testset "positive control: a read with no ordering sees the unfinished write" begin
             # The copy below is issued on a stream of its own with no
