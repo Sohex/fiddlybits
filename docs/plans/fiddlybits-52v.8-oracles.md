@@ -96,8 +96,9 @@ Registration, states its clauses; this is where it bites:
   declared `System`, from any run, store or test. A fixture a test constructs with its
   answer known, and a positive control's named break, are not model results.
 - `registered(entry)` holds when `registered_at` names a commit at which the entry's
-  `statistic`, `verdict_kind`, `threshold` and `holdout` equal the loaded ones, read
-  with git. An entry with an empty `registered_at`, or one that differs from that
+  `statistic`, `verdict_kind`, `threshold`, `holdout`, `form` and `pattern_entry` equal
+  the loaded ones, read with git (`form` and `pattern_entry` from decision 0025's
+  amendment of 2026-09-14, `fiddlybits-52v.8.23`). An entry with an empty `registered_at`, or one that differs from that
   commit, is unregistered.
 - `Fixture` is a type in `src/Oracles/registry.jl` that only `test/` constructs; the
   check parses `src/` and refuses a construction there.
@@ -111,8 +112,8 @@ Registration, states its clauses; this is where it bites:
   tier-2 or tier-3 entry registered again with its `anchors` and `datasets` unchanged,
   or in a commit touching `src/` or `notes/findings/`; an entry registered once as
   `report` and later as `fail_bar`; and a merge whose branch, diffed against its first
-  parent, changes an entry's threshold together with `src/` or a file holding the
-  testset named by that entry.
+  parent, changes an entry's threshold, `form` or `pattern_entry` together with `src/`
+  or a file holding the testset named by that entry.
 - A bar narrower than the observation's own uncertainty is refused at registration.
 - Every entry names its source kind and its anchors in `docs/references/INDEX.md`,
   and an anchor that is not `read` there is refused for a `Sourced` bar.
@@ -193,14 +194,28 @@ User decision 2026-09-14 (option B), raised on `fiddlybits-52v.8.3` and planned 
 - Each entry keeps one statistic, one `verdict_kind`, one bar and one set of anchors.
   The partner is judged by its own threshold and registered on its own; the scalar
   states no bar of it.
+- Rule 1: a `fail_bar` scalar names a `fail_bar` partner; a report scalar names a
+  partner of either kind. A report partner's threshold states from its source why no
+  bar exists, as every report entry's does.
+- Rule 2: `form` and `pattern_entry` are fixed at registration. They join the fields a
+  registered entry's `registered_at` commit must hold (decision 0025, amendment of
+  2026-09-13, clause (2)), and no merge on the mainline changes an entry's `form` or
+  `pattern_entry` together with `src/` or its testset, the clause (4) rule for a
+  threshold. A partner re-pointed after its scalar's value is seen chooses the
+  comparison with the value known.
+- Rule 3: a scalar and its partner share `holdout`, so no nightly shows a scalar with
+  its partner held out.
 - The loader refuses a tier-2 entry with no `form` or a `form` outside the closed set; a
   tier-2 scalar entry with no `pattern_entry`; a `pattern_entry` naming an id that is not
   an entry, an entry that is not tier 2, or an entry whose form is not `pattern`; a
+  `fail_bar` scalar naming a report partner; a pair whose `holdout` values differ; a
   pattern entry carrying `pattern_entry`; and a tier-1 or tier-3 entry carrying either
   key. These are loader clauses, so `oracles.registry_wellformed` reads them through
-  `Oracles.problems` and does not decide them a second time.
+  `Oracles.problems` and does not decide them a second time. Rule 2 is the registration
+  rule's, decided by `registered` and the history check.
 - A scalar whose metric has no published pattern spread either gets a partner with its
-  own sourced bar, or leaves tier 2.
+  own sourced bar, or leaves tier 2. A tier move is a change to an existing entry, so it
+  merges registry-only, apart from code.
 - `pattern_entry` is not `depends_on` (decision 0054). A dependency is a constituent a
   row's verdict rests on; a scalar's verdict does not rest on its partner's, which is
   shown beside it.
@@ -224,19 +239,23 @@ The rows land in the order the registration rule sets, registry data before the 
 that decides it, with one row ahead of both. The loader refuses a key that is not a
 registry field, so `form` and `pattern_entry` are admitted as typed keys with no
 condition (`fiddlybits-52v.8.13`) before the registry-only merge writes them
-(`fiddlybits-52v.8.14`). The partner entries follow (`fiddlybits-52v.8.15` to
-`fiddlybits-52v.8.20`), the conditions land once the tree satisfies them
+(`fiddlybits-52v.8.14`). Rule 2 needs only those keys on `Entry` and follows
+`fiddlybits-52v.8.13` directly (`fiddlybits-52v.8.23`). The partner entries and the
+tier moves follow the registry merge (`fiddlybits-52v.8.15` to `fiddlybits-52v.8.20`),
+each registry-only; the loader's conditions land once the tree satisfies them
 (`fiddlybits-52v.8.21`), and the report reads them last (`fiddlybits-52v.8.22`).
 
 #### Classification
 
 The form each tier-2 entry declares, read from its statistic, and for each scalar the
-partner it names: an existing entry, or one to be created by the row given.
+partner it names (an existing entry, or one to be created by the row given) or the
+tier it moves to. An entry that moves carries `form = "scalar"` from
+`fiddlybits-52v.8.14` until its move removes it.
 
 | id | form | pattern partner |
 | --- | --- | --- |
 | `earth.ceres_clear_sky_olr_zonal` | pattern | |
-| `earth.ceres_toa_balance` | scalar | `earth.ceres_toa_zonal`, to create (52v.8.15) |
+| `earth.ceres_toa_balance` | scalar | none; moves to tier 1 as an energy-conservation criterion (52v.8.15) |
 | `earth.ceres_global_means` | scalar | `earth.ceres_toa_zonal`, to create (52v.8.15) |
 | `earth.ceres_cre_zonal` | pattern | |
 | `earth.era5_zonal_temperature` | pattern | |
@@ -260,7 +279,7 @@ partner it names: an existing entry, or one to be created by the row given.
 | `earth.fluxnet_gpp` | pattern | |
 | `earth.snow_cover_extent` | pattern | |
 | `earth.sea_ice_extent` | pattern | |
-| `earth.rgi_glacier_area` | scalar | `earth.rgi_glacier_area_by_region`, to create (52v.8.18) |
+| `earth.rgi_glacier_area` | scalar | none; leaves tier 2, for tier 3 or removal as its sources decide (52v.8.18) |
 | `earth.woa_sst_zonal` | pattern | |
 | `earth.woa_salinity_sections` | pattern | |
 | `earth.mld_by_basin` | pattern | |
@@ -270,7 +289,7 @@ partner it names: an existing entry, or one to be created by the row given.
 | `earth.dust_aod` | scalar | `earth.dust_aod_by_region`, to create (52v.8.17) |
 | `earth.dust_emission` | scalar | `earth.dust_emission_by_region`, to create (52v.8.17) |
 | `earth.global_surface_temperature` | scalar | `earth.era5_zonal_temperature`, exists |
-| `earth.ecs_report` | scalar | `earth.warming_pattern_2xco2`, to create (52v.8.19) |
+| `earth.ecs_report` | scalar | none; moves to tier 3 as a published spread (52v.8.19) |
 | `terrain.hypsometry_scale_matched` | pattern | |
 | `terrain.hypsometry_profile` | pattern | |
 | `terrain.channel_concavity` | scalar | `terrain.channel_concavity_by_basin`, to create (52v.8.20) |
@@ -289,54 +308,59 @@ because its structure is already judged with the total. A partner is the scalar'
 quantity with its structure kept, so `earth.global_surface_temperature` names the zonal
 temperature section rather than a sea-surface or land entry.
 
-The partners to create, each with the pattern statistic it judges and what the
-scalar's anchors and `docs/references/INDEX.md` hold of a published spread of it:
+The partners to create, each with the pattern statistic it judges, the source its bar
+is read from, and the verdict kind rule 1 allows it. No bar is proposed here; each is
+taken from its source by the row. Every partner's `holdout` is its scalar's.
 
-| partner | for | pattern statistic | published pattern spread known | row |
-| --- | --- | --- | --- | --- |
-| `earth.ceres_toa_zonal` | `earth.ceres_toa_balance`, `earth.ceres_global_means` | zonal-mean all-sky OLR, reflected SW, absorbed SW and net TOA flux against CERES EBAF | none: the CERES EBAF product paper is held and states the observation's uncertainty, not a model's residual | 52v.8.15 |
-| `earth.amoc_overturning_profile` | `earth.amoc_strength` | the vertical profile of overturning transport at 26 N, its depth of maximum and deep return transport, against the RAPID array | none: the RAPID paper is held and observational; the OMIP paper held is the protocol, not its results | 52v.8.16 |
-| `earth.marine_npp_zonal` | `earth.marine_npp` | zonal-mean marine net primary productivity by season against the satellite compilations | none: the satellite NPP algorithm paper is held and is one algorithm | 52v.8.16 |
-| `earth.dust_aod_by_region` | `earth.dust_aod` | dust aerosol optical depth by source and outflow region | a candidate held and not read for it: Global dust model intercomparison in AeroCom phase I | 52v.8.17 |
-| `earth.dust_emission_by_region` | `earth.dust_emission` | dust emission per source region | the same candidate, held and not read for it | 52v.8.17 |
-| `earth.rgi_glacier_area_by_region` | `earth.rgi_glacier_area` | glacier area outside the ice sheets per RGI first-order region, against RGI 7.0 | none: RGI 7.0 and the inventory paper are held and observational | 52v.8.18 |
-| `earth.warming_pattern_2xco2` | `earth.ecs_report` | zonal-mean equilibrium surface warming per unit of global-mean warming, and the land to ocean warming ratio, at doubled CO2 | none: the climate-sensitivity assessment is held and not read for a warming pattern | 52v.8.19 |
-| `terrain.channel_concavity_by_basin` | `terrain.channel_concavity` | the distribution of concavity fitted per basin | none: the stream-gradient paper is held | 52v.8.20 |
-| `terrain.drainage_density_by_basin` | `terrain.drainage_density` | the distribution of drainage density across basins at matched scale, one channel-definition operator on both terrains | none: the HydroSHEDS paper is held and is a dataset | 52v.8.20 |
-| `terrain.endorheic_share_by_latitude` | `terrain.endorheic_share` | the internally drained share of land per latitude band | none: the endorheic-storage paper is read for the global share only | 52v.8.20 |
-| `terrain.hack_exponent_by_basin` | `terrain.hack_exponent` | the distribution of the Hack exponent fitted per major basin | none: the Hack paper is held | 52v.8.20 |
+| partner | for | pattern statistic | source | kind | row |
+| --- | --- | --- | --- | --- | --- |
+| `earth.ceres_toa_zonal` | `earth.ceres_global_means` (report) | zonal-mean all-sky OLR, reflected SW, absorbed SW and net TOA flux against CERES EBAF | the CERES EBAF zonal-mean uncertainty, from the EBAF data-product paper (held; read by the row) | `fail_bar` | 52v.8.15 |
+| `earth.amoc_overturning_profile` | `earth.amoc_strength` (report) | the vertical profile of overturning transport at 26 N, its depth of maximum and deep return transport, against the RAPID array | the RAPID overturning profile, Moat et al. 2020 (held; read by the row) | either, as the source states a spread or not | 52v.8.16 |
+| `earth.marine_npp_zonal` | `earth.marine_npp` (report) | zonal-mean marine net primary productivity by season against the satellite compilations | a published intercomparison of satellite NPP algorithms, whose spread is the bar (open access; fetched by the row) | `fail_bar` | 52v.8.16 |
+| `earth.dust_aod_by_region` | `earth.dust_aod` (`fail_bar`) | dust aerosol optical depth by source and outflow region | the regional inter-model spread of AeroCom phase I, Huneeus et al. 2011 (held; read by the row) | `fail_bar` | 52v.8.17 |
+| `earth.dust_emission_by_region` | `earth.dust_emission` (`fail_bar`) | dust emission per source region | the same paper's regional spread of emission | `fail_bar` | 52v.8.17 |
+| `terrain.channel_concavity_by_basin` | `terrain.channel_concavity` (`fail_bar`) | the distribution of concavity fitted per basin | a published per-basin distribution of concavity (found by the row) | `fail_bar` | 52v.8.20 |
+| `terrain.drainage_density_by_basin` | `terrain.drainage_density` (`fail_bar`) | the distribution of drainage density across basins at matched scale, one channel-definition operator on both terrains | a published per-basin distribution of drainage density (found by the row) | `fail_bar` | 52v.8.20 |
+| `terrain.endorheic_share_by_latitude` | `terrain.endorheic_share` (report) | the internally drained share of land per latitude band | a published per-latitude-band distribution of the endorheic share (found by the row) | either | 52v.8.20 |
+| `terrain.hack_exponent_by_basin` | `terrain.hack_exponent` (report) | the distribution of the Hack exponent fitted per major basin | a published per-basin distribution of the Hack exponent (found by the row) | either | 52v.8.20 |
 
-No bar is proposed for any of them. For every scalar whose partner has no known source,
-and for the two dust scalars should their candidate state no regional spread, the
-option is the user's: a source to find, which the row searches for and reads, or the
-scalar leaving tier 2. The entry's own record bears on that choice in three cases:
-`earth.ceres_toa_balance` is an equilibration criterion reported as a distance, whose
-dimensionless form decision 0023 reads; `earth.rgi_glacier_area` is sub-grid on a
-terrain that is not Earth's, which a regional breakdown inherits; `earth.ecs_report` is
-the response to a perturbation rather than a climatology. Each partner row stops blocked
-on a scalar it finds no source for and carries the user's decision when it is given.
+A partner row whose named source states no spread for a partner that needs a bar stops
+blocked and names that scalar for the user.
 
-#### Raised for the user
+#### Decisions of 2026-09-14
 
-Three questions the decision leaves open. Each changes a row that is blocked until
-`fiddlybits-52v.8.14` merges, so an answer amends that row before it starts.
+The user answered the questions this plan raised, and decided each scalar that had no
+known pattern source.
 
-1. Whether a partner of `verdict_kind` report discharges "a partner with its own sourced
-   bar". The rows read it strictly: a partner to create is `fail_bar` with a bar from a
-   read source. Admitting a report partner would let a report scalar
-   (`earth.ceres_global_means`, `earth.amoc_strength`, `earth.marine_npp`,
-   `earth.rgi_glacier_area`, `earth.ecs_report`, `terrain.endorheic_share`,
-   `terrain.hack_exponent`) be read beside its pattern with no bar invented for either,
-   and would let a `fail_bar` scalar pass while its compensation is only recorded. The
-   hybrid is a clause that a `fail_bar` scalar names a `fail_bar` partner and a report
-   scalar names either.
-2. Whether `form` and `pattern_entry` join the fields a registration fixes. Without
-   them, a registered scalar's partner can be re-pointed after its value is seen, which
-   chooses the comparison with the value known; with them, re-pointing unregisters the
-   scalar, as an edited threshold does.
-3. Whether a scalar that is not hold-out may name a hold-out partner. If it may, the
-   nightly shows that scalar with its partner not evaluated, which is a global mean read
-   alone; if it may not, the loader refuses the pair.
+1. A `fail_bar` scalar names a `fail_bar` partner; a report scalar names a partner of
+   either kind (rule 1).
+2. `form` and `pattern_entry` are fixed at registration, and no mainline merge changes a
+   registered entry's `form` or `pattern_entry` together with `src/` or its testset,
+   the same rule as for a threshold (rule 2, `fiddlybits-52v.8.23`).
+3. A scalar and its partner share hold-out status, and the loader refuses a pair whose
+   `holdout` values differ (rule 3).
+4. `earth.ceres_toa_balance` moves to tier 1 as an energy-conservation criterion, with
+   `source_kind` conservation and its statistic unchanged, and takes no partner
+   (`fiddlybits-52v.8.15`). Decision 0023 names it as a tier-2 bar and is amended by
+   that row. A tier-1 threshold is an exact identity or a tolerance whose derivation it
+   states, fixed by the plan row before the implementation row; the derivation of this
+   entry's tolerance is carried by `fiddlybits-caz.1`, the coupled-Earth plan row.
+5. `earth.ceres_global_means` takes `earth.ceres_toa_zonal`, whose bar is the CERES EBAF
+   zonal-mean uncertainty (`fiddlybits-52v.8.15`).
+6. `earth.ecs_report` moves to tier 3 as a published spread, anchored to the
+   climate-sensitivity assessment, and no warming-pattern partner is created
+   (`fiddlybits-52v.8.19`). A tier-3 entry names a protocol, so that row declares one
+   from the assessment.
+7. `earth.rgi_glacier_area` leaves tier 2; its row decides from its sources between tier
+   3 and removal and reports the choice (`fiddlybits-52v.8.18`). Its manifest names it
+   alone, so a removal settles the manifest in the same row.
+8. `earth.amoc_strength` and `earth.marine_npp` take the RAPID profile and a satellite
+   NPP algorithm intercomparison (`fiddlybits-52v.8.16`); the dust scalars take the
+   regional spread of AeroCom phase I (`fiddlybits-52v.8.17`); the four terrain scalars
+   take published per-basin or per-latitude-band distributions (`fiddlybits-52v.8.20`).
+
+Every tier move is a change to an existing registry entry, so it merges registry-only,
+apart from code, before the loader's conditions.
 
 ### The mutation run
 
@@ -363,7 +387,7 @@ Three entries are added for the frame itself, plus `repro.mutation_run` which ex
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
 | `oracles.registry_wellformed` | every entry parses, carries every required field including a closed `source_kind`, satisfies its conditional fields, has anchors if it is tier 2 or 3, and every anchor resolves in the references index; every entry carries one verdict semantics and names no verdict in prose, and every protocol is declared once and named (decision 0053); every `depends_on` id resolves to a row on the same tier or a lower one without a cycle, no row id is named in prose, and no row carries a clause of a dependency's threshold (decision 0054); every tier-2 entry declares a `form` from the closed set and every tier-2 scalar entry names in `pattern_entry` a tier-2 entry of form pattern (The form of a tier-2 entry) | a row with a missing `threshold`, a tier-1 `system.*` row with no `instances`, and a tier-2 row with empty anchors, all of which must be refused rather than skipped; a row mixing an exact identity and a report under one bar, which must be refused; a row depending on an absent row and a row restating a dependency's threshold, both of which must be refused; a tier-2 row with no `form`, and a tier-2 scalar row naming no partner or a partner that is absent, not tier 2 or not a pattern, each refused; one fixture for each remaining verdict-shape, dependency and form clause, and a clean fixture that must be accepted |
-| `oracles.registration_rule` | a bar is fixed before the value it judges has been seen: `admits` refuses an unregistered entry's value on a model result; an entry counted registered is what its `registered_at` commit holds; no re-registration, `report` to `fail_bar` change, merge or `Fixture` construction the clauses of The registration rule as a build check refuse; no bar is narrower than its observation's uncertainty | `admits` handed an unregistered fixture entry and a model result, which must refuse the value, and the same entry and a `Fixture`, which must admit it; one fixture for each remaining clause, each with the accepted twin its clause names; a fixture bar set below a stated observational uncertainty, which must be refused |
+| `oracles.registration_rule` | a bar is fixed before the value it judges has been seen: `admits` refuses an unregistered entry's value on a model result; an entry counted registered is what its `registered_at` commit holds, `form` and `pattern_entry` included; no re-registration, `report` to `fail_bar` change, merge or `Fixture` construction the clauses of The registration rule as a build check refuse; no bar is narrower than its observation's uncertainty | `admits` handed an unregistered fixture entry and a model result, which must refuse the value, and the same entry and a `Fixture`, which must admit it; one fixture for each remaining clause, each with the accepted twin its clause names; a fixture bar set below a stated observational uncertainty, which must be refused |
 | `oracles.dataset_links` | every manifest id in an entry's `datasets` resolves to a manifest that names the entry back in `oracles`; every entry a manifest names exists and names the manifest back; every tier-2 and tier-3 entry carries `datasets`; every oracle manifest names an entry; no manifest anchor carries an oracle id | a fixture row naming an absent manifest and a fixture manifest naming an absent oracle, both refused, with one fixture for each remaining clause and a clean fixture that must pass |
 | `repro.mutation_run` | every mutation in the list is caught by at least one oracle | the list itself is the control; a mutation nothing catches files a row and the suite is not green |
 
@@ -386,14 +410,15 @@ first real check finding 47 published bars with no source is the check working.
 | 52v.8.5 | sonnet | none; re-pointed | the M0 Earth derived-quantity question is `system.derived_fields_reproduce`, carried by `fiddlybits-52v.4.5` on all five instances; this row closes as superseded rather than writing a second oracle for it |
 | fiddlybits-3vq | frontier | `docs/oracles/registry.toml`, `docs/oracles/README.md`, `docs/oracles/data/`, `docs/inputs/`, `docs/references/INDEX.md`, this plan, `test/datasets/` | every tier-2 and tier-3 entry carries `datasets`; every link resolves in both directions; `earth.sea_ice_extent_cycle` corrected; `oracles.dataset_links` passes on the tree with every control refused |
 | 52v.8.13 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl` | `form` and `pattern_entry` are registry fields carried on `Entry` with no conditional clause: a tier-2 fixture entry carrying both loads and one carrying neither loads; controls refused with their phrases: `form` not a string, `pattern_entry` not a string, a key spelt `forms`; `Oracles.problems` on the tree unchanged |
-| 52v.8.14 | local | `docs/oracles/registry.toml` | every tier-2 entry carries the `form` of the classification table and no other tier carries either key; the three scalars with an existing partner name it; no existing threshold changes, shown by a field-by-field comparison of the loaded entries against main with its control (one threshold edited in a scratch copy is reported); `oracles.registry_wellformed`, `oracles.dataset_links` and `oracles.registration_rule`'s tree verdicts pass |
-| 52v.8.15 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md`, decision 0023's Amendments (only on a leave-tier-2 decision) | `earth.ceres_toa_zonal` created `fail_bar` on a read source with a sourced bar and named by both CERES scalars, or the user's decision that a scalar leaves tier 2 recorded and carried; no existing threshold changes, with the control above; the three tree oracles pass; a scratch listing of scalars with no partner names neither CERES scalar, and names both on main |
-| 52v.8.16 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md` | as 52v.8.15, for `earth.amoc_overturning_profile` and `earth.marine_npp_zonal` |
-| 52v.8.17 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md` | as 52v.8.15, for `earth.dust_aod_by_region` and `earth.dust_emission_by_region` |
-| 52v.8.18 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md`, `docs/oracles/data/rgi-v7.toml` (its `oracles` key) | as 52v.8.15, for `earth.rgi_glacier_area_by_region` |
-| 52v.8.19 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md` | as 52v.8.15, for `earth.warming_pattern_2xco2` |
-| 52v.8.20 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md`, `docs/oracles/data/etopo2022.toml` (its `oracles` key), decisions 0053 and 0054's Amendments (only on a leave-tier-2 decision) | as 52v.8.15, for the four terrain partners |
-| 52v.8.21 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl`, `test/oracles/fixtures/` (a tier-2 fixture row's `form` only) | the clean fixture with a scalar and its pattern partner loads and `pattern_partner` resolves it; controls refused with their phrases, each shown to fail with its clause removed: a tier-2 entry with no `form`, a `form` outside the closed set, a scalar with no `pattern_entry`, a partner that is not an entry, a partner on tier 1, a partner of form scalar, a pattern entry carrying `pattern_entry`, a tier-1 entry carrying `form`, a tier-3 entry carrying `pattern_entry`; a malformed partner refuses the whole registry; `Oracles.problems` on the tree is empty |
+| 52v.8.14 | local | `docs/oracles/registry.toml` | every tier-2 entry carries the `form` of the classification table and no other tier carries either key; the three scalars with an existing partner name it, each pair sharing `holdout` and `fail_bar` on both sides, with a scratch listing and its control (one holdout flipped is named); no existing threshold or holdout changes, shown by a field-by-field comparison of the loaded entries against main with its control (one threshold edited in a scratch copy is reported); registry-only, touching nothing under `src/` or `test/`; `oracles.registry_wellformed`, `oracles.dataset_links` and `oracles.registration_rule`'s tree verdicts pass |
+| 52v.8.15 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md`, decision 0023's Amendments | `earth.ceres_toa_balance` is tier 1 with `source_kind` conservation, no `form`, and its statistic, verdict kind, threshold, holdout, anchors and datasets unchanged, decision 0023 amended; `earth.ceres_toa_zonal` created `fail_bar` with its bar the CERES EBAF zonal-mean uncertainty from the read paper, `holdout` its scalar's, and named by `earth.ceres_global_means`; no other change, with the comparison control; registry-only, touching nothing under `src/` or `test/`; the three tree oracles pass; the scratch listings of unpartnered scalars and of mismatched pairs name none of this row's, with their controls |
+| 52v.8.16 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md` | as 52v.8.15's partner, for `earth.amoc_overturning_profile` on the read RAPID paper (either kind) and `earth.marine_npp_zonal` `fail_bar` on the fetched NPP algorithm intercomparison's spread |
+| 52v.8.17 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md` | as 52v.8.15's partner, for `earth.dust_aod_by_region` and `earth.dust_emission_by_region`, both `fail_bar` on the read AeroCom phase I regional spread |
+| 52v.8.18 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md`, `docs/oracles/data/rgi-v7.toml` | `earth.rgi_glacier_area` is not tier 2: tier 3 with `source_kind` published spread, a declared protocol it names and read anchors, statistic unchanged; or removed, its manifest settled and `oracles.dataset_links` passing; the choice and its reason in the notes; no other change, with the comparison control; registry-only; the three tree oracles pass |
+| 52v.8.19 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md` | `earth.ecs_report` is tier 3 with `source_kind` published spread, anchored to the read climate-sensitivity assessment, naming a protocol declared once from that assessment, no `form`, statistic, verdict kind, threshold and holdout unchanged; no other change, with the comparison control; registry-only; the three tree oracles pass |
+| 52v.8.20 | frontier | `docs/oracles/registry.toml`, `docs/references/INDEX.md`, `docs/references/REQUESTS.md`, `docs/oracles/data/etopo2022.toml` (its `oracles` key, where a partner reads it) | as 52v.8.15's partner, for the four terrain partners on read per-basin and per-latitude-band distributions, the partners of the two `fail_bar` scalars `fail_bar` |
+| 52v.8.21 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl`, `test/oracles/fixtures/` (a tier-2 fixture row's `form` only) | the clean fixture with a `fail_bar` scalar and its `fail_bar` pattern partner of equal holdout loads and `pattern_partner` resolves it; controls refused with their phrases, each shown to fail with its clause removed: a tier-2 entry with no `form`, a `form` outside the closed set, a scalar with no `pattern_entry`, a partner that is not an entry, a partner on tier 1, a partner of form scalar, a pattern entry carrying `pattern_entry`, a tier-1 entry carrying `form`, a tier-3 entry carrying `pattern_entry`, a `fail_bar` scalar naming a report partner (twins: a report scalar naming either kind loads), a pair whose `holdout` differs in either direction (twin: both hold-out loads); a malformed partner refuses the whole registry; `Oracles.problems` on the tree is empty |
+| 52v.8.23 | sonnet | `src/Oracles/registry.jl`, `test/oracles/registry.jl` | `REGISTERED_FIELDS` carries `form` and `pattern_entry`: an entry whose `form` or `pattern_entry` differs from its `registered_at` commit is unregistered; the history check refuses a mainline merge, and a branch judged as its own merge, changing `form` together with `src/` and `pattern_entry` together with the entry's testset, each beside a registry-only twin that is accepted; a listed exception accepts such a merge and an unmatched one is stale; each control shown to fail with the two fields left out; the tree's verdicts record no problem |
 | 52v.8.22 | sonnet | `src/Oracles/run.jl`, `test/oracles/run.jl` | the report shows a fixture scalar's line followed by its partner's, labelled; controls: a report omitting the partner line fails, a partner with no result shows as not evaluated and a report dropping it fails, a scalar PASS beside a partner FAIL reports both unchanged and a report folding them fails; one oracle event per admitted run and none for a partner line; a `Payload` given a pattern keyword is refused |
 | 52v.8.6 | sonnet | none; reports only | all four oracles ran; verdicts by name |
 
@@ -402,6 +427,9 @@ verify row depends on 52v.8.7. The mutation row depends on every other area's
 verify row, because a mutation run over a suite that does not yet exist measures
 nothing.
 
-The pattern rows (`fiddlybits-zar`): 52v.8.14 depends on 52v.8.13; 52v.8.15 to
-52v.8.20 depend on 52v.8.14; 52v.8.21 depends on 52v.8.13 to 52v.8.20; 52v.8.22
-depends on 52v.8.21 and 52v.8.3; the verify row depends on 52v.8.21 and 52v.8.22.
+The pattern rows (`fiddlybits-zar`): 52v.8.14 and 52v.8.23 depend on 52v.8.13;
+52v.8.15 to 52v.8.20 depend on 52v.8.14; 52v.8.21 depends on 52v.8.13 to 52v.8.20;
+52v.8.22 depends on 52v.8.21 and 52v.8.3; the verify row depends on 52v.8.21, 52v.8.22
+and 52v.8.23. 52v.8.23 is a row of its own under decision 0048, clause 4: the history
+check and its git fixture repositories are a second substantial piece of work beside
+52v.8.21's per-entry clauses, and it waits on none of the partner rows.

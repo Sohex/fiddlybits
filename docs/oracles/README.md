@@ -64,7 +64,7 @@ class has a residual to quote, the metric is REPORT.
   `System`, from any run, store or test. A fixture a test constructs with its answer
   known, and a positive control's named break, are not model results.
 - `registered_at` names a commit at which the entry's `statistic`, `verdict_kind`,
-  `threshold` and `holdout` are what they are now. An entry with an empty
+  `threshold`, `holdout`, `form` and `pattern_entry` are what they are now. An entry with an empty
   `registered_at`, or one that differs from that commit, is unregistered.
 - An unregistered entry executes its statistic on fixtures and positive controls. On
   a model result the runner establishes only whether the statistic evaluates and the
@@ -81,7 +81,8 @@ class has a residual to quote, the metric is REPORT.
   its id, which judges the implementation on every commit whether or not the entry is
   registered; its threshold is an exact identity or a tolerance whose derivation it
   states, fixed by the plan row before the implementation row, and no merge changes an
-  entry's threshold together with `src/` or a testset named by that entry.
+  entry's threshold, `form` or `pattern_entry` together with `src/` or a testset named
+  by that entry.
 - `oracles.registration_rule` decides each clause above (`test/oracles/`), reading
   git from the commit that carries decision 0025's amendment of 2026-09-13. The
   mainline is a declared ref, `refs/heads/main` or, when that does not resolve,
@@ -123,13 +124,21 @@ class has a residual to quote, the metric is REPORT.
   statistic is itself spatial, seasonal or class structure, or locates a feature of it;
   `scalar` when its statistic is one number over the whole domain. A scalar entry names
   in `pattern_entry` a tier-2 entry of form `pattern`, and no other entry carries that
-  key; no tier-1 or tier-3 entry carries either. Each entry keeps one statistic, one bar
+  key; no tier-1 or tier-3 entry carries either. A `fail_bar` scalar names a `fail_bar`
+  partner, and a report scalar names a partner of either kind; a scalar and its partner
+  share `holdout`; `form` and `pattern_entry` are fixed at registration with the fields
+  above. Each entry keeps one statistic, one bar
   and one set of anchors: the runner judges each against its own bar, and the distance
   report shows a scalar beside its partner, neither verdict changing the other. The
   loader refuses a tier-2 entry with no form or a form outside the closed set, a scalar
-  with no partner, and a partner that does not exist, is not tier 2 or is not of form
-  `pattern` (`src/Oracles/registry.jl`). A metric with no published pattern spread gets
-  a partner with its own sourced bar, or leaves tier 2. One entry carrying a scalar and a
+  with no partner, a partner that does not exist, is not tier 2 or is not of form
+  `pattern`, a `fail_bar` scalar with a report partner, and a pair whose `holdout`
+  differs (`src/Oracles/registry.jl`). A metric with no published pattern spread gets
+  a partner with its own sourced bar, or leaves tier 2; a tier move is a change to an
+  existing entry and merges registry-only, apart from code. By the user's decision of
+  2026-09-14, `earth.ceres_toa_balance` moves to tier 1 as an energy-conservation
+  criterion, `earth.ecs_report` to tier 3 as a published spread, and
+  `earth.rgi_glacier_area` leaves tier 2 for tier 3 or removal. One entry carrying a scalar and a
   pattern statistic with a bar each was weighed and lost, because registration, anchors
   and verdicts are per bar; so was a run-time check that a payload carries a pattern,
   which enforced nothing at load and judged a pattern with no bar of its own. The
@@ -208,4 +217,4 @@ never deleted.
 - 2026-09-13: the depends_on field, no entry id named in prose, and no clause of a dependency's threshold restated, from docs/decisions/0054-a-row-names-the-rows-it-rests-on.md.
 - 2026-09-13: the instrument table and field, no clause of an instrument's definition restated, and parameters checked against the constants they name, from docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md.
 - 2026-09-13: a bar is fixed before the value it judges is seen; what an unregistered entry executes; registration fixing statistic, verdict_kind, threshold and holdout; a later registration resting on a change of source; the tier-1 testset rule; hold-out membership fixed at registration, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-13).
-- 2026-09-14: every tier-2 entry declares form, pattern or scalar; a scalar names its tier-2 pattern partner in pattern_entry; one statistic and one bar per entry, the report showing a scalar beside its partner, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-14, fiddlybits-zar).
+- 2026-09-14: every tier-2 entry declares form, pattern or scalar; a scalar names its tier-2 pattern partner in pattern_entry; one statistic and one bar per entry, the report showing a scalar beside its partner; a fail_bar scalar's partner is fail_bar; form and pattern_entry fixed at registration; a pair shares holdout; earth.ceres_toa_balance to tier 1, earth.ecs_report to tier 3, earth.rgi_glacier_area out of tier 2, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-14, fiddlybits-zar).
