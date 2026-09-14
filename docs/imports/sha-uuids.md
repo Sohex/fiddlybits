@@ -27,7 +27,8 @@ alone, not on the site's position in any list.
 
 **Checklist items applied.** C5 (a key is computed in exactly one function; the
 ensemble draw key in `Backends.draw_key`). A changed digest or byte layout is caught
-by `certify.sampled_draw_is_unchanged`, which holds the stand-in case's envelope and
-its members bit for bit to the recorded finding, and `certify.sampled_draw_is_seeded`,
-which asserts a repeated seed repeats the draw, a changed seed changes it, and a
-site's key does not depend on the rest of the list or its order.
+by `test/certify/obligation.jl`, whose sampled_draw_is_unchanged testset holds the
+stand-in case's envelope and its members bit for bit to the recorded finding, and
+`test/certify/member_count.jl`, whose sampled_draw_is_seeded testset asserts a
+repeated seed repeats the draw, a changed seed changes it, and a site's key does
+not depend on the rest of the list or its order.

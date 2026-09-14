@@ -11,25 +11,58 @@ end
 Base.show(io::IO, p::Problem) = print(io, p.package, ": ", p.reason)
 
 """
+    named(project)
+
+Every name in `[deps]` and `[extras]` of the project file, whether the registry
+resolves it or Julia ships it. Extras are dependencies of the test target and
+carry the same review as the rest.
+"""
+function named(project::AbstractString)
+    p = TOML.parsefile(project)
+    return sort(collect(union(keys(get(p, "deps", Dict())), keys(get(p, "extras", Dict())))))
+end
+
+"""
     dependencies(project, manifest)
 
-The names in `[deps]` and `[extras]` of the project file that the resolved
-manifest records with a tree hash. A package Julia ships carries no tree hash and
-carries no import review either. Extras are dependencies of the test target and
-carry the same review as the rest.
+The names from `named(project)` that the resolved manifest records with a tree
+hash. A package Julia ships carries no tree hash and needs no import record of
+its own; `structural_problems` and `unresolved` still walk it, so a record that
+exists for one is held to its named checks the same as any other.
 
 The manifest is read rather than a list of shipped names, because the manifest is
 what the environment actually resolved.
 """
 function dependencies(project::AbstractString, manifest::AbstractString)
-    p = TOML.parsefile(project)
-    named = union(keys(get(p, "deps", Dict())), keys(get(p, "extras", Dict())))
     resolved = get(TOML.parsefile(manifest), "deps", Dict{String,Any}())
-    external = filter(named) do name
+    return filter(named(project)) do name
         entries = get(resolved, name, ())
         any(e -> haskey(e, "git-tree-sha1"), entries)
     end
-    return sort(collect(external))
+end
+
+"""
+    stdlib_names()
+
+Every package name Julia itself ships: the subdirectory names under
+`Sys.STDLIB`, the standard library folder of the running Julia.
+"""
+function stdlib_names()
+    return Set{String}(readdir(Sys.STDLIB))
+end
+
+"""
+    registered(project, manifest)
+
+The names from `named(project)` that need an import record: a `[deps]` name
+from `dependencies(project, manifest)`, union a `[extras]` name absent from
+`stdlib_names()`.
+"""
+function registered(project::AbstractString, manifest::AbstractString)
+    p = TOML.parsefile(project)
+    extras_names = Set{String}(keys(get(p, "extras", Dict())))
+    registered_extras = setdiff(extras_names, stdlib_names())
+    return sort(union(dependencies(project, manifest), registered_extras))
 end
 
 """
@@ -68,20 +101,25 @@ function oracle_ids(registry::AbstractString)
 end
 
 """
-    structural_problems(; project, imports)
+    structural_problems(; project, manifest, imports)
 
-Every dependency without a record, and every record that names no leak check at
-all. These are defects of the review itself and hold whatever the board's state.
-Reads the dependency list and looks for records, never the reverse: `imports`
-also holds records of packages that were surveyed and refused.
+One walk over every name `named(project)` lists. A name `registered(project,
+manifest)` names and that has no record is a problem; a name Julia ships
+needs no record of its own, so its absence is not. A record that exists,
+shipped name or not, is a problem if it names no leak check at all. These are
+defects of the review itself and hold whatever the board's state. Reads the
+dependency list and looks for records, never the reverse: `imports` also
+holds records of packages that were surveyed and refused.
 """
 function structural_problems(; project::AbstractString, manifest::AbstractString,
                                imports::AbstractString)
     found = Problem[]
     by_name = records(imports)
-    for pkg in dependencies(project, manifest)
+    shipped = setdiff(Set(named(project)), Set(registered(project, manifest)))
+    for pkg in named(project)
         path = get(by_name, pkg, nothing)
         if path === nothing
+            pkg in shipped && continue
             push!(found, Problem(pkg, "no record in " * imports))
         elseif isempty(named_checks(path))
             push!(found, Problem(pkg, "record " * path * " names no leak check"))
@@ -110,11 +148,13 @@ function problems(; project::AbstractString, manifest::AbstractString,
 end
 
 """
-    unresolved(; project, imports, registry, root)
+    unresolved(; project, manifest, imports, registry, root)
 
-The named checks that do not resolve yet, by package. A check written by an area
-row is absent until that row merges, which is a state of the board and not a
-defect, so it is reported separately from `problems`.
+The named checks that do not resolve yet, by package, walked once over every
+name `named(project)` lists that has a record: a shipped name with a record is
+held to its named checks the same as a registry name. A check written by an
+area row is absent until that row merges, which is a state of the board and
+not a defect, so it is reported separately from `problems`.
 """
 function unresolved(; project::AbstractString, manifest::AbstractString,
                       imports::AbstractString, registry::AbstractString,
@@ -122,7 +162,7 @@ function unresolved(; project::AbstractString, manifest::AbstractString,
     out = Dict{String,Vector{String}}()
     by_name = records(imports)
     ids = oracle_ids(registry)
-    for pkg in dependencies(project, manifest)
+    for pkg in named(project)
         path = get(by_name, pkg, nothing)
         path === nothing && continue
         missing = String[]
