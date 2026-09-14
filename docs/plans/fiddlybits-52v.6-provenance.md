@@ -279,16 +279,26 @@ it is what `provenance.write_order_independent` reads to show that its stages ra
 order.
 
 **A refusal found after `submit!` returned belongs to its submission, and `settle!`
-raises it.** These are found only late: a kernel fault on the producing stream,
-surfacing at the copy's handoff as `Backends.complete!` carries one; a `CellIds` entry
-outside its level, which `to_disk` finds in the data; a key another process stored
-between admission and rename, which `write_directory!` refuses; and a filesystem error
-writing or renaming the staging directory, carried as a `Verdicts.Refusal` from the disk
-stage whose reason holds the error's message. A late refusal marks its submission
-refused and every later submission discarded: nothing submitted after a refused write
-is committed, and the discarded staging directories are removed. The store after a
-refusal therefore holds every submission before the earliest refused one, whatever
-order the stages met their failures in. `settle!` waits on each submission's own state
+raises it.** These are found only late: a kernel fault on the producing stream, which
+`after!(CPU(), point)` does not raise, since neither form of `after!` reads CUDA's
+kernel-exception flag and the host holds what the faulted kernel left; a `CellIds`
+entry outside its level, which `to_disk` finds in the data; a key another process
+stored between admission and rename, which `write_directory!` refuses; and a
+filesystem error writing or renaming the staging directory, carried as a
+`Verdicts.Refusal` from the disk stage whose reason holds the error's message. A
+kernel fault is raised deterministically, at the settle point decision 0060 declares:
+`settle!` calls `Backends.complete!` on the task that submitted the write before it
+reads the submissions' states, and that call is where the fault surfaces, on the same
+task every run. CUDA's kernel-exception flag is one per context and cleared by the
+first read that finds it set, so a read of it anywhere else would let arrival order
+choose which task the fault is raised on, against decision 0029; `docs/imports/cuda.md`,
+section "Page-locked memory and the queued copy", carries the contract. A late refusal
+marks its submission refused and every later submission discarded: nothing submitted
+after a refused write is committed, and the discarded staging directories are removed,
+so the writes submitted after the faulting kernel are discarded exactly as any other
+late refusal's are. The store after a refusal therefore holds every submission before
+the earliest refused one, whatever order the stages met their failures in. `settle!`
+waits on each submission's own state
 and never on a byte count reaching zero, so a writer with no submissions settles at
 once. It returns when every submission made so far is committed, refused or discarded,
 and refuses naming the earliest-submitted refused write, its key and quantity, and how
