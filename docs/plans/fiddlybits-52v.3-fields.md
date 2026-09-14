@@ -4,7 +4,7 @@ title = "The typed field, the closed semantics vocabularies, the declared refusa
 decisions = ["0006", "0009", "0010", "0029", "0038"]
 requirements = ["REQ-TER-001", "REQ-TER-009", "REQ-NUM-004", "REQ-SYS-103"]
 oracles = ["mesh.constant_field_reduction", "mesh.vector_round_trip", "ledger.closure", "fields.semantics_closure", "fields.dimension_refusal", "fields.adapt_roundtrip",
-           "fields.inference_tight"]
+           "fields.inference_tight", "kernels.body_types_concrete"]
 status = "filed"
 date = 2026-09-10
 +++
@@ -40,9 +40,10 @@ convention restated in two places is two conventions.
 | `test/dimensions/` | the dimension algebra suite and the door's refusals | 52v.3.2 |
 | `test/fields/dimension_refusal.jl` | the leak test `docs/imports/dynamicquantities.md` names, at the path that record and the skeleton plan's owner table both give | 52v.3.2 |
 | `test/fields/` | the field suites, the enumeration test, `adapt_roundtrip.jl` | 52v.3.2 to 52v.3.6 |
-| `test/fields/inference.jl` | the `@inferred` walk riding the enumeration | 52v.3.4 |
+| `test/fields/inference.jl` | the `@inferred` walk riding the enumeration, on both backends | 52v.3.4, 52v.3.21 |
 | `test/fields/static_pass.jl` | the nightly JET pass and its accepted-findings TOML | 52v.3.8 |
 | `test/gate/inference_cost.jl` | the walk's wall time and its `Dim` signature count | 52v.3.9 |
+| `test/backends/body_types.jl` | the typed code of every kernel body at the signatures its launches compile, and every kernel's device compilation | 52v.3.20 |
 
 `Dimensions` is its own submodule rather than a file of `Fields` because the skeleton
 plan put it in group A, below everything that reads it, and `Systems` reads it for the
@@ -227,13 +228,15 @@ settled in the next section, and `fiddlybits-52v.3.8` carries it.
 ### Inference, and what it costs
 
 Four parameters on a wrapper is the shape that goes wrong twice: as compiler latency,
-and as a silent drop to a non-concrete return that costs nothing visible on the host
-and everything on the device. Both are named here rather than left to the reader.
+and as a silent drop to a type that is not concrete. The second still computes the
+answer and reports nothing. Where the drop sits decides what it costs: in host code it is a dispatch per
+call, and inside a kernel body it is paid per work item on whichever backend runs the
+kernel. Both are named here rather than left to the reader.
 
 **What the design already refuses.** The element type is a plain float. Decision 0006
-lost units on the element type on exactly these grounds, so a kernel body receives a
-bare device array and never a parameterised scalar, which is the thing that would
-refuse to compile at all. Broadcast is a narrow door that closes only over identical
+lost units on the element type because mixed-unit arithmetic inside kernels multiplies
+compile time and breaks library calls, so a kernel body receives a bare array of floats
+and never a parameterised scalar. Broadcast is a narrow door that closes only over identical
 parameters, so no expression carries a parameter change through the broadcast
 machinery; an operation that changes dimension or support is a named operator
 returning a field and a ledger. `docs/imports/dimensionaldata-jl.md` records the
@@ -243,7 +246,9 @@ than an `Unknown()` style. A prototype that is not a test is a claim that decays
 the assertion below is what carries it forward.
 
 **What is asserted, and where.** Every operator's return type is concrete, asserted
-with `@inferred` over the pairs the semantics-closure walk already produces. Riding
+with `@inferred` over the pairs the semantics-closure walk already produces, each call
+made on `Backends.CPU` and on `Backends.GPU`, because an operator on device arrays is
+the same operator compiled at another array type (`fiddlybits-52v.3.21`). Riding
 that walk rather than a hand-written list is the whole point: completeness is by
 construction, and a semantics type added later carries the assertion without anyone
 remembering to add it. The positive control is a fixture operator that selects its
@@ -277,12 +282,56 @@ TOML beside the pass rather than code, and a list that cannot be held to that me
 the pass is scoped too widely. Whether that rule generalises past JET, and so wants a
 decision record rather than a paragraph here, is open and is not settled by this plan.
 
-**The device arm degrades loudly.** The GPU compiler refuses dynamic dispatch outright
-rather than falling back to it, so the failure this section guards against is
-host-side and the device needs no equivalent instrument. That behaviour is relied on
-and is recorded in neither `docs/imports/cuda.md` nor `docs/imports/kernelabstractions.md`;
-`fiddlybits-52v.3.10` anchors it, and if the refusal turns out narrower than this
-argument needs, that row says so and files what changes the argument.
+**What the device compiler refuses.** A launch on `Backends.GPU` compiles its kernel
+for the device, and the compilation refuses a call left to runtime dispatch in the
+device code, on the host and before anything is queued. What it refuses, what it
+compiles, and the locators for both are in `docs/imports/cuda.md` and
+`docs/imports/kernelabstractions.md`, section "Dynamic dispatch".
+`test/backends/dispatch_refusal.jl` holds the refusal: its refused arms fail if the
+device compiles such a call instead. That refusal is the one part of the device arm
+that degrades loudly.
+
+**What it does not refuse, and what catches each case.** The refusal judges the code
+host inference hands it, at the signatures a device launch compiled. A drop to a type
+that is not concrete therefore reaches it only as a dispatch that survives
+optimisation. Every other case compiles, and none of them changes a value: in the
+leak test every arm that compiles or runs on the CPU backend writes the known answer.
+What they cost is time and allocation. That is why neither the reference-path
+comparison of decision 0027 nor the backend agreement tests is named below, since
+neither can fail on any of them. The cases are the ones the two records list under
+"What is not refused".
+
+- *A union that inference splits.* It compiles as branches taken per work item.
+  `kernels.body_types_concrete` (`fiddlybits-52v.3.20`) reads the typed code of every
+  kernel body at the signatures its launches compiled and fails on any value whose
+  type is not concrete. A split union is its positive control.
+- *A call that constant propagation folds.* No instrument is needed: once folded, the
+  compiled code holds a constant of a concrete type, and nothing is left to cost
+  anything. The same call at a site that does not fold is the split union above.
+  `kernels.body_types_concrete` carries a folded call as a control that must pass.
+- *A `Core.Box` that no call reads.* It compiles, and where the box survives
+  optimisation the device allocates it per work item. `kernels.body_types_concrete`
+  fails on the box's contents, and such a box is its second positive control.
+- *Non-concreteness on the host side of a launch, a `Field` operator's return
+  included.* The launch compiles at the runtime types of its arguments, so the device
+  compiler never sees this case; it costs a host dispatch per call.
+  `fields.inference_tight` catches it on both backends: the `@inferred` walk in
+  `test/fields/inference.jl` per commit, and the static pass in
+  `test/fields/static_pass.jl` nightly. The nightly pass has already failed on a case
+  of this shape: `Backends.launch!`'s own dispatch, now carried by
+  `fiddlybits-52v.3.19`.
+- *A kernel launched only on `Backends.CPU`, or at a signature no device launch
+  compiles.* The CPU backend runs a dispatch without validating anything, and the
+  device refusal exists only where a device compilation happened.
+  `kernels.body_types_concrete` reads the CPU function's typed code at the signatures
+  CPU launches compiled, as well as the device function's, so a dispatch, a split
+  union or a box fails it on either backend. It also fails when its test compiles a
+  kernel the package defines for the device at no signature, and it launches each
+  kernel at each precision that kernel is certified for. A signature a run launches
+  and no test launches gets no instrument here. Its values are then checked by no test
+  either, and decision 0027's comparison test for every kernel on every certified
+  backend and precision is what closes that gap. A dispatch at such a signature is
+  still refused at that launch.
 
 ### The device boundary, and why nothing is stripped
 
@@ -422,9 +471,11 @@ does not, at the cost of a prerequisite row.
 ## Oracles
 
 Three registry entries exist and belong to this plan rather than to the mesh's:
-`mesh.constant_field_reduction`, `mesh.vector_round_trip` and `ledger.closure`. Three
-are added, two of them the leak tests the import records name and the harness
-currently reports unresolved.
+`mesh.constant_field_reduction`, `mesh.vector_round_trip` and `ledger.closure`. The
+rest are added, two of them the leak tests the import records name and the harness
+currently reports unresolved. `kernels.body_types_concrete` sits in the registry's
+kernels section, because its subject is every kernel body, and belongs to this plan
+because the inference argument above is what calls for it.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
@@ -435,6 +486,7 @@ currently reports unresolved.
 | `fields.dimension_refusal` | a binary operation across mismatched dimensions refuses, naming both signatures | an addition of a length to a time, which must refuse rather than promote |
 | `fields.adapt_roundtrip` | every registered field type adapts to the device and back unchanged | a struct whose adapt rule drops its support, which must be caught |
 | `fields.inference_tight` | every operator over every enumerated pair returns a concrete type | a fixture operator that picks its semantics from a runtime value, which must fail `@inferred`; and an accepted-findings entry with neither a reason nor a row, which must fail the nightly pass |
+| `kernels.body_types_concrete` | every kernel body the package defines holds only concrete types in its typed code, on the device and on the CPU backend, at the signatures its launches compile, and every kernel is compiled for the device | a fixture kernel calling a union inference splits, and one holding a box no call reads, each of which must fail; a kernel no launch compiles for the device, which must fail the coverage check |
 | `build.inference_suite_cost` | no right answer yet: a recorded measurement of the enumerated walk with its host, its load and its distinct `Dim` signature count | the measurement judged against a ceiling below the measured value, which must FAIL |
 
 `fields.inference_tight` carries two arms in one entry, a per-commit `@inferred` walk
@@ -457,15 +509,21 @@ for those two dependencies.
 | 52v.3.4 | sonnet | `test/fields/semantics_closure.jl`, `test/fields/inference.jl` | `fields.semantics_closure` passes and the fixture type with neither method nor refusal fails it; `fields.inference_tight` passes on its per-commit arm and the fixture operator that picks its semantics from a runtime value fails it; both walks read the same enumeration and neither carries a hand-written list of pairs |
 | 52v.3.5 | sonnet | `src/Fields/vectors.jl`, `test/fields/vectors.jl` | `mesh.vector_round_trip` passes with its control; `transform` and `project` are separate names and the lossy one is never reached implicitly; both return concrete types under `@inferred` |
 | 52v.3.6 | sonnet | `src/Fields/ledger.jl`, `test/fields/ledger.jl` | `ledger.closure` passes; an injected leak is detected and classified a leak rather than rounding; the tolerance is read from `Reductions` and not declared here; an FP32 accumulator for a declared reservoir refuses naming the quantity; the `(field, ledger)` pair every operator returns is concrete under `@inferred` |
-| 52v.3.7 | sonnet | none; reports only | all seven oracles ran; verdicts by name; `build.inference_suite_cost` reports its number beside them rather than a verdict, being an instrument |
+| 52v.3.7 | sonnet | none; reports only | every oracle of the plan ran, `fields.inference_tight` on both arms; verdicts by name; `build.inference_suite_cost` reports its number beside them rather than a verdict, being an instrument |
 | 52v.3.8 | sonnet | `docs/imports/jet-jl.md`, `test/fields/static_pass.jl` and its accepted-findings TOML, the JET entry in `Project.toml` extras and `Manifest.toml` | JET has an import record naming a leak test that exists, so `build.import_record_completeness` stays whole; `report_call` reports no unresolved call and `report_opt` no non-concrete return on the operators; the accepted-findings list is TOML with a reason and a row per entry, and an entry with neither fails the pass; the pass is on the nightly row and the Julia version is recorded beside its result |
 | 52v.3.9 | sonnet | `test/gate/inference_cost.jl`, the finding it writes, the `threshold` field of the `build.inference_suite_cost` entry | the A/A scatter of the instrument is measured and written as a dated finding with its host, its load and its sample count; the distinct `Dim` signature count is reported beside the time; the entry carries the finding by path and still carries no threshold |
 | 52v.3.10 | local | `docs/imports/cuda.md`, `docs/imports/kernelabstractions.md`, the leak test those records name | both records state what the device compiler refuses and what it does not, with the locator read; the leak test exists and fails on a kernel with a deliberately non-concrete call |
+| 52v.3.20 | frontier | `test/backends/body_types.jl` and its include line, the `kernels.body_types_concrete` registry entry, section "Dynamic dispatch" of `docs/imports/cuda.md` and `docs/imports/kernelabstractions.md`, and the `@kernel` bodies in `src/` the check finds non-concrete | `kernels.body_types_concrete` passes with no accepted-findings list; a split union and a surviving box fail it on both backends; a folded call and a concrete call pass; a kernel no launch compiles for the device fails the coverage check; the reflection entry it reads is anchored in `docs/imports/cuda.md` |
+| 52v.3.21 | sonnet | `test/fields/inference.jl`, `test/fields/static_pass.toml`, the `fields.inference_tight` registry entry | the per-commit arm passes with every call on `Backends.CPU` and `Backends.GPU` from one table; the runtime-dispatch control still fails; the nightly pass reports nothing new or stale; the entry names both backends and carries no device-arm clause |
 
 52v.3.3, 52v.3.5 and 52v.3.6 depend on 52v.3.2; 52v.3.4 depends on 52v.3.3 and
 52v.3.5; 52v.3.8, 52v.3.9 and 52v.3.10 depend on 52v.3.4, and 52v.3.7 depends on
 52v.3.8 because the nightly arm of `fields.inference_tight` is part of the set it
-reports. 52v.3.10 touches two records the closed `fiddlybits-52v.7` wrote, which is
+reports. 52v.3.20 depends on 52v.3.8, whose `device_kernel` is the one definition of
+which methods are device kernels, and on 52v.3.19, which holds
+`src/Reductions/pairwise.jl`. 52v.3.21 depends on 52v.3.8, whose pass reads the walk.
+52v.3.9 depends on 52v.3.21 so that it measures the walk as it will stand, and 52v.3.7
+depends on both new rows. 52v.3.10 touches two records the closed `fiddlybits-52v.7` wrote, which is
 why it is a row here rather than a reopening there: the claim is relied on by this
 plan's argument, and the records are live documents.
 
