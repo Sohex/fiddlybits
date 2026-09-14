@@ -125,4 +125,31 @@ fixture(entry, kind) = joinpath(FIXTURES, entry.name, kind, entry.inside)
         isempty(unplaced) || @info "lint_sourced: rows it could not place" unplaced
         @test isempty(unplaced)
     end
+
+    @testset "EarthRatios.rotation_rate_unit's locator resolves to a read row" begin
+        status, _ = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        @test get(status, "10.1007/s001900050278", "missing") == "read"
+    end
+
+    @testset "positive control: the same locator against a held row is refused" begin
+        mktempdir() do dir
+            srcdir = joinpath(dir, "src", "EarthRatios")
+            mkpath(srcdir)
+            cp(joinpath(PROJECT, "src", "EarthRatios", "EarthRatios.jl"),
+               joinpath(srcdir, "EarthRatios.jl"))
+            docsdir = joinpath(dir, "docs", "references")
+            mkpath(docsdir)
+            index_text = read(joinpath(PROJECT, "docs", "references", "INDEX.md"), String)
+            held_text = replace(index_text,
+                "`10.1007/s001900050278` | read |" => "`10.1007/s001900050278` | held |")
+            @test held_text != index_text
+            write(joinpath(docsdir, "INDEX.md"), held_text)
+
+            flagged = Lints.lint_sourced(dir)
+            @test any(flagged) do s
+                s.found == "10.1007/s001900050278" &&
+                    s.file == joinpath("src", "EarthRatios", "EarthRatios.jl")
+            end
+        end
+    end
 end

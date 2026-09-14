@@ -62,4 +62,17 @@ pressure_unit() = Sourced(
         identifier = "10.1063/5.0064853",
         table = "Table XXXI, standard atmosphere"))
 
+"""
+    rotation_rate_unit()
+
+One Earth rotation rate: the GRS80 defining angular velocity of the Earth's
+rotation, adopted at the XVII General Assembly of the IUGG (1979).
+"""
+rotation_rate_unit() = Sourced(
+    value = 7.292115e-5,
+    dim = inv(TIME),
+    locator = Locator(
+        identifier = "10.1007/s001900050278",
+        table = "p.131, Defining Constants (exact): angular velocity of the Earth"))
+
 end # module EarthRatios
