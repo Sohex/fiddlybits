@@ -148,6 +148,41 @@ and `lint_calendar` already refuses a date type reaching it.
 `put_field!` writes an artifact inline. It is the reference path of the writer below,
 which is how a run writes.
 
+**The step's interval reaches the key as a required keyword.** `interval` is a required
+keyword of `put_field!` and of `submit!`, a `Time.Interval`: the interval the caller
+handed the `step!` that wrote the field, which in a run is the driver that steps the
+components and submits what they wrote. It is the key's interval for every field. For a
+field placed over an interval (`IntervalMean`, `IntervalAccumulation`, `EndpointState`)
+the keyword must be identical to `Time.interval` of the field's time support, the same
+float width and both bounds the same IEEE bit patterns, which is the equality the key
+hashes; otherwise the admission refuses the quantity `interval`, naming both intervals
+and the field's time semantics. For an `Instantaneous` or `Static` field, whose time
+support carries no interval, the keyword is the key's interval and nothing is checked
+against it. The array's `interval` attribute stays the field's own placement,
+`placement_record` of its time support, so placement and the interval of the making
+remain two records. There is no fallback: a call without `interval` is refused as
+missing, an interval-placed field included, so no field is keyed over an interval its
+caller did not name.
+
+This replaces the refusal `fiddlybits-52v.6.16` put in `put_field!`, which refused a
+`Static` or `Instantaneous` field rather than invent an interval. That refusal was right
+while the time support was the only source, and it leaves every instantaneous and
+static output of a run unstorable; with the interval named at the call nothing is
+invented, and decision 0010's sentence on instantaneous outputs, that two steps from two
+declared starts differ in their bits and agree in their placement, and that an output
+with no time axis written on every step is keyed per step, is carried at the store.
+
+Two routes lost. The run driver handing the interval to the writer from context, a
+current step the writer reads rather than an argument at the call, is a value crossing a
+component boundary that no call site shows, and a context left over from another step
+keys a field under it without a word. Placing every field over its step's interval, a
+change to `Fields` so every time support carries one, merges placement with provenance:
+an instant would carry an interval it is not a mean or an accumulation over, and every
+reader of a time support would meet a bound that says how the field was made rather
+than what it means on the clock. The keyword states the interval twice for an
+interval-placed field, and the check makes that redundancy a refusal rather than a
+second definition.
+
 ### The writer
 
 `put_field!` admits a field and lands it before it returns: the move to the host, the
@@ -396,6 +431,7 @@ inert record that nonetheless entered a key would not be inert.
 | 52v.6.23 | sonnet | `src/Backends/pool.jl` and its include, `test/backends/byte_pool.jl` | a burst of concurrent charges never holds more than the ceiling; a charge above it refuses naming both counts; a waiting large charge is served before a smaller one that began waiting after it; each control fires |
 | 52v.6.24 | frontier | `src/Backends/move.jl`, `test/backends/host_copy.jl`, `docs/imports/cuda.md`, the kernels plan's section The device layer | a copy queued between two kernels writing one array holds the first kernel's values; the door leaves the preceding kernel queued; one move counted per copy; a task waiting on the handoff yields its thread; each control fires |
 | 52v.6.25 | sonnet | `src/Systems/profile.jl`, the profile construction sites in `test/`, the Amendments section of decision 0014 | `write_ceiling` and `store_writers` refuse absent, below one, and outside `DECLARED`; `fast_profile` and `full_profile` require both; `provenance.key_stability` passes |
+| 52v.6.29 | sonnet | `src/Provenance/store.jl`, `test/provenance/store.jl`, `test/io/store_fixtures.jl` | `provenance.store_refuses_incomplete` passes with arms for two `Instantaneous` fields at one instant from two steps over identical inputs keyed apart; a `Static` field keyed over its keyword; an interval-placed field refused naming both intervals when its keyword differs, and when it is equal under `==` at another float width; the agreeing keyword storing as the positive control; and a call without `interval` refused as missing |
 | 52v.6.26 | frontier | `src/Provenance/writer.jl`, `src/Provenance/store.jl`, `test/provenance/writer.jl`, `test/io/store_fixtures.jl`, three entries of `docs/oracles/registry.toml`, `docs/imports/zarr.md` | `provenance.pooled_write_is_reference`, `provenance.write_order_independent` and `provenance.write_ceiling_held` pass with their controls; the store's two oracles pass through `put_field!` and their admission refusals refuse at `submit!`; a collided rename and an out-of-level cell id leave exactly the earlier submissions stored |
 | 52v.6.27 | sonnet | `src/Provenance/run.jl`, `test/provenance/run.jl` | a run refused after its submissions leaves them stored and rethrows the component's refusal; a refused drain is journalled; the door is the only caller of `open_writer` |
 | 52v.6.6 | sonnet | none; reports only | every oracle this plan's front matter names ran; verdicts by name |
@@ -405,8 +441,12 @@ inert record that nonetheless entered a key would not be inert.
 coupling plan's `Ladder`; 52v.6.7 depends on 52v.6.8, which depends only on the
 skeleton. 52v.6.23, 52v.6.24 and 52v.6.25 block 52v.6.26, which with 52v.6.17 blocks
 52v.6.27; 52v.6.25 depends on 52v.4.19, whose boundary holds `test/system/` and the
-`key_stability` fixture; 52v.6.21 is related to 52v.6.26, since its route lands on the
-admission both doors share; 52v.6.6 depends on all five. The row that calls `settle!`
+`key_stability` fixture. 52v.6.29 depends on nothing unmerged and blocks 52v.6.26: the
+interval check lands in `write_field!` before 52v.6.26 splits it into the admission both
+doors share, so `submit!` inherits the keyword with the rest of `put_field!`'s, rather
+than a small change to the store waiting on the host copy 52v.6.26 waits on and then
+reaching into the writer's tests. 52v.6.6 depends on 52v.6.23 to 52v.6.27 and on
+52v.6.29. The row that calls `settle!`
 during a run is filed by 52v.6.20 once its question is answered. The area
 depends on the fields plan for the ledger and on the system plan for the declared
 parameter subset.
