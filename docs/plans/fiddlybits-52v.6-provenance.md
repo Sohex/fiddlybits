@@ -1,8 +1,8 @@
 +++
 epic = "fiddlybits-52v.6"
 title = "Content-addressed artifacts, the Zarr store with TOML manifests, the counter-based generator, and the inert run journal"
-decisions = ["0010", "0029", "0036", "0042"]
-requirements = ["REQ-TER-002", "REQ-SYS-002", "REQ-SYS-003", "REQ-SYS-103"]
+decisions = ["0008", "0010", "0014", "0029", "0036", "0042"]
+requirements = ["REQ-TER-002", "REQ-SYS-002", "REQ-SYS-003", "REQ-SYS-103", "REQ-PROV-002", "REQ-NUM-001"]
 oracles = ["provenance.key_stability", "provenance.store_refuses_incomplete", "provenance.index_roundtrip", "provenance.journal_is_inert", "provenance.event_vocabulary_closed", "repro.stochastic_identity"]
 status = "filed"
 date = 2026-09-10
@@ -30,7 +30,7 @@ disposability.
 
 | path | holds | row |
 | --- | --- | --- |
-| `src/Provenance/key.jl` | `ArtifactKey`, `CodeVersion` with its dirty flag, `RunID` | 52v.6.2 |
+| `src/Provenance/key.jl` | `ArtifactKey`, `CodeVersion` with its dirty flag, `RunID` | 52v.6.2, 52v.6.16 |
 | `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal | 52v.6.3 |
 | `src/Provenance/plan.jl` | `plan`, `worthless`, the purge command | 52v.6.4 |
 | `src/Provenance/rng.jl` | the counter-based generator | 52v.6.5 |
@@ -58,17 +58,44 @@ and a no-op default that is what inertness requires.
 ### The key
 
 ```
-ArtifactKey = hash(code version, declared parameter subset, input keys, support id, operator version)
+ArtifactKey = hash(code version, declared parameter subset, declared profile subset,
+                   inputs each beside its read, support id, interval,
+                   operator: component, write, backend with its bitwise flag, operator version)
 CodeVersion   with a dirty flag
 RunID         a UUID
 ```
 
-The declared parameter subset comes from the component's declaration, which is the
-coupling layer's (`fiddlybits-52v.11.1`), and which `fiddlybits-52v.4.6`'s tracking
-makes a measured property rather than a claim. That is the whole
-mechanism behind "changing one field changes the keys of exactly the artifacts whose
-components declared it": the key reads the declaration, and the tracking test is what
-keeps the declaration honest.
+The key names every determinant of an artifact's bits that is not content of an input,
+and where its two duties part (two contents never under one key, two alike makings
+under one) it splits rather than merges. Decision 0010, section What the key names,
+carries the argument for each part and for each determinant left out.
+
+| part | read from | why it is in the key | control in `provenance.key_stability` |
+| --- | --- | --- | --- |
+| code version | `CodeVersion`: the `src` tree id, the manifest id, the Julia version, the dirty flag | the code is what computes | each moves the key; the commit alone does not |
+| parameter subset | the `System` at `Declaration.system_fields` | a constant the component reads; the root seed is one (`fiddlybits-52v.4.19`) | a leaf flipped by reflection moves exactly the declaring components' keys |
+| profile subset | the `Profile` at `Declaration.profile_fields`, a component's own entry of `Profile.components` by its name, never a path to `:label` | a setting the component reads: the working precision of the fast fields, a vertical ladder, a count of g-points | two fast precisions give two keys for a component declaring `(:fast_precision,)` and one key for a component that does not; a profile leaf flipped moves exactly the declaring components' keys |
+| inputs | each input key, beside the declaration's `Read` of that quantity (level, operator with rule and measure, lagged, move) | a state read, and how it was reached | one input key through two operators, two measures, or lagged and not, gives two keys |
+| support id | `Mesh.Support.digest` | where the output sits | two radii give two keys |
+| interval | the `Time.Interval` `step!` advanced over, both bounds as IEEE bit patterns at their width | the clock every step is handed | two intervals, and two sharing their end, give two keys; one rebuilt from its bits gives one |
+| operator | the component's name, `Coupling.write_of(declaration, quantity)` whole, the backend's kind and `bitwise` flag, the operator version | what made the artifact and what the array is | each moves the key; a second write on the declaration and the workgroup pin do not |
+
+Not in the key: the commit, a locator; the thread count and the launch workgroup, which
+partition independence (decision 0029) keeps from any bit; a loop's exit bracket unless
+a component declares it, since every iteration writes under its own later interval and
+the bracket decides only which artifact is final, a fact of the run record; the end a
+`Bracketed` constant is evaluated at, which reaches the key through the disposition a
+declared path reaches or through the code; the device model; the run id and the journal.
+
+Both declared subsets come from the component's declaration, which is the coupling
+layer's (`fiddlybits-52v.11.1`). `fiddlybits-52v.4.6`'s tracking makes the system paths
+a measured property rather than a claim, and `fiddlybits-52v.4.20` does the same for
+the profile paths. That is the whole mechanism behind "changing one field changes the
+keys of exactly the artifacts whose components declared it": the key reads the
+declaration, and the tracking test is what keeps the declaration honest.
+`fiddlybits-52v.6.2` built the code version, the parameter subset, the input keys, the
+support id and the operator's name, backend and version; `fiddlybits-52v.6.16` adds the
+profile subset, the reads, the interval and the write whole.
 
 The hash is over the IEEE bit patterns of the floats, so a key is stable across
 machines and does not move when a value is printed and re-parsed.
@@ -109,13 +136,19 @@ and `lint_calendar` already refuses a date type reaching it.
 ### Plan without running
 
 ```
-plan(system, ladder, code)    the full key set of a run, computed without running it
-worthless(store, plan)        the set difference
-purge(list)                   a separate explicit command that prints first
+plan(system, profile, ladder, code)    the full key set of a run, computed without running it
+worthless(store, plan)                 the set difference
+purge(list)                            a separate explicit command that prints first
 ```
 
 Keys depend only on declared inputs, which is why the key set can be computed without
-running anything. The artifacts whose keys are not in that set are the ones a change
+running anything. For every write the ladder schedules, `plan` enumerates each part of
+the table in The key: the code version it is given; the parameter subset and the
+profile subset, read from `system` and `profile` at the declaration's paths; each
+input's key beside its read; the support at the declaration's level; the interval from
+the step schedule; and the operator. A read of a quantity placed by an initial condition
+takes the content key its initial field's `Fields.Origin` carries, and an unstamped
+initial field has no key, which `plan` refuses by name. The artifacts whose keys are not in that set are the ones a change
 reaches. Status is therefore a query against the store at the time of asking, and no
 document or tracker cell is a source of it (REQ-SYS-008).
 
@@ -172,7 +205,7 @@ reproducibility section. Three are added.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
-| `provenance.key_stability` | the key of one artifact is identical across machines and across a print-and-reparse of every float in the parameter subset | a hash taken over printed decimal rather than IEEE bit patterns, which a round trip through text must move |
+| `provenance.key_stability` | the key of one artifact is identical across machines and across a print-and-reparse of every float in the declared subsets and the interval; two intervals, two values at a declared profile path, or two reads of one input give two keys | a hash taken over printed decimal rather than IEEE bit patterns, which a round trip through text must move; the interval, or the profile subset, left out of the key, which two intervals, or two fast precisions, must expose |
 | `provenance.store_refuses_incomplete` | the store refuses an array missing any of support id, semantics, time semantics, dimension, owner or interval, and refuses a field whose ledger is open | each attribute dropped in turn, every one of which must refuse; and a dirty code version writing a keyed artifact, which must refuse |
 | `provenance.index_roundtrip` | a known index field written 0-based and read back 1-based is unchanged | an off-by-one at the disk boundary, which the known field must expose rather than a symmetric error hiding |
 
@@ -191,9 +224,13 @@ inert record that nonetheless entered a key would not be inert.
 | 52v.6.5 | sonnet | `src/Provenance/rng.jl`, `test/provenance/rng.jl` | `repro.stochastic_identity` passes on both arms; the generator runs inside a kernel on both backends |
 | 52v.6.8 | sonnet | `src/Events/`, `test/events/`, the `Events` include in `src/Fiddlybits.jl` | the ten kinds enumerate and close with a fixture eleventh reported; a payload with a field missing refuses; `emit` with no sink is a no-op and with a fixture sink delivers one event per call |
 | 52v.6.7 | sonnet | `src/Provenance/journal.jl`, `test/provenance/journal.jl` | `provenance.journal_is_inert` and `provenance.event_vocabulary_closed` pass; the sink installs into `Events` and is the only sink the tree installs; `lint_journal_emitter` now has a constant to protect and still decides |
+| 52v.6.16 | sonnet | `src/Provenance/key.jl`, `test/provenance/key_stability.jl`, the `Declaration` keyword `profile_fields` in `src/Coupling/state.jl`, `Profile.components` by name in `src/Systems/profile.jl`, `holds_declaration` in `src/Systems/tracking.jl`, and the coupling and system tests those break | `provenance.key_stability` passes with an arm and a control for each of the interval, the profile subset, the component's entry by name, the reads and the write, and a break of each failing its arm |
+| 52v.4.19 | frontier | `src/Systems/system.jl`, `src/Systems/strip.jl`, `test/system/`, the `declared()` fixture of `test/provenance/key_stability.jl`, the system plan's section The struct | the root seed is a required field of the system with its disposition, carried by `strip`, and moves the key of a component declaring it and of no other |
+| 52v.4.20 | sonnet | `src/Systems/tracking.jl`, `declared_graph` and its profile counterpart in `src/Coupling/state.jl`, `test/system/graph.jl`, `test/coupling/state.jl` | recorded profile reads are a subset of the declared profile paths, a control reader reading an undeclared path failing; `affected` over the profile graph matches the key's profile reflection arm |
 | 52v.6.6 | sonnet | none; reports only | all six oracles ran; verdicts by name |
 
-52v.6.3, 52v.6.4 and 52v.6.7 depend on 52v.6.2; 52v.6.4 depends on 52v.6.3 and on the
+52v.6.16 depends on nothing unmerged and blocks 52v.6.4 and 52v.6.6; 52v.4.19 and
+52v.4.20 depend on 52v.6.16. 52v.6.3, 52v.6.4 and 52v.6.7 depend on 52v.6.2; 52v.6.4 depends on 52v.6.3 and on the
 coupling plan's `Ladder`; 52v.6.7 depends on 52v.6.8, which depends only on the
 skeleton. The area
 depends on the fields plan for the ledger and on the system plan for the declared
