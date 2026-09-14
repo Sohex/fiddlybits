@@ -71,6 +71,7 @@ planet_keywords(T = Float64; kw...) = merge(
      bulk = S.DeclaredBulk(volumetric_mean_radius = wide(T(7e6), LENGTH)),
      rotation = S.SiderealRotation(period = wide(T(1e5), TIME)),
      obliquity = bracket(T(0.4), T(0.2), T(0.6), ONE),
+     equator_ascending_node_longitude = irreducible(T(2), ONE),
      sub_primary_longitude_at_epoch = irreducible(T(0.3), ONE),
      figure = S.AbsentFigure(equator_pole_gravity_difference =
                                  bracket(T(0.02), T(0), T(0.1), S.ACCELERATION)),
@@ -84,8 +85,10 @@ planet(T = Float64; kw...) = S.Planet(; planet_keywords(T; kw...)...)
 elements(T; kw...) = merge((eccentricity = bracket(T(0.1), T(0.05), T(0.2), ONE),
                             inclination = irreducible(T(0), ONE),
                             longitude_of_ascending_node = irreducible(T(0), ONE),
-                            argument_of_periapsis = irreducible(T(1), ONE),
-                            mean_anomaly_at_epoch = irreducible(T(0.5), ONE)), values(kw))
+                            longitude_of_periapsis = irreducible(T(1), ONE)), values(kw))
+
+"The mean longitude at the epoch every orbit but the planet's declares, over `T`."
+mean_longitude(T) = irreducible(T(0.5), ONE)
 
 "The planet's orbit about star one."
 planet_orbit(T = Float64; kw...) = S.Orbit(; merge(
@@ -95,12 +98,14 @@ planet_orbit(T = Float64; kw...) = S.Orbit(; merge(
 "The orbit of moon one about the planet."
 moon_orbit(T = Float64; kw...) = S.Orbit(; merge(
     (primary = S.PlanetBody(), secondary = S.MoonBody(1), reference_plane = :planet_equator,
-     semi_major_axis = wide(T(4e8), LENGTH)), elements(T), values(kw))...)
+     semi_major_axis = wide(T(4e8), LENGTH), mean_longitude_at_epoch = mean_longitude(T)),
+    elements(T), values(kw))...)
 
 "The orbit of star two about star one."
 companion_orbit(T = Float64; kw...) = S.Orbit(; merge(
     (primary = S.StarBody(1), secondary = S.StarBody(2), reference_plane = :invariable_plane,
-     semi_major_axis = wide(T(3e12), LENGTH)), elements(T), values(kw))...)
+     semi_major_axis = wide(T(3e12), LENGTH), mean_longitude_at_epoch = mean_longitude(T)),
+    elements(T), values(kw))...)
 
 "A moon with a Sourced reflectance table."
 moon(T = Float64) = S.Moon(
@@ -127,11 +132,9 @@ function inventories(T = Float64; kw...)
     return S.Inventories(; merge(base, values(kw))...)
 end
 
-"Numerics with the epoch at the planet's periapsis; `kw` replaces any keyword."
+"Numerics; `kw` replaces any keyword."
 function numerics(T = Float64; kw...)
-    base = (epoch = S.EpochReference(kind = :periapsis, source = S.PlanetBody(),
-                                     offset = irreducible(T(0), TIME)),
-            exner_reference_pressure = irreducible(T(1e5), S.PRESSURE),
+    base = (exner_reference_pressure = irreducible(T(1e5), S.PRESSURE),
             geometry_precision = Float64)
     return S.Numerics(; merge(base, values(kw))...)
 end
@@ -157,25 +160,25 @@ two_star_system(T = Float64; kw...) = system(T;
     orbits = S.OrbitHierarchy(planet = planet_orbit(T), moons = (moon_orbit(T),),
                               companions = (companion_orbit(T),)), kw...)
 
-"A system whose planet rotates synchronously, with the epoch on superior conjunction."
-synchronous_system(T = Float64; kw...) = system(T;
-    planet = planet(T; rotation = S.SynchronousRotation()),
-    numerics = numerics(T; epoch = S.EpochReference(kind = :superior_conjunction,
-                                                    source = S.StarBody(1),
-                                                    offset = irreducible(T(0), TIME))),
+"A two-star system, the planet about the barycentre of stars one and two and star two about star one."
+circumbinary_system(T = Float64; kw...) = system(T;
+    stars = (star(T), star(T)),
+    orbits = S.OrbitHierarchy(planet = planet_orbit(T; primary = S.StarBarycentre(1, 2)),
+                              moons = (moon_orbit(T),), companions = (companion_orbit(T),)),
     kw...)
+
+"A system whose planet rotates synchronously."
+synchronous_system(T = Float64; kw...) = system(T;
+    planet = planet(T; rotation = S.SynchronousRotation()), kw...)
 
 "The planet's orbit declared by its flux."
 flux_orbit(T = Float64; kw...) = S.FluxOrbit(; merge(
     (primary = S.StarBody(1), secondary = S.PlanetBody(), reference_plane = :invariable_plane,
      flux_at_semi_major_axis = wide(T(900), S.IRRADIANCE)), elements(T), values(kw))...)
 
-"A system whose planet's orbit is declared by its flux, with the epoch on the equinox."
+"A system whose planet's orbit is declared by its flux."
 flux_system(T = Float64; kw...) = system(T;
     orbits = S.OrbitHierarchy(planet = flux_orbit(T), moons = (moon_orbit(T),), companions = ()),
-    numerics = numerics(T; epoch = S.EpochReference(kind = :vernal_equinox,
-                                                    source = S.StarBody(1),
-                                                    offset = irreducible(T(0), TIME))),
     kw...)
 
 """

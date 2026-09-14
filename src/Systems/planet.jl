@@ -190,6 +190,7 @@ end
 
 "The keywords of `Planet`."
 const PLANET_KEYWORDS = (:mass, :bulk, :rotation, :obliquity,
+                         :equator_ascending_node_longitude,
                          :sub_primary_longitude_at_epoch, :figure, :lithosphere)
 
 "The Derived values `Planet` checks when a caller supplies them."
@@ -203,8 +204,8 @@ const SUB_PRIMARY_LONGITUDE_DISPOSITIONS = (Sourced, Irreducible)
 
 The planet of a system. Build it with the keyword constructor, which has no defaults:
 
-    Planet(; mass, bulk, rotation, obliquity, sub_primary_longitude_at_epoch, figure,
-             lithosphere)
+    Planet(; mass, bulk, rotation, obliquity, equator_ascending_node_longitude,
+             sub_primary_longitude_at_epoch, figure, lithosphere)
 
 `mass` is above zero. `bulk` is a `DeclaredBulk` or a `CompositionBulk`, whose model
 gives the volumetric mean radius as `Derived` inside its domain; a caller may pass
@@ -213,10 +214,14 @@ a second declaration beside a declared one. `rotation` is a `SiderealRotation` o
 `SynchronousRotation`. `obliquity` is an angle in `[0, pi]` from the planet's orbit
 normal to the positive pole of rotation of decision 0005 (decision 0004); the sense
 of rotation relative to the orbit normal is `Derived` from it by `rotation_sense` and
-is never a keyword. `sub_primary_longitude_at_epoch` is the body-fixed longitude in
-`(-pi, pi]` of the direction from the planet toward `orbits.planet.primary` at
-`t = 0` (decision 0004), `Sourced` or `Irreducible`. How the two angles place the
-rotation pole and the prime meridian is fiddlybits-52v.5.7's; this constructor
+is never a keyword. `equator_ascending_node_longitude` is the longitude in `[0, 2 pi)`
+on the planet's orbit plane of the ascending node of the planet's equator on that
+plane, declared with the obliquity's dispositions (decision 0004, section The
+reference directions of the orbit hierarchy). `sub_primary_longitude_at_epoch` is the
+body-fixed longitude in `(-pi, pi]` of the direction from the planet toward
+`orbits.planet.primary` at `t = 0` (decision 0004), `Sourced` or `Irreducible`. How the
+three angles place the rotation pole and the prime meridian is decision 0004's,
+section The spin axis and the rotation phase in the orbit frame; this constructor
 refuses only a value outside its own range. `figure` is an `AbsentFigure` or a
 `HydrostaticFigure`; `lithosphere` is a `Lithosphere`.
 """
@@ -226,6 +231,7 @@ struct Planet{FT,B,R,F,K}
     volumetric_mean_radius::Disposition{FT,typeof(LENGTH)}
     rotation::R
     obliquity::Disposition{FT,typeof(DIMENSIONLESS)}
+    equator_ascending_node_longitude::Disposition{FT,typeof(DIMENSIONLESS)}
     sub_primary_longitude_at_epoch::Disposition{FT,typeof(DIMENSIONLESS)}
     figure::F
     lithosphere::Lithosphere{FT,K}
@@ -242,7 +248,8 @@ const PLANET_FIELDS = fieldnames(Planet)
 `:prograde` where `cos(planet.obliquity)` exceeds
 `Reductions.error_bound(FT, DECLINATION_TERMS, one(FT))`, `:retrograde` where
 `-cos(planet.obliquity)` does, and `Verdicts.NotEvaluable()` between (decisions 0004
-and 0008); the threshold is the one `require_epoch`'s vernal equinox arm reads.
+and 0008); the threshold is the vernal equinox's `NotEvaluable` threshold of decision
+0008, section The epoch.
 """
 function rotation_sense(p::Planet{FT}) where {FT}
     c = cos(value(p.obliquity))
@@ -309,6 +316,11 @@ function Planet(; kwargs...)
     obliquity = require_interval("obliquity", site,
         require_disposition("obliquity", site, k.obliquity, FT, DIMENSIONLESS, DECLARED),
         zero(FT), true, FT(pi), true)
+    equator_ascending_node_longitude = require_interval(
+        "equator_ascending_node_longitude", site,
+        require_disposition("equator_ascending_node_longitude", site,
+                            k.equator_ascending_node_longitude, FT, DIMENSIONLESS, DECLARED),
+        zero(FT), true, 2 * FT(pi), false)
     sub_primary_longitude_at_epoch = require_interval(
         "sub_primary_longitude_at_epoch", site,
         require_disposition("sub_primary_longitude_at_epoch", site,
@@ -322,7 +334,7 @@ function Planet(; kwargs...)
     return Planet{FT,typeof(k.bulk),typeof(rotation),typeof(figure),
                   length(lithosphere.province_classes)}(
         Checked(), mass, k.bulk, radius, rotation, obliquity,
-        sub_primary_longitude_at_epoch, figure, lithosphere)
+        equator_ascending_node_longitude, sub_primary_longitude_at_epoch, figure, lithosphere)
 end
 
 """
@@ -334,5 +346,6 @@ synchronous rotation as its `SynchronousPeriod`.
 function with_rotation(p::Planet{FT,B,R,F,K}, rotation) where {FT,B,R,F,K}
     return Planet{FT,B,typeof(rotation),F,K}(
         Checked(), p.mass, p.bulk, p.volumetric_mean_radius, rotation, p.obliquity,
-        p.sub_primary_longitude_at_epoch, p.figure, p.lithosphere)
+        p.equator_ascending_node_longitude, p.sub_primary_longitude_at_epoch, p.figure,
+        p.lithosphere)
 end

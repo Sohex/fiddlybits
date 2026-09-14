@@ -137,14 +137,14 @@ id = "system.epoch_event"
 tier = 1
 subsystem = "system"
 dataset_or_reference = "identity"
-statistic = "the instant of the declared (event kind, source index) epoch event reproduced from the declared orbit and spin for each kind (equinox, periapsis, superior conjunction); the equinox kind refuses by name at zero obliquity and when no single primary is declared"
+statistic = "the Derived event instants, never declared: the vernal equinox and the periapsis of each named orbit, each returned as the latest instant at or before a given t at which the event's definition holds (at the vernal equinox the declination of the planet orbit's primary is zero and increasing and the planet's true longitude equals its equator's ascending node longitude; at a periapsis that orbit's mean anomaly is zero), on every instance and body where the event exists, a circumbinary fixture included; nothing is refused"
 verdict_kind = "fail_bar"
-threshold = "roundoff; the refusals fire (positive control: a zero-obliquity instance and a two-primary instance)"
+threshold = "roundoff where the event exists; NotEvaluable by name for the vernal equinox where the sine of the obliquity does not exceed the rounding of the subsolar latitude, and for a periapsis where the eccentricity does not exceed the rounding of the distance (positive controls: the vernal equinox on the zero-obliquity SyntheticSynchronous() instance and the periapsis on a circular fixture, each of which must return NotEvaluable; and an equinox instant computed with the equator's ascending node longitude plus pi in place of the node, which must fail the increasing test)"
 provisional = true
 registered_at = ""
 holdout = false
 anchors = []
-instances = ["Earth()", "SyntheticNonEarth()"]
+instances = ["Earth()", "SyntheticNonEarth()", "SyntheticSynchronous()"]
 
 [[oracle]]
 id = "system.solar_sidereal_relation"

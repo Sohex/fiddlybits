@@ -68,6 +68,7 @@ struct StrippedPlanet{FT,Sense,Classes,K}
     volumetric_mean_radius::FT
     sidereal_rotation_period::FT
     obliquity::FT
+    equator_ascending_node_longitude::FT
     sub_primary_longitude_at_epoch::FT
     equator_pole_gravity_difference::FT
     lithosphere::StrippedLithosphere{FT,Classes,K}
@@ -75,15 +76,16 @@ end
 
 """
 One orbit's constants, its primary and secondary bodies and its reference plane named
-by the type parameters `Primary`, `Secondary` and `Plane`.
+by the type parameters `Primary`, `Secondary` and `Plane`. The planet's orbit carries
+the zero of `planet_mean_longitude_at_epoch` as its `mean_longitude_at_epoch`.
 """
 struct StrippedOrbit{FT,Primary,Secondary,Plane}
     semi_major_axis::FT
     eccentricity::FT
     inclination::FT
     longitude_of_ascending_node::FT
-    argument_of_periapsis::FT
-    mean_anomaly_at_epoch::FT
+    longitude_of_periapsis::FT
+    mean_longitude_at_epoch::FT
     primary_mass::FT
     secondary_mass::FT
 end
@@ -117,9 +119,8 @@ struct StrippedInventories{V,C,O,A,Condensable}
     atmosphere::A
 end
 
-"The numerics' constants, the epoch kind and source named by type parameters."
-struct StrippedNumerics{FT,Kind,Source}
-    epoch_offset::FT
+"The numerics' constants."
+struct StrippedNumerics{FT}
     exner_reference_pressure::FT
 end
 
@@ -163,7 +164,8 @@ function strip_planet(p::Planet{FT,B,R,F,K}) where {FT,B,R,F,K}
     return StrippedPlanet{FT,rotation_sense(p),l.province_classes,K}(
         value(p.mass), gravitational_parameter(FT, value(p.mass)),
         value(p.volumetric_mean_radius), value(rotation_period(p.rotation)),
-        value(p.obliquity), value(p.sub_primary_longitude_at_epoch),
+        value(p.obliquity), value(p.equator_ascending_node_longitude),
+        value(p.sub_primary_longitude_at_epoch),
         value(p.figure.equator_pole_gravity_difference), lithosphere)
 end
 
@@ -172,8 +174,8 @@ function strip_orbit(s::System{FT}, o::Orbit) where {FT}
     secondary = sum(body_masses(s.stars, s.planet, s.moons, o.secondary))
     return StrippedOrbit{FT,o.primary,o.secondary,o.reference_plane}(
         value(o.semi_major_axis), value(o.eccentricity), value(o.inclination),
-        value(o.longitude_of_ascending_node), value(o.argument_of_periapsis),
-        value(o.mean_anomaly_at_epoch), primary, secondary)
+        value(o.longitude_of_ascending_node), value(o.longitude_of_periapsis),
+        value(o.mean_longitude_at_epoch), primary, secondary)
 end
 
 strip_named(x::SpeciesAmounts{FT,N}) where {FT,N} =
@@ -192,7 +194,6 @@ the reflectance tables are not scalars and stay on the host.
 function strip(s::System{FT}) where {FT}
     inv = s.inventories
     condensable = inv.condensable isa Symbol ? inv.condensable : NoCondensable
-    epoch = s.numerics.epoch
     stars = map(strip_star, s.stars)
     planet = strip_planet(s.planet)
     orbits = StrippedOrbits(strip_orbit(s, s.orbits.planet),
@@ -201,8 +202,7 @@ function strip(s::System{FT}) where {FT}
     moons = Tuple(StrippedMoon{FT}(value(m.mass), value(m.radius)) for m in s.moons)
     named = map(strip_named, (inv.volatiles, inv.crust, inv.ocean_solutes, inv.atmosphere))
     inventories = StrippedInventories{map(typeof, named)..., condensable}(named...)
-    numerics = StrippedNumerics{FT,epoch.kind,epoch.source}(
-        value(epoch.offset), value(s.numerics.exner_reference_pressure))
+    numerics = StrippedNumerics{FT}(value(s.numerics.exner_reference_pressure))
     return StrippedSystem{FT,typeof(stars),typeof(planet),typeof(orbits),typeof(moons),
                           typeof(inventories),typeof(numerics)}(
         stars, planet, orbits, moons, inventories, numerics, value(s.root_seed))
