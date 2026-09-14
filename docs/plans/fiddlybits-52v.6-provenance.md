@@ -31,9 +31,9 @@ disposability.
 | path | holds | row |
 | --- | --- | --- |
 | `src/Provenance/key.jl` | `ArtifactKey`, `CodeVersion` with its dirty flag, `RunID` | 52v.6.2, 52v.6.16 |
-| `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal, the admission `put_field!` and `submit!` share | 52v.6.3, 52v.6.26 |
+| `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal, the admission `put_field!` and `submit!` share, the `interval` keyword | 52v.6.3, 52v.6.29, 52v.6.26 |
 | `src/Provenance/writer.jl` | `Writer`, `open_writer`, `submit!`, `settle!`, `drain!` | 52v.6.26 |
-| `src/Provenance/run.jl` | the run door, which opens the writer and drains it | 52v.6.17, 52v.6.27 |
+| `src/Provenance/run.jl` | the run door, which empties the move tally and closes with it, opens the writer, settles it at the declared cadence and drains it | 52v.6.17, 52v.6.11, 52v.6.27, 52v.6.31 |
 | `src/Backends/pool.jl` | `BytePool`, `charge!`, `release!` | 52v.6.23 |
 | `src/Backends/move.jl` | `host_buffer` and `copy_to_host!` beside `on` | 52v.6.24 |
 | `src/Provenance/plan.jl` | `plan`, `worthless`, the purge command | 52v.6.4 |
@@ -440,6 +440,8 @@ inert record that nonetheless entered a key would not be inert.
 | 52v.6.29 | sonnet | `src/Provenance/store.jl`, `test/provenance/store.jl`, `test/io/store_fixtures.jl` | `provenance.store_refuses_incomplete` passes with arms for two `Instantaneous` fields at one instant from two steps over identical inputs keyed apart; a `Static` field keyed over its keyword; an interval-placed field refused naming both intervals when its keyword differs, and when it is equal under `==` at another float width; the agreeing keyword storing as the positive control; and a call without `interval` refused as missing |
 | 52v.6.26 | frontier | `src/Provenance/writer.jl`, `src/Provenance/store.jl`, `test/provenance/writer.jl`, `test/io/store_fixtures.jl`, three entries of `docs/oracles/registry.toml`, `docs/imports/zarr.md` | `provenance.pooled_write_is_reference`, `provenance.write_order_independent` and `provenance.write_ceiling_held` pass with their controls; the store's two oracles pass through `put_field!` and their admission refusals refuse at `submit!`; a collided rename and an out-of-level cell id leave exactly the earlier submissions stored |
 | 52v.6.27 | sonnet | `src/Provenance/run.jl`, `test/provenance/run.jl` | a run refused after its submissions leaves them stored and rethrows the component's refusal; a refused drain is journalled; the door is the only caller of `open_writer` |
+| 52v.6.30 | sonnet | `src/Systems/profile.jl`, the profile construction sites in `test/`, the Amendments section of decision 0014 | `settle_interval` refuses absent, zero and below, a `Closure` disposition, a dimension other than time and an `Absent`; `fast_profile` and `full_profile` require it; `strip` carries it; `provenance.key_stability` passes; each control fires |
+| 52v.6.31 | sonnet | `src/Provenance/run.jl`, `test/provenance/run.jl` | `end_step!` raises a late refusal at the end of the first step reaching the next multiple of `settle_interval` since the run epoch and not before, journalled under that step's header, with later submissions absent; a step ending exactly on a multiple settles; a continued run settles on the epoch grid; each control fires |
 | 52v.6.6 | sonnet | none; reports only | every oracle this plan's front matter names ran; verdicts by name |
 
 52v.6.16 depends on nothing unmerged and blocks 52v.6.4 and 52v.6.6; 52v.4.19 and
@@ -451,8 +453,8 @@ skeleton. 52v.6.23, 52v.6.24 and 52v.6.25 block 52v.6.26, which with 52v.6.17 bl
 interval check lands in `write_field!` before 52v.6.26 splits it into the admission both
 doors share, so `submit!` inherits the keyword with the rest of `put_field!`'s, rather
 than a small change to the store waiting on the host copy 52v.6.26 waits on and then
-reaching into the writer's tests. 52v.6.6 depends on 52v.6.23 to 52v.6.27 and on
-52v.6.29. The row that calls `settle!`
-during a run is filed by 52v.6.20 once its question is answered. The area
+reaching into the writer's tests. 52v.6.30 depends on 52v.6.25, and 52v.6.31 depends on
+52v.6.30, 52v.6.26, 52v.6.27 and 52v.6.11. 52v.6.6 depends on 52v.6.23 to 52v.6.27 and
+on 52v.6.29 to 52v.6.31. The area
 depends on the fields plan for the ledger and on the system plan for the declared
 parameter subset.
