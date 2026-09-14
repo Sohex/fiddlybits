@@ -17,11 +17,8 @@ using UUIDs: UUID
 # tables below rather than wrapped in a call expected to throw.
 #
 # Each call table below is a function of a `Backends.Backend`, called once per
-# entry of BACKENDS: the backend is an axis SHAPES is built over, not a second
-# table copied by hand for the device. An operator on device arrays is the
-# same operator compiled at another array type (fiddlybits-52v.3.21), so
-# building a field's data with `Backends.on(data, backend)` and passing
-# `backend` through to the operator call is what puts it on the device.
+# entry of BACKENDS; a field's data is moved with `Backends.on(data, backend)`
+# and the operator is launched on `backend`.
 
 module InferenceMesh
 
@@ -62,9 +59,8 @@ field(semantics, data, support, backend; dimension = Dimensions.MASS,
     Fields.Field(semantics = semantics, dimension = dimension, data = Backends.on(data, backend),
                 support = support, time = time, origin = Fields.unstamped(:inference, RUN))
 
-"A field at `support` carrying `data` as given, with `semantics` and `time`: for
-CategoricalLabel data, whose element type is not a bits type, so no `Backend` can hold
-it and it stays where `inference_alternating` built it."
+"A field at `support` carrying CategoricalLabel `data` on the host as given, with
+`semantics` and `time`."
 label_field(semantics, data, support; dimension = Dimensions.DIMENSIONLESS,
             time = Time.TimeSupport(Time.IntervalMean(),
                                     Time.Interval(Time.SimTime(0.0), Time.SimTime(3600.0)))) =
