@@ -23,6 +23,7 @@ Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 Adapt = "4.7.0"
 CUDA = "6.3.1"
 DynamicQuantities = "1.13.0"
+JET = "0.12.1"
 KernelAbstractions = "0.9.42"
 LinearAlgebra = "1.12.0"
 NCDatasets = "0.14.15"
@@ -39,7 +40,8 @@ julia = "1.12"
 [extras]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "InteractiveUtils", "Dates"]
+test = ["Test", "InteractiveUtils", "Dates", "JET"]

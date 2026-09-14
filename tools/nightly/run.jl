@@ -15,6 +15,11 @@
 # was last pushed cannot be compared with the one before it, and comparison is the
 # whole of what a nightly is for, so this refuses rather than running on something
 # else.
+#
+# After the suites, the static pass of test/fields/static_pass.jl runs on the tree in an
+# environment built from the test target, and its result, with the Julia and JET versions
+# it ran on, is written into the night's record under `[static_pass]` (decision 0006,
+# docs/plans/fiddlybits-52v.3-fields.md).
 
 const NIGHTLY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 
@@ -26,6 +31,15 @@ include(joinpath(normpath(joinpath(@__DIR__, "..", "..")), "tools", "gate", "run
 end
 
 using .Gate: git_at
+
+include(joinpath(NIGHTLY_ROOT, "test", "fields", "static_pass.jl"))
+
+"""
+    static_wrap(root)
+
+What every `julia` the static pass starts is passed through: `Gate.in_checkout` on `root`.
+"""
+static_wrap(root::AbstractString) = cmd -> Gate.in_checkout(cmd, root)
 
 """
 What the nightly adds to the gate's `SUITE_FLAGS`: the gate's `BOUNDS_FLAGS`, the one
@@ -86,11 +100,14 @@ correction of the first.
 
 Holds the commit, the status, the wall time and every suite's own, which is what the
 next night is compared against, and under `[bounds_reach]` what the bounds probe read on
-each backend before the suites ran (`Gate.bounds_reach`), when `reach` carries it.
+each backend before the suites ran (`Gate.bounds_reach`), when `reach` carries it. Under
+`[static_pass]` it holds the result `StaticPass.run_pass` returned, when `static` is not
+empty.
 """
 function write_record(dir::AbstractString, sha::AbstractString,
                       results::Vector{Tuple{String,Bool,Float64}}, wall::Float64,
-                      status::Int; reach::AbstractDict = Dict{String,Any}())
+                      status::Int; reach::AbstractDict = Dict{String,Any}(),
+                      static::AbstractDict = Dict{String,Any}())
     stamp = format(now(), "yyyy-mm-ddTHH-MM-SS")
     base = stamp * "-" * sha[1:min(end, 12)]
     path = joinpath(dir, base * ".toml")
@@ -111,6 +128,10 @@ function write_record(dir::AbstractString, sha::AbstractString,
             println(io, "[bounds_reach]")
             println(io, "cpu = ", repr(String(reach["marker_cpu"])))
             println(io, "gpu = ", repr(String(reach["marker_gpu"])))
+        end
+        if !isempty(static)
+            println(io)
+            TOML.print(io, Dict("static_pass" => static); sorted = true)
         end
         for (name, ok, seconds) in results
             println(io)
@@ -148,7 +169,17 @@ function main(args::Vector{String})
     wall = time() - started
     status = Gate.report(results, logdir, wall)
 
-    record = write_record(record_dir(), sha, results, wall, status; reach = reach)
+    static = StaticPass.run_pass(NIGHTLY_ROOT, logdir; wrap = static_wrap(NIGHTLY_ROOT))
+    println()
+    println("nightly: static pass ", static["status"] == 0 ? "pass" : "FAIL", " on julia ",
+            get(static, "julia_version", "(no result)"), " with JET ",
+            get(static, "jet_version", "(no result)"), ", ", length(get(static, "new", [])),
+            " new and ", length(get(static, "stale", [])), " stale findings, output in ",
+            static["log"])
+    status = (status == 0 && static["status"] == 0) ? 0 : 1
+
+    record = write_record(record_dir(), sha, results, wall, status; reach = reach,
+                          static = static)
     println()
     println("nightly: recorded in ", record)
     return status

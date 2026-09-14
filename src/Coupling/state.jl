@@ -272,43 +272,68 @@ function Stock(; kwargs...)
 end
 
 """
-    Declaration(; name, level, reads, writes, stocks, system_fields, backend)
+    Declaration(; name, level, reads, writes, stocks, system_fields, profile_fields, backend)
 
 What a component declares (decision 0009): its `name`; the `level` it writes at; its
 `reads`, a tuple of `Read` naming each quantity once; its `writes`, a tuple of `Write`
 naming each quantity once; its `stocks`, a tuple of `Stock` naming each conserved
 quantity once; `system_fields`, a tuple of distinct paths from a `System` in the
-grammar of `Systems.affected`; and the `Backend` it runs on. Every tuple may be empty.
+grammar of `Systems.affected`; `profile_fields`, a tuple of distinct paths from a
+`Systems.Profile` in the same grammar, a component's own entry of the profile's
+components reached as `(:components, name, ...)`; and the `Backend` it runs on. Every
+tuple may be empty. Refuses, naming the component, a profile path that is empty or
+whose first step is `:label`, each of which reaches the profile's label (decision 0010,
+section What the key names).
 """
-struct Declaration{R,W,S,P,B<:Backend}
+struct Declaration{R,W,S,P,Q,B<:Backend}
     name::Symbol
     level::Int
     reads::R
     writes::W
     stocks::S
     system_fields::P
+    profile_fields::Q
     backend::B
 
-    Declaration{R,W,S,P,B}(::Checked, n, l, r, w, s, p, b) where {R,W,S,P,B} =
-        new{R,W,S,P,B}(n, l, r, w, s, p, b)
+    Declaration{R,W,S,P,Q,B}(::Checked, n, l, r, w, s, p, q, b) where {R,W,S,P,Q,B} =
+        new{R,W,S,P,Q,B}(n, l, r, w, s, p, q, b)
+end
+
+"""
+    require_paths(quantity, site, name, paths)
+
+`paths` when it is a tuple of distinct paths, each a tuple of steps; refuses at `site`
+naming `quantity` otherwise.
+"""
+function require_paths(quantity::AbstractString, site::AbstractString, name::Symbol, paths)
+    paths isa Tuple || refuse(quantity, site, "a $(typeof(paths)) where a tuple of paths is required")
+    foreach(p -> require_path(site, name, p), paths)
+    allunique(paths) || refuse(quantity, site, "$(paths) names one path twice")
+    return paths
 end
 
 function Declaration(; kwargs...)
     site = "Coupling.Declaration"
     k, _ = read_keywords(site, values(kwargs),
-                         (:name, :level, :reads, :writes, :stocks, :system_fields, :backend), ())
+                         (:name, :level, :reads, :writes, :stocks, :system_fields,
+                          :profile_fields, :backend), ())
     name = require_type("name", site, k.name, Symbol)
     level = require_level("level", site, k.level)
     reads = require_members("reads", site, k.reads, Read, :quantity)
     writes = require_members("writes", site, k.writes, Write, :quantity)
     stocks = require_members("stocks", site, k.stocks, Stock, :conserved)
-    paths = k.system_fields
-    paths isa Tuple || refuse("system_fields", site, "a $(typeof(paths)) where a tuple of paths is required")
-    foreach(p -> require_path(site, name, p), paths)
-    allunique(paths) || refuse("system_fields", site, "$(paths) names one path twice")
+    paths = require_paths("system_fields", site, name, k.system_fields)
+    profile_paths = require_paths("profile_fields", site, name, k.profile_fields)
+    for p in profile_paths
+        (isempty(p) || first(p) === :label) && refuse(
+            "profile_fields", site,
+            "$(name) declares $(p), which reaches the profile's label, a name and not a " *
+            "setting (decision 0010)")
+    end
     backend = require_type("backend", site, k.backend, Backend)
-    return Declaration{typeof(reads),typeof(writes),typeof(stocks),typeof(paths),typeof(backend)}(
-        Checked(), name, level, reads, writes, stocks, paths, backend)
+    return Declaration{typeof(reads),typeof(writes),typeof(stocks),typeof(paths),
+                       typeof(profile_paths),typeof(backend)}(
+        Checked(), name, level, reads, writes, stocks, paths, profile_paths, backend)
 end
 
 """

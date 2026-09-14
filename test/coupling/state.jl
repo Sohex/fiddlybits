@@ -46,10 +46,10 @@ initial(q; level = fixture_level(), backend = Backends.CPU()) =
 
 "A fixture `Component` named `name`."
 component(name; level = fixture_level(), reads = (), writes = (), stocks = (),
-          system_fields = (), backend = Backends.CPU()) =
+          system_fields = (), profile_fields = (), backend = Backends.CPU()) =
     Component(Coupling.Declaration(name = name, level = level, reads = reads, writes = writes,
                                    stocks = stocks, system_fields = system_fields,
-                                   backend = backend))
+                                   profile_fields = profile_fields, backend = backend))
 
 "`Coupling.assemble` with the fixture's journal header."
 assemble(components...; initial_conditions = ()) =
@@ -289,6 +289,18 @@ import .CouplingFixtures as CF
         @test CF.refused(CF.caught(() -> CF.reading(:x; level = -1)), "level", "lies outside")
         @test CF.refused(CF.caught(() -> CF.reading(:x; lagged = 0)), "lagged", "Bool")
         @test CF.refused(CF.caught(() -> CF.component(:a; system_fields = ((:planet, "mass"),))), "path", "step")
+        @test CF.refused(CF.caught(() -> CF.component(:a; profile_fields = ((:label,),))), "profile_fields",
+                         "a declares (:label,), which reaches the profile's label")
+        @test CF.refused(CF.caught(() -> CF.component(:a; profile_fields = ((),))), "profile_fields",
+                         "a declares (), which reaches the profile's label")
+        @test CF.refused(CF.caught(() -> CF.component(:a; profile_fields = ((:fast_precision,), (:fast_precision,)))),
+                         "profile_fields", "twice")
+        @test CF.refused(CF.caught(() -> CF.component(:a; profile_fields = ((:components, "atmosphere"),))), "path", "step")
+        @test CF.refused(CF.caught(() -> Coupling.Declaration(name = :a, level = 2, reads = (), writes = (), stocks = (),
+                                                              system_fields = (), backend = Backends.CPU())),
+                         "profile_fields", "missing")
+        @test CF.component(:a; profile_fields = ((:fast_precision,), (:components, :a, :ladder))).declaration.profile_fields ==
+              ((:fast_precision,), (:components, :a, :ladder))
         @test CF.refused(CF.caught(() -> CF.component(:a; writes = (CF.writing(:x), CF.writing(:x)))),
                          "writes", "twice")
         @test CF.refused(CF.caught(() -> CF.writing(:x; conserves = (:heat,))), "conserves", "not one of")

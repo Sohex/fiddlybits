@@ -15,12 +15,12 @@ using ..Dispositions: Disposition
 """
     holds_declaration(x)
 
-`true` when a `Disposition` is reachable from `x` through tuples, arrays and the
-fields of this module's structs.
+`true` when a `Disposition` is reachable from `x` through tuples, named tuples, arrays
+and the fields of this module's structs.
 """
 holds_declaration(::Disposition) = true
 holds_declaration(::AbstractArray{<:Number}) = false
-holds_declaration(x::Union{Tuple,AbstractArray}) = any(holds_declaration, x)
+holds_declaration(x::Union{Tuple,NamedTuple,AbstractArray}) = any(holds_declaration, x)
 holds_declaration(x) = parentmodule(typeof(x)) === (@__MODULE__) &&
     any(name -> holds_declaration(getfield(x, name)), fieldnames(typeof(x)))
 

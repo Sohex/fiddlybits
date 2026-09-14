@@ -1,5 +1,6 @@
 # The artifact key, the code version and the run id: docs/plans/fiddlybits-52v.6-provenance.md,
-# section "The key"; decision 0010; REQ-PROV-002. SHA-256 over the canonical serialisation
+# section "The key"; docs/decisions/0010-content-addressed-artifacts.md, section "What the
+# key names" and its Amendments; REQ-PROV-002. SHA-256 over the canonical serialisation
 # for keys and UUID version 4 for run ids, as docs/imports/sha-uuids.md records them.
 # Every word is written little-endian at a fixed width, and every member named by a name
 # is written in sorted name order.
@@ -8,7 +9,8 @@ using SHA: sha256
 using UUIDs: UUIDs, UUID, uuid4
 using ..Verdicts: Refusal, refuse
 using ..Backends: bitwise
-using ..Systems: Systems, System, Checked, read_keywords, require_type
+using ..Time: Time
+using ..Systems: Systems, System, Profile, Checked, read_keywords, require_type
 using ..Mesh: Mesh, write_le!, write_symbol!, write_digest!
 using ..Coupling: Coupling, Declaration
 
@@ -50,11 +52,14 @@ const TAG_STRUCT = 0x0b
 "The byte that opens a type in `canonical_bytes`."
 const TAG_TYPE = 0x0c
 
-"The byte that stands for a `:` step of a path in `parameter_digest`."
+"The byte that stands for a `:` step of a path in `subset_digest`."
 const TAG_COLON = 0x0d
 
 "The name that opens the bytes `parameter_digest` hashes."
 const PARAMETER_DOMAIN = :fiddlybits_parameter_subset
+
+"The name that opens the bytes `profile_digest` hashes."
+const PROFILE_DOMAIN = :fiddlybits_profile_subset
 
 "The name that opens the bytes `ArtifactKey` hashes."
 const KEY_DOMAIN = :fiddlybits_artifact_key
@@ -241,7 +246,7 @@ function canonical_bytes(x)
     return take!(io)
 end
 
-# ---------------------------------------------------------------- the parameter subset
+# ---------------------------------------------------------------- the declared subsets
 
 """
     write_path!(io, path)
@@ -273,54 +278,75 @@ function expand_path(x, path::Tuple)
 end
 
 """
-    path_block(site, name, system, path)
+    path_block(site, quantity, name, root, path)
 
 The bytes of one declared path: the path by `write_path!`, the count of the colon-free
-paths `expand_path` gives for it, and for each the path and the value it reaches from
-`system` by `write_canonical!`. Refuses at `site`, naming the component `name` and the
-path, a value `canonical_bytes` refuses.
+paths `expand_path` gives for it from `root`, and for each the path and the value it
+reaches from `root` by `write_canonical!`. Refuses at `site`, naming `quantity`, the
+component `name` and the path, a value `canonical_bytes` refuses.
 """
-function path_block(site::AbstractString, name::Symbol, system::System, path::Tuple)
+function path_block(site::AbstractString, quantity::AbstractString, name::Symbol, root, path::Tuple)
     io = IOBuffer()
     write_path!(io, path)
-    reached = expand_path(system, path)
+    reached = expand_path(root, path)
     write_count!(io, length(reached))
     for p in reached
         write_path!(io, p)
         try
-            write_canonical!(io, Systems.at_path(system, p))
+            write_canonical!(io, Systems.at_path(root, p))
         catch err
             err isa Refusal || rethrow()
-            refuse("system_fields", site, "$(name) declares $(path), which reaches $(p): $(err.reason)")
+            refuse(quantity, site, "$(name) declares $(path), which reaches $(p): $(err.reason)")
         end
     end
     return take!(io)
 end
 
 """
-    parameter_digest(declaration, system)
+    subset_digest(domain, quantity, site, name, root, what, paths)
 
-The SHA-256 digest, as an `NTuple{32,UInt8}`, of the values `system` holds at the paths
-`declaration.system_fields` names: `PARAMETER_DOMAIN`, the count of paths, and each
-path's `path_block` in sorted byte order, so the order the paths are declared in reaches
-no digest. Refuses, naming the component and the path, a path that does not reach
-through `system` by `Systems.reaches` and a reached value `canonical_bytes` refuses.
+The SHA-256 digest, as an `NTuple{32,UInt8}`, of the values `root` holds at `paths`, the
+paths the component `name` declares: `domain`, the count of paths, and each path's
+`path_block` in sorted byte order, so the order the paths are declared in reaches no
+digest. Refuses at `site`, naming `quantity`, the component and the path, a path that
+does not reach through `root` by `Systems.reaches`, the reason naming `root` as `what`;
+and a reached value `canonical_bytes` refuses.
 """
-function parameter_digest(declaration::Declaration, system::System)
-    site = "Provenance.parameter_digest"
+function subset_digest(domain::Symbol, quantity::AbstractString, site::AbstractString,
+                       name::Symbol, root, what::AbstractString, paths::Tuple)
     blocks = Vector{UInt8}[]
-    for path in declaration.system_fields
-        Systems.reaches(system, path) || refuse(
-            "system_fields", site,
-            "$(declaration.name) declares $(path), which does not reach through the system")
-        push!(blocks, path_block(site, declaration.name, system, path))
+    for path in paths
+        Systems.reaches(root, path) || refuse(
+            quantity, site, "$(name) declares $(path), which does not reach through $(what)")
+        push!(blocks, path_block(site, quantity, name, root, path))
     end
     io = IOBuffer()
-    write_symbol!(io, PARAMETER_DOMAIN)
+    write_symbol!(io, domain)
     write_count!(io, length(blocks))
     foreach(b -> write(io, b), sort!(blocks))
     return Tuple(sha256(take!(io)))
 end
+
+"""
+    parameter_digest(declaration, system)
+
+`subset_digest` under `PARAMETER_DOMAIN` of the values `system` holds at the paths
+`declaration.system_fields` names; refusals name the quantity `"system_fields"`.
+"""
+parameter_digest(declaration::Declaration, system::System) =
+    subset_digest(PARAMETER_DOMAIN, "system_fields", "Provenance.parameter_digest",
+                  declaration.name, system, "the system", declaration.system_fields)
+
+"""
+    profile_digest(declaration, profile)
+
+`subset_digest` under `PROFILE_DOMAIN` of the values the `Systems.Profile` `profile`
+holds at the paths `declaration.profile_fields` names, a component's own entry of the
+profile's components reached by its name; refusals name the quantity `"profile_fields"`.
+"""
+profile_digest(declaration::Declaration, profile::Profile) =
+    subset_digest(PROFILE_DOMAIN, "profile_fields", "Provenance.profile_digest",
+                  declaration.name, profile, "the profile", declaration.profile_fields)
 
 # ---------------------------------------------------------------- the code version
 
@@ -516,36 +542,83 @@ function require_inputs(site::AbstractString, declaration::Declaration, inputs)
     return inputs
 end
 
-"""
-    ArtifactKey(; code, declaration, system, inputs, quantity, support, operator_version)
+"The `Read` of `quantity` in the declaration `d`, which reads it."
+read_of(d::Declaration, quantity::Symbol) = d.reads[findfirst(r -> r.quantity === quantity, d.reads)]
 
-The key of the artifact `quantity` written by the component `declaration` declares: the
-SHA-256 digest of `KEY_DOMAIN`, then
+"The float type the `Systems.Profile` `p` is resolved in."
+profile_precision(::Profile{FT}) where {FT} = FT
+
+"""
+    key_digest(code, declaration, system, profile, inputs, quantity, support, interval, version)
+
+The digest `ArtifactKey` computes, in the layout its docstring states, from the values it
+has checked.
+"""
+function key_digest(code::CodeVersion, declaration::Declaration, system::System, profile::Profile,
+                    inputs::NamedTuple, quantity::Symbol, support::Mesh.Support,
+                    interval::Time.Interval, version::UInt64)
+    io = IOBuffer()
+    write_symbol!(io, KEY_DOMAIN)
+    write_canonical!(io, (code.tree, code.manifest, string(code.julia), code.dirty))
+    write_digest!(io, parameter_digest(declaration, system))
+    write_digest!(io, profile_digest(declaration, profile))
+    names = sort(collect(keys(inputs)))
+    write_count!(io, length(names))
+    for q in names
+        write_symbol!(io, q)
+        write_canonical!(io, read_of(declaration, q))
+        write_digest!(io, inputs[q].digest)
+    end
+    write_digest!(io, support.digest)
+    write_canonical!(io, (interval.t0.seconds, interval.t1.seconds))
+    write_canonical!(io, (declaration.name, Coupling.write_of(declaration, quantity),
+                          nameof(typeof(declaration.backend)), bitwise(declaration.backend), version))
+    return Tuple(sha256(take!(io)))
+end
+
+"""
+    ArtifactKey(; code, declaration, system, profile, inputs, quantity, support, interval,
+                  operator_version)
+
+The key of the artifact `quantity` written by the component `declaration` declares, over
+the `Time.Interval` `interval` it advanced over: the SHA-256 digest of `KEY_DOMAIN`, then
 
 1. the code version, the tuple `(code.tree, code.manifest, string(code.julia),
    code.dirty)` by `canonical_bytes`;
 2. the declared parameter subset, `parameter_digest(declaration, system)`;
-3. the input keys, `inputs` a `NamedTuple` from each quantity `declaration` reads to
-   the `ArtifactKey` it was read from, as a count and, in sorted name order, the name
-   and the key's digest;
-4. the support id, `support.digest`;
-5. the operator, the tuple `(declaration.name, quantity, the name of the type of
-   declaration.backend, bitwise(declaration.backend), UInt64(operator_version))` by
-   `canonical_bytes`.
+3. the declared profile subset, `profile_digest(declaration, profile)`;
+4. the inputs, `inputs` a `NamedTuple` from each quantity `declaration` reads to the
+   `ArtifactKey` it was read from, as a count and, in sorted name order, the name, the
+   `Coupling.Read` of that quantity in `declaration` by `canonical_bytes` (its quantity,
+   level, operator with its rule and measure, lagged and move), and the key's digest;
+5. the support id, `support.digest`;
+6. the interval, the tuple `(interval.t0.seconds, interval.t1.seconds)` by
+   `canonical_bytes`, each bound its IEEE 754 bit pattern at its width;
+7. the operator, the tuple `(declaration.name, Coupling.write_of(declaration, quantity),
+   the name of the type of declaration.backend, bitwise(declaration.backend),
+   UInt64(operator_version))` by `canonical_bytes`, the `Coupling.Write` whole (its
+   quantity, semantics and conserved quantities).
 
-Every keyword is required. Refuses a keyword of the wrong type; `inputs` that
-`require_inputs` refuses; a `quantity` `declaration` does not write; a `support` at
-another level than `declaration.level`; a negative `operator_version`; and whatever
-`parameter_digest` refuses. A dirty code version gives a key; `admit` refuses it.
+Every keyword is required. Refuses a keyword of the wrong type; a `profile` whose float
+type differs from the `system`'s; `inputs` that `require_inputs` refuses; a `quantity`
+`declaration` does not write; a `support` at another level than `declaration.level`; a
+negative `operator_version`; and whatever `parameter_digest` and `profile_digest` refuse.
+A dirty code version gives a key; `admit` refuses it.
 """
 function ArtifactKey(; kwargs...)
     site = "Provenance.ArtifactKey"
     k, _ = read_keywords(site, values(kwargs),
-                         (:code, :declaration, :system, :inputs, :quantity, :support,
-                          :operator_version), ())
+                         (:code, :declaration, :system, :profile, :inputs, :quantity, :support,
+                          :interval, :operator_version), ())
     code = require_type("code", site, k.code, CodeVersion)
     declaration = require_type("declaration", site, k.declaration, Declaration)
     system = require_type("system", site, k.system, System)
+    profile = require_type("profile", site, k.profile, Profile)
+    profile_precision(profile) === Systems.system_precision(system) || refuse(
+        "profile", site,
+        "a profile resolved in $(profile_precision(profile)) and a system in " *
+        "$(Systems.system_precision(system)); a profile is resolved on its system")
+    interval = require_type("interval", site, k.interval, Time.Interval)
     inputs = require_inputs(site, declaration, k.inputs)
     quantity = require_type("quantity", site, k.quantity, Symbol)
     any(w -> w.quantity === quantity, declaration.writes) || refuse(
@@ -557,22 +630,10 @@ function ArtifactKey(; kwargs...)
         "$(declaration.level)")
     version = checked_word(require_type("operator_version", site, k.operator_version, Integer),
                            "operator_version", site)
-
-    io = IOBuffer()
-    write_symbol!(io, KEY_DOMAIN)
-    write_canonical!(io, (code.tree, code.manifest, string(code.julia), code.dirty))
-    write_digest!(io, parameter_digest(declaration, system))
-    names = sort(collect(keys(inputs)))
-    write_count!(io, length(names))
-    for q in names
-        write_symbol!(io, q)
-        write_digest!(io, inputs[q].digest)
-    end
-    write_digest!(io, support.digest)
-    write_canonical!(io, (declaration.name, quantity, nameof(typeof(declaration.backend)),
-                          bitwise(declaration.backend), version))
-    dirty = code.dirty || any(q -> inputs[q].dirty, names)
-    return ArtifactKey(Checked(), Tuple(sha256(take!(io))), code, dirty)
+    digest = key_digest(code, declaration, system, profile, inputs, quantity, support, interval,
+                        version)
+    dirty = code.dirty || any(q -> inputs[q].dirty, keys(inputs))
+    return ArtifactKey(Checked(), digest, code, dirty)
 end
 
 # ---------------------------------------------------------------- the store's door
