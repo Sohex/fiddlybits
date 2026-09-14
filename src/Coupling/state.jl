@@ -90,9 +90,6 @@ How a read reaches the level it names from the level its quantity is written at:
 """
 abstract type Operator end
 
-"A read at the level its quantity is written at, through no operator."
-struct AtLevel <: Operator end
-
 "The coarsening rule the semantics of the coarsened field fixes, where it names no `Fields.Rule`."
 struct RuleOfSemantics end
 
@@ -111,6 +108,26 @@ function require_measure(site::AbstractString, measure)
         "$(repr(measure)) is not one of $(join(map(repr, Fields.MEASURE_NAMES), ", ")), " *
         "or NoMeasure()")
     return measure
+end
+
+"""
+    AtLevel(; measure)
+
+A read at the level its quantity is written at, through no operator, with `measure`, a
+name in `Fields.MEASURE_NAMES` or `NoMeasure()`: the measure the receipt of a move of
+its quantity is integrated under, which `assemble` checks by `require_measures`.
+"""
+struct AtLevel{M} <: Operator
+    measure::M
+
+    AtLevel{M}(::Checked, m) where {M} = new{M}(m)
+end
+
+function AtLevel(; kwargs...)
+    site = "Coupling.AtLevel"
+    k, _ = read_keywords(site, values(kwargs), (:measure,), ())
+    measure = require_measure(site, k.measure)
+    return AtLevel{typeof(measure)}(Checked(), measure)
 end
 
 """
@@ -199,26 +216,35 @@ end
 crossing(r::Read) = !(r.operator isa AtLevel) || r.move
 
 """
-    Write(; quantity, conserves)
+    Write(; quantity, semantics, conserves)
 
-One write of a component: the `quantity` by name, written at the component's level,
-and `conserves`, the tuple of names from `CONSERVED` it carries an amount of, empty
-when it carries none.
+One write of a component: the `quantity` by name, written at the component's level;
+`semantics`, the `Fields.Semantics` every field placed for it carries; and `conserves`,
+the tuple of names from `CONSERVED` it carries an amount of, empty when it carries
+none.
 """
-struct Write{C}
+struct Write{S<:Fields.Semantics,C}
     quantity::Symbol
+    semantics::S
     conserves::C
 
-    Write{C}(::Checked, q, c) where {C} = new{C}(q, c)
+    Write{S,C}(::Checked, q, s, c) where {S,C} = new{S,C}(q, s, c)
 end
 
 function Write(; kwargs...)
     site = "Coupling.Write"
-    k, _ = read_keywords(site, values(kwargs), (:quantity, :conserves), ())
+    k, _ = read_keywords(site, values(kwargs), (:quantity, :semantics, :conserves), ())
     quantity = require_type("quantity", site, k.quantity, Symbol)
+    semantics = require_type("semantics", site, k.semantics, Fields.Semantics)
     conserves = require_symbols("conserves", site, k.conserves, CONSERVED)
-    return Write{typeof(conserves)}(Checked(), quantity, conserves)
+    return Write{typeof(semantics),typeof(conserves)}(Checked(), quantity, semantics, conserves)
 end
+
+"The `Write` of `quantity` in the declaration `d`, which writes it."
+write_of(d, quantity::Symbol) = d.writes[findfirst(w -> w.quantity === quantity, d.writes)]
+
+"The name of the semantics `s`, as `Fields` prints it."
+semantics_name(s::Fields.Semantics) = Fields.type_name(typeof(s))
 
 """
     Stock(; conserved, quantities)
@@ -518,6 +544,60 @@ function require_sources(site::AbstractString, declarations, by_name, writers, i
 end
 
 """
+    move_measure(semantics)
+
+The measure a move through `AtLevel` of a quantity written with `semantics` and
+carrying a conserved quantity declares, as the type its `measure` is: `NoMeasure` for
+`Fields.Extensive`, whose receipt is its total; `Symbol`, a measure name, for
+`Fields.FluxDensity`, `Fields.Fraction` and `Fields.Intensive`, whose receipt is the
+integral under that measure; `nothing` for every other semantics.
+"""
+move_measure(::Fields.Extensive) = NoMeasure
+move_measure(::Union{Fields.FluxDensity,Fields.Fraction,Fields.Intensive}) = Symbol
+move_measure(::Fields.Semantics) = nothing
+
+"""
+    require_measures(site, declarations, by_name, writers)
+
+Refuses at `site`, naming the quantity, the first read through `AtLevel` by component
+and quantity name that: declares a measure name and is not a move of a quantity whose
+`Write` carries a conserved quantity; moves a quantity carrying a conserved quantity
+whose semantics `move_measure` gives `nothing`; or declares a measure other than of the
+type `move_measure` gives for the semantics of the quantity it moves.
+"""
+function require_measures(site::AbstractString, declarations, by_name, writers)
+    for d in declarations, r in sort(collect(d.reads); by = r -> r.quantity)
+        r.operator isa AtLevel || continue
+        q = r.quantity
+        m = r.operator.measure
+        w = haskey(writers, q) ? write_of(by_name[writers[q]], q) : nothing
+        if !r.move || w === nothing || isempty(w.conserves)
+            m isa NoMeasure || refuse(
+                String(q), site,
+                "$(d.name) declares the $(m) measure on its read of $(q) through AtLevel, " *
+                (r.move ? "a move of a quantity carrying no conserved quantity" : "which is not a move") *
+                ", and no receipt of it is integrated")
+            continue
+        end
+        name = semantics_name(w.semantics)
+        carried = "$(writers[q]) writes as $(name) carrying $(join(w.conserves, ", "))"
+        expected = move_measure(w.semantics)
+        expected === nothing && refuse(
+            String(q), site,
+            "$(d.name) moves $(q), which $(carried), and a $(name) field holds no amount a " *
+            "receipt ledger closes")
+        m isa expected && continue
+        refuse(String(q), site,
+               expected === NoMeasure ?
+               "$(d.name) declares the $(m) measure on its move of $(q), which $(carried), " *
+               "whose receipt is its total over no measure" :
+               "$(d.name) moves $(q), which $(carried), through AtLevel declaring no measure, " *
+               "and its receipt is the integral under a declared measure")
+    end
+    return nothing
+end
+
+"""
     require_read(site, declarations, writers, initial)
 
 Refuses at `site`, naming the quantity, the first by name that: its writer writes and
@@ -679,6 +759,7 @@ function wire(site::AbstractString, components::Tuple, initial_conditions)
     require_stocks(site, declarations)
     require_initial_agrees(site, by_name, writers, initial)
     require_sources(site, declarations, by_name, writers, initial)
+    require_measures(site, declarations, by_name, writers)
     require_read(site, declarations, writers, initial)
     edges = intra_step_edges(declarations, writers)
     require_acyclic(site, names, edges)
@@ -701,7 +782,8 @@ stock of; an initial condition whose level or device differs from its writer's; 
 read with no writer and no initial condition, a lagged read with no initial
 condition, a read whose operator does not reach its level from its quantity's, a read
 of a quantity on another device with no declared move, and a declared move within one
-device; a written quantity nothing reads, and an initial condition nothing reads; an
+device; a read through `AtLevel` whose measure `require_measures` refuses; a written
+quantity nothing reads, and an initial condition nothing reads; an
 intra-step cycle once the lagged reads are removed, with the cycle printed.
 
 Every refusal raised past the keyword checks is handed to `Events.emit` as a `refusal`
@@ -731,7 +813,8 @@ end
 The store of `assembly`'s quantities. `initial` is a `NamedTuple` holding a
 `Fields.Field` for exactly the quantities `assembly` has initial conditions for, each
 at its initial condition's level with an array of the type `Backends.array_type`
-names for its backend. A quantity's field type is fixed by its first placement.
+names for its backend, and with the semantics its declared writer's `Write` names
+where it has one. A quantity's field type is fixed by its first placement.
 
 The store holds each quantity's current field, the fields as they stood when the
 current step began, which quantities have been written in the step, and the fields
@@ -768,6 +851,25 @@ function require_placement(site::AbstractString, quantity::Symbol, field, level:
 end
 
 """
+    require_declared_semantics(site, assembly, quantity, field)
+
+Refuses at `site`, naming `quantity`, a `field` whose semantics differ from those the
+`Write` of `quantity` by its declared writer in `assembly` names. Returns `nothing` for
+a quantity with no declared writer.
+"""
+function require_declared_semantics(site::AbstractString, assembly::Assembly, quantity::Symbol,
+                                    field::Field)
+    w = writer(assembly, quantity)
+    w === nothing && return nothing
+    declared = write_of(declaration(assembly, w), quantity).semantics
+    Fields.semantics(field) === declared || refuse(
+        String(quantity), site,
+        "$(Fields.describe(field)) is placed for $(quantity), which $(w) declares it writes " *
+        "as $(semantics_name(declared))")
+    return nothing
+end
+
+"""
     require_type_fixed!(site, state, key, quantity, field)
 
 Records `typeof(field)` under `key` at its first placement; refuses at `site`, naming
@@ -800,6 +902,7 @@ function WorldState(assembly::Assembly; kwargs...)
     for q in given
         ic = assembly.initial_conditions[q]
         field = require_placement(site, q, initial[q], ic.level, ic.backend)
+        require_declared_semantics(site, assembly, q, field)
         require_type_fixed!(site, state, q, q, field)
         state.current[q] = field
     end
@@ -897,8 +1000,8 @@ end
 Places `field` as the current value of `quantity`, written by `writer`. Refuses a
 `writer` that is not the declared writer of `quantity`, a write before the first step,
 a second write of `quantity` in one step, a field `require_placement` refuses at the
-writer's level and backend, a field of another type than `quantity` was first placed
-as, and a field holding the array its quantity held when the step began. Returns
+writer's level and backend, a field of other semantics than the writer's `Write` of
+`quantity` names, a field of another type than `quantity` was first placed as, and a field holding the array its quantity held when the step began. Returns
 `state`.
 """
 function write_quantity!(state::WorldState, writer_name::Symbol, quantity::Symbol, field)
@@ -914,6 +1017,7 @@ function write_quantity!(state::WorldState, writer_name::Symbol, quantity::Symbo
         quantity in state.written && refuse(
             String(quantity), site, "$(writer_name) has already written $(quantity) in this step")
         require_placement(site, quantity, field, d.level, d.backend)
+        require_declared_semantics(site, state.assembly, quantity, field)
         require_type_fixed!(site, state, quantity, quantity, field)
         haskey(state.lagged, quantity) && Fields.data(state.lagged[quantity]) === Fields.data(field) &&
             refuse(String(quantity), site,

@@ -28,13 +28,17 @@ struct Undeclared end
 "The level every fixture component writes at unless it names another."
 fixture_level() = 2
 
+"A `Coupling.AtLevel` over `measure`."
+at_level(measure = Coupling.NoMeasure()) = Coupling.AtLevel(measure = measure)
+
 "A `Coupling.Read` of `q`, every other keyword overridable."
-reading(q; level = fixture_level(), operator = Coupling.AtLevel(), lagged = false,
+reading(q; level = fixture_level(), operator = at_level(), lagged = false,
         move = false) =
     Coupling.Read(quantity = q, level = level, operator = operator, lagged = lagged, move = move)
 
-"A `Coupling.Write` of `q` carrying `conserves`."
-writing(q; conserves = ()) = Coupling.Write(quantity = q, conserves = conserves)
+"A `Coupling.Write` of `q` with `semantics`, carrying `conserves`."
+writing(q; semantics = Fields.Extensive(), conserves = ()) =
+    Coupling.Write(quantity = q, semantics = semantics, conserves = conserves)
 
 "A `Coupling.InitialCondition` of `q`."
 initial(q; level = fixture_level(), backend = Backends.CPU()) =
@@ -91,10 +95,10 @@ function support(level)
                         radius = 1.0, element_type = :Float64, fractions = ())
 end
 
-"A static mass `Fields.Field` on `s` over `data`."
-field(s, data; semantics = Fields.Extensive()) =
+"A mass `Fields.Field` on `s` over `data`, static unless another `time` is named."
+field(s, data; semantics = Fields.Extensive(), time = Time.TimeSupport(Time.Static())) =
     Fields.Field(semantics = semantics, dimension = Dimensions.MASS, data = data, support = s,
-                 time = Time.TimeSupport(Time.Static()),
+                 time = time,
                  origin = Fields.unstamped(:fixture, UUID("5c0a1e00-0000-4000-8000-000000000011")))
 
 end # module CouplingFixtures
@@ -167,6 +171,36 @@ import .CouplingFixtures as CF
                          "x", "the initial condition of x is on CPU and its writer g runs on GPU")
     end
 
+    @testset "a move through AtLevel declares the measure its receipt is integrated under" begin
+        water = (Coupling.Stock(conserved = :water, quantities = (:pool,)),)
+        label = Fields.CategoricalLabel{(:a, :b)}()
+        writer(; cover) = CF.component(:g; writes = (CF.writing(:pool; conserves = (:water,)),
+                                                     CF.writing(:vapour; semantics = Fields.FluxDensity(), conserves = (:water,)),
+                                                     CF.writing(:tag; semantics = label, conserves = ()),
+                                                     (cover ? (CF.writing(:cover; semantics = label, conserves = (:water,)),) : ())...),
+                                       stocks = water, backend = Backends.GPU())
+        reader(; pool = CF.at_level(), vapour = CF.at_level(:primal_cell_area), tag = CF.at_level(), cover = nothing) =
+            CF.component(:h; reads = (CF.reading(:pool; operator = pool, move = true),
+                                      CF.reading(:vapour; operator = vapour, move = true),
+                                      CF.reading(:tag; operator = tag, move = true),
+                                      (cover === nothing ? () : (CF.reading(:cover; operator = cover, move = true),))...))
+        placed(h; cover = false) = CF.assemble(writer(cover = cover), h)
+
+        @test placed(reader()) isa Coupling.Assembly
+        @test CF.refused(CF.caught(() -> placed(reader(vapour = CF.at_level()))), "vapour",
+                         "h moves vapour, which g writes as FluxDensity carrying water, through AtLevel declaring no measure")
+        @test CF.refused(CF.caught(() -> placed(reader(pool = CF.at_level(:primal_cell_area)))), "pool",
+                         "h declares the primal_cell_area measure on its move of pool, which g writes as Extensive carrying water")
+        @test CF.refused(CF.caught(() -> placed(reader(tag = CF.at_level(:dual_area)))), "tag",
+                         "a move of a quantity carrying no conserved quantity")
+        @test CF.refused(CF.caught(() -> placed(reader(cover = CF.at_level(:primal_cell_area)); cover = true)), "cover",
+                         "a CategoricalLabel{(:a, :b)} field holds no amount a receipt ledger closes")
+        lagged = CF.component(:g; reads = (CF.reading(:pool; operator = CF.at_level(:primal_cell_area), lagged = true),),
+                              writes = (CF.writing(:pool; conserves = (:water,)),), stocks = water)
+        @test CF.refused(CF.caught(() -> CF.assemble(lagged; initial_conditions = (CF.initial(:pool),))), "pool",
+                         "g declares the primal_cell_area measure on its read of pool through AtLevel, which is not a move")
+    end
+
     @testset "a component that cannot report a stock refuses" begin
         w = CF.component(:w; writes = (CF.writing(:runoff; conserves = (:water,)),))
         r = CF.component(:r; reads = (CF.reading(:runoff),))
@@ -189,7 +223,7 @@ import .CouplingFixtures as CF
         fine(op) = CF.component(:r; level = 3, reads = (CF.reading(:x; level = 3, operator = op),))
         coarsen = Coupling.Coarsen(rule = Coupling.RuleOfSemantics(), measure = Coupling.NoMeasure())
         refine = Coupling.Refine(measure = :primal_cell_area)
-        @test CF.refused(CF.caught(() -> CF.assemble(w, coarse(Coupling.AtLevel()))), "x",
+        @test CF.refused(CF.caught(() -> CF.assemble(w, coarse(CF.at_level()))), "x",
                          "r reads x at level 1 through AtLevel, and w holds x at level 2, which a read reaches through Coarsen")
         @test CF.assemble(w, coarse(coarsen)) isa Coupling.Assembly
         @test CF.refused(CF.caught(() -> CF.assemble(w, fine(coarsen))), "x", "which a read reaches through Refine")
@@ -244,9 +278,14 @@ import .CouplingFixtures as CF
     end
 
     @testset "a declaration and an assembly refuse what they cannot hold" begin
-        at = Coupling.AtLevel()
+        at = CF.at_level()
         @test CF.refused(CF.caught(() -> Coupling.Read(quantity = :x, level = 2, operator = at, lagged = false)),
                          "move", "missing")
+        @test CF.refused(CF.caught(() -> Coupling.AtLevel()), "measure", "missing")
+        @test CF.refused(CF.caught(() -> Coupling.AtLevel(measure = :area)), "measure", "not one of")
+        @test CF.refused(CF.caught(() -> Coupling.Write(quantity = :x, conserves = ())), "semantics", "missing")
+        @test CF.refused(CF.caught(() -> Coupling.Write(quantity = :x, semantics = Fields.Extensive, conserves = ())),
+                         "semantics", "Semantics")
         @test CF.refused(CF.caught(() -> CF.reading(:x; level = -1)), "level", "lies outside")
         @test CF.refused(CF.caught(() -> CF.reading(:x; lagged = 0)), "lagged", "Bool")
         @test CF.refused(CF.caught(() -> CF.component(:a; system_fields = ((:planet, "mass"),))), "path", "step")
@@ -318,6 +357,8 @@ end
                          "x", "level 2 is declared")
         @test CF.refused(CF.caught(() -> Coupling.WorldState(assembly; initial = (x = CF.field(fine, view(ones(n), 1:n)),))),
                          "x", "and CPU holds a Array")
+        @test CF.refused(CF.caught(() -> Coupling.WorldState(assembly; initial = (x = CF.field(fine, ones(n); semantics = Fields.FluxDensity()),))),
+                         "x", "which w declares it writes as Extensive")
     end
 
     state = Coupling.WorldState(assembly; initial = (x = start,))
@@ -343,6 +384,9 @@ end
         @test CF.refused(CF.caught(() -> Coupling.write_quantity!(state, :w, :x, CF.field(fine, start.data))),
                          "x", "held when the step began")
         @test CF.refused(CF.caught(() -> Coupling.write_quantity!(state, :w, :x, CF.field(fine, fill(2.0, n); semantics = Fields.Intensive()))),
+                         "x", "which w declares it writes as Extensive")
+        interval_mean = Time.TimeSupport(Time.IntervalMean(), Time.Interval(0.0, 1.0))
+        @test CF.refused(CF.caught(() -> Coupling.write_quantity!(state, :w, :x, CF.field(fine, fill(2.0, n); time = interval_mean))),
                          "x", "was first placed")
         @test CF.refused(CF.caught(() -> Coupling.write_quantity!(state, :w, :x, received)), "x", "level 2 is declared")
         Coupling.write_quantity!(state, :w, :x, next)

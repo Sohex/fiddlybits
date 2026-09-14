@@ -170,16 +170,11 @@ crossing_names(ex::Exchange) = map(c -> c.quantity, ex.crossings)
 
 # ---------------------------------------------------------------- the declared graph
 
-"The `Write` of `quantity` in the declaration `d`, which writes it."
-write_of(d::Declaration, quantity::Symbol) = d.writes[findfirst(w -> w.quantity === quantity, d.writes)]
-
 "The quantities the declaration `d` names in any of its stocks."
 stocked(d::Declaration) = Set(q for s in d.stocks for q in s.quantities)
 
-"The measure name `operator` declares: `NoMeasure()` for `AtLevel`."
-declared_measure(::AtLevel) = NoMeasure()
-declared_measure(op::Coarsen) = op.measure
-declared_measure(op::Refine) = op.measure
+"The measure name, or `NoMeasure()`, `operator` declares."
+declared_measure(op::Operator) = op.measure
 
 """
     require_declared_measure(site, quantity, operator, measure)
@@ -446,47 +441,56 @@ end
 """
     receipt_ledger(site, h, received)
 
-The `Fields.Ledger` of the field `received` the reader holds against the result of the
+The ledger of the field `received` the reader holds against the result of the
 `HandOver` `h`, both at the reader's level on `h.backend`, in `Float64` over the
-result's cell count, `reservoir` as `h` declares:
+result's cell count, `reservoir` as `h` declares: a `Fields.Ledger` for a field of one
+value per cell and a `Fields.ColumnLedgers` for a field of cells by trailing axes.
 
-- after an operator ledger of the total, and after `NoOperator()` on an `Extensive`
-  field: `Fields.total_ledger` from the result to `received`;
-- after an operator ledger of the integral under `h.measure`: `Fields.integral_ledger`
-  from the result to `received`, each weighted by the measure at the reader's level,
-  with the terms the result so weighted; that measure is `Fields.coarse_measure` over
+- after an operator ledger of the total, and after `NoOperator()` where the read
+  declares `NoMeasure()`: `Fields.total_ledger` from the result to `received`;
+- after an operator ledger of the integral under `h.measure`, and after `NoOperator()`
+  where the read declares a measure: `Fields.integral_ledger` under `h.measure` from
+  the result to `received`, each weighted by the measure at the reader's level, with
+  the terms the result so weighted; that measure is `Fields.coarse_measure` over
   `Fields.child_segmentation` in the source's element type after a `Coarsen`, and
-  `h.measure` after a `Refine`.
+  `h.measure` after a `Refine` and after `AtLevel`.
 
-Refuses an operator ledger of an integral under another measure, a
-`Fields.ClassLedgers`, a `Fields.NotConserved`, and `NoOperator()` on a field that is
-not `Extensive`, the last naming fiddlybits-52v.11.5.
+Refuses an operator ledger of an integral under another measure than `h.measure`, a
+`Fields.ClassLedgers` and a `Fields.NotConserved`.
 """
 receipt_ledger(site::AbstractString, h::HandOver, received::Field) =
     receipt_by(site, h.ledger, h, received)
 
 total_receipt(h::HandOver, received::Field) =
-    Fields.total_ledger(Float64, length(Fields.data(h.result)), Fields.data(h.result),
-                        Fields.data(received); reservoir = h.reservoir, backend = h.backend)
+    Fields.total_ledger(Float64, size(Fields.data(h.result), Fields.CELL_AXIS),
+                        Fields.data(h.result), Fields.data(received);
+                        reservoir = h.reservoir, backend = h.backend)
 
-receipt_by(site::AbstractString, ::Fields.Ledger{:total}, h::HandOver, received::Field) =
+function integral_receipt(h::HandOver, received::Field)
+    data = Fields.data(h.result)
+    weights = reader_weights(h.operator, h)
+    return Fields.integral_ledger(Float64, size(data, Fields.CELL_AXIS), h.measure,
+                                  (data, weights), (Fields.data(received), weights),
+                                  (data, weights); reservoir = h.reservoir,
+                                  backend = h.backend)
+end
+
+receipt_by(site::AbstractString, l::Union{Fields.Ledger,Fields.ColumnLedgers}, h::HandOver,
+           received::Field) = balanced_receipt(site, Val(Fields.quantity(l)), h, received)
+
+balanced_receipt(site::AbstractString, ::Val{:total}, h::HandOver, received::Field) =
     total_receipt(h, received)
 
-function receipt_by(site::AbstractString, ::Fields.Ledger{Q}, h::HandOver,
-                    received::Field) where {Q}
+function balanced_receipt(site::AbstractString, ::Val{Q}, h::HandOver, received::Field) where {Q}
     m = h.measure
     (m isa Fields.Measured && Fields.integral_quantity(m) === Q) || refuse(
         String(h.crossing.quantity), site,
         "the operator of $(h.crossing.quantity) balances $(Q), which is not the integral " *
         "under the measure its crossing declares")
-    data = Fields.data(h.result)
-    weights = reader_weights(h.operator, h)
-    return Fields.integral_ledger(Float64, length(data), m, (data, weights),
-                                  (Fields.data(received), weights), (data, weights);
-                                  reservoir = h.reservoir, backend = h.backend)
+    return integral_receipt(h, received)
 end
 
-reader_weights(::Refine, h::HandOver) = Fields.values_of(h.measure)
+reader_weights(::Union{Refine,AtLevel}, h::HandOver) = Fields.values_of(h.measure)
 reader_weights(::Coarsen, h::HandOver) =
     Fields.coarse_measure(eltype(Fields.data(h.source)), h.measure,
                           Fields.child_segmentation(h.source, h.crossing.support, h.backend),
@@ -503,16 +507,10 @@ receipt_by(site::AbstractString, n::Fields.NotConserved, h::HandOver, received::
     "nothing: " * n.sentence)
 
 receipt_by(site::AbstractString, ::NoOperator, h::HandOver, received::Field) =
-    move_receipt(site, h.source, h, received)
+    move_receipt(h.measure, h, received)
 
-move_receipt(site::AbstractString, ::Field{Fields.Extensive}, h::HandOver, received::Field) =
-    total_receipt(h, received)
-
-move_receipt(site::AbstractString, f::Field, h::HandOver, received::Field) = refuse(
-    String(h.crossing.quantity), site,
-    "$(h.crossing.quantity) carries $(join(h.carries, ", ")) as $(Fields.describe(f)) across " *
-    "a move alone, whose read declares no measure a receipt integral is taken over; " *
-    "fiddlybits-52v.11.5 carries it")
+move_receipt(::NoMeasure, h::HandOver, received::Field) = total_receipt(h, received)
+move_receipt(::Fields.Measured, h::HandOver, received::Field) = integral_receipt(h, received)
 
 """
     measure_ledgers(state, ex, handed)
@@ -547,7 +545,8 @@ end
 `"quantity kind name"`, `name` the conserved quantity `ledger` balances; `"quantity
 kind"` for a ledger that names none.
 """
-ledger_label(quantity::Symbol, kind::Symbol, l::Union{Fields.Ledger,Fields.ClassLedgers}) =
+ledger_label(quantity::Symbol, kind::Symbol,
+             l::Union{Fields.Ledger,Fields.ClassLedgers,Fields.ColumnLedgers}) =
     "$(quantity) $(kind) $(Fields.quantity(l))"
 ledger_label(quantity::Symbol, kind::Symbol, ::Any) = "$(quantity) $(kind)"
 
@@ -555,14 +554,18 @@ ledger_label(quantity::Symbol, kind::Symbol, ::Any) = "$(quantity) $(kind)"
     open_ledgers(label, ledger)
 
 The `(label, ledger)` pairs of the `Fields.Ledger`s in `ledger` that are not
-`Fields.closed`: `ledger` itself, or each class ledger of a `Fields.ClassLedgers` with
-its class after `label`. None for a `Fields.NotConserved`, `NoOperator()` or
-`NoReceipt()`.
+`Fields.closed`: `ledger` itself; each class ledger of a `Fields.ClassLedgers` with its
+class after `label`; each column ledger of a `Fields.ColumnLedgers`, in column-major
+order, with `column` and its trailing index after `label`. None for a
+`Fields.NotConserved`, `NoOperator()` or `NoReceipt()`.
 """
 open_ledgers(label::String, l::Fields.Ledger) = Fields.closed(l) ? () : ((label, l),)
 open_ledgers(label::String, c::Fields.ClassLedgers) =
     Tuple(p for (class, l) in zip(Fields.classes(c), Fields.ledgers(c))
           for p in open_ledgers("$(label) $(class)", l))
+open_ledgers(label::String, c::Fields.ColumnLedgers) =
+    Tuple(p for i in CartesianIndices(Fields.ledgers(c))
+          for p in open_ledgers("$(label) column $(Tuple(i))", Fields.ledgers(c)[i]))
 open_ledgers(::String, ::Union{Fields.NotConserved,NoOperator,NoReceipt}) = ()
 
 """
@@ -692,18 +695,21 @@ end
 
 The residual signature of every ledger series of `ex`, `series[i]` the `NamedTuple`
 `exchange!` or `measure_ledgers` returned at `windows[i]`: a tuple of
-`(quantity, ledger, class, carries, signature)` in quantity order, `ledger` `:operator`
-before `:receipt`, one per class in legend order for a `Fields.ClassLedgers` with its
-`class`, and `class = nothing` otherwise. `signature` is `Fields.classify` of the series
-at `windows` with the `false_alarm` and `permutations` of `ex.classification`, and its
-`draw` called as `draw(identity, counter)`, `identity` the
-`(from, to, quantity, ledger, class)` of the series. A series of `Fields.NotConserved`
-records its first as the signature, unclassified; a series of `NoOperator()` or
-`NoReceipt()` records nothing.
+`(quantity, ledger, class, column, carries, signature)` in quantity order, `ledger`
+`:operator` before `:receipt`; one per class in legend order for a `Fields.ClassLedgers`
+with its `class`, and `class = nothing` otherwise; within that, one per column in
+column-major order for a `Fields.ColumnLedgers` with its trailing index as a tuple in
+`column`, and `column = nothing` otherwise. `signature` is `Fields.classify` of the
+series at `windows` with the `false_alarm` and `permutations` of `ex.classification`,
+and its `draw` called as `draw(identity, counter)`, `identity` the
+`(from, to, quantity, ledger, class, column)` of the series. A series of
+`Fields.NotConserved` records its first as the signature, unclassified; a series of
+`NoOperator()` or `NoReceipt()` records nothing.
 
 Refuses an empty `series`, `series` and `windows` of different lengths, an entry that
-does not hold the crossing quantities of `ex` in order, and a ledger whose type differs
-between windows.
+does not hold the crossing quantities of `ex` in order, a ledger whose type differs
+between windows, and a `Fields.ColumnLedgers` whose trailing shape differs between
+windows.
 """
 function signatures(ex::Exchange, series::AbstractVector, windows::AbstractVector{<:Real})
     site = "Coupling.signatures"
@@ -737,25 +743,50 @@ function column_signatures(site::AbstractString, ex::Exchange, q::Symbol, kind::
         String(q), site, "the $(kind) ledger of $(q) is not of one type at every window")
     head isa Union{NoOperator,NoReceipt} && return ()
     head isa Fields.NotConserved &&
-        return ((quantity = q, ledger = kind, class = nothing, carries = carries, signature = head),)
-    head isa Fields.Ledger && return (classified(ex, q, kind, nothing, carries, column, windows),)
-    return Tuple(classified(ex, q, kind, class, carries, [Fields.ledger_of(l, class) for l in column],
-                            windows)
-                 for class in Fields.classes(head))
+        return ((quantity = q, ledger = kind, class = nothing, column = nothing, carries = carries,
+                 signature = head),)
+    head isa Fields.ClassLedgers || return series_signatures(site, ex, q, kind, nothing, carries,
+                                                             column, windows)
+    return Tuple(s for class in Fields.classes(head)
+                 for s in series_signatures(site, ex, q, kind, class, carries,
+                                            [Fields.ledger_of(l, class) for l in column], windows))
 end
 
 """
-    classified(ex, quantity, kind, class, carries, ledgers, windows)
+    series_signatures(site, ex, quantity, kind, class, carries, ledgers, windows)
+
+The entries `signatures` records for the series `ledgers` of one class: one
+`classified` entry for a series of `Fields.Ledger`, and one per column in column-major
+order for a series of `Fields.ColumnLedgers`, refusing trailing shapes that differ
+between windows.
+"""
+function series_signatures(site::AbstractString, ex::Exchange, q::Symbol, kind::Symbol, class,
+                           carries::Tuple, ledgers::AbstractVector, windows::AbstractVector)
+    head = first(ledgers)
+    head isa Fields.Ledger &&
+        return (classified(ex, q, kind, class, nothing, carries, ledgers, windows),)
+    shape = size(Fields.ledgers(head))
+    all(l -> size(Fields.ledgers(l)) == shape, ledgers) || refuse(
+        String(q), site, "the $(kind) ledger of $(q) is not of one trailing shape at every window")
+    return Tuple(classified(ex, q, kind, class, Tuple(i), carries,
+                            [Fields.ledgers(l)[i] for l in ledgers], windows)
+                 for i in CartesianIndices(shape))
+end
+
+"""
+    classified(ex, quantity, kind, class, column, carries, ledgers, windows)
 
 The entry `signatures` records for the `Fields.Ledger` series `ledgers`.
 """
-function classified(ex::Exchange, q::Symbol, kind::Symbol, class, carries::Tuple,
+function classified(ex::Exchange, q::Symbol, kind::Symbol, class, column, carries::Tuple,
                     ledgers::AbstractVector, windows::AbstractVector)
     c = ex.classification
-    identity = (from = ex.from, to = ex.to, quantity = q, ledger = kind, class = class)
+    identity = (from = ex.from, to = ex.to, quantity = q, ledger = kind, class = class,
+                column = column)
     signature = Fields.classify(collect(ledgers), windows; false_alarm = c.false_alarm,
                                 permutations = c.permutations,
                                 draw = counter -> c.draw(identity, counter))
-    return (quantity = q, ledger = kind, class = class, carries = carries, signature = signature)
+    return (quantity = q, ledger = kind, class = class, column = column, carries = carries,
+            signature = signature)
 end
 
