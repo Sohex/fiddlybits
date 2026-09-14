@@ -205,31 +205,79 @@ end
         end
     end
 
-    @testset "a failed wait refuses naming the kernels queued since the last completion" begin
+    @testset "a device error at the wait refuses naming the kernels queued since the last completion" begin
+        out = Backends.on(fill(SPIN_SENTINEL, 4), gpu)
+        src = Backends.on(fill(1.0, 4), gpu)
+        Backends.complete!(gpu)
+
+        device_errors = [
+            "KernelException" => CUDA.CUDACore.KernelException(CUDA.device()),
+            "CuError" => CUDA.CuError(CUDA.ERROR_ILLEGAL_ADDRESS),
+            "OutOfGPUMemoryError" => CUDA.OutOfGPUMemoryError(),
+        ]
+        for (label, device_error) in device_errors
+            @testset "$(label)" begin
+                Backends.launch!(double_kernel!, gpu, 4, out, src)
+                Backends.launch!(spin_write_kernel!, gpu, 4, out, src, 1)
+                raised = try
+                    Backends.wait_queued(() -> throw(device_error))
+                    nothing
+                catch err
+                    err
+                end
+
+                @test raised isa Refusal
+                @test raised isa Refusal && raised.site == "Backends.complete!"
+                @test raised isa Refusal && occursin("double_kernel!", raised.reason)
+                @test raised isa Refusal && occursin("spin_write_kernel!", raised.reason)
+                @test raised isa Refusal &&
+                      occursin(sprint(showerror, device_error), raised.reason)
+                @test isempty(Backends.queued(gpu))
+                Backends.complete!(gpu)
+            end
+        end
+
+        @testset "positive control: a wait that returns refuses nothing" begin
+            Backends.launch!(double_kernel!, gpu, 4, out, src)
+            @test Backends.wait_queued(() -> nothing) === nothing
+            @test isempty(Backends.queued(gpu))
+        end
+
+        Backends.complete!(gpu)
+    end
+
+    @testset "any other error at the wait propagates unchanged and leaves the queued record" begin
         out = Backends.on(fill(SPIN_SENTINEL, 4), gpu)
         src = Backends.on(fill(1.0, 4), gpu)
         Backends.complete!(gpu)
 
         Backends.launch!(double_kernel!, gpu, 4, out, src)
         Backends.launch!(spin_write_kernel!, gpu, 4, out, src, 1)
+        thrown = ErrorException("a wait raised something that is not a device error")
         raised = try
-            Backends.wait_queued(() -> error("the device reported a fault"))
+            Backends.wait_queued(() -> throw(thrown))
             nothing
         catch err
             err
         end
 
-        @test raised isa Refusal
-        @test raised.site == "Backends.complete!"
-        @test occursin("double_kernel!", raised.reason)
-        @test occursin("spin_write_kernel!", raised.reason)
-        @test occursin("the device reported a fault", raised.reason)
-        @test isempty(Backends.queued(gpu))
+        @testset "the error propagates unchanged in type and text" begin
+            @test raised === thrown
+            @test typeof(raised) === ErrorException
+            @test sprint(showerror, raised) == sprint(showerror, thrown)
+        end
 
-        @testset "positive control: a wait that returns refuses nothing" begin
-            Backends.launch!(double_kernel!, gpu, 4, out, src)
+        @testset "the record still names every kernel queued since the last completion" begin
+            launches = Backends.queued_launches(gpu)
+            @test length(launches) == 2
+            @test length(launches) == 2 && launches[1].kernel === double_kernel!
+            @test length(launches) == 2 && launches[2].kernel === spin_write_kernel!
+            @test length(launches) == 2 && launches[2].n == 4
+        end
+
+        @testset "the next wait that returns empties the record" begin
             @test Backends.wait_queued(() -> nothing) === nothing
-            @test isempty(Backends.queued(gpu))
+            @test isempty(Backends.queued_launches(gpu))
         end
 
         Backends.complete!(gpu)
