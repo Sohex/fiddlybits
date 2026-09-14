@@ -69,12 +69,10 @@ Two further observations from the device path. The zero-allocation assertion is
 guarded by `ArrayType <: Array`, so it is made on the CPU only, with the comment
 "allocations expected during CUDA kernel launches"; the non-allocating claim is
 therefore about the solver body and not about a launch. And at
-`test/runtests.jl:198` there is a skip that does not skip: a comment explains at
-length that automatic-differentiation Newton on the trigonometric problem must
-be passed over on the GPU because `sin(::Dual)` lowers to a device `sincos`
-whose `Ref` allocation fails GPU code generation, and the `if` that follows has
-an empty body. Whatever the history, the code does not perform the skip the
-comment describes.
+`test/runtests.jl:198` a comment explains that automatic-differentiation Newton
+on the trigonometric problem is passed over on the GPU because `sin(::Dual)`
+lowers to a device `sincos` whose `Ref` allocation fails GPU code generation, and
+the `if` at lines 198-202 performs that skip with `continue`.
 
 ### The tolerance is caller-supplied, and there is a default anyway
 
@@ -249,7 +247,7 @@ The leak tests that would catch each:
 | A2 planetary constant block | clean negative; no physical constants at all |
 | A3 Earth literals | clean negative; no hits in `src/` |
 | A6 grid and index base | clean negative; scalar and broadcast, no grid notion |
-| B4 comment against value | the GPU skip at `test/runtests.jl:198` describes a skip the empty `if` body does not perform |
+| B4 comment against value | clean negative; the GPU skip at `test/runtests.jl:198-202` performs the skip its comment describes |
 | B5 clamps and limiters | `maxiters` default `1_000` returning `converged = false`; invalid bracket returning a best-guess endpoint; no clamps on iterates |
 | C1 use site of every constant | the only constants are the default tolerance values `1e-4` and `1e-3`, applied at the main `find_zero` entry when `tol` is `nothing` |
 | C3 declared against demonstrated | six test files, every method against every tolerance, scalar and array, CUDA in CI; not demonstrated: a portable-kernel launch, and allocation behaviour on the device |

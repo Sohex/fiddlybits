@@ -1,7 +1,9 @@
 # Kepler's equation solved to rounding for any eccentricity below one (decision
 # 0008). The form is measured in
-# notes/findings/2026-09-10-kepler-in-a-portable-kernel.md; the residual and the
-# derivative are Markley equations 30 to 35. Every transcendental call and every
+# notes/findings/2026-09-10-kepler-in-a-portable-kernel.md; the derivative is Markley
+# equation 30, and the residual is the split (1 - e) E + e (E - sin E) of his
+# equation 33 over the whole range, with `e_minus_sin` in place of his Pade
+# approximant, equation 34. Every transcendental call and every
 # multiply that feeds an add takes a `Backend` (decision 0029), per
 # notes/findings/2026-09-11-polynomial-transcendentals-for-bitwise-mode.md. The
 # multiply is `fma` in bitwise mode and `muladd` otherwise (decision 0044).

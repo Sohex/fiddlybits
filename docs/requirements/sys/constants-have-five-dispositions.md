@@ -121,6 +121,7 @@ every `Bracketed` value at the M8 gate; the convergence-with-level oracle for ev
 - /home/cfutro/git/vesper/docs/src/practice/conventions.md, section "No tuned values"
 - /home/cfutro/git/vesper/docs/src/reference/vocabulary.md (tuned, opaque, implicit-Earth)
 - Kok et al. (2014). *An improved dust emission model - Part 1: Model description and comparison against measurements.* DOI 10.5194/acp-14-13023-2014 (a scheme chosen for one fewer unconstrained coefficient)
+- Kok (2011). *A scaling theory for the size distribution of emitted dust aerosols suggests climate models underestimate the size of the global dust cycle.* DOI 10.1073/pnas.1014798108, eq. 6 (the emitted size distribution from brittle fragmentation that the scheme above takes, Kok et al. 2014 p. 13031)
 - Kessler (1969). *On the Distribution and Continuity of Water Substance in Atmospheric Circulations.* DOI 10.1007/978-1-935704-36-2 (a constant that derived into a form)
 - Louis (1979). *A parametric model of vertical eddy fluxes in the atmosphere.* DOI 10.1007/BF00117978 (a fitted set that does not transfer on its authority)
 - Blackadar (1962). *The vertical distribution of wind and turbulent exchange in a neutral atmosphere.* DOI 10.1029/JZ067i008p03095 (a scaling that transfers where the value does not)

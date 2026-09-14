@@ -151,3 +151,14 @@ mass balance (cryosphere), emission (atmosphere).
   gas-properties ownership paragraph added, from
   notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: cross-area review: lake freezing point through the 0017 door inside the Reference-Composition tolerance and 0022's brine activity model beyond it; fresh-snow density and compactive viscosity `Bracketed` with both ends as in REQ-ATM-010; the dust row names Shao and Lu (2000) as the threshold law, from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-14: snow row: fresh-snow density is `Sourced` from Anderson (1976) eq. 4.22,
+  a fit in wet-bulb temperature to LaChapelle's (1969) Alta, Utah plot, with its site
+  and temperature range recorded, applied to a wet-bulb temperature computed from the
+  column's air temperature, humidity and pressure through REQ-ATM-017; the bracket
+  between a fit in air temperature and a wet-bulb form is withdrawn, since the source
+  fit is the wet-bulb form. Dust emission row: the emission coefficient is `Sourced`
+  from the one least-squares fit of Kok et al. (2014), p. 13033, with the fit's stated
+  uncertainty recorded beside it; the bracket between two published fitting
+  populations is withdrawn, since the paper reports one. User decision of 2026-09-14,
+  raised by notes/findings/2026-09-14-an-audit-of-source-fitness.md; REQ-ATM-010's
+  bracket is carried by fiddlybits-b7w.

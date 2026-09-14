@@ -46,7 +46,7 @@ statistic from any other run is REPORT by this rule, and no threshold restates i
 
 | verdict | meaning | consequence |
 | --- | --- | --- |
-| FAIL | outside a bar set from a published model's own residual, or a physical constraint | a defect; blocks the milestone |
+| FAIL | outside a bar set from the published spread of comparable models' residuals, or from the observation's uncertainty where no such spread exists, or from a physical constraint | a defect; blocks the milestone |
 | REPORT | no bar exists that is not a preference; the distance is recorded | none; the number is a property of the model |
 | PASS | inside the bar | recorded; evidence of indistinguishability, not correctness |
 
@@ -54,12 +54,15 @@ A row's bar is stated by two keys, in the unit of the statistic: `bar_half_width
 half-width of the bar, and `observation_uncertainty`, the uncertainty of the observation
 the bar is drawn from. The registry check refuses one stated without the other, either
 not positive, and a `bar_half_width` narrower than `observation_uncertainty`: a bar
-narrower than the observation's own uncertainty. Where no published model of comparable
-class has a residual to quote, the metric is REPORT.
+narrower than the observation's own uncertainty. A bar is drawn from the published spread
+of comparable models' residuals against the observation where such a spread exists; where
+none exists, the observation's uncertainty alone is its basis. A tier-3 bar is the
+inter-model spread of its protocol.
 
 ## Registration
 
-- A bar is fixed before the value it judges has been seen. That value is the entry's
+- A bar is fixed before the value it judges has been seen, and fixing it early is not its
+  basis: a pre-registered bar states the basis of Verdicts it rests on. That value is the entry's
   statistic evaluated on a model result: the output of code under `src/` on a declared
   `System`, from any run, store or test. A fixture a test constructs with its answer
   known, and a positive control's named break, are not model results.
@@ -218,3 +221,4 @@ never deleted.
 - 2026-09-13: the instrument table and field, no clause of an instrument's definition restated, and parameters checked against the constants they name, from docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md.
 - 2026-09-13: a bar is fixed before the value it judges is seen; what an unregistered entry executes; registration fixing statistic, verdict_kind, threshold and holdout; a later registration resting on a change of source; the tier-1 testset rule; hold-out membership fixed at registration, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-13).
 - 2026-09-14: every tier-2 entry declares form, pattern or scalar; a scalar names its tier-2 pattern partner in pattern_entry; one statistic and one bar per entry, the report showing a scalar beside its partner; a fail_bar scalar's partner is fail_bar; form and pattern_entry fixed at registration; a pair shares holdout; earth.ceres_toa_balance to tier 1, earth.ecs_report to tier 3, earth.rgi_glacier_area out of tier 2, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-14, fiddlybits-zar).
+- 2026-09-14: a bar's basis is the published spread of comparable models' residuals where one exists, never narrower than the observation's uncertainty, and the observation's uncertainty alone where none exists; a pre-registration fixes a bar before its value is seen and is not a basis by itself, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-14, the basis of a bar, fiddlybits-9j0).

@@ -105,9 +105,10 @@ swept size floor) belong as `REPORT` oracles, never as parameters.
 - Lehner, B., Grill, G. (2013). "Global river hydrography and network routing:
   baseline data and new approaches to study the world's large river systems".
   Hydrological Processes 27, 2171-2186. DOI: 10.1002/hyp.9740. HydroBASINS.
-- Naldrett, A. J. (2004). "Magmatic Sulfide Deposits: Geology, Geochemistry and
-  Exploration". Springer. DOI: to confirm. The absolute-age control the
-  stationary argument cannot place.
+- Naldrett, A. J. (2010). "Secular Variation of Magmatic Sulfide Deposits and
+  Their Source Magmas". Economic Geology 105, 669-688.
+  DOI: 10.2113/gsecongeo.105.3.669. Abstract, p. 669: the komatiite-related class
+  at 2.7 to 1.9 Ga, the absolute-age control the stationary argument cannot place.
 
 ## Amendments
 
