@@ -1,9 +1,9 @@
 +++
 epic = "fiddlybits-52v.6"
 title = "Content-addressed artifacts, the Zarr store with TOML manifests, the counter-based generator, and the inert run journal"
-decisions = ["0008", "0010", "0014", "0029", "0036", "0042"]
+decisions = ["0008", "0010", "0014", "0027", "0029", "0036", "0038", "0042", "0046"]
 requirements = ["REQ-TER-002", "REQ-SYS-002", "REQ-SYS-003", "REQ-SYS-103", "REQ-PROV-002", "REQ-NUM-001"]
-oracles = ["provenance.key_stability", "provenance.store_refuses_incomplete", "provenance.index_roundtrip", "provenance.journal_is_inert", "provenance.event_vocabulary_closed", "repro.stochastic_identity"]
+oracles = ["provenance.key_stability", "provenance.store_refuses_incomplete", "provenance.index_roundtrip", "provenance.journal_is_inert", "provenance.event_vocabulary_closed", "repro.stochastic_identity", "provenance.pooled_write_is_reference", "provenance.write_order_independent", "provenance.write_ceiling_held"]
 status = "filed"
 date = 2026-09-10
 +++
@@ -31,7 +31,11 @@ disposability.
 | path | holds | row |
 | --- | --- | --- |
 | `src/Provenance/key.jl` | `ArtifactKey`, `CodeVersion` with its dirty flag, `RunID` | 52v.6.2, 52v.6.16 |
-| `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal | 52v.6.3 |
+| `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal, the admission `put_field!` and `submit!` share | 52v.6.3, 52v.6.26 |
+| `src/Provenance/writer.jl` | `Writer`, `open_writer`, `submit!`, `settle!`, `drain!` | 52v.6.26 |
+| `src/Provenance/run.jl` | the run door, which opens the writer and drains it | 52v.6.17, 52v.6.27 |
+| `src/Backends/pool.jl` | `BytePool`, `charge!`, `release!` | 52v.6.23 |
+| `src/Backends/move.jl` | `host_buffer` and `copy_to_host!` beside `on` | 52v.6.24 |
 | `src/Provenance/plan.jl` | `plan`, `worthless`, the purge command | 52v.6.4 |
 | `src/Provenance/rng.jl` | the counter-based generator | 52v.6.5 |
 | `src/Events/` | the closed vocabulary, the typed payloads, `emit` with its no-op sink, `moved` | 52v.6.8 |
@@ -41,9 +45,9 @@ disposability.
 | `test/io/` | `index_roundtrip.jl`, which `docs/imports/zarr.md` names | 52v.6.3 |
 
 `Provenance` references `Fields`, `Mesh`, `Systems`, `Time`, `Coupling` for `Ladder`,
-`Events` for the sink it installs, and `Verdicts`. Five rows write into
-`src/Provenance/`, so every file is named on exactly one row and a row that finds work
-in another's file files a row rather than widening.
+`Events` for the sink it installs, and `Verdicts`. A file named on more than one row is
+edited by those rows in their dependency order, and a row that finds work in a file
+none of its dependencies names files a row rather than widening.
 
 `Events` is a group A submodule and the plan review's one structural change. The
 kernels plan, the coupling plan and the mesh plan each declared a hook of their own
@@ -133,6 +137,157 @@ NetCDF is a rendering for export only, written with the geometry declared in the
 substitute Earth's without saying so. It lives in `Render` because it is a rendering,
 and `lint_calendar` already refuses a date type reaching it.
 
+`put_field!` writes an artifact inline. It is the reference path of the writer below,
+which is how a run writes.
+
+### The writer
+
+`put_field!` admits a field and lands it before it returns: the move to the host, the
+translation, the compression and the disk write all happen on the caller's task, one
+artifact at a time. It is the reference path of decision 0027 and stays. A run writes
+through the writer, which decision 0038 shapes: the admission stays on the submitting
+task, and the landing crosses the card, the cores and the filesystem through stages
+sized to each, with one pool bounded in bytes between them.
+
+```
+Backends.BytePool(; ceiling)            bytes a stage charges whole and releases
+Backends.charge!(pool, bytes)           waits for the bytes, behind every earlier waiter
+Backends.release!(pool, bytes)          returns bytes to the pool
+Backends.host_buffer(backend, T, n)     host memory a device copy lands in without a host wait
+Backends.copy_to_host!(host, array)     -> Handoff; the copy queued behind the kernels that wrote array
+open_writer(store; run, profile)        -> Writer, its stages started
+submit!(writer, run | scratch; kw...)   -> (key, stamped); put_field!'s keywords, admitted inline
+settle!(writer)                         every submission so far committed, refused or discarded
+drain!(writer)                          closed to submissions, settled, its stages stopped
+```
+
+**Admission is inline, and both doors run the same admission.** `write_field!` is split
+into the admission and the landing. The admission is everything that needs no element
+of the field's data: the placement over an interval; the `ArtifactKey` and `admit`; the
+declared semantics; the origin; `ledger_records`, which refuses an open ledger by its
+conserved quantity; the values form and the chunk level; the run recorded under the
+code version; the support held; the key not already stored; the element type, axes and
+cell count, which a device array reports without a move; and the manifest, every entry
+of which is metadata. `put_field!` admits and lands inline. `submit!` admits, and then
+refuses before it returns a key this writer has in flight, a submission after `drain!`
+began, a submission from a task other than the one that opened the writer, and a charge
+above the ceiling. An open ledger, a dirty code version, a missing support and a key
+already stored are therefore refused on the submitting task, in the call that handed
+over the field, exactly where `put_field!` refuses them.
+
+**The stages, each sized to its own resource.**
+
+| stage | resource | width | work |
+| --- | --- | --- | --- |
+| host copy | the card, on the stream of the task that wrote the field | that stream; there is no worker to count | at submission, once the charge is taken: `copy_to_host!` into a `host_buffer`, queued behind the kernels that wrote the field and recorded through `Events.moved`; `submit!` returns without a host wait. On `CPU` the copy is taken at the call |
+| encode | cores | the tasks the default thread pool runs at once, which is the allocation the process was launched with (`-t` from `$SLURM_CPUS_PER_TASK`); nothing is declared | once the copy's handoff completes: `to_disk` on the writer's own copy, the cells cut into chunks by hierarchy range, each chunk compressed through `Zarr.zcompress` with `compressor()`, the call the reference path's array write reaches; then the copy's charge released |
+| disk | the store's filesystem | `profile.store_writers` | the array metadata, each compressed chunk under the chunk key the reference path gives it, and the manifest text, written into a staging directory beside the key's place; then the compressed charge released |
+| commit | one rename | none | the staging directory renamed into place, in submission order |
+
+The copy is taken at submission, rather than a reference to the field held until
+encode, because `Coupling.write_quantity!` refuses only a write into the array its
+quantity held when the step began: a component may alternate two arrays, and a
+reference held past its next write into the first would land the later field under the
+earlier key. The queued copy's place on the stream is the snapshot, so nothing is asked
+of how a component reuses its arrays. A task waiting on the handoff yields its thread
+while the card finishes, so the wait between the host copy and the encode stage holds
+no core.
+
+The scheduler allocates cores and a share of the card, and not the filesystem, so the
+disk stage has no allocation to take its width from. It is declared in the profile
+beside `memory_ceiling`, the declared bytes of the card, with a disposition from the
+same set. A disk write is a blocking call that holds the thread it runs on while the
+filesystem takes it, so the encode stage's width at any moment is the allocation less
+the disk tasks blocked in a write, and a timing of the writer records that load beside
+it.
+
+**One pool between the stages, bounded in bytes.** The queue from the host copy to
+encode and the queue from encode to disk are unbounded in items and bounded together in
+bytes: an item's bytes are held only under a charge taken from one `Backends.BytePool`
+whose ceiling is `profile.write_ceiling`, a declared count of bytes with a disposition
+from `Systems.DECLARED`. `BytePool` sits in `Backends` beside the memory budget, so every
+stage the tree builds charges it rather than declaring a second pool. A stage takes the
+next item the moment it is free; nothing waits for a step, a level, a quantity or an
+artifact's siblings. An item's charge is taken whole at submission: the host copy's
+bytes, and each chunk's worst-case compressed size, its bytes plus `Blosc.MAX_OVERHEAD`,
+the destination size `Blosc.compress` allocates, reached through `Zarr`. The encode stage
+releases the copy's part and the disk stage the compressed part. Only a submitter waits
+on the pool, and no stage holds a charge while it waits for another: a charge taken in
+parts, one part held while the next is waited for, is the deadlock decision 0038 names,
+and a stage that only releases cannot meet it.
+
+**When the ceiling is reached, the submitter waits.** `submit!` blocks the submitting
+task until the whole charge is free and every submitter that began waiting before it
+has been served, so a slow filesystem backs pressure up to the component that writes,
+and a large write is never passed indefinitely by smaller ones behind it. A charge above
+the ceiling could never be served, and `submit!` refuses it at once, naming both counts,
+before anything is queued.
+
+**Arrival order reaches no key, manifest or artifact.** The key and the manifest are
+computed at admission, before the item enters a queue. A chunk's bytes are the
+compressor's function of that chunk's cells, written under that chunk's key. The commit
+renames in submission order: a staging directory is renamed into place only once every
+earlier submission is committed or refused. Submission order is the order of `submit!`
+calls on the one task that opened the writer, which is the run's evaluation order and
+not the order the stages finish in. The stages finish in whatever order they finish;
+the rename is the only step that waits, and it holds no charge. The writer keeps the
+order its disk stage finished submissions in, and that record reaches nothing written:
+it is what `provenance.write_order_independent` reads to show that its stages ran out of
+order.
+
+**A refusal found after `submit!` returned belongs to its submission, and `settle!`
+raises it.** These are found only late: a kernel fault on the producing stream,
+surfacing at the copy's handoff as `Backends.complete!` carries one; a `CellIds` entry
+outside its level, which `to_disk` finds in the data; a key another process stored
+between admission and rename, which `write_directory!` refuses; and a filesystem error
+writing or renaming the staging directory, carried as a `Verdicts.Refusal` from the disk
+stage whose reason holds the error's message. A late refusal marks its submission
+refused and every later submission discarded: nothing submitted after a refused write
+is committed, and the discarded staging directories are removed. The store after a
+refusal therefore holds every submission before the earliest refused one, whatever
+order the stages met their failures in. `settle!` waits on each submission's own state
+and never on a byte count reaching zero, so a writer with no submissions settles at
+once. It returns when every submission made so far is committed, refused or discarded,
+and refuses naming the earliest-submitted refused write, its key and quantity, and how
+many later submissions it discarded. Its caller runs it inside the run's `journalled`
+wrapper, which emits the `refusal` event under that caller's header, as
+`Coupling.exchange!` journals its refusals.
+
+**A run's end drains the stages.** `drain!` closes the writer to submissions, settles,
+stops the encode and disk tasks once their queues are closed and empty, and removes
+every discarded staging directory. The run door (`fiddlybits-52v.6.17`) opens the writer
+from the run's profile after the journal is installed, and drains it in the close it
+runs whether the run was refused or not (`fiddlybits-52v.6.27`): a run unwound by a
+component's refusal still commits every write submitted before that refusal, the
+component's refusal is the one rethrown, and the drain's own refusal is journalled
+beside it. A process killed before its drain leaves staging directories beside their
+places; a read goes by the key's directory, which a staging name never is, and `purge`
+lists them (`fiddlybits-52v.6.4`). The run record's move tally (`fiddlybits-52v.6.11`)
+is written after the drain; every move was recorded at its submission, so the drain
+does not change it.
+
+**What callers see.** `put_field!` is unchanged, and a test or any caller holding no
+writer keeps it. `submit!` takes `put_field!`'s keywords and returns the same
+`(key, stamped)` at once. The stamped field names a key that is in flight until a
+settle, and a read of an in-flight key refuses it as absent, which nothing in a run
+meets because a run reads its own fields from the `WorldState` rather than back from
+the store. `Coupling` cannot reach `Provenance` (the coupling plan, section Module
+boundaries), so no component calls `submit!`: the run's driver, which steps the
+components and holds the run door, submits the fields a step wrote. The pool is
+`fiddlybits-52v.6.23`, the host copy `fiddlybits-52v.6.24`, the two profile settings
+`fiddlybits-52v.6.25`, and the writer with its stages and commit order
+`fiddlybits-52v.6.26`.
+
+**Where `settle!` is called during a run is open.** Under every answer the stored set,
+the keys and the manifests are the ones above. What the answer decides is the step at
+which a run meets a late refusal, and so how much the run computes after a refused
+write and under which header the journal records the refusal. The answers on the table
+are: settle at the end of every step, settle at a declared cadence, and settle only at
+the drain. Raising a refusal at whatever point first follows its discovery is not among
+them, because it lets the order the stages finish in choose the step at which a run
+stops. `fiddlybits-52v.6.20` holds the question; its answer is a decision record and the
+row that calls `settle!`.
+
 ### Plan without running
 
 ```
@@ -199,15 +354,18 @@ becoming a second source of truth beside the store.
 
 ## Oracles
 
-Two registry entries exist, `provenance.journal_is_inert` and
-`provenance.event_vocabulary_closed`, and `repro.stochastic_identity` is in the
-reproducibility section. Three are added.
+`provenance.journal_is_inert`, `provenance.event_vocabulary_closed` and
+`repro.stochastic_identity` carry their own registry rows. The table states the others,
+each registered by the row that builds it.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
 | `provenance.key_stability` | the key of one artifact is identical across machines and across a print-and-reparse of every float in the declared subsets and the interval; two intervals, two values at a declared profile path, or two reads of one input give two keys | a hash taken over printed decimal rather than IEEE bit patterns, which a round trip through text must move; the interval, or the profile subset, left out of the key, which two intervals, or two fast precisions, must expose |
 | `provenance.store_refuses_incomplete` | the store refuses an array missing any of support id, semantics, time semantics, dimension, owner or interval, and refuses a field whose ledger is open | each attribute dropped in turn, every one of which must refuse; and a dirty code version writing a keyed artifact, which must refuse |
 | `provenance.index_roundtrip` | a known index field written 0-based and read back 1-based is unchanged | an off-by-one at the disk boundary, which the known field must expose rather than a symmetric error hiding |
+| `provenance.pooled_write_is_reference` | fields of amounts and of cell ids, in several element types and chunk levels, on `CPU` and on the card, submitted and drained into one store and put through `put_field!` into another: the two trees hold the same paths and byte-identical files | chunks compressed at another level; two chunks written under each other's chunk keys, which a comparison of decoded totals would pass; the host copy deferred to the encode stage while the component overwrites its array after submission, which lands the overwrite |
+| `provenance.write_order_independent` | submissions of unequal size, so that later small ones finish before earlier large ones, drained at `store_writers` of one and of more: byte-identical trees, each equal to the reference path's; and with a rename collided and a cell id outside its level injected, exactly the submissions before the earliest refused one stored, no staging directory left, and `settle!` naming that write | the commit renaming in finish order, which stores a later submission; the manifest recording the finish order; an arm whose finish record shows no later submission finishing first fails rather than passes |
+| `provenance.write_ceiling_held` | a burst of submissions whose charges sum far above the ceiling, with the disk stage behind the submitter: the pool's high water and the host buffer bytes alive never exceed `write_ceiling`; a charge above the ceiling refused at once, naming both counts | a submission that takes no charge, whose host bytes exceed the ceiling; the oversize check removed, which leaves the submitting task waiting on an idle writer |
 
 `provenance.journal_is_inert` is the one that carries the design claim, and it is
 already written to compare artifact by artifact with journaling on and off. Its arm
@@ -227,11 +385,20 @@ inert record that nonetheless entered a key would not be inert.
 | 52v.6.16 | sonnet | `src/Provenance/key.jl`, `test/provenance/key_stability.jl`, the `Declaration` keyword `profile_fields` in `src/Coupling/state.jl`, `Profile.components` by name in `src/Systems/profile.jl`, `holds_declaration` in `src/Systems/tracking.jl`, and the coupling and system tests those break | `provenance.key_stability` passes with an arm and a control for each of the interval, the profile subset, the component's entry by name, the reads and the write, and a break of each failing its arm |
 | 52v.4.19 | frontier | `src/Systems/system.jl`, `src/Systems/strip.jl`, `test/system/`, the `declared()` fixture of `test/provenance/key_stability.jl`, the system plan's section The struct | the root seed is a required field of the system with its disposition, carried by `strip`, and moves the key of a component declaring it and of no other |
 | 52v.4.20 | sonnet | `src/Systems/tracking.jl`, `declared_graph` and its profile counterpart in `src/Coupling/state.jl`, `test/system/graph.jl`, `test/coupling/state.jl` | recorded profile reads are a subset of the declared profile paths, a control reader reading an undeclared path failing; `affected` over the profile graph matches the key's profile reflection arm |
-| 52v.6.6 | sonnet | none; reports only | all six oracles ran; verdicts by name |
+| 52v.6.23 | sonnet | `src/Backends/pool.jl` and its include, `test/backends/byte_pool.jl` | a burst of concurrent charges never holds more than the ceiling; a charge above it refuses naming both counts; a waiting large charge is served before a smaller one that began waiting after it; each control fires |
+| 52v.6.24 | frontier | `src/Backends/move.jl`, `test/backends/host_copy.jl`, `docs/imports/cuda.md`, the kernels plan's section The device layer | a copy queued between two kernels writing one array holds the first kernel's values; the door leaves the preceding kernel queued; one move counted per copy; a task waiting on the handoff yields its thread; each control fires |
+| 52v.6.25 | sonnet | `src/Systems/profile.jl`, the profile construction sites in `test/`, the Amendments section of decision 0014 | `write_ceiling` and `store_writers` refuse absent, below one, and outside `DECLARED`; `fast_profile` and `full_profile` require both; `provenance.key_stability` passes |
+| 52v.6.26 | frontier | `src/Provenance/writer.jl`, `src/Provenance/store.jl`, `test/provenance/writer.jl`, `test/io/store_fixtures.jl`, three entries of `docs/oracles/registry.toml`, `docs/imports/zarr.md` | `provenance.pooled_write_is_reference`, `provenance.write_order_independent` and `provenance.write_ceiling_held` pass with their controls; the store's two oracles pass through `put_field!` and their admission refusals refuse at `submit!`; a collided rename and an out-of-level cell id leave exactly the earlier submissions stored |
+| 52v.6.27 | sonnet | `src/Provenance/run.jl`, `test/provenance/run.jl` | a run refused after its submissions leaves them stored and rethrows the component's refusal; a refused drain is journalled; the door is the only caller of `open_writer` |
+| 52v.6.6 | sonnet | none; reports only | every oracle this plan's front matter names ran; verdicts by name |
 
 52v.6.16 depends on nothing unmerged and blocks 52v.6.4 and 52v.6.6; 52v.4.19 and
 52v.4.20 depend on 52v.6.16. 52v.6.3, 52v.6.4 and 52v.6.7 depend on 52v.6.2; 52v.6.4 depends on 52v.6.3 and on the
 coupling plan's `Ladder`; 52v.6.7 depends on 52v.6.8, which depends only on the
-skeleton. The area
+skeleton. 52v.6.23, 52v.6.24 and 52v.6.25 block 52v.6.26, which with 52v.6.17 blocks
+52v.6.27; 52v.6.25 depends on 52v.4.19, whose boundary holds `test/system/` and the
+`key_stability` fixture; 52v.6.21 is related to 52v.6.26, since its route lands on the
+admission both doors share; 52v.6.6 depends on all five. The row that calls `settle!`
+during a run is filed by 52v.6.20 once its question is answered. The area
 depends on the fields plan for the ledger and on the system plan for the declared
 parameter subset.
