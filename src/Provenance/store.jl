@@ -71,6 +71,13 @@ const COMPRESSOR_ID = "blosc"
 "The compressor every stored array is written with."
 compressor() = Zarr.BloscCompressor()
 
+"""
+The lock every Blosc call this module makes through Zarr is made under: the array write
+and read of the reference path and the writer's encode stage. docs/imports/zarr.md, the
+threading row, holds the locators.
+"""
+const BLOSC_LOCK = ReentrantLock()
+
 "The name of a support's cell-area array."
 const CELL_AREA = "cell_area"
 
@@ -143,15 +150,33 @@ the staging directory and rethrows when `f` throws. Refuses at `site` when `dir`
 the time of the rename.
 """
 function write_directory!(f, dir::AbstractString, site::AbstractString)
-    parent = dirname(dir)
-    mkpath(parent)
-    staging = mktempdir(parent; prefix = ".staging-", cleanup = false)
+    staging = new_staging(dir)
     try
         f(staging)
     catch
         rm(staging; recursive = true, force = true)
         rethrow()
     end
+    return rename_staged!(staging, dir, site)
+end
+
+"The prefix of every staging directory's name."
+const STAGING_PREFIX = ".staging-"
+
+"A new empty staging directory beside `dir`, its parent created when absent."
+function new_staging(dir::AbstractString)
+    parent = dirname(dir)
+    mkpath(parent)
+    return mktempdir(parent; prefix = STAGING_PREFIX, cleanup = false)
+end
+
+"""
+    rename_staged!(staging, dir, site)
+
+Renames the staging directory `staging` to `dir` and returns `dir`. Removes `staging` and
+refuses at `site` when `dir` exists by the time of the rename.
+"""
+function rename_staged!(staging::AbstractString, dir::AbstractString, site::AbstractString)
     if ispath(dir)
         rm(staging; recursive = true, force = true)
         refuse("artifact", site, "$(dir) was written while this write was staged")
@@ -408,21 +433,31 @@ require_cell_type(site, T) = (T <: Integer && T !== Bool) ||
     to_disk(values, host, site)
 
 The array written to disk for the host array `host` holding `values`: `host` itself for
-`Amounts`; for `CellIds`, each entry `i` replaced by `Mesh.disk_id(i).value`, refusing at
-`site` an element type that is not an integer and an entry outside the cells of the level.
+`Amounts`; for `CellIds`, `to_disk!` into a new array `similar` to `host`.
 """
 to_disk(::Amounts, host::AbstractArray, site::AbstractString) = host
 
-function to_disk(c::CellIds, host::AbstractArray, site::AbstractString)
+to_disk(c::CellIds, host::AbstractArray, site::AbstractString) = to_disk!(similar(host), c, host, site)
+
+"""
+    to_disk!(dest, values::CellIds, host, site)
+
+`dest`, an array of the element type and size of `host`, holding each entry `i` of `host`
+replaced by `Mesh.disk_id(i).value`. Refuses at `site` an element type that is not an integer,
+a `dest` of another element type or size, and an entry outside the cells of the level.
+"""
+function to_disk!(dest::AbstractArray, c::CellIds, host::AbstractArray, site::AbstractString)
     require_cell_type(site, eltype(host))
+    (eltype(dest) === eltype(host) && size(dest) == size(host)) || refuse(
+        "values", site, "a destination of $(eltype(dest)) and size $(size(dest)) for cell ids of " *
+        "$(eltype(host)) and size $(size(host))")
     n = Mesh.ncells(c.level)
-    disk = similar(host)
     for i in eachindex(host)
         1 <= host[i] <= n || refuse("values", site,
                                     "entry $(i) holds $(host[i]), outside the $(n) cells of level $(c.level)")
-        disk[i] = Mesh.disk_id(host[i]).value
+        dest[i] = Mesh.disk_id(host[i]).value
     end
-    return disk
+    return dest
 end
 
 """
@@ -481,32 +516,45 @@ end
 axis_names(n::Integer) = [String(LAYOUT[d]) for d in 1:n]
 
 """
+    create_array(path, T, shape, attributes, per_chunk)
+
+A new Zarr version 2 array of element type `T` and size `shape` at `path`, holding its
+metadata and attributes and no chunk: chunks of `per_chunk` cells along the cell axis and
+whole along every other, no fill value, compressed by `compressor()`, with `attributes` and
+`AXES_ATTRIBUTE` naming its axes in on-disk order.
+"""
+function create_array(path::AbstractString, T::Type, shape::Tuple, attributes::Dict{String,Any},
+                      per_chunk::Integer)
+    attrs = merge(attributes, Dict{String,Any}(AXES_ATTRIBUTE => reverse(axis_names(length(shape)))))
+    return Zarr.zcreate(T, Zarr.DirectoryStore(path), shape...;
+                        zarr_format = 2, chunks = (per_chunk, shape[2:end]...), fill_value = nothing,
+                        compressor = compressor(), attrs = attrs)
+end
+
+"""
     write_array!(path, disk, attributes, per_chunk)
 
-Writes `disk` as a new Zarr version 2 array at `path`: chunks of `per_chunk` cells along the
-cell axis and whole along every other, no fill value, compressed by `compressor()`, with
-`attributes` and `AXES_ATTRIBUTE` naming its axes in on-disk order.
+Writes `disk` as the `create_array` of its element type and size at `path`, every chunk
+written through Zarr's own indexed write under `BLOSC_LOCK`.
 """
 function write_array!(path::AbstractString, disk::AbstractArray, attributes::Dict{String,Any},
                       per_chunk::Integer)
-    attrs = merge(attributes, Dict{String,Any}(AXES_ATTRIBUTE => reverse(axis_names(ndims(disk)))))
-    z = Zarr.zcreate(eltype(disk), Zarr.DirectoryStore(path), size(disk)...;
-                     zarr_format = 2, chunks = (per_chunk, size(disk)[2:end]...), fill_value = nothing,
-                     compressor = compressor(), attrs = attrs)
-    z[axes(disk)...] = disk
+    z = create_array(path, eltype(disk), size(disk), attributes, per_chunk)
+    @lock BLOSC_LOCK z[axes(disk)...] = disk
     return nothing
 end
 
 """
-    array_table(; attributes, disk, chunk_level, per_chunk, values, ledgers)
+    array_table(; attributes, array, chunk_level, per_chunk, values, ledgers)
 
 The manifest's table of one array: `attributes` as written, `element_type`, `size` and
-`axes` in memory order, `chunk_level`, `cells_per_chunk`, `compressor`, the `values_record`
-of `values`, and the ledger records `ledgers`.
+`axes` in memory order of `array`, an array of the element type and size written, on any
+backend; `chunk_level`, `cells_per_chunk`, `compressor`, the `values_record` of `values`,
+and the ledger records `ledgers`.
 """
-array_table(; attributes, disk, chunk_level, per_chunk, values, ledgers) =
-    Dict{String,Any}("attributes" => attributes, "element_type" => string(eltype(disk)),
-                     "size" => collect(size(disk)), "axes" => axis_names(ndims(disk)),
+array_table(; attributes, array, chunk_level, per_chunk, values, ledgers) =
+    Dict{String,Any}("attributes" => attributes, "element_type" => string(eltype(array)),
+                     "size" => collect(size(array)), "axes" => axis_names(ndims(array)),
                      "chunk_level" => chunk_level, "cells_per_chunk" => per_chunk,
                      "compressor" => COMPRESSOR_ID, "values" => values_record(values),
                      "ledgers" => ledgers)
@@ -569,7 +617,7 @@ function read_array(z, table::AbstractDict, path::AbstractString, site::Abstract
         Zarr.store_isinitialized(z.storage, z.path, ci, z.metadata.chunk_key_encoding) || refuse(
             "chunk", site, "the array at $(path) holds no chunk $(Tuple(ci))")
     end
-    return z[ntuple(_ -> Colon(), ndims(z))...]
+    return @lock BLOSC_LOCK z[ntuple(_ -> Colon(), ndims(z))...]
 end
 
 # ---------------------------------------------------------------- supports
@@ -613,7 +661,7 @@ function put_support!(store::Store; kwargs...)
         "fraction_digest" => hex(support.fraction_digest),
         "lineage_digest" => hex(support.lineage_digest),
         "arrays" => Dict{String,Any}(CELL_AREA => array_table(
-            attributes = attributes, disk = area, chunk_level = chunk_level, per_chunk = per_chunk,
+            attributes = attributes, array = area, chunk_level = chunk_level, per_chunk = per_chunk,
             values = Amounts(), ledgers = Any[])))
     return write_directory!(dir, site) do staging
         write_array!(joinpath(staging, CELL_AREA), area, attributes, per_chunk)
@@ -773,25 +821,89 @@ artifact the store already holds.
 """
 function put_field!(store::Store, run::RunID; kwargs...)
     site = "Provenance.put_field!"
-    k, _ = read_keywords(site, values(kwargs), (:code, PUT_KEYWORDS...), ())
-    code = require_type("code", site, k.code, CodeVersion)
-    return write_field!(store, site, run, code, k, key -> object_directory(store, admit(key)))
+    admission = admit_put(store, site, run, kwargs)
+    land_inline!(admission)
+    return admission.key, admission.stamped
 end
 
 function put_field!(store::Store, scratch::ScratchRun; kwargs...)
     site = "Provenance.put_field!"
-    k, _ = read_keywords(site, values(kwargs), PUT_KEYWORDS, ())
-    return write_field!(store, site, scratch.run, scratch.code, k,
-                        key -> scratch_directory(store, admit(scratch).run, key))
+    admission = admit_put(store, site, scratch, kwargs)
+    land_inline!(admission)
+    return admission.key, admission.stamped
 end
 
 """
-    write_field!(store, site, run, code, k, place)
+    admit_put(store, site, run::RunID, kwargs)
+    admit_put(store, site, scratch::ScratchRun, kwargs)
 
-The write both forms of `put_field!` make, with `place` giving the directory of the key
-after admitting it.
+The `Admission` of the keywords `kwargs` of `put_field!`, refusing at `site`: the first
+form reads `code` beside `PUT_KEYWORDS` and places the key under `objects/` after
+`admit(key)`, the second places it under `scratch/<uuid>/` after `admit(scratch)`. Both
+`put_field!` and the writer's `submit!` admit through it.
 """
-function write_field!(store::Store, site::AbstractString, run::RunID, code::CodeVersion, k, place)
+function admit_put(store::Store, site::AbstractString, run::RunID, kwargs)
+    k, _ = read_keywords(site, values(kwargs), (:code, PUT_KEYWORDS...), ())
+    code = require_type("code", site, k.code, CodeVersion)
+    return admit_field(store, site, run, code, k, key -> object_directory(store, admit(key)))
+end
+
+function admit_put(store::Store, site::AbstractString, scratch::ScratchRun, kwargs)
+    k, _ = read_keywords(site, values(kwargs), PUT_KEYWORDS, ())
+    return admit_field(store, site, scratch.run, scratch.code, k,
+                       key -> scratch_directory(store, admit(scratch).run, key))
+end
+
+"""
+    Admission
+
+A field write admitted and not yet landed: `key` and `stamped`, what the write returns;
+`dir`, the artifact's directory; `site`, the door that admitted it; `quantity`; `data`, the
+field's data on the backend it lives on; `values`, the `Amounts` or `CellIds` it holds;
+`per_chunk`, the cells of one chunk; `attributes`, the array's `array_attributes`; and
+`manifest`, the artifact's manifest. Every entry is fixed without reading an element of
+`data`.
+"""
+struct Admission
+    key::ArtifactKey
+    stamped::Fields.Field
+    dir::String
+    site::String
+    quantity::Symbol
+    data::AbstractArray
+    values::Union{Amounts,CellIds}
+    per_chunk::Int
+    attributes::Dict{String,Any}
+    manifest::Dict{String,Any}
+end
+
+"""
+    land_inline!(admission)
+
+Lands `admission` on the caller's task: its data moved to the host through `Backends.on`,
+translated by `to_disk`, and written with its manifest into a staging directory renamed
+to `admission.dir` through `write_directory!`. Refuses what `to_disk` and
+`write_directory!` refuse.
+"""
+function land_inline!(a::Admission)
+    host = on(a.data, CPU())
+    disk = to_disk(a.values, host, a.site)
+    write_directory!(a.dir, a.site) do staging
+        write_array!(joinpath(staging, String(a.quantity)), disk, a.attributes, a.per_chunk)
+        write_toml(joinpath(staging, MANIFEST), a.manifest)
+    end
+    return nothing
+end
+
+"""
+    admit_field(store, site, run, code, k, place)
+
+The `Admission` both forms of `put_field!` and of `submit!` make from the read keywords
+`k`, with `place` giving the directory of the key after admitting it. Refuses at `site`
+everything `put_field!` refuses except what `to_disk` finds in the data and what the
+landing meets on the filesystem.
+"""
+function admit_field(store::Store, site::AbstractString, run::RunID, code::CodeVersion, k, place)
     field = require_type("field", site, k.field, Fields.Field)
     declaration = require_type("declaration", site, k.declaration, Declaration)
     quantity = require_type("quantity", site, k.quantity, Symbol)
@@ -830,9 +942,9 @@ function write_field!(store::Store, site::AbstractString, run::RunID, code::Code
     isfile(joinpath(support_directory(store, support), MANIFEST)) || refuse(
         "support", site, "the store holds no support $(hex(support.digest)); put_support! writes it")
     ispath(dir) && refuse("artifact", site, "the store already holds $(hex(key.digest)) at $(dir)")
-    host = on(Fields.data(field), CPU())
-    require_host_array(site, host, level)
-    disk = to_disk(values, host, site)
+    data = Fields.data(field)
+    require_host_array(site, data, level)
+    values isa CellIds && require_cell_type(site, eltype(data))
     per_chunk = cells_per_chunk(level, chunk_level)
     attributes = array_attributes(support = support, semantics = semantics, time = time,
                                   dimension = Fields.dimension(field), owner = declaration.name)
@@ -850,17 +962,13 @@ function write_field!(store::Store, site::AbstractString, run::RunID, code::Code
                                       "quantities" => [String(q) for q in s.quantities])
                      for s in declaration.stocks],
         "arrays" => Dict{String,Any}(String(quantity) => array_table(
-            attributes = attributes, disk = disk, chunk_level = chunk_level, per_chunk = per_chunk,
+            attributes = attributes, array = data, chunk_level = chunk_level, per_chunk = per_chunk,
             values = values, ledgers = ledgers)),
         "key_interval" => key_interval_record(interval))
-    write_directory!(dir, site) do staging
-        write_array!(joinpath(staging, String(quantity)), disk, attributes, per_chunk)
-        write_toml(joinpath(staging, MANIFEST), manifest)
-    end
-    stamped = Fields.Field(semantics = semantics, dimension = Fields.dimension(field), data = Fields.data(field),
+    stamped = Fields.Field(semantics = semantics, dimension = Fields.dimension(field), data = data,
                            support = support, time = Fields.time_support(field),
                            origin = Fields.stamped(declaration.name, run.uuid, key.digest, parameters))
-    return key, stamped
+    return Admission(key, stamped, dir, site, quantity, data, values, per_chunk, attributes, manifest)
 end
 
 "The keywords `read_field` reads."

@@ -297,6 +297,46 @@ package root; Julia's base library is `/usr/share/julia/base`.
   the wait raises is rethrown unchanged, and the record keeps every kernel queued since
   the last completion until a wait returns.
 
+**A kernel the host releases with a write to host memory.** `test/provenance/writer.jl` holds
+a submission's host copy behind a kernel that loops while a gate cell holds a sentinel and its
+iteration count is below a ceiling, and releases it by writing the cell from the host.
+
+- CUDACore `src/array.jl`, lines 304-330: `unsafe_wrap(CuArray{T,N,HostMemory}, p, dims)`
+  registers the host memory at `p` with `MEMHOSTREGISTER_DEVICEMAP` and returns a `CuArray`
+  over it, unregistered when the array is collected. The gate cell and the kernel's iteration
+  counter are two such arrays over host `Vector`s, so the release is a host assignment and the
+  count is read on the host, with no copy queued on any stream and no `complete!`.
+- CUDACore `src/array.jl`, lines 399-426: `pointer` of an array backed by `HostMemory` gives a
+  device-accessible address for `type=DeviceMemory`, which is what a kernel launch converts it
+  through.
+- A release written as a `copyto!` from a second task into a device cell (CUDACore
+  `src/array.jl`, lines 590-608, queued with `async = true` on that task's stream) was queued
+  and did not end the kernel in one run on this card, and that process then faulted every
+  client of the card's MPS server when it was killed:
+  `notes/findings/2026-09-14-a-device-kernel-killed-mid-read-faults-every-mps-client.md`.
+- A kernel still to be compiled did not launch from any task while the looping kernel ran; the
+  source of that wait was not located, and `fiddlybits-52v.6.26`'s notes carry what was
+  observed. The test compiles, at their work item counts, every kernel its held interval
+  launches before the hold.
+
+**Unregistering page-locked host memory waits on a running kernel.**
+
+- CUDACore `lib/cudadrv/memory.jl`: `register`, lines 171-177, calls `cuMemHostRegister_v2`
+  (`lib/cudadrv/libcuda.jl`, lines 999-1003), and `unregister`, lines 184-186, calls
+  `cuMemHostUnregister` (`lib/cudadrv/libcuda.jl`, lines 4617-4620). Both are `@gcsafe_ccall`s,
+  so a task inside either lets a collection proceed.
+- The same file, `pin`, lines 683-707, attaches a finalizer that reaches `__unpin` (lines
+  758-775) and so `unregister`; CUDACore `src/array.jl`, lines 304-330, gives the `CuArray` that
+  `unsafe_wrap` registers over host memory a `DataRef` whose release unregisters it. Unreachable
+  registered memory is therefore unregistered inside whichever collection finalizes it, on the
+  task that allocated.
+- Measured, not read: `cuMemHostUnregister` did not return while a kernel of the same process ran
+  on the card, `cuMemHostRegister_v2` did, and registered memory left to a finalizer stalled any
+  task that allocated for as long as a kernel ran:
+  `notes/findings/2026-09-14-unregistering-page-locked-host-memory-waits-on-a-running-kernel.md`.
+- What rests on it: no page-locked host memory the store's writer holds reaches a finalizer, and
+  none is unregistered while a stage or a submitter could be waiting on it.
+
 **How the leak is caught.** `test/backends/host_copy.jl`. A copy that was not queued at
 its stream position holds the second kernel's values instead of the first's (check 1);
 a door that synchronizes, by `complete!` or by a bare device synchronize, leaves nothing

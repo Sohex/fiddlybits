@@ -343,7 +343,9 @@ Backends.charge!(pool, bytes)           waits for the bytes, behind every earlie
 Backends.release!(pool, bytes)          returns bytes to the pool
 Backends.host_buffer(backend, T, n)     host memory a device copy lands in without a host wait
 Backends.copy_to_host!(host, array)     -> Handoff; the copy queued behind the kernels that wrote array
-open_writer(store; run, profile)        -> Writer, its stages started
+open_arena(capacity)                    -> Arena; every host buffer of one writer, page-locked once
+place!(arena, n) / release_range!       one contiguous block per submission, first fit, coalesced on release
+open_writer(store; run, profile)        -> Writer, its arena and stages started, held until drained
 submit!(writer, run | scratch; kw...)   -> (key, stamped); put_field!'s keywords, admitted inline
 settle!(writer)                         every submission so far committed, refused or discarded
 drain!(writer)                          closed to submissions, settled, its stages stopped
@@ -367,9 +369,9 @@ over the field, exactly where `put_field!` refuses them.
 
 | stage | resource | width | work |
 | --- | --- | --- | --- |
-| host copy | the card, on the stream of the task that wrote the field | that stream; there is no worker to count | at submission, once the charge is taken: `copy_to_host!` into a `host_buffer`, queued behind the kernels that wrote the field and recorded through `Events.moved`; `submit!` returns without a host wait. On `CPU` the copy is taken at the call |
-| encode | cores | the tasks the default thread pool runs at once, which is the allocation the process was launched with (`-t` from `$SLURM_CPUS_PER_TASK`); nothing is declared | once the copy's handoff completes: `to_disk` on the writer's own copy, the cells cut into chunks by hierarchy range, each chunk compressed through `Zarr.zcompress` with `compressor()`, the call the reference path's array write reaches; then the copy's charge released |
-| disk | the store's filesystem | `profile.store_writers` | the array metadata, each compressed chunk under the chunk key the reference path gives it, and the manifest text, written into a staging directory beside the key's place; then the compressed charge released |
+| host copy | the card, on the stream of the task that wrote the field | that stream; there is no worker to count | at submission, once the charge is taken and placed as one block of the writer's arena: `copy_to_host!` into the block's first bytes, queued behind the kernels that wrote the field and recorded through `Events.moved`; `submit!` returns without a host wait. On `CPU` the copy is taken at the call |
+| encode | cores | the tasks the default thread pool runs at once, which is the allocation the process was launched with (`-t` from `$SLURM_CPUS_PER_TASK`); nothing is declared | once the copy's handoff completes: `to_disk!` of the writer's own copy into the block's translated range for cell ids, the cells cut into chunks by hierarchy range through the block's chunk buffer, each chunk compressed into the block's compressed range through `Blosc.compress!` after `Blosc.set_compressor`, with the codec name, level and shuffle the `BloscCompressor` `compressor()` holds, the parameters and call `Zarr.zcompress` makes on the reference path; then the copy, translated and buffer ranges and their charge released |
+| disk | the store's filesystem | `profile.store_writers` | the array metadata, each compressed chunk's arena bytes under the chunk key the reference path gives it, and the manifest text, written into a staging directory beside the key's place; then the compressed range and its charge released |
 | commit | one rename | none | the staging directory renamed into place, in submission order |
 
 The copy is taken at submission, rather than a reference to the field held until
@@ -396,13 +398,46 @@ whose ceiling is `profile.write_ceiling`, a declared count of bytes with a dispo
 from `Systems.DECLARED`. `BytePool` sits in `Backends` beside the memory budget, so every
 stage the tree builds charges it rather than declaring a second pool. A stage takes the
 next item the moment it is free; nothing waits for a step, a level, a quantity or an
-artifact's siblings. An item's charge is taken whole at submission: the host copy's
-bytes, and each chunk's worst-case compressed size, its bytes plus `Blosc.MAX_OVERHEAD`,
-the destination size `Blosc.compress` allocates, reached through `Zarr`. The encode stage
-releases the copy's part and the disk stage the compressed part. Only a submitter waits
-on the pool, and no stage holds a charge while it waits for another: a charge taken in
-parts, one part held while the next is waited for, is the deadlock decision 0038 names,
-and a stage that only releases cannot meet it.
+artifact's siblings. An item's charge is taken whole at submission, each part rounded up
+to a multiple of eight bytes: the host copy's bytes; the translated cell-id array's bytes,
+none for amounts; one chunk's bytes for the chunk buffer; and each chunk's worst-case
+compressed size, its bytes plus `Blosc.MAX_OVERHEAD`, the destination size `Blosc.compress`
+allocates. The encode stage releases the first three parts and the disk stage the compressed
+part. Only a submitter waits on the pool, and no stage holds a charge while it waits for
+another: a charge taken in parts, one part held while the next is waited for, is the
+deadlock decision 0038 names, and a stage that only releases cannot meet it.
+
+**Every host buffer of the writer is carved from one arena.** `open_writer` makes one
+`Vector{UInt8}` of `write_ceiling` bytes rounded down to a multiple of eight, page-locked
+through `Backends.host_buffer(GPU(), UInt8, n)` when CUDA reports a functional device and
+plain otherwise, and a `BytePool` of that capacity. Page-locking happens once, when the
+writer opens. A submission's charge is placed as one contiguous block of the arena, first fit
+in index order, laid out as the host copy, the translated array, the chunk buffer and the
+compressed chunks; the encode stage writes the translation with `to_disk!` and compresses into
+the block, the disk stage writes each chunk's bytes from it, and the writer's host memory is
+the arena and nothing beside it, so `write_ceiling` bounds it exactly. A released range merges
+with the free ranges it adjoins. A charge the pool admits waits for placement only while no
+free range is long enough, and is then served once the placed ranges return: the pool admitted
+it, so the free bytes are at least its size; the one opener task is the only one that places;
+every placed range belongs to a submission already queued to stages that never wait on the
+arena and release every range on every path, success, refusal or discard; and once none is
+placed, coalescing leaves the whole arena as one free range, long enough for any charge the
+pool admits. The compression parameters are read from the compressor object at each chunk,
+never kept beside it, and `provenance.pooled_write_is_reference` holds the bytes to the
+reference path's Zarr write.
+
+Four routes lost. Pinning a buffer per submission and unregistering it when the copy has been
+encoded puts `cuMemHostUnregister` inside the encode stage, and registered memory reaching a
+finalizer inside any allocation, `submit!`'s included, where it waits for whatever kernel is
+running (`notes/findings/2026-09-14-unregistering-page-locked-host-memory-waits-on-a-running-kernel.md`);
+a stage or a submitter then waits on device work. A pool of pinned buffers in size classes,
+kept for the writer's life with every pinned byte charged, can wait forever: every pinned
+buffer idle, none long enough, and the free charge below the size a new one needs. An arena
+sized by its own profile setting beside `write_ceiling` avoids that, and adds a declared
+constant whose value moves nothing but which writes are refused. Refusing a submission when
+the pool is fragmented refuses a write that fits the ceiling, depending on what was written
+before it. Splitting one host copy across several idle buffers needs a range copy in
+`Backends.copy_to_host!` and a reassembly the encode stage would charge again.
 
 **When the ceiling is reached, the submitter waits.** `submit!` blocks the submitting
 task until the whole charge is free and every submitter that began waiting before it
@@ -453,7 +488,12 @@ wrapper, which emits the `refusal` event under that caller's header, as
 
 **A run's end drains the stages.** `drain!` closes the writer to submissions, settles,
 stops the encode and disk tasks once their queues are closed and empty, and removes
-every discarded staging directory. The run door (`fiddlybits-52v.6.17`) opens the writer
+every discarded staging directory. It then calls `Backends.complete!` on the opener and
+releases the arena's page lock, whether the settle refused or not; nothing else unregisters
+host memory, and no writer's arena reaches a finalizer, because `open_writer` holds every
+writer in a module registry until its drain removes it. A writer never drained is reported
+by name by an exit hook that unregisters nothing, and the run door's close refuses a run
+whose writer is still registered (`fiddlybits-52v.6.27`). The run door (`fiddlybits-52v.6.17`) opens the writer
 from the run's profile after the journal is installed, and drains it in the close it
 runs whether the run was refused or not (`fiddlybits-52v.6.27`): a run unwound by a
 component's refusal still commits every write submitted before that refusal, the
