@@ -32,9 +32,11 @@ holds_declaration(x) = parentmodule(typeof(x)) === (@__MODULE__) &&
     interior(x)
 
 `true` when a path steps into `x` rather than ending at it: `x` is a tuple, a named
-tuple, or a struct of this module, that is not a `Disposition` and holds one.
+tuple, or a struct of this module, that is not a `Disposition` and holds one. An array
+is never interior, whatever it holds.
 """
 interior(::Disposition) = false
+interior(::AbstractArray) = false
 interior(x) = holds_declaration(x)
 
 "The reads one tracked run records, as a set of paths, guarded for concurrent readers."
