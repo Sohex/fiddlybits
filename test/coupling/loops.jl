@@ -29,6 +29,8 @@ profile(system, brackets) = Systems.Profile(
     radiation = absent("the loop fixture has no radiation"), fast_precision = Float64,
     slow_tier = absent("the loop fixture has no slow tier"),
     memory_ceiling = SF.irreducible(1024, ONE),
+    write_ceiling = SF.irreducible(256, ONE),
+    store_writers = SF.irreducible(4, ONE),
     daily_fallback_interval = absent("the loop fixture has no vegetation tier"),
     exit_brackets = brackets)
 

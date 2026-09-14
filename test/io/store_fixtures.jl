@@ -19,6 +19,8 @@ profile() = Systems.Profile(
     fast_precision = Float64,
     slow_tier = Systems.Absent(argument = "the store fixture has no slow tier"),
     memory_ceiling = SF.irreducible(1024, Dimensions.DIMENSIONLESS),
+    write_ceiling = SF.irreducible(256, Dimensions.DIMENSIONLESS),
+    store_writers = SF.irreducible(4, Dimensions.DIMENSIONLESS),
     daily_fallback_interval = Systems.Absent(argument = "the store fixture has no vegetation tier"),
     exit_brackets = Systems.Absent(argument = "the store fixture has no loop"))
 

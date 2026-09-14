@@ -73,6 +73,8 @@ profile(T = Float64; kw...) = Systems.Profile(; merge(
      slow_tier = Systems.SlowTier(acceleration = SF.bracket(T(10), T(1), T(100), ONE),
                                   refresh_interval = SF.irreducible(T(3e9), TIME)),
      memory_ceiling = SF.irreducible(1024, ONE),
+     write_ceiling = SF.irreducible(256, ONE),
+     store_writers = SF.irreducible(4, ONE),
      daily_fallback_interval = SF.bracket(T(1e5), T(600), T(1e6), TIME),
      exit_brackets = (Systems.ExitBracket(loop = :climate, criterion = :toa_balance,
                                           normalisation = :absorbed_instellation,

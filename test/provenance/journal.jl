@@ -139,6 +139,8 @@ profile() = Systems.Profile(
     fast_precision = Float64,
     slow_tier = Systems.Absent(argument = "the journal fixture has no slow tier"),
     memory_ceiling = SF.irreducible(1024, Dimensions.DIMENSIONLESS),
+    write_ceiling = SF.irreducible(256, Dimensions.DIMENSIONLESS),
+    store_writers = SF.irreducible(4, Dimensions.DIMENSIONLESS),
     daily_fallback_interval = Systems.Absent(argument = "the journal fixture has no vegetation tier"),
     exit_brackets = Tuple(Systems.ExitBracket(loop = name, criterion = :alternation,
                                               normalisation = :aa_scatter,
