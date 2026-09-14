@@ -236,6 +236,17 @@ On `CPU`, whose launch runs the kernel before it returns, a `GPU` `point` is
 waited for on the host here instead, there being nowhere else to put the
 wait; a `CPU` `point` is already finished and returns at once.
 
+Neither form raises a device fault. `after!(CPU(), point)` waits on `point`'s
+event and `after!(GPU(), point)` makes a stream wait on it, and neither reads
+CUDA's kernel-exception flag. A kernel that faulted on the device before
+`point` is raised by `complete!`, which reads that flag after its wait. The
+flag is one per CUDA context, not per task or stream, and the first read that
+finds it set clears it, so the fault is raised by the first `complete!` in the
+process after the fault, including the one `on` and `adapt_for` call. The
+store's writer raises it by calling `complete!` on the task that submitted the
+write, in `settle!` (`fiddlybits-52v.6.26`). `docs/imports/cuda.md`, section
+"Page-locked memory and the queued copy", holds the locators.
+
 This is the only cross-task ordering this module states. Two tasks that share
 a device array and do not use it are ordered by whatever per-array stream
 bookkeeping the platform's library does on its own, which is a host-side stop

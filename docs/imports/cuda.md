@@ -21,7 +21,7 @@ groundwater solve is ever wanted. No CUBLAS in the physics path.
 | mutable global state | the default stream and the memory pool are process-global | one process per run; the profile records the device |
 | fail-open branches | fast-math and FMA contraction differ from CPU | production mode carries the measured envelope; debug mode disables contraction and asserts bitwise |
 | dynamic dispatch in device code | the kernel compiler refuses a call left to runtime dispatch; it does not refuse a non-concrete type that host inference resolves, and it sees only what is compiled for the device | `test/backends/dispatch_refusal.jl`; the section below |
-| page-locked memory and the queued copy | `Base.copyto!` from a `CuArray` into an `Array` synchronizes first; a pointer copy with `async=true` is queued on the calling task's stream; a copy into memory the driver has not page-locked may wait on the host; an event's host wait yields only while nonblocking synchronization is enabled | `Backends.copy_to_host!` copies through the pointer form and refuses a host that is not page-locked; `test/backends/host_copy.jl`; the section "Page-locked memory and the queued copy" |
+| page-locked memory and the queued copy | `Base.copyto!` from a `CuArray` into an `Array` synchronizes first; a pointer copy with `async=true` is queued on the calling task's stream; a copy into memory the driver has not page-locked may wait on the host; an event's host wait yields only while nonblocking synchronization is enabled; an event's wait does not read the kernel-exception flag, which is one per context and cleared by the first read that finds it set | `Backends.copy_to_host!` copies through the pointer form and refuses a host that is not page-locked; a device fault is raised by `Backends.complete!` and never by `after!`; `test/backends/host_copy.jl`, `test/backends/kernel_fault.jl`; the section "Page-locked memory and the queued copy" |
 
 **Licence.** MIT. **Version.** CUDA 6.3.1 and CUDACore 6.3.1, with GPUCompiler
 2.6.0 beneath them, as `Manifest.toml` resolves them on Julia 1.12.7; `to verify`
@@ -210,11 +210,33 @@ package root; Julia's base library is `/usr/share/julia/base`.
   `use_nonblocking_synchronization` is true, the preference `nonblocking_synchronization`
   read at lines 3-4 with a default of true; otherwise, or with `blocking = true`, the
   task calls `cuEventSynchronize` and holds its thread.
-- The same event form does not call `check_exceptions` (compare the stream form at lines
-  201-215, which calls it at line 214; `check_exceptions` is `src/compiler/exceptions.jl`
-  lines 29-43), so a kernel exception queued before a handoff is not raised by
-  `after!(CPU(), point)` and is raised at the next `complete!`. Raising it at the
-  handoff's wait is `fiddlybits-52v.6.32`.
+- The same event form does not call `check_exceptions`. The stream form, lines 201-215,
+  calls it at line 214, and `Backends.complete!` reaches the stream form: the backend form
+  through `KA.synchronize(::CUDABackend)`, CUDACore `src/CUDAKernels.jl` line 28, which is
+  `synchronize()` on the task's stream; the array form through `synchronize(::CuArray)`,
+  `src/array.jl` line 494, and `synchronize(::Managed)`, `src/memory.jl` lines 580-584,
+  on the stream that last owned the array. `wait(e::CuEvent, stream)`,
+  `lib/cudadrv/events.jl` lines 78-79, which `after!(GPU(), point)` calls, is
+  `cuStreamWaitEvent` and calls no check either.
+
+**The kernel-exception flag and where a fault is raised.**
+
+- CUDACore `src/device/runtime.jl`, `signal_exception`, lines 190-207: a kernel that
+  throws on the device sets its exception record's `status` to one (line 200) and stops
+  executing (line 204). Nothing is raised on the host at that point.
+- CUDACore `src/compiler/exceptions.jl`, lines 16-26: the record is one
+  `ExceptionInfo_st` in host memory mapped to the device, held in `exception_infos`,
+  which is keyed by context and not by task or stream. `check_exceptions`, lines 29-43,
+  reads every context's record, and on the first it finds set restores it to zero (line
+  34) and throws `KernelException` (line 38). The first check anywhere in the process
+  after a fault takes it, on whichever task makes that check.
+- The rule `Backends` states. `after!(CPU(), point)` and `after!(GPU(), point)` raise no
+  device fault, and a host copy behind a faulted kernel lands what the kernel left in the
+  array. The fault is raised by the first `Backends.complete!` after it, which includes
+  the one `on` and `adapt_for` call, as a `Verdicts.Refusal` at `Backends.complete!`
+  carrying the `KernelException`. The store's writer raises a fault behind its host
+  copies by calling `complete!` on the task that submitted the write, in `settle!`, at the
+  settle point of decision 0060 (`fiddlybits-52v.6.26`).
 
 **How the leak is caught.** `test/backends/host_copy.jl`. A copy that was not queued at
 its stream position holds the second kernel's values instead of the first's (check 1);
@@ -222,4 +244,8 @@ a door that synchronizes, by `complete!` or by a bare device synchronize, leaves
 queued or no event outstanding when it returns (check 2); a host wait that holds its
 thread, as a disabled nonblocking-synchronization preference would make `after!(CPU(),
 point)`, leaves a second task on that thread unfinished (check 4); and a host that is
-not page-locked is refused rather than copied into (check 5).
+not page-locked is refused rather than copied into (check 5). `test/backends/kernel_fault.jl`
+queues an out-of-range kernel and a host copy from one task and waits on the copy's
+handoff from a second: an `after!` that read the exception flag would raise on the
+waiting task and leave the submitting task's `complete!` without a refusal, which is
+what its positive control, a waiter that calls `check_exceptions` after `after!`, shows.
