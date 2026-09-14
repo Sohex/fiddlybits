@@ -20,7 +20,7 @@ function tier2_entry(; verdict_kind::AbstractString = "fail_bar", datasets = Str
                         "global-mean fixture flux against the product", verdict_kind,
                         "the published residual of the fixture model", true, registered_at, false,
                         ["A read work"], nothing, nothing, datasets, nothing, nothing,
-                        barred ? nothing : bar, barred ? nothing : uncertainty, "fixture.toml")
+                        barred ? nothing : bar, barred ? nothing : uncertainty, nothing, nothing, "fixture.toml")
 end
 
 "A tier 3 report entry naming no bar, reading no dataset unless `datasets` is given."
@@ -28,13 +28,13 @@ tier3_entry(; datasets = String[]) = Oracles.Entry(
     "sweep.fixture_rotation", 3, "dynamics", "a fixture sweep", "published spread",
     "fixture cell edge against rotation rate swept", "report", "the published studies are the reference",
     true, "", false, ["A read work"], nothing, nothing, datasets, nothing, nothing, nothing, nothing,
-    "fixture.toml")
+    nothing, nothing, "fixture.toml")
 
 "A tier 1 identity entry naming no dataset and no numeric bar."
 tier1_entry() = Oracles.Entry(
     "mesh.fixture_identity", 1, "mesh", "identity", "identity",
     "sum of fixture cell areas against the sphere", "fail_bar", "roundoff", true, "", false, String[],
-    nothing, nothing, nothing, nothing, nothing, nothing, nothing, "fixture.toml")
+    nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, "fixture.toml")
 
 "A `Payload` with `value`, `reference`, and `hashes`, empty by default."
 payload(; value, reference, hashes = String[]) = Oracles.Payload(value = value, reference = reference, hashes = hashes)

@@ -106,21 +106,6 @@ struct Entry
 end
 
 """
-    Entry(id, tier, subsystem, dataset_or_reference, source_kind, statistic, verdict_kind,
-          threshold, provisional, registered_at, holdout, anchors, instances, protocol,
-          datasets, depends_on, instrument, bar_half_width, observation_uncertainty, registry)
-
-`Entry` from the nineteen positional fields held before `form` and `pattern_entry` were
-added, each of the two read as `nothing`.
-"""
-Entry(id, tier, subsystem, dataset_or_reference, source_kind, statistic, verdict_kind, threshold, provisional,
-     registered_at, holdout, anchors, instances, protocol, datasets, depends_on, instrument, bar_half_width,
-     observation_uncertainty, registry) =
-    Entry(id, tier, subsystem, dataset_or_reference, source_kind, statistic, verdict_kind, threshold, provisional,
-         registered_at, holdout, anchors, instances, protocol, datasets, depends_on, instrument, bar_half_width,
-         observation_uncertainty, nothing, nothing, registry)
-
-"""
     Registry
 
 Every entry and protocol of the registry file at `path`, in file order.
