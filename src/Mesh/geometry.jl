@@ -189,14 +189,10 @@ function geometry(level::Level, st::Stencils)::Geometry{Float64}
     dual_edge_length = Vector{Float64}(undef, ne)
     edge_midpoint = Matrix{Float64}(undef, 3, ne)
     edge_normal = Matrix{Float64}(undef, 3, ne)
-    recorded = falses(ne)
 
-    for i in 1:nc, k in 1:3
-        e = st.cell_edge[k, i]
-        recorded[e] && continue
-        recorded[e] = true
-
-        a, b = edge_local_vertices(cells, i, k)
+    ev = edge_vertices(level, st)
+    for e in 1:ne
+        a, b = ev[1, e], ev[2, e]
         pa = column(vertices, a)
         pb = column(vertices, b)
         primal_edge_length[e] = arc_length(pa, pb)
