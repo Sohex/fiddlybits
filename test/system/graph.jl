@@ -247,7 +247,9 @@ end
         @test map(c -> c.name, t.components) === (atmosphere = :atmosphere, ocean = :ocean)
         @test Systems.recorded_reads(t) == Set{Tuple}([
             (:components,), (:components, :atmosphere, :name), (:components, :ocean, :name)])
-        absent = Systems.fast_profile(system = SF.system(Float32), memory_ceiling = SF.irreducible(1024, GF.ONE))
+        absent = Systems.fast_profile(system = SF.system(Float32), memory_ceiling = SF.irreducible(1024, GF.ONE),
+                                      write_ceiling = SF.irreducible(256, GF.ONE),
+                                      store_writers = SF.irreducible(4, GF.ONE))
         t = Systems.TrackingProfile(absent)
         @test t.components === absent.components
         @test Systems.recorded_reads(t) == Set{Tuple}([(:components,)])
