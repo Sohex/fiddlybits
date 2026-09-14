@@ -45,6 +45,53 @@ manifest_of(store, key) = TOML.parsefile(joinpath(Provenance.object_directory(st
                   ["support_id", "semantics", "time_semantics", "dimension", "owner", "interval"]
         end
 
+        @testset "record_value writes a UInt64 as an unsigned hexadecimal literal, read back as the same UInt64" begin
+            mktempdir() do dir
+                path = joinpath(dir, "record.toml")
+                round_trip(v) = (Provenance.write_toml(path, Dict{String,Any}("seed" => Provenance.record_value(v)));
+                                  TOML.parsefile(path)["seed"])
+                for v in (typemin(UInt64), UInt64(typemax(Int64)), UInt64(typemax(Int64)) + one(UInt64), typemax(UInt64))
+                    back = round_trip(v)
+                    @test back isa UInt64
+                    @test back == v
+                end
+
+                @testset "positive control: a record whose seed word is altered reads back a different UInt64" begin
+                    a = round_trip(typemax(UInt64))
+                    b = round_trip(typemax(UInt64) - one(UInt64))
+                    @test a != b
+                end
+            end
+        end
+
+        @testset "a system with a typemax(UInt64) root seed opens through start_run!, the one door" begin
+            mktempdir() do dir
+                seeded_store = Provenance.Store(root = dir)
+                seeded_system = SF.system(root_seed = SF.seed(typemax(UInt64)))
+                seeded_run = Provenance.mint_run_id()
+                ctx = Provenance.start_run!(seeded_store; run = seeded_run, code = ST.code(), system = seeded_system)
+                @test ctx isa Provenance.RunContext
+
+                run_record = TOML.parsefile(joinpath(Provenance.run_directory(seeded_store, seeded_run),
+                                                     Provenance.RUN_RECORD))
+                @test run_record["system"]["fields"]["root_seed"]["fields"]["value"] == typemax(UInt64)
+
+                @testset "the parameter record of a component declaring (:root_seed,) is written" begin
+                    seed_declaration = ST.declaration(system_fields = ((:root_seed,),))
+                    params = only(Provenance.parameter_records(seed_declaration, seeded_system))
+                    seed_value = only(params["values"])["value"]
+                    @test seed_value["fields"]["value"] == typemax(UInt64)
+
+                    @testset "positive control: a different root seed writes a different parameter record" begin
+                        other_system = SF.system(root_seed = SF.seed(typemax(UInt64) - 1))
+                        other = only(Provenance.parameter_records(seed_declaration, other_system))
+                        other_value = only(other["values"])["value"]
+                        @test other_value["fields"]["value"] != seed_value["fields"]["value"]
+                    end
+                end
+            end
+        end
+
         @testset "an array with $(name) dropped refuses, naming it" for name in Provenance.REQUIRED_ATTRIBUTES
             mktempdir() do dir
                 copied = store_copy(root, dir)
