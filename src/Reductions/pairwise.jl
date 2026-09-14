@@ -191,9 +191,21 @@ of its own recursive calls.
 function combine_tree(v::AbstractVector{A}) where {A<:Number}
     n = length(v)
     n == 0 && return zero(A)
-    n == 1 && return v[1]
-    mid = n ÷ 2
-    return combine_tree(view(v, 1:mid)) + combine_tree(view(v, mid+1:n))
+    return combine_range(v, firstindex(v), n)
+end
+
+"""
+    combine_range(v, first, count)
+
+The `count` entries of `v` from index `first`, `count` at least one, added
+as `combine_tree` adds a vector of `count` entries: the first `count ÷ 2`
+combined, then the remaining `count - count ÷ 2`, and the two added. Every
+recursive call takes `v` itself and two `Int`s.
+"""
+function combine_range(v::AbstractVector{A}, first::Int, count::Int) where {A<:Number}
+    count == 1 && return v[first]
+    mid = count ÷ 2
+    return combine_range(v, first, mid) + combine_range(v, first + mid, count - mid)
 end
 
 """
