@@ -8,7 +8,8 @@ using ..Verdicts: refuse
 """
     CellId
 
-The type that crosses the disk boundary. Wraps a 0-based disk index and
+The type that crosses the disk boundary: the 0-based index of a cell, a
+vertex or an edge, whatever its location. Wraps a 0-based disk index and
 defines no arithmetic, so a mixed-base defect is a `MethodError` rather than
 a wrong answer. `memory_index` and `disk_id` are the only doors between it
 and the 1-based index used in memory.
