@@ -127,7 +127,6 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 | `coarsen(VectorComponent{:east_north})` | lift to `:cartesian` at the source frames first, because east at one longitude is not east at another |
 | `coarsen(Quantiles)` | a quantile table is not re-aggregable; recompute from the fine field |
 | `refine(Quantiles)` | the same |
-| `coarsen(CategoricalFraction)`, until a field carrying components reduces | a class-fraction field holds one column per class |
 | `refine(CategoricalFraction)` | a histogram does not carry which child held which class |
 | `refine(VectorComponent{:east_north})` | project at the destination frames instead, for the reason coarsening refuses them |
 | `time_reduce(Instantaneous)` with no sampling rule | an instantaneous value has no interval to reduce over |
@@ -139,10 +138,11 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 
 `coarsen(Extensive)` is a segmented sum; `coarsen(FluxDensity)` and
 `coarsen(Fraction)` are area-weighted means so the integral is conserved;
+`coarsen(CategoricalFraction)` is the area-weighted mean of each class column, the
+legend on the data's last axis, which conserves each class's area;
 `coarsen(CategoricalLabel)` is a histogram into `CategoricalFraction` over the legend
-the call names; `coarsen(CategoricalFraction)` is the area-weighted mean of each class
-column, which conserves each class's area and on fractions histogrammed from labels is
-the histogram, a second door to that quantity rather than a second definition of it.
+the call names, built as that coarsening of the labels' one-hot fractions, so the
+histogram and the fraction coarsening are two doors to one definition.
 Each calls `Reductions` and names the measure it integrates over, per
 REQ-TER-011: no call here passes an unqualified "area". The naming is a type,
 `Measured{Name}`, which is a measure's values together with which measure they are,
@@ -184,9 +184,9 @@ then needs the measure repeated to the size of the field, the temporary the size
 input that `test/reductions/no_input_sized_temporary.jl` refuses, and a column's ledger
 total is still one pairwise sum per column. The form taken costs new kernels with their
 reference paths and edge-shape tests, and is the one whose launches, host reads and
-temporaries stay fixed as the trailing extent grows. `fiddlybits-52v.7.59` builds it
-and merges before `fiddlybits-52v.3.12` reduces on it; until then a field whose data is
-not one value per cell is refused by name rather than reduced along the wrong axis.
+temporaries stay fixed as the trailing extent grows; `fiddlybits-52v.7.59` built it. An
+array whose cell count along its first axis is not the level's is refused by name rather
+than reduced along another axis.
 
 **Every mismatch refuses by name; none is left to be a `MethodError`.** A declared
 refusal carrying a sentence is what this table is made of, and an absent method is the
