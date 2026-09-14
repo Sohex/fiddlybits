@@ -41,7 +41,8 @@ Two things are left out on purpose:
 | --- | --- | --- |
 | `src/Mesh/hierarchy.jl` | the base icosahedron, bisection, `CellId`, the numbering | 52v.2.2 |
 | `src/Mesh/geometry.jl` | both dual measures, frames, edge normals and lengths | 52v.2.3 |
-| `src/Mesh/stencils.jl` | the dense neighbour tables | 52v.2.4 |
+| `src/Mesh/stencils.jl` | the dense neighbour tables, `edge_vertices` | 52v.2.4, 52v.2.20 |
+| `src/Mesh/location.jl` | `Location`, `Cells`, `Vertices`, `Edges`, `element_count`, `axis_name`, the shared axis names | 52v.2.20 |
 | `src/Mesh/refinement.jl` | variable-level meshes, 2:1 balance, hanging edges, graded rings | 52v.2.5 |
 | `src/Mesh/identity.jl` | `Support{L}`, the digest, the mismatch refusal | 52v.2.6 |
 | `src/Connectivity/` | the graph, sill depth and width, contiguity, terminals, topology events | 52v.2.7 |
@@ -125,6 +126,37 @@ branch: a special case handled by weight is not a special case in the kernel.
 `stencil_valence.jl` is the leak test `docs/imports/kernelabstractions.md` names. It
 asserts that the stencil tables are the only geometry a kernel sees, which is the
 claim that keeps the kernel layer free of the mesh.
+
+### Locations
+
+A value of a level sits at its cells, its vertices or its edges, and `Mesh.Location` is
+the closed vocabulary that says which: `Cells`, `Vertices` and `Edges`, enumerated by
+`locations()` and closed by a test against the subtypes, the way the semantics are.
+`element_count(location, level)` is `ncells`, `nvertices` or `nedges`, and
+`axis_name(location)` names the axis a stored or exported array holds those elements
+along, `Backends.LAYOUT`'s first name at cells. The trailing axis names the store and
+the export share are declared beside it: `COMPONENT_AXIS`, the three components of a
+position or a direction in the mesh's Cartesian coordinates; `CORNER_AXIS`, a cell's
+three corners in the winding order of `Level.cells`, local edge `k` opposite corner `k`;
+and `PAIR_AXIS`, the two cells or the two vertices of an edge. The vocabulary lives here
+because the counts do: `Fields` puts a location on the type of a field, `Coupling` on a
+write, and `Provenance` and `Render` write its name.
+
+**Only cells nest by range.** `children(i)` is contiguous, so a cell's descendants are a
+range. `bisect` keeps every vertex of a level at its index and appends each new one in
+order of first appearance while scanning the parent cells, so a level's vertices are a
+prefix of every finer level's and no cell owns a range of them. `build_edges` numbers
+edges by first appearance, scanning cells in index order and local edges within a cell,
+so the creating cell `edge_cell[1, e]` never decreases with `e` and the edges a range of
+cells created are contiguous; a cell creates from none to three of them, so their count
+varies from one cell to the next. That is why `coarsen` and `refine` refuse vertices and
+edges (the fields plan, section Location) and why the store chunks a vertex or edge
+array by index range (the provenance plan, section The store).
+
+`edge_vertices(level, st)` gives each edge its two vertices, from the local edge of the
+cell that created it: the table a store entry and a mesh-topology export need and
+`Stencils` does not carry. `CellId` is the type every 0-based element index crosses the
+disk boundary in, whatever its location.
 
 ### Refinement
 
@@ -222,9 +254,12 @@ production mesh rather than only on a synthetic near-regular one.
 | 52v.2.6 | sonnet | `src/Mesh/identity.jl`, `test/mesh/identity.jl` | `mesh.support_identity` passes with its control firing; the mismatch refusal names both identities |
 | 52v.2.7 | frontier | `src/Connectivity/`, `test/connectivity/` | `mesh.connectivity_topology_event` passes with its control firing; the topology event goes through `Events.emit` and is counted by a fixture sink |
 | 52v.2.8 | sonnet | none; reports only | all five oracles ran; verdicts by name |
+| 52v.2.20 | sonnet | `src/Mesh/location.jl` and its include, `edge_vertices` in `src/Mesh/stencils.jl`, the `CellId` docstring in `src/Mesh/hierarchy.jl`, `test/mesh/location.jl` and its include | `locations()` holds exactly the subtypes of `Location` and a fixture fourth subtype is reported missing; `element_count` equals the level's cell, vertex and edge counts at levels 0 through 3; for every edge `arc_length` of its `edge_vertices` equals `primal_edge_length` and their great-circle midpoint equals `edge_midpoint`, bitwise, both vertices corners of both its cells, and the next local edge's vertices fail each comparison |
 
 52v.2.4 depends on 52v.2.2; 52v.2.3 depends on 52v.2.4, because an edge length
 needs the global edge enumeration the stencil tables carry; 52v.2.6 depends on
 52v.2.3, because the support digest covers both native measures; 52v.2.5 depends
 on 52v.2.3 and 52v.2.4; 52v.2.7 depends on 52v.2.6, on the fields plan's `Field`,
-and on `fiddlybits-52v.6.8` for `Events.emit`.
+and on `fiddlybits-52v.6.8` for `Events.emit`. 52v.2.20 depends on nothing unmerged and
+blocks `fiddlybits-52v.3.26`, `fiddlybits-52v.11.7`, `fiddlybits-52v.6.35` and
+`fiddlybits-52v.6.36`, every row that reads a location.

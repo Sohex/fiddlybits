@@ -43,7 +43,7 @@ convention restated in two places is two conventions.
 | `test/fields/inference.jl` | the `@inferred` walk riding the enumeration, on both backends | 52v.3.4, 52v.3.21 |
 | `test/fields/static_pass.jl` | the nightly JET pass and its accepted-findings TOML | 52v.3.8 |
 | `test/gate/inference_cost.jl` | the walk's wall time and its `Dim` signature count | 52v.3.9 |
-| `test/backends/body_types.jl` | the typed code of every kernel body at the signatures its launches compile, and every kernel's device compilation | 52v.3.20 |
+| `test/kernels/body_types.jl` | the typed code of every kernel body at the signatures its launches compile, and every kernel's device compilation | 52v.3.20 |
 
 `Dimensions` is its own submodule rather than a file of `Fields` because the skeleton
 plan put it in group A, below everything that reads it, and `Systems` reads it for the
@@ -60,12 +60,14 @@ none. Filled by `fiddlybits-52v.5.2`.
 ## Types and functions
 
 ```
-Field{S<:Semantics, T<:TimeSemantics, D<:Dim, L, A<:AbstractArray, P}
-    data     (cells, levels, extra...) raw floats, device or host
+Field{S<:Semantics, T<:TimeSemantics, D<:Dim, L, A<:AbstractArray, P, C<:Mesh.Location}
+    data     (elements of C, levels, extra...) raw floats, device or host
     support  Support{L} from Mesh; shape is never identity
     time     TimeSupport{T,P} from Time, holding T and where T places it on the clock
     origin   Origin, carried by value
 ```
+
+`C` is the field's location, section Location below.
 
 `L` and `P` are there for one reason between them, and it is the reason decision 0006
 already carries `L`. A `Field` holds a `Support{L}` and a `TimeSupport{T,P}`, and a
@@ -91,9 +93,45 @@ not named `Provenance`, because a struct sharing a name with the module that fil
 it is a reader's trap. `Provenance` computes the values and stamps them; `Fields`
 only carries them.
 
-A `Field` cannot be constructed without all four of semantics, time semantics,
-dimension and support. There is no positional constructor that takes an array alone,
-because the whole design is that those four travel with the numbers.
+A `Field` cannot be constructed without its semantics, time semantics, dimension,
+support and location. There is no positional constructor that takes an array alone,
+because the whole design is that those travel with the numbers.
+
+### Location
+
+A value of a field sits at the cells, the vertices or the edges of its level, and the
+field carries which on its type: `Field{S,T,D,L,A,P,C}`, with `C <: Mesh.Location` one of
+`Mesh.Cells`, `Mesh.Vertices` and `Mesh.Edges` (the mesh plan, section Locations). The one
+door takes `location` as a required keyword, `Fields.location(f)` reads it back, and the
+data's first axis holds that location's elements. `C` is the last slot, so
+`Field{S,T,D,L,A}` stays what dispatch is written against, and an operator that holds at
+one location only checks it at its door.
+
+Three checks read it. `require_combinable` refuses two fields at different locations,
+naming both, because a result carries one. The door refuses a
+`VectorComponent{:edge_normal}` field at any location but `Edges`, where the normals its
+components are declared against exist. And `coarsen` and `refine` refuse a field at
+`Vertices` or `Edges` from the refusal table, before any method on the semantics is
+reached, with these sentences:
+
+- at vertices: "a vertex keeps its index at every finer level and owns no range of descendants, so a coarse value at a vertex is not a reduction over children"
+- at edges: "an edge is split in two at the next level and joined by edges inside its cells, so its descendants are not a contiguous range"
+
+The refusal table gains a `location` slot matched by subtyping, `Mesh.Location` meaning an
+entry does not constrain it, and `fields.semantics_closure` walks every semantics at every
+location. `time_reduce` and the vector conversions hold at every location: a reduction in
+time is taken per element, and a change of basis per element against the frames the
+caller hands in.
+
+Decision 0006 puts on the field's type what a number means, and where it sits is part of
+that: an edge-normal velocity read as a cell value is the wrong number at every element.
+A location held only by the store would be a record the field in memory does not carry,
+so a field read back would lose what its array declares, and two fields of one level at
+different locations would meet no refusal before a size mismatch. Two routes lost. A
+member of `Field` rather than a parameter makes the location the one declaration checked
+by value at run time, where the refusal table matches semantics and time semantics by
+subtyping on the type. Folding the location into `Support` splits one mesh's identity per
+location, and every key names that identity (the provenance plan, section The store).
 
 ### The closed vocabularies
 
@@ -513,8 +551,9 @@ for those two dependencies.
 | 52v.3.8 | sonnet | `docs/imports/jet-jl.md`, `test/fields/static_pass.jl` and its accepted-findings TOML, the JET entry in `Project.toml` extras and `Manifest.toml` | JET has an import record naming a leak test that exists, so `build.import_record_completeness` stays whole; `report_call` reports no unresolved call and `report_opt` no non-concrete return on the operators; the accepted-findings list is TOML with a reason and a row per entry, and an entry with neither fails the pass; the pass is on the nightly row and the Julia version is recorded beside its result |
 | 52v.3.9 | sonnet | `test/gate/inference_cost.jl`, the finding it writes, the `threshold` field of the `build.inference_suite_cost` entry | the A/A scatter of the instrument is measured and written as a dated finding with its host, its load and its sample count; the distinct `Dim` signature count is reported beside the time; the entry carries the finding by path and still carries no threshold |
 | 52v.3.10 | local | `docs/imports/cuda.md`, `docs/imports/kernelabstractions.md`, the leak test those records name | both records state what the device compiler refuses and what it does not, with the locator read; the leak test exists and fails on a kernel with a deliberately non-concrete call |
-| 52v.3.20 | frontier | `test/backends/body_types.jl` and its include line, the `kernels.body_types_concrete` registry entry, section "Dynamic dispatch" of `docs/imports/cuda.md` and `docs/imports/kernelabstractions.md`, and the `@kernel` bodies in `src/` the check finds non-concrete | `kernels.body_types_concrete` passes with no accepted-findings list; a split union and a surviving box fail it on both backends; a folded call and a concrete call pass; a kernel no launch compiles for the device fails the coverage check; the reflection entry it reads is anchored in `docs/imports/cuda.md` |
+| 52v.3.20 | frontier | `test/kernels/body_types.jl` and `test/kernels/runtests.jl`, the `kernels.body_types_concrete` registry entry, section "Dynamic dispatch" of `docs/imports/cuda.md` and `docs/imports/kernelabstractions.md`, and the `@kernel` bodies in `src/` the check finds non-concrete | `kernels.body_types_concrete` passes with no accepted-findings list; a split union and a surviving box fail it on both backends; a folded call and a concrete call pass; a kernel no launch compiles for the device fails the coverage check; the reflection entry it reads is anchored in `docs/imports/cuda.md` |
 | 52v.3.21 | sonnet | `test/fields/inference.jl`, `test/fields/static_pass.toml`, the `fields.inference_tight` registry entry | the per-commit arm passes with every call on `Backends.CPU` and `Backends.GPU` from one table; the runtime-dispatch control still fails; the nightly pass reports nothing new or stale; the entry names both backends and carries no device-arm clause |
+| 52v.3.26 | sonnet | `src/Fields/field.jl`, `src/Fields/reduce.jl`, `src/Fields/vectors.jl`, the `Field` constructions in `src/Connectivity/graph.jl`, `src/Coupling/exchange.jl`, `src/Provenance/store.jl` and `src/Provenance/writer.jl`, `read_field`'s `location` keyword, `test/fields/`, the fixtures and tests those constructions break, the Amendments section of decision 0006 | `fields.semantics_closure` passes over every semantics at every location and a fixture location with neither method nor refusal fails it; a `Field` without `location` refuses; two fields at different locations refuse to combine, naming both, and at one location combine; `coarsen` and `refine` at `Edges` refuse with the table's sentence and at `Cells` reduce; an edge-normal component at `Cells` refuses and at `Edges` constructs; `read_field` under `Edges` refuses naming `location` and under `Cells` returns the field; `fields.adapt_roundtrip`, `fields.inference_tight` and the store's two oracles pass |
 
 52v.3.3, 52v.3.5 and 52v.3.6 depend on 52v.3.2; 52v.3.4 depends on 52v.3.3 and
 52v.3.5; 52v.3.8, 52v.3.9 and 52v.3.10 depend on 52v.3.4, and 52v.3.7 depends on
@@ -535,4 +574,7 @@ depends on `fiddlybits-52v.7.3` for the segmented sum and mean and on
 `fiddlybits-52v.7.5` for the segmented quantile and `area_fraction_above`. 52v.3.6
 depends on `fiddlybits-52v.7.3` for the `k * N * eps * M` bound and for the explicit
 accumulator type the reservoir refusal is written against. The mesh's `Support` is
-already merged. The board carries the same edges.
+already merged. 52v.3.26 depends on `fiddlybits-52v.2.20` for `Mesh.Location` and on
+`fiddlybits-52v.6.26`, which edits `src/Provenance/store.jl` and
+`test/io/store_fixtures.jl`; it blocks `fiddlybits-52v.11.7`, `fiddlybits-52v.6.35` and
+`fiddlybits-52v.6.36`, and 52v.3.7 depends on it. The board carries the same edges.

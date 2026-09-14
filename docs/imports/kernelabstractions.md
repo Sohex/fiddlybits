@@ -64,9 +64,13 @@ reference path, so a kernel body launched only on `Backends.CPU` has no refusal
 behind it. The same holds for an element type or argument signature that no launch
 compiles for the device: the device refusal covers a kernel only where a device
 compilation has happened. `docs/plans/fiddlybits-52v.3-fields.md`, section
-"Inference, and what it costs", says the device arm needs no instrument, and that
-is narrower than it reads; `fiddlybits-52v.3.17` carries the change to the
-argument.
+"Inference, and what it costs", names `kernels.body_types_concrete` as the instrument
+for both.
+
+**The two functions of one kernel.** `Kernel`, `src/KernelAbstractions.jl` lines
+706-709, holds the function a launch calls in its field `f`, which the constructor
+above fills with `gpu_<name>` or `cpu_<name>`. `kernel(dev).f` is therefore the device
+function for a device backend and the CPU function for `KernelAbstractions.CPU()`.
 
 **How the leak is caught.** `test/backends/dispatch_refusal.jl` launches the same
 kernels on both backends through `Backends.launch!`. On the CUDA backend the
@@ -74,3 +78,10 @@ dispatching arms are refused with `InvalidIRError` and leave the output at zero,
 and the concrete arm runs and writes the known answer. On the CPU backend every
 dispatching arm runs and writes the same answer, which pins the CPU backend's
 silence as recorded behaviour rather than an assumption.
+
+`test/kernels/body_types.jl` (`kernels.body_types_concrete`) reads the typed code of
+`cpu_<name>` at every dispatch-tuple specialization and of `gpu_<name>` at every
+device compilation of each kernel the package defines, resolving both through
+`kernel(dev).f`, and fails on a value whose type `code_warntype` highlights. It also
+fails when a kernel is compiled for the device at no signature. The locators of the
+reflection it reads are in `docs/imports/cuda.md`, section "Dynamic dispatch".
