@@ -4,13 +4,9 @@ using Fiddlybits: Backends, Verdicts
 # Backends.BytePool, charge! and release!: docs/plans/fiddlybits-52v.6-provenance.md,
 # section "The writer"; decision 0038, item 4.
 #
-# Every task below is spawned with @async, never Threads.@spawn: @async keeps a task on
-# the caller's own thread, so the ordering these tests set up (which charge began
-# waiting first, whether a task has been given a chance to reach its wait) is decided by
-# Julia's cooperative scheduler and not by a race between OS threads. A `Channel` take!
-# is what forces a real rendezvous with a spawned task; a following `yield()` is what
-# lets that task run on to its own next blocking point (its `wait` inside `charge!`)
-# before the caller goes on, since nothing else is runnable in between.
+# Every task below is spawned with @async on the caller's thread. A `Channel` take!
+# meets a spawned task, and the `yield()` after it lets that task reach its `wait`
+# inside `charge!` before the caller goes on.
 
 @testset "BytePool(; ceiling) refuses a ceiling that is not a positive Int" begin
     @test_throws Verdicts.Refusal Backends.BytePool(; ceiling = 0)
@@ -43,7 +39,7 @@ end
     end
 
     @test Backends.high_water(pool) <= ceiling
-    @test Backends.high_water(pool) > 0  # the burst did charge something, or the check above is vacuous
+    @test Backends.high_water(pool) > 0
     @test Backends.held(pool) == 0
 end
 

@@ -1,7 +1,6 @@
 # Backends.BytePool: docs/plans/fiddlybits-52v.6-provenance.md, section "The writer";
 # decision 0038, item 4. The one pool of bytes a stage charges whole and releases,
-# bounded by a declared ceiling, sitting beside the memory budget of budget.jl so every
-# stage a tree builds charges this one pool rather than declaring a second.
+# bounded by a declared ceiling.
 
 using ..Verdicts: refuse
 
@@ -111,8 +110,7 @@ end
 
 Returns `bytes` to `pool` and wakes every waiter to recheck its place in the queue.
 Refuses a release of more bytes than `pool` currently holds, and refuses a `bytes` that
-is not a positive `Int`. Takes effect whether or not `pool` is closed, because a stage
-still has to return the bytes of a charge it took before the close.
+is not a positive `Int`. Takes effect whether or not `pool` is closed.
 """
 function release!(pool::BytePool, bytes::Integer)
     bytes > 0 ||
