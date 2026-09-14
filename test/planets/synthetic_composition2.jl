@@ -129,9 +129,7 @@ function SyntheticComposition2(::Type{FT} = Float64) where {FT}
                 argument = "a hydrogen-helium envelope carries no tracked species that " *
                           "condenses at this system's declared temperatures")),
         numerics = S.Numerics(
-            exner_reference_pressure = bracket(FT(1e5), FT(7e4), FT(1.3e5), S.PRESSURE,
-                "the low end of the declared reference pressure",
-                "the high end of the declared reference pressure", :synthetic_composition2),
+            exner_reference_pressure = exner_reference_pressure(FT(1e5)),
             geometry_precision = Float64),
         root_seed = seed(4))
 end

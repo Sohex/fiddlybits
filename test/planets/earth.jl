@@ -7,13 +7,15 @@
 
 The Sun-Earth system: the Sun's mass and the Earth's mass from the IAU 2015 nominal
 mass parameters of Prsa et al. (2016), Table 1, divided by the CODATA 2018 constant of
-gravitation `Systems.gravitational_constant`; the Earth's volumetric mean radius from
-Archinal et al. (2018), Table 4; the Earth's sidereal rotation period from the GRS80
-defining angular velocity of Moritz (2000), p. 131; the orbit's semi-major axis,
-eccentricity and longitude of periapsis from the Earth/Moon barycentre row of Standish
-and Williams, Table 1, the semi-major axis converted by the IAU 2012 astronomical unit
-of Prsa et al. (2016). Every other field is `Bracketed` or `Irreducible`, argued in
-place; no stellar or interior model is carried, and no moon is declared.
+gravitation `Systems.gravitational_constant`; the Earth's volumetric mean radius, the
+volume-equivalent radius `(a^2 b)^(1/3)`, from the equatorial and polar radii of
+Archinal et al. (2018), Table 4 (distinct from that table's own arithmetic mean
+radius); the Earth's sidereal rotation period from the GRS80 defining angular
+velocity of Moritz (2000), p. 131; the orbit's semi-major axis, eccentricity and
+longitude of periapsis from the Earth/Moon barycentre row of Standish and Williams,
+Table 1, the semi-major axis converted by the IAU 2012 astronomical unit of Prsa et
+al. (2016). Every other field is `Bracketed` or `Irreducible`, argued in place; no
+stellar or interior model is carried, and no moon is declared.
 """
 function Earth(::Type{FT} = Float64) where {FT}
     G = Dispositions.value(S.gravitational_constant(FT))
@@ -50,9 +52,12 @@ function Earth(::Type{FT} = Float64) where {FT}
                         "3.986004e14 m^3 s^-2, divided here by the CODATA 2018 " *
                         "constant of gravitation")),
         bulk = S.DeclaredBulk(volumetric_mean_radius = Dispositions.Sourced(
-            value = FT(6_371_008.4), dim = D.LENGTH,
+            value = (FT(6_378_136.6)^2 * FT(6_356_751.9))^(FT(1) / FT(3)), dim = D.LENGTH,
             locator = Dispositions.Locator(identifier = "10.1007/s10569-017-9805-5",
-                table = "Table 4, Earth mean radius row: 6371.0084 km"))),
+                table = "Table 4, Earth equatorial radius 6378.1366 km and polar " *
+                        "radius 6356.7519 km, combined here as the volume-equivalent " *
+                        "radius (a^2 b)^(1/3), distinct from the table's own " *
+                        "arithmetic mean radius (2a + b) / 3 = 6371.0084 km"))),
         rotation = S.SiderealRotation(period = Dispositions.Sourced(
             value = FT(2) * FT(pi) / FT(7.292115e-5), dim = D.TIME,
             locator = Dispositions.Locator(identifier = "10.1007/s001900050278",
@@ -159,10 +164,7 @@ function Earth(::Type{FT} = Float64) where {FT}
                                     "a higher carbon dioxide mole fraction", :earth))),
             condensable = :H2O),
         numerics = S.Numerics(
-            exner_reference_pressure = Dispositions.Sourced(value = FT(101325.0),
-                dim = S.PRESSURE,
-                locator = Dispositions.Locator(identifier = "10.1063/5.0064853",
-                    table = "Table XXXI, standard atmosphere: 101325 Pa exact")),
+            exner_reference_pressure = exner_reference_pressure(FT(101325.0)),
             geometry_precision = Float64),
         root_seed = seed(20260914))
 end

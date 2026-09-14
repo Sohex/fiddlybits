@@ -176,9 +176,7 @@ function SyntheticNonEarth(::Type{FT} = Float64) where {FT}
                                     :synthetic_non_earth))),
             condensable = :CO2),
         numerics = S.Numerics(
-            exner_reference_pressure = bracket(FT(9e6), FT(7e6), FT(1.1e7), S.PRESSURE,
-                "the low end of the declared reference pressure",
-                "the high end of the declared reference pressure", :synthetic_non_earth),
+            exner_reference_pressure = exner_reference_pressure(FT(9e6)),
             geometry_precision = Float64),
         root_seed = seed(1))
 end

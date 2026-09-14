@@ -154,9 +154,7 @@ function SyntheticRetrograde(::Type{FT} = Float64) where {FT}
                                     :synthetic_retrograde))),
             condensable = :H2O),
         numerics = S.Numerics(
-            exner_reference_pressure = bracket(FT(1.1e5), FT(8e4), FT(1.5e5), S.PRESSURE,
-                "the low end of the declared reference pressure",
-                "the high end of the declared reference pressure", :synthetic_retrograde),
+            exner_reference_pressure = exner_reference_pressure(FT(1.1e5)),
             geometry_precision = Float64),
         root_seed = seed(3))
 end

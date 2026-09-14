@@ -144,9 +144,7 @@ function SyntheticSynchronous(::Type{FT} = Float64) where {FT}
                                     :synthetic_synchronous))),
             condensable = :H2O),
         numerics = S.Numerics(
-            exner_reference_pressure = bracket(FT(8e4), FT(5e4), FT(1.2e5), S.PRESSURE,
-                "the low end of the declared reference pressure",
-                "the high end of the declared reference pressure", :synthetic_synchronous),
+            exner_reference_pressure = exner_reference_pressure(FT(8e4)),
             geometry_precision = Float64),
         root_seed = seed(2))
 end

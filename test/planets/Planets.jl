@@ -72,6 +72,14 @@ end
 seed(value) = irreducible(UInt64(value), ONE, "an arbitrary run seed for this instance",
                           "none: a declared instance")
 
+"An `Irreducible` Exner reference pressure at `value`."
+exner_reference_pressure(value) = irreducible(value, S.PRESSURE,
+    "the Exner reference pressure sets the constant p0 in the potential temperature " *
+    "theta = T (p0 / p)^(R / cp); a fixed choice of p0 changes no physical prediction",
+    "the reported numeric value of potential temperature at every level, by the " *
+    "factor (p0' / p0)^(R / cp); no dynamical or physical quantity depends on the " *
+    "choice")
+
 include("earth.jl")
 include("synthetic_non_earth.jl")
 include("synthetic_synchronous.jl")
