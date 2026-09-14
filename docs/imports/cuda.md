@@ -230,6 +230,21 @@ package root; Julia's base library is `/usr/share/julia/base`.
   reads every context's record, and on the first it finds set restores it to zero (line
   34) and throws `KernelException` (line 38). The first check anywhere in the process
   after a fault takes it, on whichever task makes that check.
+- The API errors of the same wait. CUDACore `lib/cudadrv/libcuda.jl`: `cuStreamSynchronize`,
+  lines 5463-5466, is defined through `@checked`, which GPUToolbox 3.0.0 `src/ccalls.jl`,
+  lines 19-45, expands to a body wrapped in `check`; `check`, lines 34-40, calls
+  `throw_api_error` when the call's result is not `SUCCESS`; `throw_api_error`, lines
+  26-32, throws `OutOfGPUMemoryError` (`src/memory.jl` line 413) for
+  `ERROR_OUT_OF_MEMORY` and `CuError` (`lib/cudadrv/error.jl` line 32) for any other
+  result. The nonblocking branch of the stream form, `nonblocking_synchronize` in
+  `lib/cudadrv/synchronization.jl` lines 158-183, calls `throw_api_error` on the worker's
+  result at line 179. A kernel that reads outside its allocation on the card is raised
+  there as a `CuError` with `ERROR_ILLEGAL_ADDRESS`
+  (`notes/findings/2026-09-13-check-bounds-reaches-kernels-on-the-card.md`). So the stream
+  form raises three error types of its own: `CuError` and `OutOfGPUMemoryError` from the
+  synchronize call, and `KernelException` from `check_exceptions` at line 214. Each has
+  its own `showerror`: `src/compiler/exceptions.jl` lines 9-11, `lib/cudadrv/error.jl`
+  lines 74-81, and `src/memory.jl` from line 442.
 - The rule `Backends` states. `after!(CPU(), point)` and `after!(GPU(), point)` raise no
   device fault, and a host copy behind a faulted kernel lands what the kernel left in the
   array. The fault is raised by the first `Backends.complete!` after it, which includes
@@ -237,6 +252,11 @@ package root; Julia's base library is `/usr/share/julia/base`.
   carrying the `KernelException`. The store's writer raises a fault behind its host
   copies by calling `complete!` on the task that submitted the write, in `settle!`, at the
   settle point of decision 0060 (`fiddlybits-52v.6.26`).
+- What `Backends.wait_queued` refuses. It refuses a `KernelException`, a `CuError` or an
+  `OutOfGPUMemoryError` raised by the wait, each shown through its own `showerror`, naming
+  the kernels queued since the last completion and emptying that record. Any other error
+  the wait raises is rethrown unchanged, and the record keeps every kernel queued since
+  the last completion until a wait returns.
 
 **How the leak is caught.** `test/backends/host_copy.jl`. A copy that was not queued at
 its stream position holds the second kernel's values instead of the first's (check 1);
@@ -249,3 +269,6 @@ queues an out-of-range kernel and a host copy from one task and waits on the cop
 handoff from a second: an `after!` that read the exception flag would raise on the
 waiting task and leave the submitting task's `complete!` without a refusal, which is
 what its positive control, a waiter that calls `check_exceptions` after `after!`, shows.
+`test/backends/launch_completion.jl` raises each of the three device error types from a
+wait and reads a refusal naming the queued kernels, and raises an `ErrorException` and
+reads that same error back with the queued record intact until a wait returns.

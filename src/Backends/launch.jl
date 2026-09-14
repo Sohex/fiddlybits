@@ -152,8 +152,10 @@ Returns at once for `CPU` and for a host array, whose kernels have run by the
 time `launch!` returned.
 
 Refuses, carrying the raised error's own message and naming the kernels
-`queued` holds, when the wait raises. A kernel that faults on the device
-raises here and not at its launch, because its launch did not wait for it.
+`queued` holds, when the wait raises one of the device errors
+`wait_queued` names. A kernel that faults on the device raises here and not
+at its launch, because its launch did not wait for it. Any other error the
+wait raises propagates unchanged and leaves `queued` as it was.
 """
 complete!(::CPU) = nothing
 complete!(backend::GPU) = complete_on(ka_backend(backend))
@@ -167,27 +169,50 @@ complete_on(array::AbstractArray) = complete_on(KernelAbstractions.get_backend(a
 """
     wait_queued(wait)
 
-Run `wait`, empty this task's `queued` record and return nothing. Refuses
-when `wait` raises, carrying that error's own message and naming every kernel
-the record holds.
+Run `wait`, empty this task's `queued` record and return nothing.
+
+When `wait` raises a `CUDA.CUDACore.KernelException`, a `CUDA.CuError` or a
+`CUDA.OutOfGPUMemoryError`, empties the record and refuses, carrying that
+error's own message and naming every kernel the record held. The three are
+the device errors a completion raises, with their locators in
+`docs/imports/cuda.md`, section "The kernel-exception flag and where a fault
+is raised".
+
+Any other error `wait` raises is rethrown unchanged, and the record is left
+as it was: `queued` and `queued_launches` still name every kernel queued
+since the last completion until a `wait_queued` whose `wait` returns.
 """
 function wait_queued(wait)
     trace = queued_trace()
     try
         wait()
     catch err
-        named = isempty(trace.kernels) ?
-            "no kernel queued through Backends.launch! on this task" :
-            join(("$(trace.kernels[i]) at workgroup $(trace.workgroups[i]) over $(trace.counts[i]) work items"
-                  for i in eachindex(trace.kernels)), ", ") *
-            (length(trace.kernels) < QUEUED_TRACE ? "" : ", and any queued after them")
-        empty_trace!(trace)
-        refuse("kernel completion", "Backends.complete!",
-               "$(sprint(showerror, err)); raised by one of the kernels queued " *
-               "since the last completion: $named")
+        err isa CUDA.CUDACore.KernelException && refuse_completion(trace, err)
+        err isa CUDA.CuError && refuse_completion(trace, err)
+        err isa CUDA.OutOfGPUMemoryError && refuse_completion(trace, err)
+        rethrow()
     end
     empty_trace!(trace)
     return nothing
+end
+
+"""
+    refuse_completion(trace::QueuedTrace, err)
+
+Empty `trace` and refuse at `Backends.complete!`, carrying `showerror` of
+`err` and naming every kernel `trace` held, with its workgroup and work item
+count. `wait_queued` calls it with `err` of one concrete device error type.
+"""
+function refuse_completion(trace::QueuedTrace, err::Union{CUDA.CUDACore.KernelException,CUDA.CuError,CUDA.OutOfGPUMemoryError})
+    named = isempty(trace.kernels) ?
+        "no kernel queued through Backends.launch! on this task" :
+        join(("$(trace.kernels[i]) at workgroup $(trace.workgroups[i]) over $(trace.counts[i]) work items"
+              for i in eachindex(trace.kernels)), ", ") *
+        (length(trace.kernels) < QUEUED_TRACE ? "" : ", and any queued after them")
+    empty_trace!(trace)
+    refuse("kernel completion", "Backends.complete!",
+           "$(sprint(showerror, err)); raised by one of the kernels queued " *
+           "since the last completion: $named")
 end
 
 """
