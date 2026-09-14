@@ -87,7 +87,7 @@ put(store, run, f; kw...) = Provenance.put_field!(store, run; merge(
     (code = code(), declaration = declaration(), system = SF.system(), profile = profile(), inputs = (;),
      quantity = :surface_mass,
      operator_version = 1, field = f, ledgers = (closed_ledger(),), chunk_level = 1,
-     values = Provenance.Amounts()), values(kw))...)
+     values = Provenance.Amounts(), interval = Time.interval(interval())), values(kw))...)
 
 "`Provenance.read_field` of `key` with the fixture keywords for `support`; `kw` replaces any."
 read_back(store, key, support; kw...) = Provenance.read_field(store, key; merge(

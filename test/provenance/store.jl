@@ -13,11 +13,11 @@ import .SystemFixtures as SF
 "A `Ledger{Q}` over the cells of the fixture level taking a stock of 5 to `after`."
 store_ledger(Q, after) = Fields.Ledger{Q}(Float64, Mesh.ncells(ST.level()), 1.0, 5.0, after, 0.0; reservoir = false)
 
-"The key the fixture `put` computes at `operator_version` under `code`."
-fixture_key(m; operator_version, code = ST.code()) =
+"The key the fixture `put` computes at `operator_version` under `code`, over `interval`."
+fixture_key(m; operator_version, code = ST.code(), interval = Time.interval(ST.interval())) =
     Provenance.ArtifactKey(code = code, declaration = ST.declaration(), system = SF.system(), profile = ST.profile(),
                            inputs = (;), quantity = :surface_mass, support = m.support,
-                           interval = Time.interval(ST.interval()), operator_version = operator_version)
+                           interval = interval, operator_version = operator_version)
 
 "A copy of the store at `root` under `dir`."
 store_copy(root, dir) = (cp(root, joinpath(dir, "store")); Provenance.Store(root = joinpath(dir, "store")))
@@ -219,7 +219,7 @@ manifest_of(store, key) = TOML.parsefile(joinpath(Provenance.object_directory(st
             skey, sfield = Provenance.put_field!(store, scratch; declaration = ST.declaration(), system = SF.system(),
                                                  profile = ST.profile(), inputs = (;), quantity = :surface_mass, operator_version = 1,
                                                  field = fd, ledgers = (ST.closed_ledger(),), chunk_level = 1,
-                                                 values = Provenance.Amounts())
+                                                 values = Provenance.Amounts(), interval = Time.interval(ST.interval()))
             @test skey == dkey
             @test Provenance.read_field(store, scratch, skey; quantity = :surface_mass, semantics = Fields.Extensive(),
                                         dimension = Dimensions.MASS, time = ST.interval(), support = m.support,
@@ -319,21 +319,86 @@ manifest_of(store, key) = TOML.parsefile(joinpath(Provenance.object_directory(st
                              "ledgers", "tuple")
             @test ST.refused(ST.caught(() -> ST.read_back(store, fixture_key(m; operator_version = 42), m.support)),
                              "artifact", "holds no artifact")
-            still = ST.field(m.support, run, data; time = Time.TimeSupport(Time.Static()))
-            @test ST.refused(ST.caught(() -> ST.put(store, run, still; operator_version = 43)), "interval",
-                             "Static, placed by none")
-            at = ST.field(m.support, run, data; time = Time.TimeSupport(Time.Instantaneous(), Time.SimTime(3600.0)))
-            @test ST.refused(ST.caught(() -> ST.put(store, run, at; operator_version = 43)), "interval",
-                             "Instantaneous, placed by instant")
             given = (code = ST.code(), declaration = ST.declaration(), system = SF.system(), profile = ST.profile(),
                      inputs = (;), quantity = :surface_mass, operator_version = 44, field = f,
-                     ledgers = (ST.closed_ledger(),), chunk_level = 1, values = Provenance.Amounts())
+                     ledgers = (ST.closed_ledger(),), chunk_level = 1, values = Provenance.Amounts(),
+                     interval = Time.interval(ST.interval()))
             @test ST.refused(ST.caught(() -> Provenance.put_field!(store, run; Base.structdiff(given, NamedTuple{(:profile,)})...)),
                              "profile", "missing")
 
+            @testset "an interval-placed field is refused unless the keyword is identical to its own interval" begin
+                mismatched = Time.Interval(0.0, 7200.0)
+                @test ST.refused(ST.caught(() -> ST.put(store, run, f; operator_version = 45, interval = mismatched)),
+                                 "interval", "IntervalMean")
+                @test !ispath(Provenance.object_directory(store, fixture_key(m; operator_version = 45,
+                                                                            interval = mismatched)))
+
+                @testset "equal under == at another float width is refused the same way" begin
+                    widened = Time.Interval(0.0f0, 3600.0f0)
+                    @test widened == Time.interval(ST.interval())
+                    @test ST.refused(ST.caught(() -> ST.put(store, run, f; operator_version = 46, interval = widened)),
+                                     "interval", "IntervalMean")
+                    @test !ispath(Provenance.object_directory(store, fixture_key(m; operator_version = 46,
+                                                                                interval = widened)))
+                end
+
+                @testset "positive control: the identical keyword stores and reads back" begin
+                    agree = Time.interval(ST.interval())
+                    kagree, sagree = ST.put(store, run, f; operator_version = 47, interval = agree)
+                    @test kagree == fixture_key(m; operator_version = 47)
+                    @test ST.read_back(store, kagree, m.support) == sagree
+                end
+            end
+
+            @testset "an Instantaneous field is keyed over the given interval and not refused" begin
+                instant = Time.TimeSupport(Time.Instantaneous(), Time.SimTime(3600.0))
+                at = ST.field(m.support, run, data; time = instant)
+                iv1, iv2 = Time.Interval(0.0, 3600.0), Time.Interval(1800.0, 3600.0)
+                k1, s1 = ST.put(store, run, at; operator_version = 50, interval = iv1)
+                k2, s2 = ST.put(store, run, at; operator_version = 51, interval = iv2)
+                @test k1 != k2
+                @test k1 == fixture_key(m; operator_version = 50, interval = iv1)
+                @test k2 == fixture_key(m; operator_version = 51, interval = iv2)
+                @test isdir(Provenance.object_directory(store, k1))
+                @test isdir(Provenance.object_directory(store, k2))
+                @test manifest_of(store, k1)["key_interval"]["t0"]["whole"] == 0
+                @test manifest_of(store, k1)["key_interval"]["t1"]["whole"] == 3600
+                @test manifest_of(store, k2)["key_interval"]["t0"]["whole"] == 1800
+                @test manifest_of(store, k2)["key_interval"]["t1"]["whole"] == 3600
+
+                @testset "positive control: the two manifests record different intervals" begin
+                    @test manifest_of(store, k1)["key_interval"] != manifest_of(store, k2)["key_interval"]
+                end
+
+                @testset "each reads back equal to its own stamp" begin
+                    @test ST.read_back(store, k1, m.support; time = instant) == s1
+                    @test ST.read_back(store, k2, m.support; time = instant) == s2
+                end
+            end
+
+            @testset "a Static field is keyed over its interval keyword and not refused" begin
+                still = ST.field(m.support, run, data; time = Time.TimeSupport(Time.Static()))
+                iv1, iv2 = Time.Interval(3600.0, 7200.0), Time.Interval(0.0, 3600.0)
+                ks1, ss1 = ST.put(store, run, still; operator_version = 52, interval = iv1)
+                ks2, _ = ST.put(store, run, still; operator_version = 53, interval = iv2)
+                @test ks1 != ks2
+                @test ks1 == fixture_key(m; operator_version = 52, interval = iv1)
+                @test ks2 == fixture_key(m; operator_version = 53, interval = iv2)
+
+                @testset "positive control: it reads back equal to what was written" begin
+                    @test ST.read_back(store, ks1, m.support; time = Time.TimeSupport(Time.Static())) == ss1
+                end
+            end
+
+            @testset "a put without interval is refused as missing" begin
+                @test ST.refused(ST.caught(() -> Provenance.put_field!(
+                    store, run; Base.structdiff(given, NamedTuple{(:interval,)})...)), "interval", "missing")
+            end
+
             @testset "positive control: the same field over a later interval is another artifact" begin
-                later = ST.field(m.support, run, data; time = Time.TimeSupport(Time.IntervalMean(), Time.Interval(3600.0, 7200.0)))
-                klater, _ = ST.put(store, run, later)
+                later_interval = Time.Interval(3600.0, 7200.0)
+                later = ST.field(m.support, run, data; time = Time.TimeSupport(Time.IntervalMean(), later_interval))
+                klater, _ = ST.put(store, run, later; interval = later_interval)
                 @test klater != key
                 @test isdir(Provenance.object_directory(store, klater))
             end
