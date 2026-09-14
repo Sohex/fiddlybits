@@ -112,10 +112,8 @@ with `args` at the workgroup size `size`. A `size` in `STATIC_WORKGROUPS` is
 a parameter of the compiled kernel's type, one branch per size, each spelling
 that type as `KernelAbstractions.StaticSize{(size,)}`; any other `size` is an
 argument of the launch. Each branch calls a kernel whose type is written in
-this method's source.
-notes/findings/2026-09-13-the-launch-workgroup-as-a-type-parameter-or-an-argument.md
-measures this form against the size as a type parameter and as an argument
-for every size, on the card and on the CPU backend.
+this method's source. Measured in
+notes/findings/2026-09-13-the-launch-workgroup-as-a-type-parameter-or-an-argument.md.
 """
 function queue_kernel! end
 
