@@ -106,6 +106,8 @@ using Fiddlybits: Reductions, Backends
                 field = reshape(ReductionFixtures.seeded_vector(Float64, n * ncol), n, trailing...)
                 weights = abs.(ReductionFixtures.seeded_vector(Float64, n)) .+ 0.1
                 starts = collect(1:16:n+1)
+                legend = (:first, :second, :third)
+                labels = ReductionFixtures.seeded_labels(n, trailing, legend)
                 column_results(backend) = begin
                     field_b, w_b = Backends.on(field, backend), Backends.on(weights, backend)
                     seg = Reductions.Segmentation(field_b, Backends.on(starts, backend))
@@ -116,6 +118,12 @@ using Fiddlybits: Reductions, Backends
                                        Reductions.segmented_quantile(field_b, seg, 0.5, backend),
                                        Reductions.pairwise_block_sums(Float64, field_b, backend))]
                     push!(bytes, collect(reinterpret(UInt8, Reductions.pairwise_sum(Float64, field_b, backend))))
+                    indicator = Reductions.ClassIndicator{Float64}(labels, legend, backend)
+                    class_seg = Reductions.Segmentation(indicator, Backends.on(starts, backend))
+                    for r in (Reductions.segmented_mean(Float64, indicator, class_seg, w_b, backend),
+                              Reductions.segmented_weighted_sum(Float64, indicator, w_b, class_seg, backend))
+                        push!(bytes, collect(reinterpret(UInt8, vec(Backends.on(r, Backends.CPU(1))))))
+                    end
                     bytes
                 end
                 @test column_results(gpu) == column_results(Backends.GPU(1)) == column_results(Backends.GPU(256))
@@ -134,6 +142,23 @@ using Fiddlybits: Reductions, Backends
                     @test column_launched(gpu) == [Backends.launch_workgroup(gpu, nseg * ncol)]
                     @test column_launched(Backends.GPU(256)) == [256]
                     @test Backends.launch_workgroup(gpu, nseg * ncol) != 256
+                end
+
+                indicator_g = Reductions.ClassIndicator{Float64}(labels, legend, gpu)
+                class_seg_g = Reductions.Segmentation(indicator_g, Backends.on(starts, gpu))
+                weights_g = Backends.on(weights, gpu)
+                class_launched = backend -> begin
+                    Backends.complete!(gpu)
+                    Reductions.segmented_weighted_sum(Float64, indicator_g, weights_g, class_seg_g, backend)
+                    shape = [launch.workgroup for launch in Backends.queued_launches(gpu)]
+                    Backends.complete!(gpu)
+                    shape
+                end
+                @testset "positive control: the unpinned class launch of $nseg segments of $ncol column(s) and 3 classes ran at its rule, not at a pin" begin
+                    items = nseg * ncol * length(legend)
+                    @test class_launched(gpu) == [Backends.launch_workgroup(gpu, items)]
+                    @test class_launched(Backends.GPU(256)) == [256]
+                    trailing == (1,) && @test Backends.launch_workgroup(gpu, items) != 256
                 end
             end
         end

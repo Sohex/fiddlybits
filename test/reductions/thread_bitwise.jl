@@ -35,6 +35,12 @@ function run_reductions_at(nthreads::Integer)
         write(stdout, Reductions.segmented_sum(Float64, field, starts, backend))
         write(stdout, Reductions.segmented_mean(Float64, field, starts, weights, backend))
         write(stdout, Reductions.pairwise_sum(Float64, field, backend))
+        legend = (:first, :second, :third)
+        indicator = Reductions.ClassIndicator{Float64}(ReductionFixtures.seeded_labels(ReductionFixtures.N, (3,), legend),
+                                                       legend, backend)
+        write(stdout, Reductions.segmented_mean(Float64, indicator, starts, weights, backend))
+        write(stdout, Reductions.segmented_weighted_sum(Float64, indicator, weights,
+                                                        Reductions.Segmentation(indicator, starts), backend))
     """
     return read(`julia --startup-file=no --project=$REDUCTIONS_PROJECT -t $nthreads -e $code`)
 end

@@ -197,6 +197,62 @@ form's reference path runs the vector form's reference over each column in turn.
 layout measurement that chose one work item per segment and column over one per segment
 with the columns inside is in the notes of `fiddlybits-52v.7.59`.
 
+`segmented_mean` and `segmented_weighted_sum` also have a class form, taking the labels
+of a categorical field in the one form a kernel reads:
+
+```
+ClassIndicator{T}(labels, legend, backend)                                            the one-hot of labels over legend in T, never materialised
+AbsoluteValues(values)                                                                abs.(values), never materialised
+segmented_mean(::Type{A}, xs::ClassIndicator, starts | segmentation, weights, backend) (nseg, trailing..., nclass) on backend, one read
+segmented_weighted_sum(::Type{A}, xs::ClassIndicator, weights, segmentation, backend)  (nseg, trailing..., nclass) on backend
+```
+
+A `ClassIndicator` is an `AbstractArray{T}` of size `(size(labels)..., nclass)` whose entry
+`[i..., k]` is one where label `i` is class `k` of the legend and zero elsewhere. It holds
+the legend, and each label's position in the legend on the backend in the narrowest
+unsigned type that holds the legend length; its one constructor refuses an empty legend, a
+legend naming a class twice, and a label the legend does not name. The positions are read
+as the indicator and as nothing else: by `getindex` on the host and by the class kernels
+on either backend, and no function returns one. Entry `[s, c..., k]` of each class form is
+the column form's result on the materialised one-hot, bit for bit: every term is the
+indicator in `A` times the weight, the zero terms included, in the column form's order.
+Each class form launches one kernel whatever the legend length, through
+`launch_segment_classes!`, with one work item per segment, column and class. The weights
+may be `AbsoluteValues` of a vector, which the kernel reads as their absolute values, so a
+ledger's magnitude never materialises `abs.(weights)`. The reference path materialises
+the one-hot and the weights on the host and runs the column form's reference.
+
+**How a label reaches a kernel.** A label is a named class read with its legend and never
+an integer code (decision 0006, `docs/plans/fiddlybits-52v.3-fields.md` section The closed
+vocabularies), and no kernel reads a `Symbol`. A position in the legend is what a kernel
+can compare, so the question is where such a position may exist. Here it is built at the
+reduction's door from the labels and the legend the call names, lives for one call inside
+a type whose only reading is the one-hot, and is never stored in a field or returned.
+Because that type is an array of the one-hot, `Fields.class_shares` and
+`Fields.class_area_totals` take it unchanged, and the label histogram and the
+class-fraction coarsening stay one definition reached through the same functions. Four
+alternatives were weighed:
+
+- A plain integer array of positions and the legend length, passed to a reduction of its
+  own name. The same kernel, but the array is a code any holder can read apart from its
+  legend, and `Fields` would reach the label path's shares and totals through functions
+  of their own beside the fraction path's: two definitions of one quantity, held equal
+  only by a test.
+- A label field stored as positions in its legend. A code at rest, which decision 0006
+  refuses, and a change to `Field` itself.
+- A numeric identity per `Symbol` (its pointer or a hash). A code whose meaning is the
+  process rather than the legend, and a hash admits two classes one value.
+- One class's indicator at a time, built on the host and moved to the backend, the path
+  `fiddlybits-52v.3.12` left in place: a host buffer and a device copy the size of the
+  input for each class, and a launch for each class.
+
+**The layout.** One work item per segment, column and class walks its segment once and
+adds every cell's term. One work item per segment and column, adding each cell's weight to
+its own class's accumulator, walks the cells once rather than once per class, but adds
+only the terms of the matching class, which is not the one-hot's arithmetic where a weight
+is not finite, and needs its output zeroed before the launch. The legend length multiplies
+the work items of one launch and not the launches or the host reads.
+
 Every segmented reduction takes either a boundary array or a `Segmentation`. A
 boundary array is checked on every call, which on a device-resident array means it
 is copied to the host on every call. A `Segmentation` carries what the reduction
