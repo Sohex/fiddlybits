@@ -58,7 +58,7 @@ described a defect, the new name states the property this project holds.
 | 20 | Stale state is unreachable, not reconciled | type | content-addressed artifacts: a changed input is a different key, the old artifact is simply no longer named | old 20 |
 | 21 | Wait on the artifact | not carried, type | one process; `fetch(key)` blocks on the artifact itself; long work goes through `qrun`, which blocks | old 21 |
 | 22 | One statement of what a run applies | type | immutable `System` stored with the run; no re-apply step, no second list; one definition, N doors | old 22 |
-| 23 | A conceptual question is argued, not measured | process | practice rule; the registry accepts a threshold only when registered before the run it judges | old 23 |
+| 23 | A conceptual question is argued, not measured | process | practice rule; a bar is fixed before the value it judges has been seen, and the oracle runner refuses an unregistered entry's value on a model result | old 23 |
 | 24 | A count is recomputed by the tool that reports it | lint, process | doc lint computes the counts the verification list asserts; a hand-typed count is a finding, not a fact | old 24 |
 | 25 | A passage earns its place by the decision it can change | process | the findings rule; git holds the history | old 25 |
 | 26 | Rules are stated in positive form with specifics behind a pointer | process | practice book as positive one-liners citing arguments by path; open loops are `bd` issues or deleted | old 26 |
@@ -396,8 +396,9 @@ Argument: old file, class 22.
 `process`. This survives any language. The practice rule: before measuring to decide
 whether something should exist, state the value that would change the conclusion; if
 no value would, the question is not empirical and the argument is written instead.
-The registry's rule that a threshold is registered with its commit before the first
-artifact it judges is the same discipline for the questions that are empirical.
+The registry's rule that a bar is fixed before the value it judges has been seen, with
+the oracle runner refusing an unregistered entry's value on a model result, is the
+same discipline for the questions that are empirical.
 Argument: old file, class 23.
 
 ### 24. A count is recomputed by the tool that reports it
@@ -723,3 +724,4 @@ Entries whose old mechanism is not carried, with only a residual form kept: D, 1
 
 - 2026-09-08: three classes added to the expected list (a cadence declared in periods a configuration lacks; a Derived field validated on one configuration; a bar in another configuration's units), from notes/findings/2026-09-08-implicit-earth-audit.md.
 - 2026-09-11: class 34 gains its second half, that an A/A scatter measured on a quiet bed does not license a bar unless the bar states the condition the bed was held to, from notes/findings/2026-09-11-load-latency-instrument.md.
+- 2026-09-13: class 23's registry mechanism is a bar fixed before the value it judges has been seen, with the runner refusing an unregistered entry's value on a model result, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-13).

@@ -92,8 +92,8 @@ what closure cannot.
    process: a loss in one interval cannot exceed the stock it draws on; over an
    accepted equilibrium record the mean of one loss pathway is strictly below
    mean supply when other pathways exist. They are evaluated on every tile and
-   interval, cost one pass, and are registered before the first artifact they
-   judge (C2).
+   interval, cost one pass, and are fixed before the value they judge has been
+   seen (C2).
 
 ## Enforced by
 
@@ -103,7 +103,7 @@ what closure cannot.
   the C4 mutation run omits one pool from a ledger and must be caught by the
   telescoping signature.
 - Registered thresholds: the input-side bounds in the oracle registry with
-  `provisional = true` until the first artifact.
+  `provisional = true` until the milestone that registers them.
 
 ## References
 

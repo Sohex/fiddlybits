@@ -82,8 +82,8 @@ registered before it runs (decision 0025, anti-tuning).
 
 ## Enforced by
 
-- Decision 0010 (run identity by hash), decision 0025 (thresholds registered
-  before the first artifact; `answers:` discipline), decision 0007 (`Bracketed`
+- Decision 0010 (run identity by hash), decision 0025 (a bar fixed before
+  the value it judges has been seen; `answers:` discipline), decision 0007 (`Bracketed`
   swept).
 - The `Sensitivity` type and its regime check; the M4b sweeps (decision 0034)
   that make the regime dependence of every slope a measured table.

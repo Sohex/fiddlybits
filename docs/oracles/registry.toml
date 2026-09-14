@@ -2,8 +2,8 @@
 # A bar is fixed before the value it judges has been seen. An entry is registered when
 # registered_at names a commit at which its statistic, verdict_kind, threshold and
 # holdout are what they are here; an unregistered entry executes its statistic on
-# fixtures and positive controls and shows no value on a model result
-# (docs/oracles/README.md, Registration). Values marked "provisional" are placeholders
+# fixtures and positive controls, and the runner shows none of its values on a model
+# result (docs/oracles/README.md, Registration). Values marked "provisional" are placeholders
 # to be set at the registering milestone.
 #
 # Fields: id, tier (1 identity/analytic | 2 earth | 3 published_spread), subsystem,

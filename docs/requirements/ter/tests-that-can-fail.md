@@ -59,13 +59,14 @@ check that passes on a wrong answer.
   answer does not cancel.
 - A consistency check between two products of one root is recorded as such
   and never stands in for an independent oracle.
-- Bars are registered before the measurement they judge (decision C2); a bar
+- A bar is fixed before the value it judges has been seen (decision C2); a bar
   placed after the result is not a criterion.
 
 ## Enforced by
 
-- The oracle registry (Part C) with `registered_at` before the first judged
-  artifact.
+- The oracle registry (Part C): `registered_at` names the commit holding the
+  bar, and the oracle runner refuses an unregistered entry's value on a model
+  result (decision 0025, amendment of 2026-09-13).
 - The weekly mutation run (C4): each named break must be caught by at least
   one test.
 - Review rule: a pull request adding an operator without the six tests and

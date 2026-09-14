@@ -86,8 +86,8 @@ metric is REPORT.
   quantity, published spread) and its anchors in `docs/references/INDEX.md`.
 - Every entry in `registry.toml` is `provisional = true` with an empty
   `registered_at` until the milestone that registers it. Nothing in this skeleton
-  has been registered, so no entry has a verdict on a model result, and no verdict of
-  a provisional entry blocks a milestone gate.
+  has been registered, so the runner shows no entry's value on a model result, and no
+  verdict of a provisional entry blocks a milestone gate.
 - Statistics and thresholds are stated in SI seconds and in dimensionless or
   system-derived units. A published case's "day" is written as its seconds on the
   arm where the published bar applies, and the entry states the rule by which the

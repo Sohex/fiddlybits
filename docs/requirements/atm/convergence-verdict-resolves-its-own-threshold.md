@@ -102,8 +102,9 @@ are this record. The class is statistical, not a property of the old model.
 - A synthetic-series oracle with closed-form memory and relaxation times, run per
   commit, that fails if the corrected SE stops covering the empirical spread
   (decision 0026).
-- Decision 0025: thresholds registered before the first artifact they judge;
-  the form of a criterion may change only while nothing it judged is kept.
+- Decision 0025: a bar is fixed before the value it judges has been seen; a
+  criterion that differs from its registration is unregistered until it is
+  registered again.
 
 ## References
 

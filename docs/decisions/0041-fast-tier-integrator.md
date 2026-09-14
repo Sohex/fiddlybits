@@ -104,7 +104,7 @@ coefficients.
   supplies `Wfact` filling `W = dtgamma * J - I` and a `jac_prototype` supporting
   `ldiv!`, which is the hand-written band solve decision 0012 already chose over the
   symbolic stack.
-- Two registry entries follow, both fixed before the first artifact they judge: the
+- Two registry entries follow, both fixed before the value they judge has been seen: the
   integrator's convergence order against a manufactured solution, on the SSP-constrained
   and unconstrained arms; and the refusal control, a deliberately unconvergeable implicit
   stage that must return `Refused` rather than advancing.
@@ -136,3 +136,7 @@ coefficients.
   is the comparison arm named in condition three: the L-stable three-stage third-order
   DIRK and the four-stage explicit partner built to share the stability region of the
   four-stage fourth-order explicit schemes.
+
+## Amendments
+
+- 2026-09-13: the two registry entries are fixed before the value they judge has been seen, from docs/decisions/0025-three-oracle-tiers.md (amendment of 2026-09-13).

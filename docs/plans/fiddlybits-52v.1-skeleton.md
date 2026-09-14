@@ -232,10 +232,11 @@ table. The named tests and their owners:
 Five entries in `docs/oracles/registry.toml` under the `build` subsystem, all tier
 1, all provisional with an empty `registered_at`. This plan's verify row runs them on
 the merged result and reports the verdicts; it does not register them. Registration is
-at the milestone that registers an entry and nowhere else (`docs/oracles/README.md`),
-and the rule that a registry edit may not share a commit with a result it judges is
-checked by `fiddlybits-52v.8.2`. A provisional entry may run and report and may not
-FAIL a milestone gate.
+at the milestone that registers an entry and nowhere else (`docs/oracles/README.md`,
+Registration), and the rule that a bar is fixed before the value it judges has been
+seen is checked by `fiddlybits-52v.8.2`. A tier-1 entry is judged by the testset named
+by its id on every commit whether or not it is registered, and a provisional entry
+blocks no milestone gate.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
