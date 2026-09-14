@@ -30,6 +30,11 @@
 # statistic or bar is measured with and no row judges. No statistic or threshold carries
 # a clause of an instrument's definition, and each of its parameters names the constant
 # it states (docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md).
+# bar_half_width, observation_uncertainty (optional, stated together or not at all, in
+# the unit of the statistic): the half-width of the row's bar and the uncertainty of the
+# observation the bar is drawn from. The loader refuses one stated without the other,
+# either not positive, and a bar_half_width narrower than observation_uncertainty
+# (docs/oracles/README.md, Verdicts).
 # Conventions: statistics and thresholds in SI seconds and dimensionless or
 # system-derived units; a published case's day written as its seconds on the arm
 # where the published bar applies, with the spread-arm rule stated; vertical
