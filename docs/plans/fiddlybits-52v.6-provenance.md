@@ -321,15 +321,21 @@ components and holds the run door, submits the fields a step wrote. The pool is
 `fiddlybits-52v.6.25`, and the writer with its stages and commit order
 `fiddlybits-52v.6.26`.
 
-**Where `settle!` is called during a run is open.** Under every answer the stored set,
-the keys and the manifests are the ones above. What the answer decides is the step at
-which a run meets a late refusal, and so how much the run computes after a refused
-write and under which header the journal records the refusal. The answers on the table
-are: settle at the end of every step, settle at a declared cadence, and settle only at
-the drain. Raising a refusal at whatever point first follows its discovery is not among
-them, because it lets the order the stages finish in choose the step at which a run
-stops. `fiddlybits-52v.6.20` holds the question; its answer is a decision record and the
-row that calls `settle!`.
+**A run settles at a declared cadence, at a step boundary, and always at the drain**
+(`docs/decisions/0060-the-writer-settles-at-a-declared-interval-of-the-model-clock.md`).
+The profile declares `settle_interval`, a duration in SI seconds of simulated time with
+a disposition from `Systems.DECLARED` and no default (`fiddlybits-52v.6.30`). The driver
+calls `end_step!(ctx; interval, sequence, tier)` at the end of every step; the door
+settles when the step's end is at or after the next multiple of `settle_interval` since
+the run epoch, runs `settle!` inside `journalled` under that step's header, and takes
+the first multiple after that end as the next (`fiddlybits-52v.6.31`). Its decision
+reads the interval and the cadence and never the writer's state, so the step at which a
+run meets a late refusal is fixed by the step schedule and the profile and not by the
+order the stages found the failure. Between a refused write and that settle the run
+computes and submits as before, `submit!` refuses nothing on the late refusal's account,
+and every submission after the refused one is discarded; the stored set, the keys and
+the manifests are the ones above under every cadence. A refusal a settle raised is not
+raised again by a later settle or by the drain.
 
 ### Plan without running
 
