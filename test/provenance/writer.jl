@@ -83,11 +83,19 @@ writer_manifest(store, key) = joinpath(Provenance.object_directory(store, key), 
 "A `Ledger{Q}` over the fixture level taking a stock of 5 to `after`."
 writer_ledger(Q, after) = Fields.Ledger{Q}(Float64, WRITER_CELLS, 1.0, 5.0, after, 0.0; reservoir = false)
 
-"The bound, in seconds, on a wait that ends only when writer stages finish; reaching it fails the arm."
-const WRITER_BOUND = 20.0
+"""
+The bound, in seconds, on a wait that ends only when writer stages finish; reaching it fails
+the arm. Sized from the healthy wait measured under a contended card and loaded cores:
+`fiddlybits-52v.6.26`'s notes carry the measurements and the factor.
+"""
+const WRITER_BOUND = 120.0
 
-"The seconds of spinning, at the rate `writer_warm` measures, a gate kernel's iteration ceiling allows."
-const WRITER_GATE_SECONDS = 10.0
+"""
+The seconds of spinning, at the rate `writer_warm` measures, a gate kernel's iteration ceiling
+allows: above the longest healthy hold measured and below `WRITER_BOUND`. Reaching it fails
+the arm.
+"""
+const WRITER_GATE_SECONDS = 90.0
 
 "The iterations `writer_warm` times an unreleased gate kernel over."
 const WRITER_GATE_PROBE = 2.0^22
@@ -452,6 +460,17 @@ writer_order_profile(writers) = ST.profile(write_ceiling = 64_000_000, store_wri
     end
 end
 
+"""
+    writer_require_threads()
+
+Raises, naming the held arms of `provenance.write_order_independent`, when the default thread
+pool runs fewer than two threads: the held submission occupies one encode task, and the later
+submissions need another.
+"""
+writer_require_threads() = Threads.nthreads(:default) >= 2 || error(
+    "the held arms of provenance.write_order_independent need at least two default threads, " *
+    "and this process runs $(Threads.nthreads(:default)); start julia with -t 2 or more")
+
 "The key of the artifact `ST.submit` names first, from the `(key, stamped)` it returns."
 writer_key(returned) = first(returned)
 
@@ -459,7 +478,7 @@ writer_key(returned) = first(returned)
 # later submission is a host field, whose stages launch no kernel and wait on no stream.
 @testset "provenance.write_order_independent, held on the card" begin
     @test CUDA.functional()
-    @test Threads.nthreads(:default) >= 2
+    writer_require_threads()
     gpu = Backends.GPU()
     ceiling = writer_warm(gpu, (WRITER_CELLS, WRITER_BIG_COLUMNS))
     for writers in (1, 2, 4)
@@ -508,7 +527,7 @@ end
 
 @testset "provenance.write_order_independent, a late refusal held on the card" begin
     @test CUDA.functional()
-    @test Threads.nthreads(:default) >= 2
+    writer_require_threads()
     gpu = Backends.GPU()
     ceiling = writer_warm(gpu, (WRITER_CELLS, WRITER_BIG_COLUMNS))
     for offset in (4, 0)
