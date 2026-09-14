@@ -135,6 +135,48 @@ registered_at = ""
 holdout = false
 anchors = []
 
+[[oracle]]
+id = "build.resource_vocabulary"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "identity"
+source_kind = "identity"
+statistic = "the helper of test/resources.jl on each name of its closed vocabulary, card, oracle_data, input_data and references, under a probe that finds the resource present and a probe that finds it absent: present runs the check body once and records nothing; absent runs no body, records one not-evaluated result naming the check and the resource, writes one line naming both to standard output that parses back to the same record, and raises no error; a name outside the vocabulary, a dataset argument on a resource that takes none or none on one that takes one, a dataset with no manifest, a check name used twice in one process, and an unknown or repeated name in a declaration are each refused by name"
+verdict_kind = "fail_bar"
+threshold = "exact; every clause holds on its fixture (positive controls: a body that throws under an absent probe, which must not throw and must be recorded; a body under a present probe, which a counter must read as run exactly once; each refused input, which must be refused naming what it refused; and the helper edited to return without recording, which must fail the absent-probe clause)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "build.not_evaluated_accounting"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "identity"
+source_kind = "identity"
+statistic = "both doors that run the suites, on scratch roots of fixture suites whose checks call the helper against absent resources: test/runtests.jl, the door Pkg.test runs in one process, prints every not-evaluated check under its resource, accepts one only when its resource is named in the declaration FIDDLYBITS_ABSENT_RESOURCES, refuses a declared resource its probe finds present and a declared name outside the vocabulary, and runs each suite in a module of its own; tools/gate/run.jl and tools/nightly/run.jl print every not-evaluated check they read in a suite log and refuse the run on any, and refuse to start when the declaration is set; on the tree, the declaration in .github/workflows/clean-room.yml names only vocabulary names"
+verdict_kind = "fail_bar"
+threshold = "exact; every clause holds (positive controls: an undeclared absent resource under the one-process door, which must fail the run; the same resource declared, which must pass and print the check; a declared resource the probe finds present, which must fail; an unknown declared name, which must fail; a not-evaluated line in one suite log under the gate's driver and under the nightly's, each of which must fail the run; the declaration set when the gate starts, which must refuse; two fixture suites binding one constant name to different modules, which must both pass in one process; and a runner edited to drop the printed list, which must fail the printing clause)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "build.references_payload_hashes"
+tier = 1
+subsystem = "build"
+dataset_or_reference = "identity"
+source_kind = "identity"
+statistic = "docs/references/payload.toml, the tracked hash manifest of the references payload, holding no content of any file: it parses and names each path once, in path order, with bytes and sha256 for every regular file under references/pdf/, and for every directory under references/ that a row of docs/references/INDEX.md names a digest over the sorted path, bytes and sha256 of every regular file beneath it and the commit where the directory is a git checkout; where the references payload is present at the main checkout, every entry matches the disk and every file under references/pdf/ has an entry; where it is absent, those disk clauses are named not evaluated through the helper and the manifest clauses still run"
+verdict_kind = "fail_bar"
+threshold = "exact; no problem on the tree with the payload present (positive controls: a fixture payload with one byte of one file changed, a file absent, a file with no entry, entries out of order, a path named twice, a tree with one file changed, a tree whose checkout head differs from its commit, and a file rewritten with its size and modification time restored, each of which must be refused; and a clean fixture that must pass)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
 # ---------------------------------------------------------------- tier 1: system, clock and star
 
 [[oracle]]
@@ -1565,6 +1607,20 @@ source_kind = "identity"
 statistic = "the datasets field of every registry row against the manifests under docs/oracles/data/ and docs/inputs/data/: every manifest id a row names exists and names the row back in its oracles key; every row a manifest names exists and names the manifest back in datasets; every tier 2 and tier 3 row carries datasets; every manifest under docs/oracles/data/ names at least one row; a manifest id is its file name and is used once across both directories; no manifest anchor carries an oracle id"
 verdict_kind = "fail_bar"
 threshold = "exact; no problem on the tree (positive controls: a fixture row naming an absent manifest and a fixture manifest naming an absent oracle, both of which must be refused; one fixture for each remaining clause, a link written on one side only from either side, an oracle manifest naming no row, a tier 2 row with no datasets field, a datasets or oracles value that is not a list, an oracle id in a manifest anchor, an id that is not its file name and an id used in both directories, each of which must be refused; and a clean fixture that must pass)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "oracles.dataset_extracts"
+tier = 1
+subsystem = "oracles"
+dataset_or_reference = "identity"
+source_kind = "identity"
+statistic = "every manifest under docs/oracles/data/ and docs/inputs/data/ and every committed extract: each manifest carries licence, licence_locator and an extract verdict of permitted or gate_only; an extract block stands only on a permitted manifest and names its recipe by path and sha256, its source files by path and sha256 from the manifest's own file list, and each extract file by path, bytes and sha256; every file under oracles/extracts/ and inputs/extracts/ is named by exactly one extract block and matches it on disk; each extract and all extracts together stay within the bounds docs/oracles/extracts.toml declares, counted from disk; where the dataset payload is present at the main checkout, the recipe run on the named source files reproduces every extract file byte for byte; where it is absent, that re-derivation is named not evaluated through the helper and every other clause still runs"
+verdict_kind = "fail_bar"
+threshold = "exact; no problem on the tree (positive controls: a fixture extract with one byte changed, an extract file no block names, a block naming a source absent from its manifest's file list, a recipe whose sha256 differs, an extract over the per-extract bound and a set over the total bound, an extract block on a gate_only manifest, a manifest missing a licence key, and a fixture payload whose recipe output differs from the committed extract, each of which must be refused; and a clean fixture that must pass)"
 provisional = true
 registered_at = ""
 holdout = false
