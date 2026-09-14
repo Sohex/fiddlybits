@@ -144,12 +144,13 @@ components; a component of zero amplitude is admissible, and its period is never
 as a window.
 
 `Planet` carries the bulk and the lithosphere block. The bulk is the mass, the radius
-or a composition vector, the sidereal rotation period, the obliquity, and
-`sub_primary_longitude_at_epoch`. Every member of the lithosphere block is `Bracketed`,
-with both ends argued from the declared mass, age and bulk composition.
+or a composition vector, the sidereal rotation period, the obliquity,
+`equator_ascending_node_longitude` and `sub_primary_longitude_at_epoch`. Every member of
+the lithosphere block is `Bracketed`, with both ends argued from the declared mass, age
+and bulk composition.
 
 Decision 0004, section The spin axis and the rotation phase in the orbit frame, defines
-the two angles:
+the three angles:
 
 - `obliquity` is the angle from the planet's orbit normal to the positive pole of
   rotation of decision 0005, admitted in `[0, pi]`, with the dispositions of any
@@ -157,23 +158,52 @@ the two angles:
 - The sense of rotation relative to the orbit normal is `Derived` from it and is never a
   keyword. `rotation_sense(planet)` is `:prograde` where `cos(obliquity)` exceeds its
   rounding, `:retrograde` where `-cos(obliquity)` does, and `NotEvaluable` by name
-  between. The threshold comes from `Reductions.error_bound`, as the equinox kind's does.
+  between. The threshold comes from `Reductions.error_bound`, as the vernal equinox's
+  `NotEvaluable` threshold does.
+- `equator_ascending_node_longitude` is the longitude on the planet's orbit plane, in
+  `[0, 2 pi)`, of the ascending node of the planet's equator on that plane, measured as
+  decision 0004, section The reference directions of the orbit hierarchy, measures every
+  longitude. It carries the obliquity's dispositions. The planet's true longitude at the
+  vernal equinox is this value.
 - `sub_primary_longitude_at_epoch` is the body-fixed longitude, in `(-pi, pi]` (the
   range `Mesh.longitude` returns), of the direction from the planet toward
   `orbits.planet.primary` at `t = 0`. It is `Irreducible` on a generated configuration
   and `Sourced` on one standing for a body with a published orientation model.
-- `strip` carries both angles as plain `FT`.
+- `strip` carries the three angles as plain `FT`.
 
 The readers are `Orbit.positive_pole`, `Orbit.body_orientation`,
-`Orbit.sub_source_longitude` and `Orbit.hour_angle`, all in the time plan's section The
-orbit. `fiddlybits-52v.4.13` adds the fields after `fiddlybits-52v.4.3` merges.
+`Orbit.sub_source_longitude`, `Orbit.hour_angle` and `Orbit.event_time`, all in the time
+plan's section The orbit. `fiddlybits-52v.4.13` added the obliquity's range and the
+sub-primary longitude; `fiddlybits-52v.4.17` adds `equator_ascending_node_longitude`.
+
+`OrbitHierarchy` holds one `Orbit` per body pair. Each orbit names its primary, its
+secondary and its reference plane, and declares its angles as longitudes (decision 0004,
+section The reference directions of the orbit hierarchy):
+
+- `semi_major_axis` (or the flux of a `FluxOrbit`), `eccentricity`, and `inclination` in
+  `[0, pi]`, from the reference plane's normal to the orbit's.
+- `longitude_of_ascending_node`, `longitude_of_periapsis` and `mean_longitude_at_epoch`,
+  each in `[0, 2 pi)`, measured from the reference plane's origin.
+- The planet's orbit takes no `mean_longitude_at_epoch`. Its own is zero, because the
+  planet's mean position at `t = 0` is the root origin, and a supplied value is refused
+  as a second declaration.
+- The argument of periapsis and the mean anomaly are `Derived` doors in `Orbit`
+  (`argument_of_periapsis = longitude_of_periapsis - longitude_of_ascending_node`,
+  `mean_anomaly(orbit, t)`), never fields.
+- The planes an orbit may name are unchanged: the planet's orbit `invariable_plane` or
+  `primary_equator`, a moon's `planet_equator` or `planet_orbit`, a companion's
+  `invariable_plane` or `planet_orbit`. The plane the planet's orbit names is the root.
+
+`fiddlybits-52v.4.17` changes the fields and adds the two plane refusals in the table
+below. What fixes each root plane's normal is `fiddlybits-52v.4.18`.
 
 `Numerics` and `Profile` both describe a run, and the plan has to say where the line
 is or they become two homes for one quantity. `Numerics` holds declared conventions
 that are facts about how this system is represented and that no profile may vary:
-the epoch reference of decision 0008 (event kind, source index, offset in seconds),
 the reference pressure of the Exner function (decision 0013), and the precision the
-geometry is formed in, which the mesh finding fixes at double. Everything a profile
+geometry is formed in, which the mesh finding fixes at double. Where `t = 0` is falls to
+the orbital elements and the rotation phase, not to `Numerics` (decision 0008, section
+The epoch). Everything a profile
 may vary between two runs of one system, which is every level, ladder, cadence,
 fast-field precision, ceiling and exit bracket, is `Profile`'s and appears in
 `Numerics` nowhere. The suite asserts the two structs' field names are disjoint,
@@ -237,6 +267,10 @@ The constructor is keyword-only with no defaults. Its refusals:
 | a synchronous rotation whose `Derived` sense is not prograde | a rotation turning against its orbit at the orbital period does not keep one face to the primary | a synchronous rotation at an obliquity of three quarters of pi, and at `pi / 2` |
 | a `root_seed` that is not a dimensionless `Irreducible` over `UInt64` | the seed has one disposition and one word width, above | a plain `UInt64`, an `Int64` and a `Float64` value, a seed with a dimension, and a `Bracketed` and a `Sourced` seed |
 | an orbital eccentricity outside the elliptic range `[0, 1)` | the Kepler solve refuses nothing itself, because a refusal inside a per-cell kernel has nowhere to go (decision 0008, amendment of 2026-09-10) | an eccentricity of one, and of one and a half |
+| a `mean_longitude_at_epoch` on the planet's orbit | the planet's mean position at `t = 0` is the root origin, so its mean longitude there is zero by definition (decision 0004) | the keyword on an `Orbit` and on a `FluxOrbit` whose secondary is the planet |
+| an `equator_ascending_node_longitude`, or an orbit's node, periapsis or mean longitude, outside `[0, 2 pi)` | one angle, one range | a longitude of `2 pi`, and of `-0.1` |
+| `primary_equator` named by a planet orbit about a `StarBarycentre` | a barycentre has no equator | the plane named about `StarBarycentre(1, 2)` |
+| a companion orbit naming `invariable_plane` while the planet's orbit names `primary_equator` | the root is the plane the planet's orbit names, and no origin reaches a plane with no declared relation to it (decision 0004) | that pair of planes |
 
 `g(r, phi)` is the canonical `Derived` field: computed from the mass, the radial
 distance and the rotation vector with the centrifugal term, never stored as a surface
@@ -298,7 +332,7 @@ each one constructor call with every field declared:
 | `Earth()` | IAU and CODATA values with `Sourced` locators; a comparison to report the distance from, never a target |
 | `SyntheticNonEarth()` | a carbon-dioxide bulk atmosphere, higher gravity, prograde, high eccentricity, non-zero obliquity, one star, one moon |
 | `SyntheticSynchronous()` | synchronous rotation, zero obliquity, an M-dwarf spectrum, no moon |
-| `SyntheticRetrograde()` | retrograde spin, two stars, the epoch on the periapsis event |
+| `SyntheticRetrograde()` | retrograde spin, two stars, `t = 0` at the planet's periapsis (its longitude of periapsis zero) |
 | `SyntheticComposition2()` | a hydrogen-helium bulk with a different condensable declared absent |
 
 None is a real body, and every field is a declared value chosen so that closed forms
