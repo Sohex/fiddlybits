@@ -1,35 +1,191 @@
 # The store's writer: docs/plans/fiddlybits-52v.6-provenance.md, section "The writer";
 # decisions 0010, 0027, 0029, 0038 and 0060. `submit!` admits a field inline through the
-# admission `put_field!` makes, takes its charge whole from one `Backends.BytePool` and
-# queues its host copy; an encode stage and a disk stage land it into a staging directory;
-# `settle!` renames the staging directories into place in submission order.
+# admission `put_field!` makes, takes its charge whole from one `Backends.BytePool`, places it
+# as one block of the writer's `Arena` and queues its host copy into that block; an encode
+# stage and a disk stage land it into a staging directory; `settle!` renames the staging
+# directories into place in submission order; `drain!` unregisters the arena.
 
 import ..Dispositions
 using ..Verdicts: Refusal
 using ..Backends: Backends, GPU, BytePool, Handoff, after!, backend_of, charge!, close_pool!,
                   complete!, copy_to_host!, free_host_buffer!, host_buffer, release!
 
+# ---------------------------------------------------------------- the arena
+
+"The byte multiple every arena range starts at and every charge part is rounded up to."
+const ARENA_ALIGN = 8
+
+"`bytes` rounded up to a multiple of `ARENA_ALIGN`."
+arena_round(bytes::Integer) = cld(Int(bytes), ARENA_ALIGN) * ARENA_ALIGN
+
+"""
+    Arena
+
+The host memory every buffer of one writer is carved from: `bytes`, a `Vector{UInt8}`;
+`pinned`, whether it is page-locked through `Backends.host_buffer(GPU(), UInt8, n)`; `free`,
+its free ranges of 1-based byte indices, sorted, disjoint and never adjacent, every one
+starting at an index one more than a multiple of `ARENA_ALIGN`; `condition`, notified at
+every release and at the close; `closed`, once `close_arena!` began; and `unregistered`, once
+its page lock is released. When no range is placed, `free` holds the one range `1:length(bytes)`.
+`try_place!`, `place!`, `release_range!` and `close_arena!` are its doors.
+"""
+mutable struct Arena
+    const bytes::Vector{UInt8}
+    const pinned::Bool
+    const free::Vector{UnitRange{Int}}
+    const condition::Threads.Condition
+    closed::Bool
+    unregistered::Bool
+end
+
+"The site every refusal of the arena's doors names."
+const ARENA_SITE = "Provenance.Arena"
+
+"""
+    open_arena(capacity)
+
+An `Arena` of `capacity` bytes, `capacity` a positive multiple of `ARENA_ALIGN`: page-locked
+through `Backends.host_buffer(GPU(), UInt8, capacity)`, and, when that refuses at
+`Backends.ka_backend` because CUDA reports no functional device on the host, a
+`Backends.host_buffer(CPU(), UInt8, capacity)` that is not page-locked. Refuses any other
+`capacity`, and rethrows any other refusal of `host_buffer`.
+"""
+function open_arena(capacity::Integer)
+    (capacity > 0 && capacity % ARENA_ALIGN == 0) || refuse(
+        "capacity", ARENA_SITE, "an arena of $(capacity) bytes, and an arena is a positive multiple of $(ARENA_ALIGN) bytes")
+    bytes, pinned = try
+        host_buffer(GPU(), UInt8, Int(capacity)), true
+    catch err
+        (err isa Refusal && err.quantity == "GPU backend" && err.site == "Backends.ka_backend") || rethrow()
+        host_buffer(CPU(), UInt8, Int(capacity)), false
+    end
+    return Arena(bytes, pinned, [1:Int(capacity)], Threads.Condition(), false, false)
+end
+
+"""
+    try_place!(arena, n)
+
+The first free range of `arena`, in index order, long enough for `n` bytes, `n` a positive
+multiple of `ARENA_ALIGN`: its first `n` bytes taken from `arena.free` and returned as a range.
+`nothing`, taking nothing, when no free range is that long. Refuses any other `n`. The caller
+holds `arena.condition`.
+"""
+function try_place!(arena::Arena, n::Int)
+    (n > 0 && n % ARENA_ALIGN == 0) || refuse(
+        "bytes", ARENA_SITE, "a request of $(n) bytes, and a request is a positive multiple of $(ARENA_ALIGN) bytes")
+    for (k, r) in enumerate(arena.free)
+        length(r) >= n || continue
+        placed = first(r):(first(r) + n - 1)
+        length(r) == n ? deleteat!(arena.free, k) : (arena.free[k] = (first(r) + n):last(r))
+        return placed
+    end
+    return nothing
+end
+
+"""
+    place!(arena, n)
+
+The range `try_place!` gives for `n` bytes, waiting on `arena.condition` until a release makes
+one long enough. Refuses naming the close when `arena` is closed, before or during the wait.
+"""
+function place!(arena::Arena, n::Int)
+    @lock arena.condition begin
+        while true
+            arena.closed && refuse("arena", ARENA_SITE, "the arena is closed; a request of $(n) bytes refused")
+            placed = try_place!(arena, n)
+            placed === nothing || return placed
+            wait(arena.condition)
+        end
+    end
+end
+
+"""
+    release_range!(arena, r)
+
+Returns the placed range `r` to `arena.free`, merged with the free ranges it adjoins, and
+notifies every waiter. Returns at once for an empty `r`. Refuses a range outside the arena,
+not starting at an index one more than a multiple of `ARENA_ALIGN`, or overlapping a free range.
+"""
+function release_range!(arena::Arena, r::UnitRange{Int})
+    isempty(r) && return nothing
+    (first(r) >= 1 && last(r) <= length(arena.bytes) && (first(r) - 1) % ARENA_ALIGN == 0) || refuse(
+        "range", ARENA_SITE, "the range $(r) is not a placed range of an arena of $(length(arena.bytes)) bytes")
+    @lock arena.condition begin
+        k = searchsortedfirst(arena.free, r; by = first)
+        k > 1 && last(arena.free[k - 1]) >= first(r) && refuse(
+            "range", ARENA_SITE, "the range $(r) overlaps the free range $(arena.free[k - 1])")
+        k <= length(arena.free) && first(arena.free[k]) <= last(r) && refuse(
+            "range", ARENA_SITE, "the range $(r) overlaps the free range $(arena.free[k])")
+        merged = r
+        if k <= length(arena.free) && first(arena.free[k]) == last(r) + 1
+            merged = first(merged):last(arena.free[k])
+            deleteat!(arena.free, k)
+        end
+        if k > 1 && last(arena.free[k - 1]) + 1 == first(merged)
+            merged = first(arena.free[k - 1]):last(merged)
+            deleteat!(arena.free, k - 1)
+            k -= 1
+        end
+        insert!(arena.free, k, merged)
+        notify(arena.condition; all = true)
+    end
+    return nothing
+end
+
+"The free ranges of `arena`, a copy."
+free_ranges(arena::Arena) = @lock arena.condition copy(arena.free)
+
+"""
+    close_arena!(arena)
+
+Marks `arena` closed, waking every `place!` waiting on it to refuse. Idempotent.
+"""
+function close_arena!(arena::Arena)
+    @lock arena.condition begin
+        arena.closed = true
+        notify(arena.condition; all = true)
+    end
+    return nothing
+end
+
+"""
+    arena_array(arena, r, T, dims)
+
+An `Array{T}` of size `dims` over the bytes of `arena` from the first index of `r`, through
+`unsafe_wrap`, not owning them. Refuses dims whose bytes exceed `r`.
+"""
+function arena_array(arena::Arena, r::UnitRange{Int}, T::Type, dims::Tuple)
+    n = prod(dims; init = 1)
+    sizeof(T) * n <= length(r) || refuse(
+        "range", ARENA_SITE, "$(n) elements of $(T) do not fit the $(length(r)) bytes of the range $(r)")
+    return unsafe_wrap(Array, Ptr{T}(pointer(arena.bytes, first(r))), dims; own = false)
+end
+
+# ---------------------------------------------------------------- the writer
+
 """
     Submission
 
 One write handed to a `Writer`: `index`, its place in submission order; `admission`;
-`host`, the host buffer its copy lands in, and `point`, the copy's `Handoff`; `charge`, the
-`write_charge` it took; `device`, whether its data lived on the card. The stages set
-`chunks`, its compressed chunks in chunk order, and `staging`, its staging directory;
-`refusal`, the late refusal it met; `landed`, once no stage holds it; `outcome`, `:pending`
-until the commit makes it `:committed`, `:refused` or `:discarded`; and `holding` and
-`peak`, the host bytes the writer holds for it now and the most at once, each buffer
-counted by its own `sizeof` and each compressed chunk by its compressed length. Every field
-a stage or the commit sets is set under the writer's lock.
+`block`, the arena range its charge is placed at, and `host`, its host copy over the first
+bytes of that block; `point`, the copy's `Handoff`; `charge`, the `write_charge` it took;
+`device`, whether its data lived on the card. The stages set `chunks`, the arena ranges of its
+compressed chunks in chunk order, and `staging`, its staging directory; `refusal`, the late
+refusal it met; `landed`, once no stage holds it; `outcome`, `:pending` until the commit makes
+it `:committed`, `:refused` or `:discarded`; and `holding` and `peak`, the host bytes the
+writer holds for it now and the most at once, each array counted by its own `sizeof` and each
+compressed chunk by its compressed length. Every field a stage or the commit sets is set under
+the writer's lock.
 """
 mutable struct Submission
     const index::Int
     const admission::Admission
+    const block::UnitRange{Int}
     const host::Vector
     const point::Handoff
     const charge::NamedTuple{(:host, :translated, :buffer, :compressed),NTuple{4,Int}}
     const device::Bool
-    chunks::Vector{Vector{UInt8}}
+    chunks::Vector{UnitRange{Int}}
     staging::Union{Nothing,String}
     refusal::Union{Nothing,Refusal}
     landed::Bool
@@ -43,22 +199,23 @@ end
 
 The write path `open_writer` opens over `store` for the run `run`: `opener`, the task that
 opened it and the only one that submits, settles and drains; `pool`, the `BytePool` at the
-profile's `write_ceiling`; `encode_queue` and `disk_queue`, unbounded in items; `encoders`
-and `disk_writers`, the stage tasks. Under `lock`, with `condition` notified at every
-landing: `submissions` in submission order; `dirs`, the directory of every submission to
-its index; `finished`, the indices in the order the disk stage finished them; `closed`,
-once `drain!` began; `stopped`, once its stages stopped; `cleared`, the submissions a
-settle's `Backends.complete!` has run after; `settled`, the submissions the commit has
-walked; `refused`, the index of the earliest refused submission the commit met, zero for
-none; `lowest_refusal`, the lowest index any stage recorded a refusal at; `reported`, once
-`settle!` has raised that refusal; `host_alive` and `host_high_water`, the sum of every
-submission's `holding` and the most at once.
+arena's capacity; `arena`, the `Arena` every host buffer of the writer is carved from;
+`encode_queue` and `disk_queue`, unbounded in items; `encoders` and `disk_writers`, the stage
+tasks. Under `lock`, with `condition` notified at every landing: `submissions` in submission
+order; `dirs`, the directory of every submission to its index; `finished`, the indices in the
+order the disk stage finished them; `closed`, once `drain!` began; `stopped`, once its stages
+stopped; `cleared`, the submissions a settle's `Backends.complete!` has run after; `settled`,
+the submissions the commit has walked; `refused`, the index of the earliest refused submission
+the commit met, zero for none; `lowest_refusal`, the lowest index any stage recorded a refusal
+at; `reported`, once `settle!` has raised that refusal; `host_alive` and `host_high_water`,
+the sum of every submission's `holding` and the most at once.
 """
 mutable struct Writer
     const store::Store
     const run::RunID
     const opener::Task
     const pool::BytePool
+    const arena::Arena
     const encode_queue::Channel{Submission}
     const disk_queue::Channel{Submission}
     const encoders::Vector{Task}
@@ -79,25 +236,65 @@ mutable struct Writer
     host_high_water::Int
 end
 
+"Every writer `open_writer` opened and `drain!` has not yet unregistered, held until then."
+const OPEN_WRITERS = Writer[]
+
+"The lock `OPEN_WRITERS` is read and written under."
+const OPEN_WRITERS_LOCK = ReentrantLock()
+
+"Whether `report_open_writers` is installed as an exit hook."
+const OPEN_WRITERS_HOOKED = Ref(false)
+
+"""
+    report_open_writers()
+
+Warns, once per writer, naming its store root, its run and its submission count, for every
+writer in `OPEN_WRITERS`: a writer never drained, whose arena is still registered. Unregisters
+nothing.
+"""
+function report_open_writers()
+    for w in @lock OPEN_WRITERS_LOCK copy(OPEN_WRITERS)
+        n = @lock w.lock length(w.submissions)
+        @warn "Provenance.Writer over $(w.store.root) for run $(w.run.uuid) was never drained: " *
+              "$(n) submissions, its arena of $(length(w.arena.bytes)) bytes still registered"
+    end
+    return nothing
+end
+
 """
     open_writer(store; run, profile)
 
-A `Writer` over `store` for the `RunID` `run`, its stages started: a `BytePool` at
-`value(profile.write_ceiling)` bytes; `Threads.nthreads(:default)` encode tasks; and
-`value(profile.store_writers)` disk tasks. The calling task is the writer's opener. Every
-keyword is required. Refuses a `run` that is not a `RunID` and a `profile` that is not a
-`Systems.Profile`.
+A `Writer` over `store` for the `RunID` `run`, its stages started: an `Arena` from
+`open_arena` of `value(profile.write_ceiling)` bytes rounded down to a multiple of
+`ARENA_ALIGN`; a `BytePool` of that capacity; `Threads.nthreads(:default)` encode tasks; and
+`value(profile.store_writers)` disk tasks. The calling task is the writer's opener. The writer
+is held in `OPEN_WRITERS` until `drain!` unregisters its arena, and the first call installs
+`report_open_writers` as an exit hook. Every keyword is required. Refuses a `run` that is not a
+`RunID`, a `profile` that is not a `Systems.Profile`, a `write_ceiling` below `ARENA_ALIGN`,
+and whatever `open_arena` refuses.
 """
 function open_writer(store::Store; kwargs...)
     site = "Provenance.open_writer"
     k, _ = read_keywords(site, values(kwargs), (:run, :profile), ())
     run = require_type("run", site, k.run, RunID)
     profile = require_type("profile", site, k.profile, Profile)
+    ceiling = Dispositions.value(profile.write_ceiling)
+    capacity = div(ceiling, ARENA_ALIGN) * ARENA_ALIGN
+    capacity > 0 || refuse(
+        "write_ceiling", site, "a write_ceiling of $(ceiling) bytes holds no arena range of $(ARENA_ALIGN) bytes")
+    arena = open_arena(capacity)
     lock = ReentrantLock()
-    w = Writer(store, run, current_task(), BytePool(ceiling = Dispositions.value(profile.write_ceiling)),
+    w = Writer(store, run, current_task(), BytePool(ceiling = capacity), arena,
                Channel{Submission}(Inf), Channel{Submission}(Inf), Task[], Task[], lock,
                Threads.Condition(lock), Submission[], Dict{String,Int}(), Int[], false, false, 0, 0, 0,
                typemax(Int), false, 0, 0)
+    @lock OPEN_WRITERS_LOCK begin
+        push!(OPEN_WRITERS, w)
+        if !OPEN_WRITERS_HOOKED[]
+            atexit(report_open_writers)
+            OPEN_WRITERS_HOOKED[] = true
+        end
+    end
     for _ in 1:Threads.nthreads(:default)
         push!(w.encoders, Threads.@spawn :default foreach(s -> encode_stage!(w, s), w.encode_queue))
     end
@@ -120,9 +317,10 @@ refuses; then, before anything is charged, a directory this writer was handed al
 submission after `drain!` began, a submission from a task other than the writer's opener,
 and a run other than the writer's. Then takes the whole `write_charge` of the write from
 the writer's pool, waiting behind every earlier waiter until it is free, and refusing at
-once, naming both counts, a charge above the ceiling; allocates a `Backends.host_buffer`
-on the backend the field's data lives on; and queues `Backends.copy_to_host!` of the data
-into it. Refuses whatever `host_buffer` and `copy_to_host!` refuse, the charge released. A
+once, naming both counts, a charge above the arena's capacity; places it as one block of the
+writer's arena through `place!`, waiting for releases while no free range is long enough; and
+queues `Backends.copy_to_host!` of the data into the block's first bytes. Refuses whatever
+`copy_to_host!` refuses, the block and the charge released. Unregisters no host memory. A
 refusal a stage met for an earlier submission refuses nothing here.
 """
 submit!(w::Writer, run::RunID; kwargs...) =
@@ -137,12 +335,12 @@ const SUBMIT_SITE = "Provenance.submit!"
 """
     write_charge(admission)
 
-`(host, translated, buffer, compressed)`, the bytes of every host buffer the writer holds
-for `admission`, the four parts of its charge: `host`, its host copy, the bytes of its
-data; `translated`, the array `to_disk` makes, the bytes of its data for `CellIds` and none
-for `Amounts`; `buffer`, the chunk-shaped array `compress_chunks` copies each chunk into,
-one chunk's bytes; and `compressed`, over each of its chunks, the chunk's bytes plus
-`Zarr.Blosc.MAX_OVERHEAD`. The encode stage releases the first three and the disk stage
+`(host, translated, buffer, compressed)`, the arena bytes of `admission`'s charge, each
+rounded up by `arena_round`: `host`, its host copy, the bytes of its data; `translated`, the
+array `to_disk!` writes, the bytes of its data for `CellIds` and none for `Amounts`; `buffer`,
+the chunk-shaped array `compress_chunks!` copies each chunk into, one chunk's bytes; and
+`compressed`, over each of its chunks, the chunk's bytes plus `Zarr.Blosc.MAX_OVERHEAD`. The
+block places them in that order; the encode stage releases the first three and the disk stage
 the fourth.
 """
 function write_charge(a::Admission)
@@ -151,8 +349,9 @@ function write_charge(a::Admission)
     per_cell = div(length(a.data), cells)
     data_bytes = sizeof(T) * length(a.data)
     chunk_bytes = sizeof(T) * a.per_chunk * per_cell
-    return (host = data_bytes, translated = a.values isa CellIds ? data_bytes : 0, buffer = chunk_bytes,
-            compressed = div(cells, a.per_chunk) * (chunk_bytes + Zarr.Blosc.MAX_OVERHEAD))
+    return (host = arena_round(data_bytes), translated = a.values isa CellIds ? arena_round(data_bytes) : 0,
+            buffer = arena_round(chunk_bytes),
+            compressed = arena_round(div(cells, a.per_chunk) * (chunk_bytes + Zarr.Blosc.MAX_OVERHEAD)))
 end
 
 "The bytes of every part of `charge`, a `write_charge`."
@@ -160,6 +359,19 @@ charge_total(charge) = charge.host + charge.translated + charge.buffer + charge.
 
 "The parts of `charge`, a `write_charge`, the encode stage releases."
 encode_part(charge) = charge.host + charge.translated + charge.buffer
+
+"The arena range of the translated array in the block of `s`."
+translated_range(s::Submission) = (first(s.block) + s.charge.host):(first(s.block) + s.charge.host + s.charge.translated - 1)
+
+"The arena range of the chunk buffer in the block of `s`."
+buffer_range(s::Submission) =
+    (last(translated_range(s)) + 1):(last(translated_range(s)) + s.charge.buffer)
+
+"The arena range of the part of the block of `s` the encode stage releases."
+encode_range(s::Submission) = first(s.block):(first(s.block) + encode_part(s.charge) - 1)
+
+"The arena range of the compressed chunks in the block of `s`."
+compressed_range(s::Submission) = (first(s.block) + encode_part(s.charge)):last(s.block)
 
 """
     hold!(writer, s, bytes)
@@ -189,8 +401,8 @@ end
 """
     enqueue!(writer, admission, run)
 
-The part of `submit!` after the admission: the refusals of the writer, the charge, the host
-copy, and the `Submission` queued for the encode stage. Returns `(key, stamped)`.
+The part of `submit!` after the admission: the refusals of the writer, the charge, the block,
+the host copy, and the `Submission` queued for the encode stage. Returns `(key, stamped)`.
 """
 function enqueue!(w::Writer, a::Admission, run::RunID)
     @lock w.lock begin
@@ -204,20 +416,26 @@ function enqueue!(w::Writer, a::Admission, run::RunID)
     run == w.run || refuse(
         "run", SUBMIT_SITE, "the writer writes run $(w.run.uuid), and the submission names run $(run.uuid)")
     charge = write_charge(a)
-    charge!(w.pool, charge_total(charge))
+    total = charge_total(charge)
+    charge!(w.pool, total)
+    block = try
+        place!(w.arena, total)
+    catch
+        release!(w.pool, total)
+        rethrow()
+    end
     device = backend_of(a.data) === :gpu
-    host = nothing
+    host = arena_array(w.arena, block, eltype(a.data), (length(a.data),))
     point = try
-        host = host_buffer(device ? GPU() : CPU(), eltype(a.data), length(a.data))
         copy_to_host!(host, a.data)
     catch
-        host === nothing || free_host_buffer!(host)
-        release!(w.pool, charge_total(charge))
+        release_range!(w.arena, block)
+        release!(w.pool, total)
         rethrow()
     end
     s = @lock w.lock begin
-        s = Submission(length(w.submissions) + 1, a, host, point, charge, device,
-                       Vector{UInt8}[], nothing, nothing, false, :pending, 0, 0)
+        s = Submission(length(w.submissions) + 1, a, block, host, point, charge, device,
+                       UnitRange{Int}[], nothing, nothing, false, :pending, 0, 0)
         push!(w.submissions, s)
         w.dirs[a.dir] = s.index
         hold!(w, s, sizeof(host))
@@ -267,27 +485,43 @@ function mark_landed!(w::Writer, s::Submission, refusal)
 end
 
 """
-    compress_chunks(held, disk, per_chunk)
+    compress_chunks!(held, out, disk, per_chunk, buffer)
 
-The chunks of `disk` along its cell axis, `per_chunk` cells each and whole along every other
-axis, each copied into one `Array` of the chunk's shape and compressed by `Zarr.zcompress`
-with `compressor()` under `BLOSC_LOCK`, in chunk order. Calls `held(bytes)` with the
-`sizeof` of that array once it is allocated and with the length of each compressed chunk
-once it is made.
+The ranges of `out`, a `Vector{UInt8}`, holding the chunks of `disk` along its cell axis,
+`per_chunk` cells each and whole along every other axis, compressed in chunk order: each
+chunk copied into `buffer`, an array of the chunk's shape, and compressed through
+`Zarr.Blosc.compress!` into the bytes of `out` after the previous chunk's, under `BLOSC_LOCK`
+after `Zarr.Blosc.set_compressor`, with the codec name, level and shuffle the `BloscCompressor`
+`compressor()` holds and the chunk's element size. Calls `held(bytes)` with the length of each
+compressed chunk once it is made. Refuses a compressor whose shuffle is not one of
+`Zarr.Blosc.NOSHUFFLE`, `SHUFFLE` and `BITSHUFFLE`, a chunk that does not fit what remains of
+`out`, and a chunk Blosc returns no bytes for.
 """
-function compress_chunks(held, disk::AbstractArray, per_chunk::Int)
-    rest = size(disk)[2:end]
-    buffer = Array{eltype(disk)}(undef, per_chunk, rest...)
-    held(sizeof(buffer))
+function compress_chunks!(held, out::Vector{UInt8}, disk::AbstractArray, per_chunk::Int, buffer::AbstractArray)
+    c = compressor()
+    c.shuffle in (Zarr.Blosc.NOSHUFFLE, Zarr.Blosc.SHUFFLE, Zarr.Blosc.BITSHUFFLE) || refuse(
+        "compressor", "Provenance.compress_chunks!",
+        "the compressor's shuffle is $(c.shuffle), which Zarr.zcompress maps before compressing and this route does not")
     others = ntuple(_ -> Colon(), ndims(disk) - 1)
-    starts = 1:per_chunk:size(disk, 1)
-    chunks = Vector{Vector{UInt8}}(undef, length(starts))
-    for (c, first) in enumerate(starts)
+    worst = sizeof(buffer) + Zarr.Blosc.MAX_OVERHEAD
+    ranges = UnitRange{Int}[]
+    cursor = 1
+    for first in 1:per_chunk:size(disk, 1)
+        cursor + worst - 1 <= length(out) || refuse(
+            "chunk", "Provenance.compress_chunks!",
+            "a chunk of up to $(worst) bytes does not fit the $(length(out) - cursor + 1) bytes left of $(length(out))")
         copyto!(buffer, view(disk, first:(first + per_chunk - 1), others...))
-        chunks[c] = @lock BLOSC_LOCK Zarr.zcompress(buffer, compressor())
-        held(sizeof(chunks[c]))
+        dest = unsafe_wrap(Array, pointer(out, cursor), worst; own = false)
+        n = @lock BLOSC_LOCK begin
+            Zarr.Blosc.set_compressor(c.cname)
+            GC.@preserve out Zarr.Blosc.compress!(dest, buffer; level = c.clevel, shuffle = c.shuffle)
+        end
+        n > 0 || refuse("chunk", "Provenance.compress_chunks!", "Blosc returned no bytes for a chunk of $(sizeof(buffer))")
+        push!(ranges, cursor:(cursor + n - 1))
+        held(n)
+        cursor += n
     end
-    return chunks
+    return ranges
 end
 
 """
@@ -295,13 +529,14 @@ end
 
 The encode stage for `s`: reads under the writer's lock, before anything of `s`, whether an
 earlier submission is refused; unless one is, waits on its copy's handoff through
-`after!(CPU(), point)`, translates the host copy by `to_disk`, holding the translated array
-for `CellIds`, and compresses it by `compress_chunks`, holding its chunk buffer and each
-compressed chunk. Then frees the host buffer, drops everything it held for `s` but the
-compressed chunks, and releases the host, translated and buffer parts of the charge. Queues
-`s` for the disk stage when it compressed; otherwise drops the chunks, releases the
-compressed part and marks `s` landed with the refusal it met, if any. Waits on nothing
-between taking `s` and releasing its parts but the handoff and `BLOSC_LOCK`.
+`after!(CPU(), point)`, translates the host copy by `to_disk!` into the block's translated
+range for `CellIds`, holding it, and compresses the result by `compress_chunks!` through the
+block's chunk buffer into its compressed range, holding the buffer and each compressed chunk.
+Then drops everything it held for `s` but the compressed chunks and releases the host,
+translated and buffer ranges and parts of the charge. Queues `s` for the disk stage when it
+compressed; otherwise drops the chunks, releases the compressed range and part, and marks `s`
+landed with the refusal it met, if any. Waits on nothing between taking `s` and releasing its
+parts but the handoff and `BLOSC_LOCK`, and unregisters no host memory.
 """
 function encode_stage!(w::Writer, s::Submission)
     a = s.admission
@@ -309,21 +544,34 @@ function encode_stage!(w::Writer, s::Submission)
     kept = 0
     refusal = skip ? nothing : stage_refusal(a) do
         after!(CPU(), s.point)
-        disk = to_disk(a.values, reshape(s.host, size(a.data)), a.site)
-        a.values isa CellIds && hold!(w, s, sizeof(disk))
-        chunks = compress_chunks(bytes -> hold!(w, s, bytes), disk, a.per_chunk)
-        kept = sum(sizeof, chunks; init = 0)
+        T = eltype(a.data)
+        shape = size(a.data)
+        source = reshape(s.host, shape)
+        disk = if a.values isa CellIds
+            translated = to_disk!(arena_array(w.arena, translated_range(s), T, shape), a.values, source, a.site)
+            hold!(w, s, sizeof(translated))
+            translated
+        else
+            source
+        end
+        buffer = arena_array(w.arena, buffer_range(s), T, (a.per_chunk, shape[2:end]...))
+        hold!(w, s, sizeof(buffer))
+        out = arena_array(w.arena, compressed_range(s), UInt8, (length(compressed_range(s)),))
+        relative = GC.@preserve w compress_chunks!(bytes -> hold!(w, s, bytes), out, disk, a.per_chunk, buffer)
+        offset = first(compressed_range(s)) - 1
+        chunks = [(first(r) + offset):(last(r) + offset) for r in relative]
+        kept = sum(length, chunks; init = 0)
         @lock w.lock s.chunks = chunks
     end
-    freed = stage_refusal(() -> free_host_buffer!(s.host), a)
-    refusal = refusal === nothing ? freed : refusal
     failed = skip || refusal !== nothing
     @lock w.lock begin
-        failed && (s.chunks = Vector{UInt8}[])
+        failed && (s.chunks = UnitRange{Int}[])
         drop!(w, s, failed ? s.holding : s.holding - kept)
     end
-    encode_part(s.charge) > 0 && release!(w.pool, encode_part(s.charge))
+    release_range!(w.arena, encode_range(s))
+    release!(w.pool, encode_part(s.charge))
     if failed
+        release_range!(w.arena, compressed_range(s))
         release!(w.pool, s.charge.compressed)
         mark_landed!(w, s, refusal)
     else
@@ -336,11 +584,11 @@ end
     write_staged!(staging, admission, chunks)
 
 Writes `admission`'s artifact into the directory `staging`: the `create_array` of its data's
-element type and size under its quantity, each of `chunks` through `Zarr.store_writechunk`
-under the chunk key the array's own chunk key encoding gives its chunk index, and the
-manifest.
+element type and size under its quantity, each of `chunks`, a vector of bytes per chunk,
+through `Zarr.store_writechunk` under the chunk key the array's own chunk key encoding gives
+its chunk index, and the manifest.
 """
-function write_staged!(staging::AbstractString, a::Admission, chunks::Vector{Vector{UInt8}})
+function write_staged!(staging::AbstractString, a::Admission, chunks::AbstractVector)
     shape = size(a.data)
     z = create_array(joinpath(staging, String(a.quantity)), eltype(a.data), shape, a.attributes, a.per_chunk)
     for (c, bytes) in enumerate(chunks)
@@ -355,10 +603,10 @@ end
     disk_stage!(writer, s)
 
 The disk stage for `s`: unless an earlier submission is refused, writes it by
-`write_staged!` into a `new_staging` directory beside its place, removing that directory
-when the write raises. Then drops the compressed chunks it held for `s`, releases the
-compressed part of the charge, appends `s` to the finish record when it was staged, and
-marks it landed with the refusal it met, if any.
+`write_staged!`, each chunk the arena bytes of its range, into a `new_staging` directory beside
+its place, removing that directory when the write raises. Then drops the compressed chunks it
+held for `s`, releases the compressed range and part of the charge, appends `s` to the finish
+record when it was staged, and marks it landed with the refusal it met, if any.
 """
 function disk_stage!(w::Writer, s::Submission)
     a = s.admission
@@ -366,18 +614,19 @@ function disk_stage!(w::Writer, s::Submission)
     staging = nothing
     refusal = skip ? nothing : stage_refusal(a) do
         staging = new_staging(a.dir)
-        write_staged!(staging, a, s.chunks)
+        write_staged!(staging, a, [view(w.arena.bytes, r) for r in s.chunks])
     end
     refusal === nothing || staging === nothing || rm(staging; recursive = true, force = true)
     staged = !skip && refusal === nothing
     @lock w.lock begin
-        s.chunks = Vector{UInt8}[]
+        s.chunks = UnitRange{Int}[]
         drop!(w, s, s.holding)
         if staged
             s.staging = staging
             push!(w.finished, s.index)
         end
     end
+    release_range!(w.arena, compressed_range(s))
     release!(w.pool, s.charge.compressed)
     mark_landed!(w, s, refusal)
     return nothing
@@ -511,24 +760,35 @@ end
 """
     drain!(writer)
 
-Closes `writer` to submissions, settles it, and stops its stages whether the settle
-refused or not: the encode queue closed and its tasks waited for, then the disk queue and
-its tasks, then the pool closed. Raises what `settle!` raises. A second call settles and
-raises nothing further. Refuses a call from a task other than the opener.
+Closes `writer` to submissions, settles it, stops its stages whether the settle refused or
+not, then unregisters its arena through `unregister_arena!` and removes it from
+`OPEN_WRITERS`. Raises what `settle!` raises; otherwise what `unregister_arena!` raises. A
+second call settles and raises nothing further. Refuses a call from a task other than the
+opener.
 """
 function drain!(w::Writer)
     site = "Provenance.drain!"
     require_opener(w, site)
     @lock w.lock w.closed = true
-    try
+    settled = try
         settle!(w)
-    finally
-        stop_stages!(w)
+        nothing
+    catch err
+        err
     end
+    stop_stages!(w)
+    fault = unregister_arena!(w)
+    settled === nothing || throw(settled)
+    fault === nothing || throw(fault)
     return nothing
 end
 
-"Stops `writer`'s stages once: each queue closed and its tasks waited for, then its pool closed."
+"""
+    stop_stages!(writer)
+
+Stops `writer`'s stages once: each queue closed and its tasks waited for, then its pool and its
+arena closed.
+"""
 function stop_stages!(w::Writer)
     w.stopped && return nothing
     close(w.encode_queue)
@@ -536,8 +796,36 @@ function stop_stages!(w::Writer)
     close(w.disk_queue)
     foreach(wait, w.disk_writers)
     close_pool!(w.pool)
+    close_arena!(w.arena)
     w.stopped = true
     return nothing
+end
+
+"""
+    unregister_arena!(writer)
+
+Once for `writer`, with its stages stopped: when its arena is page-locked, calls
+`Backends.complete!(GPU())` on this task and then releases the page lock through
+`Backends.free_host_buffer!`, whether `complete!` refused or not; then removes `writer` from
+`OPEN_WRITERS`. Returns the refusal `complete!` raised, or `nothing`.
+"""
+function unregister_arena!(w::Writer)
+    arena = w.arena
+    arena.unregistered && return nothing
+    fault = nothing
+    if arena.pinned
+        fault = try
+            complete!(GPU())
+            nothing
+        catch err
+            err isa Refusal || rethrow()
+            err
+        end
+        free_host_buffer!(arena.bytes)
+    end
+    arena.unregistered = true
+    @lock OPEN_WRITERS_LOCK filter!(x -> x !== w, OPEN_WRITERS)
+    return fault
 end
 
 "The indices of `writer`'s submissions in the order its disk stage finished them."

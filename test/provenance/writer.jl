@@ -721,6 +721,67 @@ end
     end
 end
 
+@testset "the writer's arena serves a request that fits its free bytes once the placed ranges return" begin
+    arena = Provenance.open_arena(64)
+    place(n) = @lock arena.condition Provenance.try_place!(arena, n)
+    r1, r2, r3, r4 = place(16), place(16), place(16), place(16)
+    @test (r1, r2, r3, r4) == (1:16, 17:32, 33:48, 49:64)
+    @test Provenance.free_ranges(arena) == UnitRange{Int}[]
+
+    @testset "fragmented free bytes that sum to a request do not place it" begin
+        Provenance.release_range!(arena, r1)
+        Provenance.release_range!(arena, r3)
+        @test Provenance.free_ranges(arena) == [1:16, 33:48]
+        @test sum(length, Provenance.free_ranges(arena)) == 32
+        @test place(32) === nothing
+    end
+
+    @testset "a release merges with the free ranges it adjoins" begin
+        Provenance.release_range!(arena, r2)
+        @test Provenance.free_ranges(arena) == [1:48]
+        @test place(32) == 1:32
+    end
+
+    served = Ref(false)
+    @testset "a waiting request is served once the placed ranges return" begin
+        started = Channel{Bool}(1)
+        waiter = Threads.@spawn begin
+            put!(started, true)
+            try
+                Provenance.place!(arena, 64)
+            catch err
+                err
+            end
+        end
+        take!(started)
+        Provenance.release_range!(arena, 1:32)
+        Provenance.release_range!(arena, r4)
+        served[] = timedwait(() -> istaskdone(waiter), WRITER_BOUND) === :ok
+        @test served[]
+        served[] || Provenance.close_arena!(arena)
+        @test fetch(waiter) == 1:64
+        if served[]
+            Provenance.release_range!(arena, 1:64)
+            @test Provenance.free_ranges(arena) == [1:64]
+        end
+    end
+
+    if served[]
+        @testset "positive control: a range released twice is refused as overlapping a free range" begin
+            e = ST.caught(() -> Provenance.release_range!(arena, 17:32))
+            @test ST.refused(e, "range", "overlaps the free range 1:64")
+        end
+
+        @testset "a closed arena refuses a waiting request" begin
+            Provenance.place!(arena, 64)
+            waiter = Threads.@spawn ST.caught(() -> Provenance.place!(arena, 8))
+            Provenance.close_arena!(arena)
+            @test ST.refused(fetch(waiter), "arena", "closed")
+        end
+    end
+    arena.pinned && Backends.free_host_buffer!(arena.bytes)
+end
+
 @testset "a writer with no submissions settles and drains at once" begin
     mktempdir() do dir
         store, run, _ = ST.seeded(dir)

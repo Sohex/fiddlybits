@@ -433,21 +433,31 @@ require_cell_type(site, T) = (T <: Integer && T !== Bool) ||
     to_disk(values, host, site)
 
 The array written to disk for the host array `host` holding `values`: `host` itself for
-`Amounts`; for `CellIds`, each entry `i` replaced by `Mesh.disk_id(i).value`, refusing at
-`site` an element type that is not an integer and an entry outside the cells of the level.
+`Amounts`; for `CellIds`, `to_disk!` into a new array `similar` to `host`.
 """
 to_disk(::Amounts, host::AbstractArray, site::AbstractString) = host
 
-function to_disk(c::CellIds, host::AbstractArray, site::AbstractString)
+to_disk(c::CellIds, host::AbstractArray, site::AbstractString) = to_disk!(similar(host), c, host, site)
+
+"""
+    to_disk!(dest, values::CellIds, host, site)
+
+`dest`, an array of the element type and size of `host`, holding each entry `i` of `host`
+replaced by `Mesh.disk_id(i).value`. Refuses at `site` an element type that is not an integer,
+a `dest` of another element type or size, and an entry outside the cells of the level.
+"""
+function to_disk!(dest::AbstractArray, c::CellIds, host::AbstractArray, site::AbstractString)
     require_cell_type(site, eltype(host))
+    (eltype(dest) === eltype(host) && size(dest) == size(host)) || refuse(
+        "values", site, "a destination of $(eltype(dest)) and size $(size(dest)) for cell ids of " *
+        "$(eltype(host)) and size $(size(host))")
     n = Mesh.ncells(c.level)
-    disk = similar(host)
     for i in eachindex(host)
         1 <= host[i] <= n || refuse("values", site,
                                     "entry $(i) holds $(host[i]), outside the $(n) cells of level $(c.level)")
-        disk[i] = Mesh.disk_id(host[i]).value
+        dest[i] = Mesh.disk_id(host[i]).value
     end
-    return disk
+    return dest
 end
 
 """
