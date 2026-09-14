@@ -1,9 +1,9 @@
 +++
 epic = "fiddlybits-52v.6"
 title = "Content-addressed artifacts, the Zarr store with TOML manifests, the counter-based generator, and the inert run journal"
-decisions = ["0008", "0010", "0014", "0027", "0029", "0036", "0038", "0042", "0046"]
-requirements = ["REQ-TER-002", "REQ-SYS-002", "REQ-SYS-003", "REQ-SYS-103", "REQ-PROV-002", "REQ-NUM-001"]
-oracles = ["provenance.key_stability", "provenance.store_refuses_incomplete", "provenance.index_roundtrip", "provenance.journal_is_inert", "provenance.event_vocabulary_closed", "repro.stochastic_identity", "provenance.pooled_write_is_reference", "provenance.write_order_independent", "provenance.write_ceiling_held"]
+decisions = ["0005", "0006", "0008", "0010", "0014", "0027", "0029", "0036", "0038", "0042", "0046"]
+requirements = ["REQ-TER-002", "REQ-TER-010", "REQ-TER-011", "REQ-SYS-002", "REQ-SYS-003", "REQ-SYS-103", "REQ-PROV-002", "REQ-NUM-001"]
+oracles = ["provenance.key_stability", "provenance.store_refuses_incomplete", "provenance.index_roundtrip", "provenance.support_geometry_held", "provenance.journal_is_inert", "provenance.event_vocabulary_closed", "repro.stochastic_identity", "provenance.pooled_write_is_reference", "provenance.write_order_independent", "provenance.write_ceiling_held"]
 status = "filed"
 date = 2026-09-10
 +++
@@ -31,7 +31,7 @@ disposability.
 | path | holds | row |
 | --- | --- | --- |
 | `src/Provenance/key.jl` | `ArtifactKey`, `CodeVersion` with its dirty flag, `RunID` | 52v.6.2, 52v.6.16 |
-| `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal, the admission `put_field!` and `submit!` share, the `interval` keyword | 52v.6.3, 52v.6.29, 52v.6.26 |
+| `src/Provenance/store.jl` | the Zarr store, TOML manifests, the attribute refusal, the admission `put_field!` and `submit!` share, the `interval` keyword, `SUPPORT_ARRAYS`, `read_geometry`, `ElementIds`, `elements_per_chunk`, the `location` attribute | 52v.6.3, 52v.6.29, 52v.6.26, 52v.3.26, 52v.6.35 |
 | `src/Provenance/writer.jl` | `Writer`, `open_writer`, `submit!`, `settle!`, `drain!` | 52v.6.26 |
 | `src/Provenance/run.jl` | the run door, which empties the move tally and closes with it, opens the writer, settles it at the declared cadence and drains it | 52v.6.17, 52v.6.11, 52v.6.27, 52v.6.31 |
 | `src/Backends/pool.jl` | `BytePool`, `charge!`, `release!` | 52v.6.23 |
@@ -40,8 +40,8 @@ disposability.
 | `src/Provenance/rng.jl` | the counter-based generator | 52v.6.5 |
 | `src/Events/` | the closed vocabulary, the typed payloads, `emit` with its no-op sink, `moved` | 52v.6.8 |
 | `src/Provenance/journal.jl` | the sink that appends to the file, the path constant, installing the sink | 52v.6.7 |
-| `src/Render/export.jl` | NetCDF export with declared geometry, and nothing else | 52v.6.3 |
-| `test/provenance/` | one suite per row, including `key_stability.jl` | 52v.6.2 to 52v.6.7 |
+| `src/Render/export.jl` | NetCDF export with declared geometry, the mesh topology variable and `UGRID_LOCATION`, and nothing else | 52v.6.3, 52v.6.36 |
+| `test/provenance/` | one suite per row, including `key_stability.jl` and `support_geometry.jl` | 52v.6.2 to 52v.6.7, 52v.6.35 |
 | `test/io/` | `index_roundtrip.jl`, which `docs/imports/zarr.md` names | 52v.6.3 |
 
 `Provenance` references `Fields`, `Mesh`, `Systems`, `Time`, `Coupling` for `Ladder`,
@@ -118,12 +118,14 @@ code version and run id. Runs under their UUID with the plan they produced and t
 system struct they used. Mesh geometry per level lives once under its support id and
 is pointed at, never copied, by every artifact on it.
 
-Arrays are Zarr version 2, chunked by hierarchy ranges so a chunk is a contiguous cell
-range at a declared coarse level, which is the same contiguity the hierarchy numbering
-gives the reductions. Every array carries its support id, semantics, time semantics,
-dimension, owner and interval as attributes, **and the store refuses to open an array
-missing any of them**. That refusal is the requirement REQ-TER-002 states, and it is
-what stops an array from being read as something it is not.
+Arrays are Zarr version 2, chunked along their first axis so a chunk of a cell array is
+a contiguous cell range at a declared coarse level, which is the same contiguity the
+hierarchy numbering gives the reductions, and a chunk of a vertex or edge array is a
+contiguous index range of the count given below. Every array carries its support id,
+semantics, time semantics, dimension, owner, interval and location as attributes, **and
+the store refuses to open an array missing any of them**. That refusal is the
+requirement REQ-TER-002 states, and it is what stops an array from being read as
+something it is not.
 
 The store also refuses a field whose ledger is open, which is the other half of the
 fields plan's ledger contract.
@@ -136,14 +138,157 @@ record. An integer of at most 32 bits, signed or unsigned, still becomes an `Int
 which holds every such value without loss; only `UInt64` needs its own form, because it
 is the one width whose range exceeds `Int64`'s.
 
-Cell indices are 0-based on disk and 1-based in memory, translated at the disk
-boundary by `CellId`. `test/io/index_roundtrip.jl` is the leak test
-`docs/imports/zarr.md` names: a known index field written and read back.
+Indices of cells, vertices and edges are 0-based on disk and 1-based in memory,
+translated at the disk boundary through `Mesh.disk_id` and `Mesh.memory_index`, the
+doors of `CellId`. `ElementIds(; location, level)` is the values form of an array whose
+entries index one location's elements at one level, refused outside
+`1:Mesh.element_count(location, level)`; it replaces `CellIds`, which was that form at
+cells. `test/io/index_roundtrip.jl` is the leak test `docs/imports/zarr.md` names: known
+fields of cell, vertex and edge ids written and read back.
 
-NetCDF is a rendering for export only, written with the geometry declared in the file
-(the radius, the cell boundaries, the weight an integrator needs), so no reader can
-substitute Earth's without saying so. It lives in `Render` because it is a rendering,
-and `lint_calendar` already refuses a date type reaching it.
+**A support holds its geometry and its topology once, under its support id.**
+`put_support!(store; support, level, chunk_level)` builds `Mesh.stencils(level)` and
+`Mesh.geometry(level, stencils)` through the one constructor of each, refuses a level
+whose coordinates, or whose measures at the support's radius, are not the ones the
+support's digests cover, and holds every array of the table below under
+`supports/<digest>/<name>/`. The caller hands in the level and nothing else that reaches
+an array, so the arrays under a support id are what the mesh constructors give for the
+coordinates that id covers. The table is `Provenance.SUPPORT_ARRAYS`, the one list of what
+a support entry holds; `read_geometry(store; support, name, backend)` reads any array of
+it and refuses a name the table does not hold, and `read_cell_area` goes, its callers
+reading `cell_area` through it.
+
+| name | location | element type | axes | semantics | dimension | values | from |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `cell_area` | `Cells` | `Float64` | cells | `Extensive` | length squared | amounts | `geometry.cell_area` through `Mesh.at_radius`, power two |
+| `dual_area` | `Vertices` | `Float64` | vertices | `Extensive` | length squared | amounts | `geometry.dual_area` through `Mesh.at_radius`, power two |
+| `primal_edge_length` | `Edges` | `Float64` | edges | `Extensive` | length | amounts | `geometry.primal_edge_length` through `Mesh.at_radius`, power one |
+| `dual_edge_length` | `Edges` | `Float64` | edges | `Extensive` | length | amounts | `geometry.dual_edge_length` through `Mesh.at_radius`, power one |
+| `vertex_coordinates` | `Vertices` | `Float64` | vertices, component | `VectorComponent{:cartesian}` | dimensionless | amounts | `level.vertices` promoted to `Float64`, on the unit sphere |
+| `dual_vertex` | `Cells` | `Float64` | cells, component | `VectorComponent{:cartesian}` | dimensionless | amounts | `geometry.dual_vertex`, each cell's circumcentre |
+| `edge_midpoint` | `Edges` | `Float64` | edges, component | `VectorComponent{:cartesian}` | dimensionless | amounts | `geometry.edge_midpoint` |
+| `edge_normal` | `Edges` | `Float64` | edges, component | `VectorComponent{:cartesian}` | dimensionless | amounts | `geometry.edge_normal`, from `edge_cells[e, 1]` toward `edge_cells[e, 2]` |
+| `cell_vertices` | `Cells` | `Int32` | cells, corner | `Intensive` | dimensionless | `ElementIds` of `Vertices` | `level.cells`, counterclockwise seen from outside |
+| `cell_edges` | `Cells` | `Int32` | cells, corner | `Intensive` | dimensionless | `ElementIds` of `Edges` | `stencils.cell_edge`, local edge `k` opposite corner `k` |
+| `edge_cells` | `Edges` | `Int32` | edges, pair | `Intensive` | dimensionless | `ElementIds` of `Cells` | `stencils.edge_cell`, the creating cell first |
+| `edge_vertices` | `Edges` | `Int32` | edges, pair | `Intensive` | dimensionless | `ElementIds` of `Vertices` | `Mesh.edge_vertices(level, stencils)` |
+
+Every array's owner is `mesh_geometry`, its time semantics `Static` and its placement
+none; its axes are named by `Mesh.axis_name` of its location and by Mesh's
+`COMPONENT_AXIS`, `CORNER_AXIS` and `PAIR_AXIS` (the mesh plan, section Locations). The
+four measures are held at the support's radius because the support digest covers them at
+that radius, so the bytes under a support id are the values its identity names.
+Coordinates, dual vertices, midpoints and normals are held on the unit sphere, as the
+coordinate digest covers them, because a radius multiplied into a stored direction is the
+stored radius the mesh plan refuses. Every array is written element axis first, the
+layout of every stored array: `Mesh` holds its matrices component first, and
+`put_support!` permutes each once at the write. The index tables are dimensionless
+`Intensive` arrays of `ElementIds`, the form every index field takes.
+
+Two things are not held. The neighbour tables of `Stencils` (`edge_neighbour`,
+`vertex_neighbour`, `vertex_weight`) are set relations over `cell_vertices`, `cell_edges`
+and `edge_cells`, and a kernel reads them from `Mesh.stencils` in the run, never from the
+store. And `Mesh` builds no geometry for the leaves of a `RefinedMesh`: a support's arrays
+are those of its level, which is what its digests cover, and a refined mesh's own
+geometry, when the mesh builds one, enters this table under the same location rule.
+
+Three routes lost.
+
+- Rebuilding every array beyond `cell_area` from the manifest's declaration through
+  `Mesh.hierarchy` and `Mesh.geometry`, held to the support digest, as
+  `Render.read_netcdf` rebuilds a support. It holds nothing twice and loses three ways: a
+  store outlives the code that wrote it, and once `GEOMETRY_CONSTRUCTOR_VERSION` moves the
+  declaration rebuilds another support, so every artifact under the old id loses its
+  geometry; a support with refinement regions or fractions has no declaration a reader can
+  rebuild from, which is why `read_netcdf` refuses one; and the container is
+  language-neutral (decision 0010) where the rebuild is a Julia call, so a reader outside
+  the package would carry a second definition of every measure.
+- Holding the measures the digest covers and rebuilding the directions and the tables. It
+  keeps all three losses for the arrays it does not hold.
+- `put_support!` taking the geometry from its caller. The digests cover the coordinates
+  and the four measures and not the directions or the tables, so a geometry whose
+  measures agree and whose normals do not would be held under the id; building both
+  inside the call leaves no such case.
+
+**Where an array's values sit is a seventh required attribute, `location`.** Every stored
+array carries `location`, the name of its `Mesh.Location` type (`Cells`, `Vertices` or
+`Edges`), beside the six, built by `array_attributes` with them, and the store refuses to
+open an array missing it, naming it. A field's location is on its type (the fields plan,
+section Location), and a write declares the location of its quantity (the coupling plan,
+section Exchanges), so `put_field!` and `submit!` write `Fields.location(field)` and
+refuse a field whose location is not its write's, naming both, as the semantics is
+already refused. `read_field` takes `location` as a required keyword, compares it before
+the other attributes, and refuses a manifest attribute or an array attribute that
+differs, naming `location`; the field it returns carries the location on its type.
+
+Four routes lost.
+
+- Folding the location into `support_id`, one support per location. Every key names its
+  support (decision 0010), so one mesh's identity would split three ways, every key would
+  move with it, and one level's geometry would sit under three ids where decision 0010
+  holds it once; a cell field and an edge field on one mesh would read as fields on two
+  meshes.
+- Folding it into `semantics`, `VectorComponent{:edge_normal}` standing for edges. The
+  location is not a function of the semantics: the dual area is `Extensive` at vertices,
+  an edge length `Extensive` at edges, and the triangle C-grid holds vorticity on the dual
+  around vertices (REQ-TER-011), so one semantics name would have to carry two things.
+- Folding it into the axis names `_ARRAY_DIMENSIONS` records. That attribute is written
+  from the layout and is not among the required attributes, so an array missing it is
+  not refused by name; the first axis name is written from the location instead, a record
+  of it rather than a second definition.
+- Inferring it from the element count. `ncells`, `nvertices` and `nedges` differ at every
+  level, so a count does name a location, but it is shape standing for identity, which
+  decision 0006 refuses, and a count cannot be refused as absent.
+
+**A vertex or edge array is chunked by index range.** Only cells nest by range (the mesh
+plan, section Locations): a level's vertices are a prefix of every finer level's, and the
+edges a range of cells created are contiguous in number and vary in count from one
+coarse cell to the next. A Zarr version 2 array has one chunk extent per axis, the last
+chunk short (`MetadataV2` holds `chunks::NTuple{N, Int}`, Zarr.jl 0.10.2,
+`src/metadata.jl` line 114), so no chunk can be the elements a coarse cell owns. Every
+array is chunked along its first axis in contiguous index ranges of
+
+```
+elements_per_chunk(location, level, chunk_level) =
+    cld(Mesh.element_count(location, level), Mesh.ncells(chunk_level))
+```
+
+elements, from the `chunk_level` keyword a cell array already takes, and the manifest's
+`elements_per_chunk` replaces `cells_per_chunk`. At cells the division is exact and a
+chunk is the descendants of one cell of `chunk_level`, the hierarchy range. At vertices
+and edges a chunk is an index range and nothing reads it as more: no reduction runs over
+vertices or edges (the fields plan refuses `coarsen` and `refine` there), and the
+writer's stages need only that chunks are disjoint. Two routes lost: renumbering vertices
+and edges on disk so each coarse cell's are contiguous and of one count, which is a second
+numbering with a permutation at the boundary, a translation layer; and one chunk per
+array, which hands the writer's encode stage one item the size of the whole array under
+one charge, against decision 0038.
+
+**The export declares its mesh.** NetCDF is a rendering for export only, written with the
+geometry declared in the file (the radius, the cell boundaries, the weight an integrator
+needs), so no reader can substitute Earth's without saying so. It lives in `Render`
+because it is a rendering, and `lint_calendar` already refuses a date type reaching it.
+The file declares the mesh as a mesh topology variable of the CF conventions, which
+incorporate UGRID 1.0 (Eaton et al. 2025, CF Metadata Conventions 1.13, section 1.6,
+p. 15, and section 5.9 with Example 5.21, pp. 75-76), and each field's location through
+its `mesh` and `location` attributes (Table K.1, pp. 249-250, which also gives
+`start_index` and the 0-based default for connectivity). `Render.UGRID_LOCATION` is the
+one table from `Cells`, `Vertices` and `Edges` to the convention's `face`, `node` and
+`edge`, read in both directions. Every file holds the whole topology (`cell_vertices`,
+`cell_edges`, `edge_vertices` and `edge_cells`, 0-based with `start_index = 0`, the disk
+base of decision 0010) and every location's coordinates and measures, whatever the
+field's location, so one reader and one comparison serve every file. Cells keep their
+latitude and longitude. Vertices and edges declare their unit positions as three
+Cartesian components each, in the coordinates the file's `spin_axis` and
+`prime_meridian` are declared in: from level one a vertex sits on each pole, and at level
+zero an edge midpoint lies on the spin axis (decision 0005), where longitude has no value
+and `Mesh.longitude` refuses. A field at cells names `cell_area` as its cell measure and
+one at vertices `dual_area`; one at edges names none, because CF's cell measure is an
+area or a volume and an edge carries two lengths, neither the measure of every integral
+over edges (REQ-TER-011). `read_netcdf(path; name, location)` rebuilds the support from
+the declaration as before, compares every topology, coordinate and measure variable with
+the rebuild, and refuses a field variable whose `location` is not the convention's name
+for the location read, naming `location`.
 
 `put_field!` writes an artifact inline. It is the reference path of the writer below,
 which is how a run writes.
@@ -420,8 +565,9 @@ each registered by the row that builds it.
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |
 | `provenance.key_stability` | the key of one artifact is identical across machines and across a print-and-reparse of every float in the declared subsets and the interval; two intervals, two values at a declared profile path, or two reads of one input give two keys | a hash taken over printed decimal rather than IEEE bit patterns, which a round trip through text must move; the interval, or the profile subset, left out of the key, which two intervals, or two fast precisions, must expose |
-| `provenance.store_refuses_incomplete` | the store refuses an array missing any of support id, semantics, time semantics, dimension, owner or interval, and refuses a field whose ledger is open | each attribute dropped in turn, every one of which must refuse; and a dirty code version writing a keyed artifact, which must refuse |
-| `provenance.index_roundtrip` | a known index field written 0-based and read back 1-based is unchanged | an off-by-one at the disk boundary, which the known field must expose rather than a symmetric error hiding |
+| `provenance.store_refuses_incomplete` | the store refuses an array missing any of support id, semantics, time semantics, dimension, owner, interval or location, on a field array and on a support array at each location; refuses a field whose ledger is open; and refuses a read under a location other than the array's, naming `location` | each attribute dropped in turn, every one of which must refuse; a dirty code version writing a keyed artifact, which must refuse; and the same read under the array's own location, which must return the field, since a read that refuses every location is not a check |
+| `provenance.index_roundtrip` | known fields of cell, vertex and edge ids written 0-based and read back 1-based are unchanged | an off-by-one at the disk boundary, which each known field must expose rather than a symmetric error hiding |
+| `provenance.support_geometry_held` | every array of `SUPPORT_ARRAYS` read back through `read_geometry` is bitwise the Mesh array it is named for, each measure through `Mesh.at_radius` at the support's radius, each index table translated from disk, each element axis first; every array's location, semantics and dimension are the table's | `primal_edge_length` and `dual_edge_length` written under each other's names, which share location, semantics, dimension and size, so only the element comparison exposes them; `cell_vertices` written without the 0-based translation |
 | `provenance.pooled_write_is_reference` | fields of amounts and of cell ids, in several element types and chunk levels, on `CPU` and on the card, submitted and drained into one store and put through `put_field!` into another: the two trees hold the same paths and byte-identical files | chunks compressed at another level; two chunks written under each other's chunk keys, which a comparison of decoded totals would pass; the host copy deferred to the encode stage while the component overwrites its array after submission, which lands the overwrite |
 | `provenance.write_order_independent` | submissions of unequal size, so that later small ones finish before earlier large ones, drained at `store_writers` of one and of more: byte-identical trees, each equal to the reference path's; and with a rename collided and a cell id outside its level injected, exactly the submissions before the earliest refused one stored, no staging directory left, and `settle!` naming that write | the commit renaming in finish order, which stores a later submission; the manifest recording the finish order; an arm whose finish record shows no later submission finishing first fails rather than passes |
 | `provenance.write_ceiling_held` | a burst of submissions whose charges sum far above the ceiling, with the disk stage behind the submitter: the pool's high water and the host buffer bytes alive never exceed `write_ceiling`; a charge above the ceiling refused at once, naming both counts | a submission that takes no charge, whose host bytes exceed the ceiling; the oversize check removed, which leaves the submitting task waiting on an idle writer |
@@ -452,6 +598,8 @@ inert record that nonetheless entered a key would not be inert.
 | 52v.6.27 | sonnet | `src/Provenance/run.jl`, `test/provenance/run.jl` | a run refused after its submissions leaves them stored and rethrows the component's refusal; a refused drain is journalled; the door is the only caller of `open_writer` |
 | 52v.6.30 | sonnet | `src/Systems/profile.jl`, the profile construction sites in `test/`, the Amendments section of decision 0014 | `settle_interval` refuses absent, zero and below, a `Closure` disposition, a dimension other than time and an `Absent`; `fast_profile` and `full_profile` require it; `strip` carries it; `provenance.key_stability` passes; each control fires |
 | 52v.6.31 | sonnet | `src/Provenance/run.jl`, `test/provenance/run.jl` | `end_step!` raises a late refusal at the end of the first step reaching the next multiple of `settle_interval` since the run epoch and not before, journalled under that step's header, with later submissions absent; a step ending exactly on a multiple settles; a continued run settles on the epoch grid; each control fires |
+| 52v.6.35 | sonnet | `src/Provenance/store.jl`, `src/Provenance/writer.jl`, `test/provenance/store.jl`, `test/provenance/writer.jl`, `test/provenance/support_geometry.jl` and its include, `test/io/store_fixtures.jl`, `test/io/index_roundtrip.jl`, the grid or mesh and index base rows of `docs/imports/zarr.md`, the Amendments section of decision 0010 | `provenance.store_refuses_incomplete` passes with the seven attributes dropped in turn on a field array and a support array of each location, and a read under another location refused naming `location` while the read under its own returns the field; `provenance.index_roundtrip` passes on cell, vertex and edge ids; `provenance.support_geometry_held` passes with both controls firing; a vertex and an edge field store and read back with a short last chunk; `provenance.pooled_write_is_reference` and `provenance.write_order_independent` pass with an edge field among the submissions |
+| 52v.6.36 | sonnet | `src/Render/export.jl`, `test/io/netcdf_export.jl`, the grid or mesh row of `docs/imports/ncdatasets.md`, the eaton2025 row of `docs/references/INDEX.md` | a field at each location is written and read back under its own; a read under either other location refuses naming `location`; each topology, coordinate and measure variable altered in one element refuses naming it; connectivity written 1-based under `start_index = 0` refuses; the `mesh` variable with each attribute dropped refuses naming it; `build.import_record_completeness` passes |
 | 52v.6.6 | sonnet | none; reports only | every oracle this plan's front matter names ran; verdicts by name |
 
 52v.6.16 depends on nothing unmerged and blocks 52v.6.4 and 52v.6.6; 52v.4.19 and
@@ -464,7 +612,13 @@ interval check lands in `write_field!` before 52v.6.26 splits it into the admiss
 doors share, so `submit!` inherits the keyword with the rest of `put_field!`'s, rather
 than a small change to the store waiting on the host copy 52v.6.26 waits on and then
 reaching into the writer's tests. 52v.6.30 depends on 52v.6.25, and 52v.6.31 depends on
-52v.6.30, 52v.6.26, 52v.6.27 and 52v.6.11. 52v.6.6 depends on 52v.6.23 to 52v.6.27 and
-on 52v.6.29 to 52v.6.31. The area
+52v.6.30, 52v.6.26, 52v.6.27 and 52v.6.11. 52v.6.35 depends on `fiddlybits-52v.2.20`
+for `Mesh.Location` and `edge_vertices`, on `fiddlybits-52v.3.26` for the location on the
+field's type, on `fiddlybits-52v.11.7` for the location on the write, and on 52v.6.26 and
+52v.6.29: it renames forms the writer's stages use and extends the admission both doors
+share, so it lands on the store as those two left it rather than 52v.6.26 being rebuilt
+over it. 52v.6.36 depends on `fiddlybits-52v.2.20` and `fiddlybits-52v.3.26` and on
+nothing in the store. 52v.6.6 depends on 52v.6.23 to 52v.6.27, on 52v.6.29 to 52v.6.31,
+and on 52v.6.35 and 52v.6.36. The area
 depends on the fields plan for the ledger and on the system plan for the declared
 parameter subset.
