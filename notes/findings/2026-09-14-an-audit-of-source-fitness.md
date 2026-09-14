@@ -56,19 +56,19 @@ another record, and a fixture identifier that claims no source are not counted.
 | scope | citations | fit | not fit | not verified |
 | --- | --- | --- | --- | --- |
 | R1 registry, tier 1 build to bio | 57 | 34 | 23 | 0 |
-| R2 registry, fire to earth.fluxnet_gpp | 57 | 20 | 34 | 3 |
+| R2 registry, fire to earth.fluxnet_gpp | 57 | 21 | 34 | 2 |
 | R3 registry, earth.snow_cover_extent to the end | 68 | 38 | 30 | 0 |
-| registry total | 182 | 92 | 87 | 3 |
+| registry total | 182 | 93 | 87 | 2 |
 | S src and test (with test/planets on 52v.4.5) | 43 | 21 | 22 | 0 |
-| D1 decisions 0001-0030 | 91 | 74 | 12 | 5 |
-| D2 decisions 0031 onward | 72 | 62 | 9 | 1 |
-| decisions total | 163 | 136 | 21 | 6 |
+| D1 decisions 0001-0030 | 91 | 76 | 14 | 1 |
+| D2 decisions 0031 onward | 72 | 62 | 10 | 0 |
+| decisions total | 163 | 138 | 24 | 1 |
 | Q1 requirements atm, cry | 77 | 57 | 18 | 2 |
 | Q2 requirements bio | 103 | 86 | 16 | 1 |
 | Q3 requirements hyd, ocn | 81 | 65 | 16 | 0 |
-| Q4 requirements num, prov, sys, proc | 165 | 157 | 6 | 2 |
-| Q5 requirements ped, ter | 104 | 83 | 18 | 3 |
-| requirements total | 530 | 448 | 74 | 8 |
+| Q4 requirements num, prov, sys, proc | 165 | 159 | 6 | 0 |
+| Q5 requirements ped, ter | 104 | 83 | 20 | 1 |
+| requirements total | 530 | 450 | 76 | 4 |
 | I imports | 140 | 134 | 6 | 0 |
 | P plans | 19 | 5 | 14 | 0 |
 | X1 INDEX read rows, lines 27-129 (rows and uses) | 108 | 90 | 18 | 0 |
@@ -192,7 +192,40 @@ Every row of `docs/references/INDEX.md` with status held or read and a filename 
 
 Nothing checks that a held or read row's file exists. `INDEX.md` is edited by the open branch
 `fiddlybits-k6b`, so the rows are not changed here: `fiddlybits-f1x` moves them to requested, lists
-them for the user, and adds the lint with a dirty and a clean fixture.
+them for the user, and adds the lint with a dirty and a clean fixture. The user then supplied
+Iverson 2012 and Chadwick et al. 2003, which are now on disk under the filenames their rows name
+and read (next section), so two rows remain for `fiddlybits-f1x`: Pacala 1993 and Hickler 2011.
+
+## Papers supplied by the user and read
+
+The user put every paper of the fetch-failure and paywalled lists into a requests folder on
+2026-09-14, except "Biochemical Models of Leaf Photosynthesis", which stays requested. Each was
+copied into `references/pdf`, identified by its first pages, read for the use this file names, and
+indexed as read in `docs/references/INDEX.md` (none was listed in `REQUESTS.md`). The counts table
+above includes these verdicts; where an appendix row says NOT VERIFIED for one of these papers,
+this section holds.
+
+| paper | use | verdict | evidence and locator | carried by |
+| --- | --- | --- | --- | --- |
+| Huber et al. 2009, "New International Formulation for the Viscosity of H2O", 10.1063/1.3088050 | decision 0017 pure-water viscosity; decision 0015 settling; system.gas_mixture_properties water component | FIT | viscosity as zero-density, residual and critical-enhancement factors, eq. 2 p.104, eqs. 11-12 pp.109-111, eqs. 21-30 p.112; "a correlating equation for the viscosity of water for fluid states up to 1173 K and 1000 MPa with uncertainties from less than 1% to 7%" (abstract p.101); range eq. 39 p.120, densities from IAPWS-95; zero-density term covers the vapour, no mixing rule | fiddlybits-tr8 (the value can become Sourced), fiddlybits-5r5 |
+| Huber et al. 2012, "New International Formulation for the Thermal Conductivity of H2O", 10.1063/1.4738955 | decision 0017 pure-water conductivity; system.gas_mixture_properties water component | FIT | eq. 2 p.033102-4, eqs. 4, 5, 13 pp.033102-7 to -9 (eq. 13 reads the IAPWS 2008 viscosity); 273.16-1173.15 K to 1000 MPa, eq. 23 p.033102-13; uncertainty below 1% to 6% (abstract) | fiddlybits-tr8 (Sourced), fiddlybits-5r5 |
+| Mason and Saxena 1958, "Approximate Formula for the Thermal Conductivity of Gas Mixtures", 10.1063/1.1724352 | REQ-ATM-017 item 2 conductivity mixing rule; the CO2 and H2-He instances | FIT for nonpolar mixtures; NOT FIT (C3) for a mixture holding water vapour and unverified for H2-He | eqs. 20-21 with the factor 1.065, p.364; 3.8% average, 15.1% maximum for polyatomic mixtures, p.366; tested H2-CO2, N2-CO2 and others, no H2-He pair; "mixtures involving polar gases are therefore excluded from the present treatment" (p.365) | fiddlybits-b7w, fiddlybits-5r5 |
+| Baranov 2016, "On the significant enhancement of the continuum-collision induced absorption in H2O+CO2 mixtures", 10.1016/j.jqsrt.2016.02.017 | decision 0016 high end, twenty times the water-nitrogen continuum | FIT, with a range | "in the region around 1100 cm-1, the continuum absorption coefficient C H2O+CO2 is about 20 times stronger than the water-nitrogen continuum absorption coefficient" (abstract p.100); 375:20:1 at 1128.6 cm-1 (p.103) but 122:15:1 at 2806 cm-1 (p.104); measured at 294-339 K over 1100-1310 and 2500-3268 cm-1 (Figs. 4-5) | fiddlybits-tr8 (Sourced over the measured range, Bracketed outside it; 15 near 2800 cm-1) |
+| Bahr, Pfeffer and Kaser 2015, "A review of volume-area scaling of glaciers", 10.1002/2014rg000470 | decision 0020 and REQ-CRY-003: the exponent; a source for the coefficient | FIT for the exponent; NOT FIT (C2, C5) as a source of the coefficient | exponent 1.375 (glaciers) and 1.25 (ice caps) "completely determined by the physics, up to the choice of a single closure condition" (section 8.1); "the scaling parameter c should not be treated as a constant" (section 8.2); the only value, a glacier mean 0.034 km^(3-2 gamma), is quoted from Bahr 1997a (section 8.5); no ice-cap value | fiddlybits-b7w (coefficient stays Bracketed pending Bahr 1997a; the review's one closure condition against the amendment's four closure exponents) |
+| Iverson 2012, "A theory of glacial quarrying for landscape evolution models", 10.1130/G33079.1 | decision 0015 and REQ-TER-013: the quarrying end of the effective-pressure exponent | NOT FIT (C2) | a mechanistic rate, eqs. 2-5 pp.679-680, with no power-law exponent in effective pressure; erosion smaller at lower effective pressure in heterogeneous rock (Fig. 4) with a low-pressure peak for homogeneous steps (Fig. 5); it supplies the sliding-speed exponent 0.39-1.98 (p.681, Fig. 3) | fiddlybits-tr8, fiddlybits-1us, fiddlybits-f1x |
+| Stein and Stein 1992, "A model for the global variation in oceanic depth and heat flow with lithospheric age", 10.1038/359123a0 | decision 0015: GDH1 as the Earth tier-2 report | FIT | "a 95-km-thick plate, with a basal temperature of 1,450 C, coefficient of thermal expansion 3.1 x 10^-5 K^-1" (p.125); depth and heat-flow forms with uncertainties, p.126; North Pacific and Northwest Atlantic data (Fig. 1) | fiddlybits-tr8 |
+| Pelletier et al. 2016, "A gridded global data set of soil, intact regolith, and sedimentary deposit thicknesses for regional and global land surface modeling", 10.1002/2015MS000526 | earth.soilgrids_ph_by_zone, regolith depth distribution (report) | FIT, the entry to name its grid | six 30 arcsec products (pp.41-42); capped at 50 m (p.44); "less confidence in our ability to estimate regolith thickness than we have for any other variable" (p.49) | fiddlybits-pi4 |
+| Berner 1994, "GEOCARB II: A revised model of atmospheric CO2 over Phanerozoic time", 10.2475/ajs.294.1.56 | REQ-PED-005 and REQ-TER-008: the 0.65 runoff exponent, attributed to WHAK and fitted by Dunne and Peters against runoff; its published uncertainty | FIT as the origin of 0.65; NOT FIT for the attribution and the uncertainty | h = kR^0.65 from a regolith model matched to C = k'''R^-0.35 (eqs. 19, 24, pp.64-65), applied to silicate weathering, p.69; the Peters relation is Berner's own derivation from Peters' data (eq. 18); no uncertainty on 0.65 | fiddlybits-1us (0.65 can become Sourced to Berner eq. 24) |
+| Dunne 1978, "Rates of chemical denudation of silicate rocks in tropical catchments", 10.1038/274244a0 | REQ-PED-005 and REQ-TER-008: the runoff fit and its scatter | FIT for a fit against runoff and its scatter; NOT FIT for 0.65 as Dunne's | "Chemical denudation rate = 0.28R^0.66; n = 30(43); S_y.x = 0.13 log units" (Fig. 1 caption, p.244); concentration exponents -0.41 (Ca), -0.43 (Mg), Table 1 p.245 | fiddlybits-1us (the scatter can become Sourced as S_y.x) |
+| Chadwick et al. 2003, "The impact of climate on the biogeochemical functioning of volcanic soils", 10.1016/j.chemgeo.2002.09.001 | REQ-PED-001: the extractable-oxide transfer indexed on substrate age | NOT FIT (C2, C5) | the paper's data are a fixed 170 ka climosequence; the age contrast at 2500 mm is quoted, p.219: "soils younger than 20 ka ... pH and ECEC remain high relative to older soils" from Vitousek et al. 1997 and Chadwick et al. 1999 | fiddlybits-1us, fiddlybits-f1x |
+| Madras and Sokal 1988, "The pivot algorithm: A highly efficient Monte Carlo method for the self-avoiding walk", 10.1007/BF01022990 | REQ-NUM-001, REQ-NUM-005: the corrected standard error, section 2.2; REQ-BIO-014: the windowed estimator, its window, and the upper end of the window | FIT for section 2.2 and for the estimator and window; NOT FIT (C2) for the upper-end rule | "the variance of A is a factor 2 tau_int,A larger" (eq. 2.19, p.115); windowed estimator eqs. C.15-C.18, and "choose M to be the smallest integer such that M >= c tau_int(M)" (p.182); no upper-end rule; the carried code's Geyer estimator stays REQ-BIO-014's case | fiddlybits-6u1, fiddlybits-c25 |
+| Harris and Durran 2010, "An Idealized Comparison of One-Way and Two-Way Grid Nesting", 10.1175/2010MWR3080.1 | decision 0031: fluid refinement boundaries graded, since an abrupt step reflects gravity and acoustic waves and seeds grid-scale storms | NOT FIT (C2, C3) | a linear one-dimensional shallow-water model with an abrupt 3:1 nest (p.2176), reflection amplitudes (Table 2, Fig. 3) and a filtered sponge boundary (abstract); no graded transition, no acoustic waves, no storms | fiddlybits-tr8 (cite it for reflection at an abrupt boundary only; the graded rule needs another source or an argument) |
+| Pincus et al. 2015, "Radiative flux and forcing parameterization error in aerosol-free clear skies", 10.1002/2015GL064291 | decision 0026: a profile set with line-by-line fluxes, "one composition at one gravity" | NOT FIT (C2) on the composition clause | four clear-sky profiles, "one under the initially observed atmospheric conditions ... and a second in which the observed concentrations of CO2 have been quadrupled" (section 2, p.5487); no gravity stated | fiddlybits-tr8 (restate as present-day and quadrupled-CO2 Earth profiles) |
+| Iversen and White 1982, "Saltation threshold on Earth, Mars and Venus", Sedimentology 29, 111-119 | decision 0018: "the Earth fit of Iversen and White (1982)" as the reported distance | FIT, with a wording fix | eqs. 5-6, p.115, "Equation (6) is a curve fit for the one-atmosphere data"; within 5 percent at one atmosphere (Table 1, p.116); no separate Earth-only fit, so the decision names eqs. 5-6 at Earth air | fiddlybits-tr8 |
+
+The four scans without a text layer (Berner 1994, Dunne 1978, Stein and Stein 1992, Mason and
+Saxena 1958) were read as page images; their per-page OCR under `references/text/` is the ingest
+step the references README names, and is not part of this audit.
 
 Cases carried by rows that already existed, with a note appended to each on 2026-09-14:
 `fiddlybits-52v.2.15` (Barnes and Whitehead read status and the p.121 locator), `fiddlybits-52v.4.5`
@@ -263,7 +296,10 @@ recommendations on 2026-09-14; where each decision is applied follows the list.
 
 ## Fetches
 
-One attempt each.
+One attempt each. Every failed and paywalled work below was then supplied by the user and read
+(previous section), except "Biochemical Models of Leaf Photosynthesis", 10.1071/9780643103405,
+which stays requested, and the two index rows with no file, Pacala 1993 and Hickler 2011
+(fiddlybits-f1x). The lists record the state before the user supplied them.
 
 Found already on disk after being listed as failed (ingested by fiddlybits-52v.8.7, or held
 before): "Mixed layer depth over the global ocean: An examination of profile data and a
