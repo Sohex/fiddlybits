@@ -1,7 +1,7 @@
 using Test
 using CUDA
-using KernelAbstractions: @kernel, @index
-using Fiddlybits: Backends, Verdicts
+using KernelAbstractions: @kernel, @index, @groupsize
+using Fiddlybits: Backends, Verdicts, Reductions
 
 # Backends.launch_workgroup is the one door a launch's workgroup size is chosen at
 # (docs/decisions/0058-a-launch-workgroup-is-chosen-per-launch-from-the-work-item-count.md).
@@ -12,6 +12,11 @@ using Fiddlybits: Backends, Verdicts
 @kernel function launch_workgroup_fill!(out)
     i = @index(Global)
     out[i] = Float64(i)
+end
+
+@kernel function launch_workgroup_groupsize!(out)
+    i = @index(Global)
+    out[i] = first(@groupsize())
 end
 
 @testset "Backends.launch_workgroup" begin
@@ -146,6 +151,136 @@ end
             Backends.complete!(gpu)
             @test only(launches).workgroup == 256
             @test only(launches).workgroup != Backends.gpu_launch_workgroup(n, warp, blocks)
+        end
+    end
+end
+
+# src/Backends/launch.jl, queue_kernel!: a size in Backends.STATIC_WORKGROUPS is
+# spelled into the kernel's type, one branch per size; any other size is passed
+# as an argument of the launch. Backends.CPU(w) and Backends.GPU(w) pin a
+# launch to w whatever w is.
+@testset "launch! at a workgroup outside Backends.STATIC_WORKGROUPS" begin
+    cpu_sizes = (3, 24, 2048)
+    gpu_sizes = (3, 24)
+    @test all(w -> w ∉ Backends.STATIC_WORKGROUPS, cpu_sizes)
+    @test all(w -> w ∉ Backends.STATIC_WORKGROUPS, gpu_sizes)
+    inside = Backends.STATIC_WORKGROUPS[3]
+    @test inside ∈ Backends.STATIC_WORKGROUPS
+
+    @testset "the fill kernel" begin
+        n = 777
+
+        @testset "Backends.CPU" begin
+            for w in cpu_sizes
+                out = zeros(Float64, n)
+                Backends.launch!(launch_workgroup_fill!, Backends.CPU(w), n, out)
+                @test out == Float64.(1:n)
+
+                out_inside = zeros(Float64, n)
+                Backends.launch!(launch_workgroup_fill!, Backends.CPU(inside), n, out_inside)
+                @test out == out_inside
+
+                sizes = zeros(Int, n)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.CPU(w), n, sizes)
+                @test all(==(w), sizes)
+            end
+
+            @testset "the static branch's twin: the group size at an inside size is itself" begin
+                sizes_inside = zeros(Int, n)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.CPU(inside), n, sizes_inside)
+                @test all(==(inside), sizes_inside)
+            end
+        end
+
+        @testset "Backends.GPU" begin
+            @test CUDA.functional()
+            gpu = Backends.GPU()
+            for w in gpu_sizes
+                out = CUDA.zeros(Float64, n)
+                Backends.complete!(gpu)
+                Backends.launch!(launch_workgroup_fill!, Backends.GPU(w), n, out)
+                launches = Backends.queued_launches(gpu)
+                Backends.complete!(gpu)
+                @test only(launches).workgroup == w
+                @test Backends.on(out, Backends.CPU(1)) == Float64.(1:n)
+
+                out_inside = CUDA.zeros(Float64, n)
+                Backends.complete!(gpu)
+                Backends.launch!(launch_workgroup_fill!, Backends.GPU(inside), n, out_inside)
+                Backends.complete!(gpu)
+                @test Backends.on(out, Backends.CPU(1)) == Backends.on(out_inside, Backends.CPU(1))
+
+                sizes = CUDA.zeros(Int, n)
+                Backends.complete!(gpu)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.GPU(w), n, sizes)
+                Backends.complete!(gpu)
+                @test all(==(w), Backends.on(sizes, Backends.CPU(1)))
+            end
+
+            @testset "the static branch's twin: the group size at an inside size is itself" begin
+                sizes_inside = CUDA.zeros(Int, n)
+                Backends.complete!(gpu)
+                Backends.launch!(launch_workgroup_groupsize!, Backends.GPU(inside), n, sizes_inside)
+                Backends.complete!(gpu)
+                @test all(==(inside), Backends.on(sizes_inside, Backends.CPU(1)))
+            end
+        end
+    end
+
+    @testset "Reductions.segmented_sum" begin
+        n = 40
+        starts = collect(1:8:(n + 1))
+        xs = BackendFixtures.seeded_vector(Float64, n)
+        reference = Reductions.segmented_sum_reference(Float64, xs, starts)
+
+        function segmented_sum_host(backend)
+            xs_b = Backends.on(xs, backend)
+            starts_b = Backends.on(starts, backend)
+            segmentation = Reductions.Segmentation(xs_b, starts_b)
+            out = Reductions.segmented_sum(Float64, xs_b, segmentation, backend)
+            Backends.complete!(backend)
+            return Backends.on(out, Backends.CPU(1))
+        end
+
+        @testset "Backends.CPU" begin
+            for w in cpu_sizes
+                out = segmented_sum_host(Backends.CPU(w))
+                @test out == reference
+                @test out == segmented_sum_host(Backends.CPU(inside))
+            end
+        end
+
+        @testset "Backends.GPU" begin
+            @test CUDA.functional()
+            gpu = Backends.GPU()
+            for w in gpu_sizes
+                Backends.complete!(gpu)
+                xs_b = Backends.on(xs, Backends.GPU(w))
+                starts_b = Backends.on(starts, Backends.GPU(w))
+                segmentation = Reductions.Segmentation(xs_b, starts_b)
+                out = Reductions.segmented_sum(Float64, xs_b, segmentation, Backends.GPU(w))
+                launches = Backends.queued_launches(gpu)
+                Backends.complete!(gpu)
+                @test only(launches).workgroup == w
+                @test Backends.on(out, Backends.CPU(1)) == reference
+                @test Backends.on(out, Backends.CPU(1)) == segmented_sum_host(Backends.GPU(inside))
+            end
+        end
+    end
+
+    @testset "Reductions.pairwise_sum" begin
+        n = 1200
+        xs = BackendFixtures.seeded_vector(Float64, n)
+        reference = Reductions.pairwise_sum_reference(Float64, xs)
+        # docs/decisions/0027-reference-paths-and-mutation-run.md.
+        tol = BackendFixtures.fp_tolerance(Float64, n, sum(abs, xs))
+
+        @testset "Backends.CPU" begin
+            for w in cpu_sizes
+                out = Reductions.pairwise_sum(Float64, xs, Backends.CPU(w))
+                @test abs(out - reference) <= tol
+                @test out == Reductions.pairwise_sum(Float64, xs, Backends.CPU(inside))
+            end
         end
     end
 end
