@@ -1,10 +1,8 @@
 # The run door: docs/plans/fiddlybits-52v.6-provenance.md, sections "The store" and
-# "The journal"; decisions 0010, 0042 and 0046. One door opens a run: it writes the run
-# record through the store's `open_run!` before it installs the journal under the
-# directory that write named, so the runs layout is declared once, by the store, and a
-# run `open_run!` refuses never gets a journal installed beside it.
+# "The journal"; decisions 0010, 0042 and 0046. `start_run!` writes the run record
+# through `open_run!`, then installs the journal under the directory that write named.
 
-using ..Systems: Checked, read_keywords, require_type
+using ..Systems: read_keywords, require_type
 
 """
     RunContext
