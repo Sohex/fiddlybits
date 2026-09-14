@@ -27,9 +27,14 @@ function run_reductions_at(nthreads::Integer)
         p = Reductions.pairwise_sum(Float64, xs, backend)
         c = Reductions.compensated_sum(xs)
         s = Reductions.segmented_sum(Float64, xs, starts, backend)
+        field = reshape(ReductionFixtures.seeded_vector(Float64, 3 * ReductionFixtures.N), ReductionFixtures.N, 3)
+        weights = abs.(xs) .+ 0.1
         write(stdout, [p])
         write(stdout, [c])
         write(stdout, s)
+        write(stdout, Reductions.segmented_sum(Float64, field, starts, backend))
+        write(stdout, Reductions.segmented_mean(Float64, field, starts, weights, backend))
+        write(stdout, Reductions.pairwise_sum(Float64, field, backend))
     """
     return read(`julia --startup-file=no --project=$REDUCTIONS_PROJECT -t $nthreads -e $code`)
 end

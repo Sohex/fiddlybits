@@ -119,6 +119,55 @@ end
     end
 end
 
+"The allocation `f` makes, measured after a warm-up call."
+function column_allocation(f)
+    f()
+    return @allocated f()
+end
+
+"The device allocation `f` makes, measured after a warm-up call."
+function column_device_allocation(f)
+    f()
+    return CUDA.@allocated f()
+end
+
+@testset "the column forms of segmented_weighted_sum and segmented_mean allocate no temporary the size of their input" begin
+    ncol = 4
+    field = reshape(temp_vector(TEMP_N * ncol), TEMP_N, ncol)
+    weights = abs.(temp_vector(TEMP_N)) .+ 0.1
+    starts = temp_starts(TEMP_N, TEMP_NSEG)
+    segmentation = Reductions.Segmentation(field, starts)
+    cpu = Backends.CPU(8)
+    input_bytes = sizeof(field)
+
+    @testset "CPU, at $TEMP_N cells by $ncol columns ($input_bytes bytes)" begin
+        @test column_allocation(() -> Reductions.segmented_weighted_sum(Float64, field, weights, segmentation, cpu)) <
+              input_bytes
+        @test column_allocation(() -> Reductions.segmented_mean(Float64, field, segmentation, weights, cpu)) < input_bytes
+
+        @testset "positive control: the weights applied to every column first reach the input's size" begin
+            @test column_allocation(() -> field .* weights) >= input_bytes
+        end
+    end
+
+    @testset "GPU, at $TEMP_N cells by $ncol columns ($input_bytes bytes)" begin
+        @test CUDA.functional()
+        gpu = Backends.GPU(8)
+        field_gpu = Backends.on(field, gpu)
+        weights_gpu = Backends.on(weights, gpu)
+        segmentation_gpu = Reductions.Segmentation(field_gpu, Backends.on(starts, gpu))
+
+        @test column_device_allocation(() -> Reductions.segmented_weighted_sum(Float64, field_gpu, weights_gpu,
+                                                                               segmentation_gpu, gpu)) < input_bytes
+        @test column_device_allocation(() -> Reductions.segmented_mean(Float64, field_gpu, segmentation_gpu,
+                                                                       weights_gpu, gpu)) < input_bytes
+
+        @testset "positive control: the weights applied to every column first reach the input's size" begin
+            @test column_device_allocation(() -> field_gpu .* weights_gpu) >= input_bytes
+        end
+    end
+end
+
 @testset "the fused reductions are bitwise unchanged from materializing the temporary first" begin
     xs = temp_vector(TEMP_N)
     weights = abs.(xs) .+ 0.1

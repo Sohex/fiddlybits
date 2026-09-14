@@ -168,10 +168,34 @@ pairwise_sum(::Type{A}, xs, backend; blocksize)         fixed-order, fixed block
 compensated_sum(xs)                                     Kahan, FP64 accumulator regardless of eltype
 segmented_sum(::Type{A}, xs, starts, backend)           one fixed-order tree per segment
 segmented_mean(::Type{A}, xs, starts, weights, backend)
-Segmentation(xs, starts)                                a boundary array checked once
+Segmentation(xs, starts)                                a boundary array checked once, against size(xs, 1)
 segmented_sum(::Type{A}, xs, segmentation, backend)     the same reductions, nothing re-checked
+segmented_weighted_sum(::Type{A}, xs, weights, segmentation, backend)
 segmented_mean(::Type{A}, xs, segmentation, weights, backend)
 ```
+
+Each of these, and `segmented_quantile` below, has a column form taking `xs` as an array
+of cells by trailing axes laid out per `Backends.LAYOUT`, with `weights` a vector of one
+value per cell:
+
+```
+segmented_sum(::Type{A}, xs::AbstractArray, starts | segmentation, backend)           (nseg, trailing...) on backend
+segmented_weighted_sum(::Type{A}, xs::AbstractArray, weights, segmentation, backend)  (nseg, trailing...) on backend
+segmented_mean(::Type{A}, xs::AbstractArray, starts | segmentation, weights, backend) (nseg, trailing...) on backend, one read
+segmented_quantile(xs::AbstractArray, starts | segmentation, q, backend)              (nseg, trailing...) on backend
+pairwise_block_sums(::Type{A}, xs::AbstractArray, backend; blocksize)                 (nblocks, trailing...) on backend
+pairwise_sum(::Type{A}, xs::AbstractArray, backend; blocksize)                        Array{A} of the trailing shape on the host, one read
+```
+
+Column `c` of every column form is the vector form's result on column `c` of `xs`, bit
+for bit, and each column form launches one kernel whatever the trailing extent, with one
+work item per segment (or block) and column: `launch_segment_columns!`,
+`launch_column_block_sums!` and `launch_quantiles!` are the doors. `pairwise_sum` and
+`segmented_mean`'s zero-weight refusal read the device once whatever the trailing extent.
+The weights are read by every column and never repeated to the size of `xs`. Each column
+form's reference path runs the vector form's reference over each column in turn. The
+layout measurement that chose one work item per segment and column over one per segment
+with the columns inside is in the notes of `fiddlybits-52v.7.59`.
 
 Every segmented reduction takes either a boundary array or a `Segmentation`. A
 boundary array is checked on every call, which on a device-resident array means it
