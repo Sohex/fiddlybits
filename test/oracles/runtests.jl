@@ -123,3 +123,6 @@ const PARAMETER_CONTROLS = (
         length(problems) == c.count || @info "$(c.case) raised" problems
     end
 end
+
+# oracles.registry_wellformed (the loader and anchor clauses) and oracles.registration_rule.
+include("registry.jl")
