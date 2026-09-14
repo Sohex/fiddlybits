@@ -451,6 +451,32 @@ is_commit(repo::AbstractString, rev::AbstractString) =
 "The first eight digits of commit id `sha`."
 short(sha::AbstractString) = first(sha, 8)
 
+"The refs the history check reads the mainline from, in order: the local branch, then the remote-tracking branch."
+const MAINLINE_REFS = ("refs/heads/main", "refs/remotes/origin/main")
+
+"""
+    mainline_commit(repo)
+
+The commit the first of `MAINLINE_REFS` that resolves in `repo` names. Refuses, naming
+every ref of `MAINLINE_REFS`, when none of them resolves.
+"""
+function mainline_commit(repo::AbstractString)
+    for ref in MAINLINE_REFS
+        status, out = git_run(repo, `rev-parse --verify --quiet $(ref)`; accept = (0, 1))
+        status == 0 && return strip(out)
+    end
+    refuse("registration history", repo, "names no commit of " * join(MAINLINE_REFS, " or ") *
+                                         "; the history check's mainline is a declared ref, never guessed")
+end
+
+"The commits of `repo` on the first-parent chain of `sha`, back to the repository's root."
+mainline_chain(repo::AbstractString, sha::AbstractString) =
+    Set{String}(split(strip(git_read(repo, `rev-list --first-parent $(sha)`))))
+
+"The paths that differ between the trees of commit `a` and commit `b` of `repo`."
+diff_paths(repo::AbstractString, a::AbstractString, b::AbstractString) =
+    String.(split(git_read(repo, `-c core.quotePath=false diff --no-renames --name-only $(a) $(b)`); keepempty = false))
+
 """
     RowCache(repo, path)
 
@@ -812,6 +838,34 @@ function read_exceptions(path::AbstractString)
 end
 
 """
+    threshold_together!(found, matched, exceptions, id, before, after, touched, testset_a, testset_b, report_at, verb)
+
+Adds a problem to `found`, sited at `id` and `report_at`, when `id`'s threshold in
+`after` differs from `before`'s and that change comes together with a path of `touched`
+under `src/` or a path of `touched` in `testset_a` or `testset_b`, the files holding the
+testset named by `id` at two commits; the problem names `verb` as what changed it. An
+entry of `exceptions` naming `report_at` and `id` is marked `matched` instead of adding a
+problem. Adds nothing when `before` carries no `id` or the change carries no such path.
+"""
+function threshold_together!(found::Vector{Malformed}, matched::BitVector, exceptions::Vector{ListedException},
+                             id::AbstractString, before::AbstractDict, after::AbstractDict, touched::Vector{String},
+                             testset_a::Vector{String}, testset_b::Vector{String}, report_at::AbstractString,
+                             verb::AbstractString)
+    haskey(before, id) || return nothing
+    get(before[id], "threshold", nothing) == get(after[id], "threshold", nothing) && return nothing
+    held = union(testset_a, testset_b)
+    with = sort!(unique(vcat(filter(p -> startswith(p, "src/"), touched), filter(in(held), touched))))
+    isempty(with) && return nothing
+    k = findfirst(x -> x.merge == report_at && x.oracle == id, exceptions)
+    if k === nothing
+        push!(found, Malformed(id * " at " * short(report_at), verb * " changes the threshold together with " * join(with, ", ")))
+    else
+        matched[k] = true
+    end
+    return nothing
+end
+
+"""
     history_problems(repo)
 
 Every place the history of `repo`, from `amendment_commit(repo)` to HEAD, breaks the
@@ -822,13 +876,18 @@ holding the entry's `REGISTERED_FIELDS` as they are at the registering commit;
 registrations are judged by `judge_registration!` against the registrations before
 them, starting from the entries carrying a registered_at at the first parent of the
 amendment commit. A `registered_at` set to a commit that is not an ancestor is a
-problem. The mainline is the first-parent chain from HEAD through the commits walked. A
-merge on the mainline is a problem when, against its first parent, it changes an entry's
-threshold together with a path under `src/` or a file holding the testset named by
-that entry at the merge or at its first parent, unless an entry of the exceptions list
-names that merge and that entry's id; a merge off the mainline is not judged by this
-clause, and its changes are read in the mainline merge that brings them in. An exception
-naming no such merge and id is a problem, reported as stale.
+problem. The mainline is `mainline_commit(repo)`'s own first-parent chain: a merge on it
+is a problem when, against its first parent, it changes an entry's threshold together
+with a path under `src/` or a file holding the testset named by that entry at the merge
+or at its first parent, unless an entry of the exceptions list names that merge and that
+entry's id; this holds whether the mainline merge is read from the mainline itself or
+from a branch that carries it, so a listed exception stays matched from either. A merge
+of the mainline into a branch is not itself judged: it sits off the mainline chain, since
+it is a commit of the branch, not of `mainline_commit(repo)`'s own history. When HEAD is
+not on the mainline chain, the whole branch is judged once more, as its own merge into
+the mainline would be judged: by the diff from `merge-base(mainline, HEAD)` to HEAD,
+sited at HEAD. An exception naming no merge and id this walk flags is a problem, reported
+as stale.
 """
 function history_problems(repo::AbstractString)
     exceptions = read_exceptions(joinpath(repo, EXCEPTIONS_PATH))
@@ -836,12 +895,10 @@ function history_problems(repo::AbstractString)
     anchor = amendment_commit(repo)
     commits = commits_from(repo, anchor)
     by_sha = Dict(c.sha => c for c in commits)
-    mainline = Set{String}()
-    tip = get(by_sha, strip(git_read(repo, `rev-parse HEAD`)), nothing)
-    while tip !== nothing
-        push!(mainline, tip.sha)
-        tip = isempty(tip.parents) ? nothing : get(by_sha, tip.parents[1], nothing)
-    end
+    head_sha = strip(git_read(repo, `rev-parse HEAD`))
+    trunk_sha = mainline_commit(repo)
+    trunk_chain = mainline_chain(repo, trunk_sha)
+    mainline = Set{String}(sha for sha in keys(by_sha) if sha in trunk_chain)
     cache = RowCache(repo, REGISTRY_PATH)
     found = Malformed[]
     history = Dict{String,Vector{Registration}}()
@@ -881,20 +938,24 @@ function history_problems(repo::AbstractString)
         length(c.parents) >= 2 && c.sha in mainline || continue
         before = parent_rows[1]
         for id in sort!(collect(keys(rows)))
-            haskey(before, id) || continue
-            get(before[id], "threshold", nothing) == get(rows[id], "threshold", nothing) && continue
-            held = union(testset_files(repo, c.sha, id), testset_files(repo, c.parents[1], id))
-            with = sort!(unique(vcat(filter(p -> startswith(p, "src/"), c.touched), filter(in(held), c.touched))))
-            isempty(with) && continue
-            k = findfirst(x -> x.merge == c.sha && x.oracle == id, exceptions)
-            if k === nothing
-                push!(found, Malformed(id * " at " * short(c.sha), "a merge whose branch changes the threshold together with " *
-                                                                   join(with, ", ")))
-            else
-                matched[k] = true
-            end
+            threshold_together!(found, matched, exceptions, id, before, rows, c.touched,
+                                testset_files(repo, c.sha, id), testset_files(repo, c.parents[1], id),
+                                c.sha, "a merge whose branch")
         end
     end
+
+    if !(head_sha in trunk_chain)
+        base_sha = strip(git_read(repo, `merge-base $(trunk_sha) $(head_sha)`))
+        before = rows_at(cache, base_sha)
+        after = rows_at(cache, head_sha)
+        branch_touched = diff_paths(repo, base_sha, head_sha)
+        for id in sort!(collect(keys(after)))
+            threshold_together!(found, matched, exceptions, id, before, after, branch_touched,
+                                testset_files(repo, head_sha, id), testset_files(repo, base_sha, id),
+                                head_sha, "a branch whose diff against main")
+        end
+    end
+
     for (k, x) in enumerate(exceptions)
         matched[k] ||
             push!(found, Malformed(x.oracle * " at " * short(x.merge), "a stale exception of " * EXCEPTIONS_PATH *
