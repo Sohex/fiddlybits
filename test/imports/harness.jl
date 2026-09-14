@@ -42,6 +42,33 @@ function dependencies(project::AbstractString, manifest::AbstractString)
 end
 
 """
+    stdlib_names()
+
+Every package name Julia itself ships: the subdirectory names under
+`Sys.STDLIB`, the standard library folder of the running Julia.
+"""
+function stdlib_names()
+    return Set{String}(readdir(Sys.STDLIB))
+end
+
+"""
+    registered(project, manifest)
+
+The names from `named(project)` that need an import record: a `[deps]` name
+from `dependencies(project, manifest)`, union a `[extras]` name absent from
+`stdlib_names()`. Pkg resolves `[deps]` into the manifest and never `[extras]`,
+so an extra has no manifest entry to read either way; `[deps]` is still
+decided from what the manifest actually resolved, and `[extras]` from the
+stdlib set, because that is the only record of the two that exists for it.
+"""
+function registered(project::AbstractString, manifest::AbstractString)
+    p = TOML.parsefile(project)
+    extras_names = Set{String}(keys(get(p, "extras", Dict())))
+    registered_extras = setdiff(extras_names, stdlib_names())
+    return sort(union(dependencies(project, manifest), registered_extras))
+end
+
+"""
     records(dir)
 
 Package name to record path, read from each record's first-line heading with a
@@ -79,19 +106,19 @@ end
 """
     structural_problems(; project, manifest, imports)
 
-One walk over every name `named(project)` lists. A name the registry resolves
-and that has no record is a problem; a name Julia ships needs no record of its
-own, so its absence is not. A record that exists, shipped name or not, is a
-problem if it names no leak check at all. These are defects of the review
-itself and hold whatever the board's state. Reads the dependency list and
-looks for records, never the reverse: `imports` also holds records of packages
-that were surveyed and refused.
+One walk over every name `named(project)` lists. A name `registered(project,
+manifest)` names and that has no record is a problem; a name Julia ships
+needs no record of its own, so its absence is not. A record that exists,
+shipped name or not, is a problem if it names no leak check at all. These are
+defects of the review itself and hold whatever the board's state. Reads the
+dependency list and looks for records, never the reverse: `imports` also
+holds records of packages that were surveyed and refused.
 """
 function structural_problems(; project::AbstractString, manifest::AbstractString,
                                imports::AbstractString)
     found = Problem[]
     by_name = records(imports)
-    shipped = setdiff(Set(named(project)), Set(dependencies(project, manifest)))
+    shipped = setdiff(Set(named(project)), Set(registered(project, manifest)))
     for pkg in named(project)
         path = get(by_name, pkg, nothing)
         if path === nothing
