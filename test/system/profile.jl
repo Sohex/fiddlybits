@@ -58,6 +58,7 @@ keywords(T = Float64; kw...) = merge(
      memory_ceiling = SF.irreducible(1024, ONE),
      write_ceiling = SF.irreducible(256, ONE),
      store_writers = SF.irreducible(4, ONE),
+     settle_interval = SF.irreducible(T(3600), TIME),
      daily_fallback_interval = SF.bracket(T(1e5), T(600), T(1e6), TIME),
      exit_brackets = (exit_bracket(T),)), values(kw))
 
@@ -110,6 +111,7 @@ import .ProfileFixtures as PF
             @test st.memory_ceiling === 1024
             @test st.write_ceiling === 256
             @test st.store_writers === 4
+            @test st.settle_interval === T(3600)
             @test st.components.atmosphere isa Systems.StrippedComponent{:atmosphere}
             @test st.components.atmosphere.level === value(p.components.atmosphere.level)
             @test st.components.atmosphere.ladder === map(value, p.components.atmosphere.ladder.interfaces)
@@ -397,6 +399,36 @@ import .ProfileFixtures as PF
         end
     end
 
+    @testset "settle_interval is a declared duration above zero (decision 0060)" begin
+        p = PF.profile()
+        @test value(p.settle_interval) === 3600.0
+        given(v) = PF.profile(settle_interval = v)
+        closure(v) = Dispositions.Closure(law = :law,
+            coefficient = Dispositions.Bracketed(value = v, dim = TIME, low = v / 2, high = 2 * v,
+                                                 pushes_down = "a shorter interval",
+                                                 pushes_up = "a longer interval", sweep = :sweep),
+            levels = (3, 4))
+        @test SF.refused(SF.caught(() -> given(SF.irreducible(0.0, TIME))),
+                         "settle_interval", "outside")
+        @test SF.refused(SF.caught(() -> given(SF.irreducible(-1.0, TIME))),
+                         "settle_interval", "outside")
+        @test SF.refused(SF.caught(() -> given(SF.irreducible(3600.0, ONE))),
+                         "settle_interval", "dimension")
+        @test SF.refused(SF.caught(() -> given(closure(3600.0))),
+                         "settle_interval", "Closure")
+        @test SF.refused(SF.caught(() -> given(Systems.Absent(argument = "not admitted"))),
+                         "settle_interval", "disposition is required")
+
+        @testset "positive control: the same closure disposition constructs where a Closure is admitted" begin
+            @test closure(3600.0) isa Dispositions.Closure
+        end
+
+        @testset "positive control: an Absent constructs where the field admits it" begin
+            @test PF.profile(daily_fallback_interval =
+                Systems.Absent(argument = "not admitted")) isa Systems.Profile
+        end
+    end
+
     @testset "the slow tier and the daily-tier fallback" begin
         @test SF.refused(SF.caught(() -> Systems.SlowTier(acceleration = SF.irreducible(10.0, ONE),
                                                          refresh_interval = SF.irreducible(3e9, TIME))),
@@ -448,13 +480,15 @@ import .ProfileFixtures as PF
                 ((Systems.fast_profile, :fast, Float32), (Systems.full_profile, :full, Float64))
             full = (system = s, memory_ceiling = SF.irreducible(1 << 34, ONE),
                     write_ceiling = SF.irreducible(1 << 20, ONE),
-                    store_writers = SF.irreducible(4, ONE))
+                    store_writers = SF.irreducible(4, ONE),
+                    settle_interval = SF.irreducible(Systems.system_precision(s)(3600), TIME))
             p = build(; full...)
             @test p.label === label
             @test p.fast_precision === precision
             @test value(p.memory_ceiling) === 1 << 34
             @test value(p.write_ceiling) === 1 << 20
             @test value(p.store_writers) === 4
+            @test value(p.settle_interval) === Systems.system_precision(s)(3600)
             for name in (:components, :radiation, :slow_tier, :daily_fallback_interval,
                          :exit_brackets)
                 setting = getfield(p, name)
@@ -466,6 +500,7 @@ import .ProfileFixtures as PF
             @test st isa Systems.StrippedProfile{Systems.system_precision(s),label,precision}
             @test st.write_ceiling === 1 << 20
             @test st.store_writers === 4
+            @test st.settle_interval === Systems.system_precision(s)(3600)
             override(key, v) = build(; merge(full, NamedTuple{(key,)}((v,)))...)
             @test SF.refused(SF.caught(() -> override(:memory_ceiling, SF.irreducible(0, ONE))),
                              "memory_ceiling", "outside")
@@ -473,9 +508,12 @@ import .ProfileFixtures as PF
                              "write_ceiling", "outside")
             @test SF.refused(SF.caught(() -> override(:store_writers, SF.irreducible(0, ONE))),
                              "store_writers", "outside")
+            @test SF.refused(SF.caught(() -> override(:settle_interval,
+                                                       SF.irreducible(Systems.system_precision(s)(0), TIME))),
+                             "settle_interval", "outside")
 
             @testset "each keyword is required, with no default to fall back on" begin
-                for key in (:memory_ceiling, :write_ceiling, :store_writers)
+                for key in (:memory_ceiling, :write_ceiling, :store_writers, :settle_interval)
                     without = Base.structdiff(full, NamedTuple{(key,)})
                     @test SF.refused(SF.caught(() -> build(; without...)), String(key), "missing")
                 end
