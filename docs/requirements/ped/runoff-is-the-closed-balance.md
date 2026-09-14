@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-005"
 title = "The moisture driver of weathering is runoff, meaning P minus E from the closed water balance and never a routed-runoff diagnostic, and land means hide a skewed distribution"
-old_path = ["/home/cfutro/docs/world/pedology/README.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/README.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

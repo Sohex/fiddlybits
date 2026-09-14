@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-006"
 title = "Every depression is a node of the drainage physics, with no selection floor and its state measured on the terrain the water sits on"
-old_path = ["/home/cfutro/docs/world/notes/audits/basin-catalogue-floor.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/basin-catalogue-floor.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

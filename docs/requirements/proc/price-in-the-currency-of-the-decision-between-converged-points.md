@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-005"
 title = "A price is taken in the currency of the decision it gates, as a secant between converged points, against the surface it acts on"
-old_path = ["/home/cfutro/docs/world/docs/src/reference/design-intent.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/reference/design-intent.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -78,8 +78,8 @@ verification that no document names effort estimates.
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/reference/design-intent.md
-- /home/cfutro/docs/world/notes/audits/missed-couplings.md, finding 1
-- /home/cfutro/docs/world/lib/sensitivity.py (module docstring)
-- /home/cfutro/docs/world/notes/external-model-survey.md, section 2
+- /home/cfutro/git/vesper/docs/src/reference/design-intent.md
+- /home/cfutro/git/vesper/notes/audits/missed-couplings.md, finding 1
+- /home/cfutro/git/vesper/lib/sensitivity.py (module docstring)
+- /home/cfutro/git/vesper/notes/external-model-survey.md, section 2
 - Plan decisions A10, C1, C6, F1.

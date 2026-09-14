@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-006"
 title = "The cross-pass forcing trap: a transport partition that emerges from resolved dynamics cannot be found by iterating frozen climatologies, so the atmosphere and ocean are coupled synchronously from the first orbit"
-old_path = ["/home/cfutro/docs/world/notes/external-model-survey.md"]
+old_path = ["/home/cfutro/git/vesper/notes/external-model-survey.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

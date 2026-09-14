@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-002"
 title = "Water-table skill test against observed depths: bars from the published model's own residuals, and a constant must not pass"
-old_path = ["/home/cfutro/docs/world/hydrography/notes/earth-calibration-criterion.md"]
+old_path = ["/home/cfutro/git/vesper/hydrography/notes/earth-calibration-criterion.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

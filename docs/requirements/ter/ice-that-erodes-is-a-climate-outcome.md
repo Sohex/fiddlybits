@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-017"
 title = "The ice that erodes terrain is a computed outcome of the declared climate evaluated at the terrain level, never a latitude-and-elevation ramp"
-old_path = ["/home/cfutro/docs/world/source/README.md"]
+old_path = ["/home/cfutro/git/vesper/source/README.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

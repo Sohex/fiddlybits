@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-008"
 title = "The marine ecosystem is a trait community generated from a declared low-dimensional trait space; its coupling arithmetic, light path and export carry no fixed Earth ratios, no buried photon constants and no gravity-blind length scales"
-old_path = ["/home/cfutro/docs/world/notes/audits/ecosystem-tier-ecogem-marbl.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/ecosystem-tier-ecogem-marbl.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

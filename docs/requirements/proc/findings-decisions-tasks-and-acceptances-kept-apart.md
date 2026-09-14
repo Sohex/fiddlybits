@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-002"
 title = "Findings, decisions, requirements, tasks and acceptances are separate records, each citing the one it rests on, and an id is never reused"
-old_path = ["/home/cfutro/docs/world/notes/audits/docs-restructure-audit.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/docs-restructure-audit.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -61,6 +61,6 @@ pass ("every old audit has exactly one disposition").
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/docs-restructure-audit.md
-- /home/cfutro/docs/world/docs/src/practice/conventions.md, "The issue tracker"
+- /home/cfutro/git/vesper/notes/audits/docs-restructure-audit.md
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md, "The issue tracker"
 - Plan: Part D M-1 deliverables; first execution pass file list.

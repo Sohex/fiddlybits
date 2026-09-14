@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-006"
 title = "Texture from a mineral inventory with quartz conserved, level-setting constants Bracketed and swept jointly, andic and exchange properties on their controlling axes, and an Earth score over type localities of known lithology"
-old_path = ["/home/cfutro/docs/world/pedology/README.md", "/home/cfutro/docs/world/pedology/notes/mineral-reactivity-supply.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/README.md", "/home/cfutro/git/vesper/pedology/notes/mineral-reactivity-supply.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

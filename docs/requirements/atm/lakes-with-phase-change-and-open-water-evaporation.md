@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-012"
 title = "A lake is a tile with a water column, ice with latent heat, a freezing point from its own salinity, and open-water evaporation of the water routed to it"
-old_path = ["/home/cfutro/docs/world/notes/audits/lake-energy-omission-bound.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/lake-energy-omission-bound.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

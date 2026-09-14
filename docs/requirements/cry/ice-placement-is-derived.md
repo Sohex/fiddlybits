@@ -1,7 +1,7 @@
 +++
 id = "REQ-CRY-003"
 title = "Where ice sits is a derived outcome of the surface mass balance on the terrain level's hypsometry, never a latitude rule or a fixed lapse rate; a thermal criterion without mass balance is an upper bound"
-old_path = ["/home/cfutro/docs/world/notes/glacier-rough-pass.md"]
+old_path = ["/home/cfutro/git/vesper/notes/glacier-rough-pass.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-009"
 title = "A session ends completed or blocked, a defect is never offered as a decision, and the agent that discovers a task works it"
-old_path = ["/home/cfutro/docs/world/docs/src/practice/working-agreements.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/practice/working-agreements.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -68,5 +68,5 @@ that name the oracle and boundary (Part E).
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/practice/working-agreements.md
+- /home/cfutro/git/vesper/docs/src/practice/working-agreements.md
 - Plan Part E, "Single developer plus agents".

@@ -122,3 +122,4 @@ scatter fails; a waiver is a `performance: <cause>` line in the commit message.
 ## Amendments
 
 - 2026-09-08: the profile is named in the run identity; the short coupled, certification and per-commit cases are registry rows naming their System and Profile and include a synthetic non-Earth instance; the RNG time index is the process's own step count, from notes/findings/2026-09-08-implicit-earth-audit.md.
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

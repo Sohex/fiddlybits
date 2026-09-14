@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-010"
 title = "Phosphorus release is a lithology-class share of the major-element weathering flux, the root-zone stock is an upper bound, and the steps between release and root are declared"
-old_path = ["/home/cfutro/docs/world/pedology/README.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/README.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

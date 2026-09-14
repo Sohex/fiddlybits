@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-008"
 title = "The dependency graph is complete and measured, and closure and status are computed from it"
-old_path = ["/home/cfutro/docs/world/notes/audits/pipeline-bookkeeping.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/pipeline-bookkeeping.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -61,6 +61,6 @@ C6 per-commit short coupled case whose state hash exercises the measured graph.
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/pipeline-bookkeeping.md
-- /home/cfutro/docs/world/docs/src/practice/conventions.md, "The issue tracker" (a marker names a location, not an effect)
+- /home/cfutro/git/vesper/notes/audits/pipeline-bookkeeping.md
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md, "The issue tracker" (a marker names a location, not an effect)
 - Plan decisions A3, A5, A6.

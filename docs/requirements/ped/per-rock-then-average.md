@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-002"
 title = "A law convex in a lithology property is evaluated per rock and then averaged; mixing the rocks first is a different and biased answer"
-old_path = ["/home/cfutro/docs/world/pedology/README.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/README.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

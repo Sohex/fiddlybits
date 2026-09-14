@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-005"
 title = "Sub-grid information reaches a cell-scale parameter only as a statistic of the cell's own distribution, and a closure earns its place against the scatter of its support"
-old_path = ["/home/cfutro/docs/world/notes/audits/saturated-fraction-revival-support.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/saturated-fraction-revival-support.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -9,7 +9,7 @@ status = "carried"
 ## What is true
 
 The rule and its arithmetic are in
-`/home/cfutro/docs/world/hydrography/notes/subgrid-water-table.md`. Expanding any
+`/home/cfutro/git/vesper/hydrography/notes/subgrid-water-table.md`. Expanding any
 parameterisation `P(h)` about the cell mean with within-cell spread `sigma` gives
 `E[P(h)] = P(hbar) + (1/2) P''(hbar) sigma^2 + ...`. A form linear in the state has an
 exact cell mean at any spacing; a convex or concave one carries a correction that must

@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-011"
 title = "A mesh carries both its tiling measure and its operator measure explicitly, and every reduction names which it integrates over"
-old_path = ["/home/cfutro/docs/world/notes/audits/mesh-dual-area.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/mesh-dual-area.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

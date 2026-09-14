@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-009"
 title = "Soil thermal conductivity and heat capacity are functions of the column's own water content, texture and bulk density, computed at call time from one relation"
-old_path = ["/home/cfutro/docs/world/notes/audits/soil-thermal-inertia.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/soil-thermal-inertia.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

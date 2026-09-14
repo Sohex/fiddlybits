@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-003"
 title = "A check has a right answer fixed before the result, can fail, and refuses rather than backfills"
-old_path = ["/home/cfutro/docs/world/docs/src/practice/conventions.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/practice/conventions.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -73,8 +73,8 @@ verdict of A5 loops.
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/practice/conventions.md
-- /home/cfutro/docs/world/lib/lapse.py and /home/cfutro/docs/world/lib/stellar.py (module docstrings: "the two checks that can fail")
-- /home/cfutro/docs/world/notes/external-model-survey.md, section 55
-- /home/cfutro/docs/world/docs/src/reference/design-intent.md ("A judgment made while a class is absent is not a judgment")
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md
+- /home/cfutro/git/vesper/lib/lapse.py and /home/cfutro/git/vesper/lib/stellar.py (module docstrings: "the two checks that can fail")
+- /home/cfutro/git/vesper/notes/external-model-survey.md, section 55
+- /home/cfutro/git/vesper/docs/src/reference/design-intent.md ("A judgment made while a class is absent is not a judgment")
 - Plan decisions C1 to C4.

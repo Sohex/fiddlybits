@@ -112,3 +112,4 @@ of exactly the artifacts whose components declared it.
 ## Amendments
 
 - 2026-09-08: the struct shape names the lithosphere block and the orbits block of decision 0004, gravity is named as the canonical Derived field g(r, phi), and the M0 gate validates every Derived field on a synthetic non-Earth instance as well as Earth(), from notes/findings/2026-09-08-implicit-earth-audit.md.
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

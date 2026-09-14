@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROV-001"
 title = "A restart is bitwise, carries only state, and refuses if any input hash moved"
-old_path = ["/home/cfutro/docs/world/notes/audits/absent-restart-records.md", "/home/cfutro/docs/world/notes/audits/ecological-stream-restart-continuity.md", "/home/cfutro/docs/world/notes/audits/zsolars-restart-overread.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/absent-restart-records.md", "/home/cfutro/git/vesper/notes/audits/ecological-stream-restart-continuity.md", "/home/cfutro/git/vesper/notes/audits/zsolars-restart-overread.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

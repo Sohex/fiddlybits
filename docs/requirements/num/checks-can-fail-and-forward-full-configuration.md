@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-008"
 title = "A check can fail, forwards its full configuration, and a bar that is printed is a bar that exits non-zero"
-old_path = ["/home/cfutro/docs/world/notes/audits/checks-that-forward-too-few-arguments.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/checks-that-forward-too-few-arguments.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

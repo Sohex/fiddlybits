@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-007"
 title = "Assimilation, respiration and allocation run on the planet's own light and dark cycle at the column's pressure, with acclimation memories bracketed, tissue stoichiometry anchored so the applied ratio is the sourced one, an explicit reserve pool, and no ecosystem scalar tuned to another planet's totals"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/plant-physiology-carbon-allocation-audit.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/plant-physiology-carbon-allocation-audit.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -183,7 +183,7 @@ is not a disposition (A3).
 - von Caemmerer, S. (2000). Biochemical Models of Leaf Photosynthesis. CSIRO
   Publishing, Collingwood. DOI: 10.1071/9780643103405. The C4 CO2-concentrating
   form.
-- /home/cfutro/docs/world/biosphere/notes/implicit-earth-assumptions.md
+- /home/cfutro/git/vesper/biosphere/notes/implicit-earth-assumptions.md
   findings 3 and 6 (pressure; the Earth-tuned canopy scalar).
 
 ## Amendments

@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-004"
 title = "Cloud condensate is prognostic with an explicit effective radius; a diagnostic profile anchored to another planet's scale height is refused; every optics fit is used inside its fitted range"
-old_path = ["/home/cfutro/docs/world/exoplasim/notes/cloud-water-reference.md"]
+old_path = ["/home/cfutro/git/vesper/exoplasim/notes/cloud-water-reference.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

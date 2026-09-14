@@ -24,7 +24,7 @@ licence and a status per checklist item into TOML front matter the harness can r
 ## The review method
 
 The predecessor audited some twenty external trees and recorded where the planet
-gets welded in (`/home/cfutro/docs/world/notes/external-tree-checklist.md`). The
+gets welded in (`/home/cfutro/git/vesper/notes/external-tree-checklist.md`). The
 items that carry to a Julia infrastructure dependency, on their merits:
 
 | item | check | clean negative |

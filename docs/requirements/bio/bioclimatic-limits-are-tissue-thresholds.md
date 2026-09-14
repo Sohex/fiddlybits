@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-004"
 title = "A bioclimatic limit is a tissue-level threshold applied to the temperature the tissue experiences as the land column resolves it, never a monthly-mean index calibrated on another planet's climatology"
-old_path = ["/home/cfutro/docs/world/notes/audits/lpj-pft-set-implicit-earth.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/lpj-pft-set-implicit-earth.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -114,7 +114,7 @@ physiology that transfers rather than a climatology that does not.
   and terrestrial carbon cycling in the LPJ dynamic global vegetation model.
   Global Change Biology 9, 161-185. DOI: 10.1046/j.1365-2486.2003.00569.x.
   The monthly-mean bioclimatic limits as shipped.
-- /home/cfutro/docs/world/biosphere/notes/underoccupied-niches.md (the
+- /home/cfutro/git/vesper/biosphere/notes/underoccupied-niches.md (the
   killed versus barred separation and the thermal-share diagnostic).
-- /home/cfutro/docs/world/biosphere/README.md, section "The 30-hour day widens
+- /home/cfutro/git/vesper/biosphere/README.md, section "The 30-hour day widens
   the diurnal range, and neither side carries it yet".

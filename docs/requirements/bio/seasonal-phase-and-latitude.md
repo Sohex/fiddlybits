@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-005"
 title = "Seasonal landmarks are derived per cell from the resolved forcing on the system clock, and latitude is geometry, never an ecological regime selector"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/implicit-earth-assumptions.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/implicit-earth-assumptions.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -11,7 +11,7 @@ status = "carried"
 Earth vegetation models carry their seasons as ordinal dates and their
 regimes as latitude bands, and neither survives a change of orbit or
 obliquity (measured on the old world's port at the archived commit, and on
-FATES in /home/cfutro/docs/world/notes/external-model-survey.md section 54):
+FATES in /home/cfutro/git/vesper/notes/external-model-survey.md section 54):
 
 - The northern coldest day was 15 January and the southern 15 July, aliasing
   each hemisphere's warmest day to the other's coldest; on a year shorter than
@@ -96,11 +96,11 @@ uses are the geometric ones the mesh and the orbit already own.
   Terrestrial Ecosystem Simulator (FATES) at Barro Colorado Island, Panama.
   Biogeosciences 17, 3017-3044. DOI: 10.5194/bg-17-3017-2020. The demography
   model whose day-of-year resets were found unreachable on a short year.
-- /home/cfutro/docs/world/notes/external-model-survey.md section 54.
-- /home/cfutro/docs/world/biosphere/notes/productivity-prediction.md, section
+- /home/cfutro/git/vesper/notes/external-model-survey.md section 54.
+- /home/cfutro/git/vesper/biosphere/notes/productivity-prediction.md, section
   "The mechanism behind the five structural misses" (the obliquity cold
   trough).
-- /home/cfutro/docs/world/biosphere/README.md, section "The seasonal
+- /home/cfutro/git/vesper/biosphere/README.md, section "The seasonal
   landmarks are derived, not dated".
 
 ## Amendments

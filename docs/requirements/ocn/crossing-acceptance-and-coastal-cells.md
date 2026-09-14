@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-010"
 title = "A support change that closes every ledger can still conserve against the wrong partition: every operator needs an identity with a known answer and a negative control, coastal cells are placed by rule, and vectors cross only in the Cartesian basis"
-old_path = ["/home/cfutro/docs/world/notes/audits/ocean-grid-crossing.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/ocean-grid-crossing.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

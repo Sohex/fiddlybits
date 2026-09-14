@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-103"
 title = "One declaration per quantity; a value's derivation is reachable from the value; nothing is retyped from an artifact; a gate's bound is derived"
-old_path = ["/home/cfutro/docs/world/notes/audits/opaque-constants.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/opaque-constants.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

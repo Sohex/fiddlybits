@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-011"
 title = "The soil nitrogen transformation operator reads the declared atmosphere and the column's own porosity and redox state, every response function is bounded on its declared domain, it cannot create nitrogen, and the gases it emits reach the atmosphere or a declared boundary"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/soil-nitrogen-transformation-parameterisation.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/soil-nitrogen-transformation-parameterisation.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -146,7 +146,7 @@ multi-step chemical operator with a known history of silent double counts.
 - Pilegaard, K. (2013). Processes regulating nitric oxide emissions from
   soils. Philosophical Transactions of the Royal Society B 368, 20130126.
   DOI: 10.1098/rstb.2013.0126.
-- /home/cfutro/docs/world/biosphere/notes/soil-decomposition-biogeochemistry-audit.md
+- /home/cfutro/git/vesper/biosphere/notes/soil-decomposition-biogeochemistry-audit.md
   finding 8.
 
 ## Amendments

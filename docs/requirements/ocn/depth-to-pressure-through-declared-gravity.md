@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-003"
 title = "Depth becomes pressure through the declared gravity and the modelled density, never through a literal"
-old_path = ["/home/cfutro/docs/world/notes/audits/ocean-tier-implicit-earth.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/ocean-tier-implicit-earth.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

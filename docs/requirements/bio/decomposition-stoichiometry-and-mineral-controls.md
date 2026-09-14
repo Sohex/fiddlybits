@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-010"
 title = "Soil organic matter stoichiometry ramps are sourced to the figure and to the pool definition they were drawn against, each element's parameters are that element's, every declared pool is fed, transfer fractions close, mineral protection reads the pedology state, and an equilibrium accelerator reproduces the daily operator"
-old_path = ["/home/cfutro/docs/world/notes/audits/lpj-soil-cn-ratios.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/lpj-soil-cn-ratios.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -191,10 +191,10 @@ accelerates.
   projections are improved by modelling microbial processes. Nature Climate
   Change 3, 909-912. DOI: 10.1038/nclimate1951. The explicit-microbial model
   form as a registered bracket.
-- /home/cfutro/docs/world/biosphere/notes/phosphorus-cycle-parameterisation.md,
-  /home/cfutro/docs/world/biosphere/notes/soil-decomposition-biogeochemistry-audit.md,
-  /home/cfutro/docs/world/biosphere/notes/mineral-reactivity-contract.md,
-  /home/cfutro/docs/world/biosphere/notes/soil-phosphorus-input-parameterisation.md.
+- /home/cfutro/git/vesper/biosphere/notes/phosphorus-cycle-parameterisation.md,
+  /home/cfutro/git/vesper/biosphere/notes/soil-decomposition-biogeochemistry-audit.md,
+  /home/cfutro/git/vesper/biosphere/notes/mineral-reactivity-contract.md,
+  /home/cfutro/git/vesper/biosphere/notes/soil-phosphorus-input-parameterisation.md.
 
 ## Amendments
 

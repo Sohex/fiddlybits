@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-002"
 title = "Forcing reaching the biosphere is a list of intervals with explicit bounds in absolute seconds, one code path for any cadence, and every field declares unit, time base, kind, area basis, sign and converting side"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/ecological-forcing-field-contract.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/ecological-forcing-field-contract.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -148,10 +148,10 @@ boundary) stated for the biosphere's inputs.
   Global Change Biology 9, 161-185. DOI: 10.1046/j.1365-2486.2003.00569.x.
   Interannually varying spin-up climate is required because fire and
   water-limited responses occur in dry years.
-- /home/cfutro/docs/world/biosphere/notes/ecological-climate-forcing-audit.md
+- /home/cfutro/git/vesper/biosphere/notes/ecological-climate-forcing-audit.md
   (the finding that the bin count was scaffolding and cadence follows
   processes).
-- /home/cfutro/docs/world/biosphere/notes/forcing-replay-preregistration.md
+- /home/cfutro/git/vesper/biosphere/notes/forcing-replay-preregistration.md
   (the seam, ladder, alternative-block and reordering tests and the generator
   prohibitions).
 

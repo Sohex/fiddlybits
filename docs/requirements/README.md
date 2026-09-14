@@ -1,7 +1,7 @@
 # Requirements archive
 
 One record per finding carried from the predecessor project at
-`/home/cfutro/docs/world` (archived at commit `6aa93489d233d4e9d531d6479d338c643e34bc5e`,
+`/home/cfutro/git/vesper` (archived at commit `6aa93489d233d4e9d531d6479d338c643e34bc5e`,
 2026-09-07). No code is copied. A record cites the old document by absolute path and
 states what this system must do and what will enforce it.
 
@@ -23,7 +23,7 @@ always a list, even with one entry.
 +++
 id = "REQ-<AREA>-<NNN>"
 title = "<one line>"
-old_path = ["/home/cfutro/docs/world/<...>"]
+old_path = ["/home/cfutro/git/vesper/<...>"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"   # carried | superseded | not_applicable
 +++

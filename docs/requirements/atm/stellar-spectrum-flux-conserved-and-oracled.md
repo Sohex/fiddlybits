@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-001"
 title = "The stellar spectrum is flux-conserved onto the radiation grid and checked against an independent rendering with a tolerance derived before the measurement"
-old_path = ["/home/cfutro/docs/world/notes/audits/stellar-spectrum-oracle.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/stellar-spectrum-oracle.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

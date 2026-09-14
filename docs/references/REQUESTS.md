@@ -2,7 +2,7 @@
 
 The fetch list for the user: every primary source in `design-citations.md` not already held as a
 PDF in the predecessor tree. 194 papers, grouped by subsystem. The 25 that are held in the old
-index are not listed here; they are linked or copied from `/home/cfutro/docs/world/references/pdf/`
+index are not listed here; they are linked or copied from `/home/cfutro/git/vesper/references/pdf/`
 under the filename recorded in `design-citations.md`.
 
 Filing convention: `references/pdf/<firstauthor><year>-<slug>.pdf` at the repository root, where

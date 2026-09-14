@@ -109,3 +109,7 @@ Stated plainly so that nobody expects it.
   `/home/cfutro/docs/world/notes/audits/missed-couplings.md`.
 - The predecessor's survey of the two model families and the gap between them:
   `/home/cfutro/docs/world/notes/external-model-survey.md`, section 1.
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

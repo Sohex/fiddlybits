@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-013"
 title = "Absent physics is a declared absence with a complete interface, a priced sign and bound, and a buy criterion fixed before the price; a process is in the model because it exists"
-old_path = ["/home/cfutro/docs/world/notes/audits/absent-and-inherited-physics.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/absent-and-inherited-physics.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -67,3 +67,7 @@ recurs here; the table is a living record, not a monument.
 - `/home/cfutro/docs/world/docs/src/practice/working-agreements.md` (the agreements
   whose incidents motivate the epistemic rows).
 - `docs/failure-modes.md` in this repository (the dispositions).
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

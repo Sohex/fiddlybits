@@ -2,7 +2,7 @@
 
 The predecessor project recorded how it went wrong as forty-one numbered classes and
 three unnumbered sections in
-`/home/cfutro/docs/world/docs/src/practice/failure-modes.md` (commit
+`/home/cfutro/git/vesper/docs/src/practice/failure-modes.md` (commit
 `6aa93489d233d4e9d531d6479d338c643e34bc5e`). That file is the argument. This file is
 the disposition: for each class, whether this project makes it unrepresentable,
 checks for it statically, refuses it at runtime, tests for it with a right answer,
@@ -91,7 +91,7 @@ read) answers "who consumes this" mechanically, so the old rule "grep for the sy
 becomes a query on a graph the build already holds. The residual is a consumer that
 recomputes a store quantity privately from primitives; a lint that flags a physics
 module computing a name the store already owns closes that.
-Argument: `/home/cfutro/docs/world/docs/src/practice/failure-modes.md` class 1.
+Argument: `/home/cfutro/git/vesper/docs/src/practice/failure-modes.md` class 1.
 
 ### 2. A parameter that decides the answer is required
 

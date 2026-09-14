@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-004"
 title = "Closure tolerances derive from floating point and are computed on in-memory state, never on written output"
-old_path = ["/home/cfutro/docs/world/notes/audits/closure-tolerance-under-written-precision.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/closure-tolerance-under-written-precision.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

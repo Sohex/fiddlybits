@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-004"
 title = "A dormant parameterisation is recorded with the switch that arms it, and \"off\" is asserted by the system rather than inherited"
-old_path = ["/home/cfutro/docs/world/notes/audits/tuned-values.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/tuned-values.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -65,7 +65,7 @@ of Earth denominators.
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/tuned-values.md, sections 18 and 19
-- /home/cfutro/docs/world/docs/src/practice/conventions.md, "A tuning that no run reaches is a trap"
+- /home/cfutro/git/vesper/notes/audits/tuned-values.md, sections 18 and 19
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md, "A tuning that no run reaches is a trap"
 - Plan decisions A3, A5, A8, F2.
 - Related: REQ-SYS-104 (a dormant Earth-fitted process names its re-derivation at the switch), REQ-SYS-101 (an absent input is never filled from Earth).

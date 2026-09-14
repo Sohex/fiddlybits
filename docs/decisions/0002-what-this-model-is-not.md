@@ -95,3 +95,7 @@ oversight.
   dormant-module audit `/home/cfutro/docs/world/notes/audits/dormant-exoplasim-modules.md`.
 - The "physics is not a knob" rule and its argument:
   `/home/cfutro/docs/world/docs/src/practice/failure-modes.md`, class 16.
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-009"
 title = "Bathymetry carries a per-cell depth distribution and an explicit connectivity graph; cell-mean bathymetry passes every ledger and loses straits, sills and basins at every resolution"
-old_path = ["/home/cfutro/docs/world/notes/audits/ocean-support-nonlinear-reductions.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/ocean-support-nonlinear-reductions.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

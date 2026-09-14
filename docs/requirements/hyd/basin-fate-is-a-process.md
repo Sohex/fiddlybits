@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-008"
 title = "Basin fate is a slow incision process integrated against a fast climate: the verdict map is antitone, the cut is irreversible, and an Earth density of standing through-flowing lakes is the report metric"
-old_path = ["/home/cfutro/docs/world/notes/audits/carve-overshoot.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/carve-overshoot.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -31,7 +31,7 @@ to its terrain generator, and iterated. Written 2026-08-24 against that loop:
   depression from the terrain everything else is built on.
 
 The retain mechanism the verdict carried is in
-`/home/cfutro/docs/world/hydrography/notes/retain-fraction.md`, and its findings are
+`/home/cfutro/git/vesper/hydrography/notes/retain-fraction.md`, and its findings are
 evidence rather than a design: the retain once encoded the project's own uncertainty
 and handed it to a landscape; it was replaced by an incision length,
 `cut = C * erodibility * (S / S_ref)^n * Q^0.5`, over the depth at spill, with `C`

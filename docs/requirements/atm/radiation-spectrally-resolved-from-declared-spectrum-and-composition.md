@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-003"
 title = "Radiation is spectrally resolved from the declared spectrum and composition; no fitted broadband absorptance is re-weighted per star; cost is measured in place against a criterion fixed first"
-old_path = ["/home/cfutro/docs/world/exoplasim/notes/radiation-scheme-price.md"]
+old_path = ["/home/cfutro/git/vesper/exoplasim/notes/radiation-scheme-price.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

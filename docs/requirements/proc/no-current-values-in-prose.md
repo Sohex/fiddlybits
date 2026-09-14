@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-001"
 title = "No current value is written into prose, no generated artifact is hand-edited, and a derived summary is checked against its primitives"
-old_path = ["/home/cfutro/docs/world/notes/audits/derived-structure-audit.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/derived-structure-audit.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -62,8 +62,8 @@ a generated-file header and no-op regeneration check in CI; a configuration pars
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/derived-structure-audit.md
-- /home/cfutro/docs/world/docs/src/practice/conventions.md, "Documents and numbers"
-- /home/cfutro/docs/world/notes/audits/frozen-derived-quantities.md, tier 5
-- /home/cfutro/docs/world/notes/audits/missed-couplings.md, finding 3 (the hand-edited generator output)
+- /home/cfutro/git/vesper/notes/audits/derived-structure-audit.md
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md, "Documents and numbers"
+- /home/cfutro/git/vesper/notes/audits/frozen-derived-quantities.md, tier 5
+- /home/cfutro/git/vesper/notes/audits/missed-couplings.md, finding 3 (the hand-edited generator output)
 - Plan: first execution pass, `notes/findings/` rule; verification that no effort estimate appears anywhere in the tree.

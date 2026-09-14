@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-001"
 title = "Every constant carries exactly one of five dispositions, and \"tuned\" is not one of them"
-old_path = ["/home/cfutro/docs/world/notes/audits/tuned-values.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/tuned-values.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -117,9 +117,9 @@ every `Bracketed` value at the M8 gate; the convergence-with-level oracle for ev
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/tuned-values.md (the enumeration and its dispositions)
-- /home/cfutro/docs/world/docs/src/practice/conventions.md, section "No tuned values"
-- /home/cfutro/docs/world/docs/src/reference/vocabulary.md (tuned, opaque, implicit-Earth)
+- /home/cfutro/git/vesper/notes/audits/tuned-values.md (the enumeration and its dispositions)
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md, section "No tuned values"
+- /home/cfutro/git/vesper/docs/src/reference/vocabulary.md (tuned, opaque, implicit-Earth)
 - Kok et al. (2014). *An improved dust emission model - Part 1: Model description and comparison against measurements.* DOI 10.5194/acp-14-13023-2014 (a scheme chosen for one fewer unconstrained coefficient)
 - Kessler (1969). *On the Distribution and Continuity of Water Substance in Atmospheric Circulations.* DOI 10.1007/978-1-935704-36-2 (a constant that derived into a form)
 - Louis (1979). *A parametric model of vertical eddy fluxes in the atmosphere.* DOI 10.1007/BF00117978 (a fitted set that does not transfer on its authority)

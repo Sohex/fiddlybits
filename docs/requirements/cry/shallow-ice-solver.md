@@ -1,7 +1,7 @@
 +++
 id = "REQ-CRY-001"
 title = "Shallow-ice flow on the mesh: the full surface gradient reconstructed, volume conserved by antisymmetric face fluxes, the margin solved as an active set, convergence declared on the nonlinear residual, and the Halfar dome as the exact test"
-old_path = ["/home/cfutro/docs/world/notes/audits/shallow-ice-solver-cost.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/shallow-ice-solver-cost.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

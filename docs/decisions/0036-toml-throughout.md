@@ -51,3 +51,7 @@ import review beyond the standard library's.
 
 - TOML v1.0.0 specification, https://toml.io/en/v1.0.0 (no DOI).
 - Julia standard library `TOML` module documentation, https://docs.julialang.org/en/v1/stdlib/TOML/ (no DOI).
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.
