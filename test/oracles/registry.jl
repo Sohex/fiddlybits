@@ -304,11 +304,11 @@ function history_failures(check, repos)
     return failures
 end
 
-"The problems of the tree's loader and anchor clauses that open rows carry, by phrase: fiddlybits-52v.8.7 each, and fiddlybits-52v.8.9 the anchors read_index keys no title for."
+"The problems of the tree's loader and anchor clauses that open rows carry, by phrase: fiddlybits-52v.8.7 each."
 const CARRIED_BY_OPEN_ROWS = ("carries no source_kind", "entry with no anchors", "resolves to no row of the references index")
 
-"The references index of the tree, a key to its status, read by test/lint's reader."
-tree_index() = first(IndexReading.read_index(INDEX))
+"The references index of the tree, each row's title keyed to its status, read by test/lint's reader."
+tree_index() = last(IndexReading.read_index(INDEX))
 
 "The count of `found` by reason, with each anchor title and entry number dropped from the reason."
 function by_clause(found)
