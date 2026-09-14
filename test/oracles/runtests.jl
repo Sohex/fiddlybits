@@ -146,3 +146,6 @@ end
 
 # oracles.registry_wellformed (the loader and anchor clauses) and oracles.registration_rule.
 include("registry.jl")
+
+# The oracle runner.
+include("run.jl")
