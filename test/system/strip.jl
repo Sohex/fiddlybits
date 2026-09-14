@@ -8,7 +8,12 @@ import .SystemFixtures as SF
 
 @testset "system strip" begin
     value = Dispositions.value
-    instances = (SF.system(), SF.system(Float32), SF.two_star_system(), SF.synchronous_system(),
+    one_ = Dimensions.DIMENSIONLESS
+    figure(T, c) = Systems.HydrostaticFigure(moment_of_inertia_factor = SF.irreducible(T(c), one_))
+    hydrostatic(T; kw...) = SF.system(T; planet = SF.planet(T; figure = figure(T, T(33) / 100), kw...))
+    instances = (hydrostatic(Float64), hydrostatic(Float32),
+                 hydrostatic(Float64; rotation = Systems.SynchronousRotation()),
+                 hydrostatic(Float32; rotation = Systems.SynchronousRotation()),SF.system(), SF.system(Float32), SF.two_star_system(), SF.synchronous_system(),
                  SF.flux_system(), SF.circumbinary_system(),
                  SF.system(orbits = Systems.OrbitHierarchy(
                      planet = SF.planet_orbit(reference_plane = :primary_equator),
@@ -84,6 +89,32 @@ import .SystemFixtures as SF
             @test st.planet.equator_ascending_node_longitude === 3.0 !== base.planet.equator_ascending_node_longitude
             @test st.orbits.planet.longitude_of_periapsis === 4.0 !== base.orbits.planet.longitude_of_periapsis
             @test st.orbits.moons[1].mean_longitude_at_epoch === 5.0 !== base.orbits.moons[1].mean_longitude_at_epoch
+        end
+    end
+
+    @testset "strip carries the figure by its kind" begin
+        for T in (Float64, Float32)
+            s = SF.system(T)
+            st = Systems.strip(s)
+            @test st.planet.figure isa Systems.StrippedAbsentFigure{T}
+            @test st.planet.figure.equator_pole_gravity_difference ===
+                  value(s.planet.figure.equator_pole_gravity_difference)
+            for h in (hydrostatic(T), hydrostatic(T; rotation = Systems.SynchronousRotation()))
+                sh = Systems.strip(h)
+                @test isbits(sh)
+                @test sh.planet.figure isa Systems.StrippedHydrostaticFlattening{T}
+                @test sh.planet.figure.flattening === value(h.planet.figure.flattening)
+                @test sh.planet.figure.moment_of_inertia_factor === T(33) / 100
+            end
+        end
+
+        @testset "control: a changed factor moves the stripped flattening" begin
+            condensed = Systems.strip(hydrostatic(Float64)).planet.figure
+            uniform = Systems.strip(SF.system(planet = SF.planet(figure = figure(Float64, 0.4)))).planet.figure
+            @test uniform.moment_of_inertia_factor === 0.4
+            @test uniform.flattening !== condensed.flattening
+            @test uniform.flattening === Dispositions.value(Systems.hydrostatic_flattening(
+                figure(Float64, 0.4), SF.system().planet).flattening)
         end
     end
 
