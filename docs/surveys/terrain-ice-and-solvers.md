@@ -74,27 +74,30 @@ The three findings that matter most:
    (explicit `g`, no per-metre constant hiding it) is not a fiddlybits idiosyncrasy;
    it is achievable and already achieved elsewhere, which raises confidence that the
    discipline is realistic to hold.
-3. **`fastflow` at `/home/cfutro/git/fastflow` is now the real tree, and it is exact
-   where it matters, but it solves a smaller problem than B5's.** The clone was
+3. **`fastflow` at `/home/cfutro/git/fastflow` is now the real tree; its tree kernels
+   read no coordinates, but it solves a smaller problem than B5's, and its
+   accumulation's fixed round count is not always enough.** The clone was
    replaced; it is Jain et al.'s FastFlow (Computer Graphics Forum 43(7), 2024,
    `gitlab.inria.fr/landscapes/fastflow`, read at `67be3c3`), a GPU parallelisation
    of depression routing and flow accumulation for landscape-evolution erosion. Its
-   flow-accumulation primitive (`tree_accum_up.cu`'s rake-and-compress contraction,
-   `tree_accum_down.cu`'s pointer-doubling scan) is an exact parallel reformulation
-   of the Braun and Willett O(n) sequential accumulation 0015 already cites, and its
-   depression-merge order (`lakeflow.cu`'s Boruvka-style basin union) is exact as a
-   graph algorithm, not an approximation - genuinely useful facts, because they mean
-   the GPU technique is provably not a source of invented or lost water on its own
-   terms. But `lakeflow()` unconditionally connects every interior local minimum to
+   flow-accumulation primitive (`tree_accum_up.cu`'s rake-and-compress contraction)
+   sums over a single-receiver forest in a fixed `ceil(log2 n)` rounds with no
+   completion test, and trees from eight cells up need one round more and are
+   returned as partial sums; its implicit-incision scan (`tree_accum_down.cu`'s
+   pointer-doubling prefix) finishes within its round count; and its depression-merge
+   order (`lakeflow.cu`'s Boruvka-style basin union) builds the minimum spanning tree
+   of the basin graph that Cordonnier, Bovy and Braun 2019 route by (section 2.2,
+   p. 552). But `lakeflow()` unconditionally connects every interior local minimum to
    the boundary on every call, with no runoff or water-volume field anywhere in the
    construction: it always fills every depression to its spill, which is precisely
    the alternative decision 0019 names and rejects, not the water-balance-conditioned
    fill-spill-merge B5 requires. And its neighbour-finding (`rcv.cu`'s `make_rcv`,
    `lakeflow.cu`'s `comp_basin_edgez`/`compute_p_b_rcv`) is a hardcoded four-neighbour
    raster stencil with no connectivity-graph or variable-valence analogue, while the
-   pointer-jumping tree contraction underneath it is structure-agnostic and would
-   carry over to the mesh once fed a mesh-native receiver graph. Full detail in the
-   fastflow closer look below.
+   pointer-jumping kernels underneath it read only receiver and donor arrays and
+   carry to a receiver forest built on the mesh. Full detail in the fastflow closer
+   look below and in
+   `notes/findings/2026-09-13-fastflow-tree-contraction-reads-no-coordinates-and-its-fixed-round-count-leaves-trees-unfinished.md`.
 
 ## Repositories
 
@@ -307,8 +310,9 @@ answer to the second is the one worth reading closely.
 **What is implemented.** Both flow accumulation and depression routing, chained
 together every simulation iteration, never as a one-shot preprocessing pass:
 `src/cuda/core/rcv.cu`'s `make_rcv`/`make_rcv_rand` assign each cell a single
-receiver (steepest descent, or a slope-weighted stochastic pick used only to average
-toward a multi-direction result across many iterations, not within one);
+receiver (steepest descent, or a slope-weighted stochastic pick from one random number
+per cell drawn once per simulation, so the pick moves between iterations only as the
+terrain, jittered each iteration, moves: `simulation.py` lines 38 and 47);
 `src/cuda/core/lakeflow.cu`'s `lakeflow_cuda` builds and merges the basin graph
 (`comp_basin_edgez` and `compute_p_b_rcv` find each basin's lowest bounding saddle and
 its across-saddle neighbour basin, `set_keep_b`/`set_keep` and the
@@ -323,16 +327,19 @@ resulting tree by rake-and-compress contraction, and `tree_accum_down.cu`/
 `simulation.py` recovers a lake mask: the spill elevation propagated downstream past
 every merged pit, compared against the unmodified terrain).
 
-**Exactness (the answer that matters most).** The parallel primitives are exact, not
-approximate, and worth stating plainly. The rake-and-compress accumulation is a
-provably exact parallel reformulation of Braun and Willett's own O(n) sequential
-stack-based tree sum - the same reference 0015 already cites for implicit incision -
-so it does not lose or invent water relative to the sequential algorithm it replaces,
-up to floating-point summation order. The basin-merge order is exact as a graph
-algorithm: the reciprocal-lowest-neighbour test is a parallel Boruvka construction,
-and Boruvka's algorithm agrees with a sequential union-find priority-flood on the same
-merge order wherever saddle elevations are distinct. But exactness of the primitive is
-not exactness against B5's problem. `lakeflow()`'s outer loop runs until zero interior
+**Exactness (the answer that matters most).** Each rake or compress step keeps a
+cell's value plus its remaining donors' subtree totals equal to its subtree sum, so a
+contraction that finishes gives the sum Braun and Willett's inverted stack gives
+(p. 173), to floating-point summation order. It does not always finish: the driver
+runs `ceil(log2 n)` rounds and returns (`tree_accum_up.cu` lines 148, 168-173), with
+no test that the donor lists are empty, and trees exist that need one round more,
+from eight cells up; the paper's log2(n) claim (Jain et al. 2024, p. 5) carries no
+proof. The donor slot order, set by a compare-and-swap race in `rcv2donor`, reaches
+the `float32` sum, and the saddle cell among ties is kept by an unsynchronised write
+(`scatter_min.cu` line 53). The basin merge is the parallel Boruvka construction of
+the minimum spanning tree of the basin graph, with a lexicographic tie rule (paper
+pp. 6-7; Cordonnier, Bovy and Braun 2019, p. 552). But a finished construction is
+still not B5's problem. `lakeflow()`'s outer loop runs until zero interior
 local minima remain unconnected to the boundary (`for i in range(logn): p_lm = ...;
 if S == 0: break`, `src/lakeflow.py:33-37`), with no runoff or water-volume field
 anywhere in `lakeflow_cuda`'s construction - every depression is filled to its spill
@@ -364,17 +371,22 @@ raster stencil and nothing like the twelve-vertex-neighbour stencil 0005 and 001
 require; `scatter_argbasin_atomic` in `scatter_min.cu` uses the identical four-offset
 search. The rake-and-compress donor list in `tree_accum_up.cu` bakes in a maximum
 in-degree of four per node (`dnr[n*4]`, an atomic slot counter with no bound check)
-that follows directly from the D4 stencil upstream of it, not an independently chosen
-structure-agnostic bound - reusing the technique on the mesh means resizing that array
-to the mesh's own maximum in-degree (bounded by twelve) as well as replacing the
-neighbour search. By contrast, everything downstream of a computed `rcv` array -
-`tree_accum_down.cu`, `tree_max_down.cu`, and the carve-reversal kernels in
-`lakeflow.cu` - reads and writes only the abstract parent-pointer array, with no
-coordinate arithmetic anywhere in them, so the pointer-jumping technique itself is
-structure-agnostic and would carry over unchanged to a receiver graph built from the
-mesh's connectivity graph. In short: the idea (parallel tree contraction for
-accumulation, parallel Boruvka basin merging) survives; the neighbour-finding and
-basin-adjacency detection do not, and need a full reimplementation against the mesh.
+that follows from the D4 stencil upstream of it, not an independently chosen
+structure-agnostic bound, and the jumping variant points a pit at an outlet that is
+not its neighbour (`lakeflow.py` line 52), an edge the four-slot bound does not
+cover - reusing the technique on the mesh means sizing that array to the in-degree
+bound of the mesh's receiver stencil (twelve on the vertex stencil) as well as
+replacing the neighbour search. By contrast, everything downstream of a computed
+`rcv` array - `tree_accum_up.cu`'s contraction, `tree_accum_down.cu`,
+`tree_max_down.cu`, the basin-label propagation and the carve-reversal kernels in
+`lakeflow.cu` - reads and writes only the parent-pointer and donor arrays, with no
+coordinate arithmetic anywhere in them, so the pointer-jumping technique carries to
+a receiver forest built on the mesh, with the contraction's fixed round count
+replaced by a test that it finished. It does not carry to the multiple-flow-direction
+accumulation of decision 0015, which is not a forest (paper p. 3). In short: the idea
+(parallel tree contraction for accumulation, parallel Boruvka basin merging) survives;
+the neighbour-finding and basin-adjacency detection do not, and need a full
+reimplementation against the mesh.
 
 **Licence (question 4).** `LICENSE.md` is Inria's own research licence, not an OSI
 licence: non-exclusive, royalty-free rights to use, reproduce, prepare derivative
