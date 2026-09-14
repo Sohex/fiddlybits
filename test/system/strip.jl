@@ -1,5 +1,5 @@
 using Test
-using Fiddlybits: Systems, Dispositions
+using Fiddlybits: Systems, Dispositions, Provenance
 import .SystemFixtures as SF
 
 # strip(system): an isbits struct of plain FT for every instance, a function of the
@@ -14,9 +14,25 @@ import .SystemFixtures as SF
                  SF.system(inventories = SF.inventories(condensable =
                      Systems.NoCondensable(argument = "the fixture's volatiles do not condense"))))
 
-    @testset "isbits(strip(system)) holds for every instance" begin
+    @testset "isbits(strip(system)) holds for every instance, the root seed carried as a UInt64" begin
         for s in instances
             @test isbits(Systems.strip(s))
+            @test Systems.strip(s).root_seed === value(s.root_seed)
+            @test Systems.strip(s).root_seed isa UInt64
+        end
+    end
+
+    @testset "a philox_draw keyed on strip(system).root_seed equals one keyed on the declared seed" begin
+        declared = 0xD1CE5EED00000001
+        digest = ntuple(i -> UInt8(i), 32)
+        draw(seed) = Provenance.philox_draw(seed, digest, 3, 2, 5, 0)
+        @test draw(Systems.strip(SF.system(root_seed = SF.seed(declared))).root_seed) == draw(declared)
+        @test draw(Systems.strip(SF.system(Float32; root_seed = SF.seed(declared))).root_seed) == draw(declared)
+
+        @testset "control: a flipped seed moves the draw" begin
+            flipped = Systems.strip(SF.system(root_seed = SF.seed(declared + 1))).root_seed
+            @test draw(flipped) != draw(declared)
+            @test draw(flipped) == draw(declared + 1)
         end
     end
 
