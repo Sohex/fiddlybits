@@ -6,5 +6,6 @@ module Coupling
 using ..Verdicts
 
 include("state.jl")
+include("exchange.jl")
 
 end # module Coupling
