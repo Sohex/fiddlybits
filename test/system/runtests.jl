@@ -1,5 +1,6 @@
 include("fixtures.jl")
 include("refusals.jl")
+include("earth_ratios.jl")
 include("gravity.jl")
 include("derived.jl")
 include("strip.jl")
