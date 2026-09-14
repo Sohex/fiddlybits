@@ -155,9 +155,28 @@ end
 "Releases every gate in `WRITER_LIVE_GATES` through `writer_release!`."
 writer_release_all() = foreach(writer_release!, @lock WRITER_GATES_LOCK copy(WRITER_LIVE_GATES))
 
-# At process exit, SIGTERM included, every gate with a kernel queued over it is released and
-# its kernel waited for, ahead of the exit hooks of the packages loaded before this file.
-atexit(writer_release_all)
+"The process's one `WriterGate`, made by the first `writer_gate` call and kept until exit."
+const WRITER_GATE_MEMORY = Ref{Union{Nothing,WriterGate}}(nothing)
+
+"""
+    writer_exit()
+
+Releases every gate with a kernel queued over it through `writer_release_all`, then unregisters
+the process's one gate's two arrays through `CUDA.unsafe_free!`, no kernel being queued over them.
+"""
+function writer_exit()
+    writer_release_all()
+    g = WRITER_GATE_MEMORY[]
+    if g !== nothing
+        CUDA.unsafe_free!(g.device)
+        CUDA.unsafe_free!(g.spins)
+    end
+    return nothing
+end
+
+# At process exit, SIGTERM included, every held gate is released and its kernel waited for, and
+# the gate memory is unregistered, ahead of the exit hooks of the packages loaded before this file.
+atexit(writer_exit)
 
 @kernel function writer_copy_kernel!(out, @Const(src))
     i = @index(Global)
@@ -172,14 +191,25 @@ end
 """
     writer_gate(gpu, ceiling)
 
-A `WriterGate` holding `WRITER_HOLD`, its counter at zero and its ceiling `ceiling`, the two
-host vectors registered device-mapped through `unsafe_wrap(CuArray{Float64,1,CUDA.HostMemory}, ...)`.
+The process's one `WriterGate`, holding `WRITER_HOLD`, its counter at zero and its ceiling
+`ceiling`. The first call registers its two host vectors device-mapped through
+`unsafe_wrap(CuArray{Float64,1,CUDA.HostMemory}, ...)` and keeps it in `WRITER_GATE_MEMORY`;
+every later call rearms the same memory. Raises when a kernel is still queued over it.
 """
 function writer_gate(gpu, ceiling)
-    cell = [WRITER_HOLD]
-    counter = [0.0]
-    return WriterGate(cell, counter, unsafe_wrap(CuArray{Float64,1,CUDA.HostMemory}, cell),
-                      unsafe_wrap(CuArray{Float64,1,CUDA.HostMemory}, counter), ceiling, nothing)
+    g = WRITER_GATE_MEMORY[]
+    if g === nothing
+        cell = [WRITER_HOLD]
+        counter = [0.0]
+        g = WriterGate(cell, counter, unsafe_wrap(CuArray{Float64,1,CUDA.HostMemory}, cell),
+                       unsafe_wrap(CuArray{Float64,1,CUDA.HostMemory}, counter), ceiling, nothing)
+        WRITER_GATE_MEMORY[] = g
+    end
+    g.point === nothing || error("the process's one writer gate still has a kernel queued over it")
+    g.cell[1] = WRITER_HOLD
+    g.counter[1] = 0.0
+    g.ceiling = ceiling
+    return g
 end
 
 """

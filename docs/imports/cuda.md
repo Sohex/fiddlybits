@@ -319,6 +319,24 @@ iteration count is below a ceiling, and releases it by writing the cell from the
   observed. The test compiles, at their work item counts, every kernel its held interval
   launches before the hold.
 
+**Unregistering page-locked host memory waits on a running kernel.**
+
+- CUDACore `lib/cudadrv/memory.jl`: `register`, lines 171-177, calls `cuMemHostRegister_v2`
+  (`lib/cudadrv/libcuda.jl`, lines 999-1003), and `unregister`, lines 184-186, calls
+  `cuMemHostUnregister` (`lib/cudadrv/libcuda.jl`, lines 4617-4620). Both are `@gcsafe_ccall`s,
+  so a task inside either lets a collection proceed.
+- The same file, `pin`, lines 683-707, attaches a finalizer that reaches `__unpin` (lines
+  758-775) and so `unregister`; CUDACore `src/array.jl`, lines 304-330, gives the `CuArray` that
+  `unsafe_wrap` registers over host memory a `DataRef` whose release unregisters it. Unreachable
+  registered memory is therefore unregistered inside whichever collection finalizes it, on the
+  task that allocated.
+- Measured, not read: `cuMemHostUnregister` did not return while a kernel of the same process ran
+  on the card, `cuMemHostRegister_v2` did, and registered memory left to a finalizer stalled any
+  task that allocated for as long as a kernel ran:
+  `notes/findings/2026-09-14-unregistering-page-locked-host-memory-waits-on-a-running-kernel.md`.
+- What rests on it: no page-locked host memory the store's writer holds reaches a finalizer, and
+  none is unregistered while a stage or a submitter could be waiting on it.
+
 **How the leak is caught.** `test/backends/host_copy.jl`. A copy that was not queued at
 its stream position holds the second kernel's values instead of the first's (check 1);
 a door that synchronizes, by `complete!` or by a bare device synchronize, leaves nothing
