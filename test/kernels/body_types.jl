@@ -27,7 +27,7 @@ const BodyPass = BodyTypesDriver.StaticPass
 const BODY_GPUCOMPILER =
     Base.loaded_modules[Base.PkgId(Base.UUID("61eb1bfa-7361-4325-ad38-22787b887f55"), "GPUCompiler")]
 
-@isdefined(BackendFixtures) || include(joinpath(@__DIR__, "fixtures.jl"))
+@isdefined(BackendFixtures) || include(joinpath(@__DIR__, "..", "backends", "fixtures.jl"))
 
 "The floating-point precisions a kernel of this package is launched at."
 const BODY_FLOATS = (Float64, Float32)

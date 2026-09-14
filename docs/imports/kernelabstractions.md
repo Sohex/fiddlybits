@@ -79,7 +79,7 @@ and the concrete arm runs and writes the known answer. On the CPU backend every
 dispatching arm runs and writes the same answer, which pins the CPU backend's
 silence as recorded behaviour rather than an assumption.
 
-`test/backends/body_types.jl` (`kernels.body_types_concrete`) reads the typed code of
+`test/kernels/body_types.jl` (`kernels.body_types_concrete`) reads the typed code of
 `cpu_<name>` at every dispatch-tuple specialization and of `gpu_<name>` at every
 device compilation of each kernel the package defines, resolving both through
 `kernel(dev).f`, and fails on a value whose type `code_warntype` highlights. It also

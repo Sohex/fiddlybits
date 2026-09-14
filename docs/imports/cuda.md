@@ -172,7 +172,7 @@ union, a box with no call on its contents, and a non-concrete value at the launc
 A device compiler that fell back to dispatch instead of refusing fails the refused
 arms.
 
-`test/backends/body_types.jl` (`kernels.body_types_concrete`) covers what compiles.
+`test/kernels/body_types.jl` (`kernels.body_types_concrete`) covers what compiles.
 It launches every kernel the package defines through its own door on both backends,
 reads the typed code of each device job through the reflection above and of each CPU
 specialization, and fails on a highlighted value in a kernel body or a package method
