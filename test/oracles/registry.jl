@@ -173,15 +173,15 @@ end
 """
     new_history(dir, entry; amended)
 
-A repository in `dir` whose first commit holds a registry with `entry` and the model
-files, and, when `amended`, the decision record carrying the amendment; returns the
-registry document.
+A repository in `dir` whose first commit holds a registry with `entry`, the model files,
+an exceptions list with no entry, and, when `amended`, the decision record carrying the
+amendment; returns the registry document.
 """
 function new_history(dir::AbstractString, entry::AbstractDict; amended::Bool = true)
     mkpath(dir)
     fixture_git(dir, `init -q -b main`)
     doc = registry_doc([entry]; protocols = Any[])
-    files = merge(model_files([entry["id"]]), Dict{String,Any}(Oracles.REGISTRY_PATH => doc))
+    files = merge(model_files([entry["id"]]), Dict{String,Any}(Oracles.REGISTRY_PATH => doc, Oracles.EXCEPTIONS_PATH => ""))
     amended && (files[Oracles.DECISION_PATH] = DECISION_TEXT)
     commit!(dir, files, "first")
     return doc
@@ -229,6 +229,46 @@ function merge_history(dir, extra::AbstractDict)
     fixture_git(dir, `merge -q --no-ff -m merge branch`)
 end
 
+"An exceptions list entry naming `merge` and `oracle`, with every field filled."
+exception(merge::AbstractString, oracle::AbstractString) = Dict{String,Any}(
+    "merge" => merge, "oracle" => oracle, "reason" => "a fixture merge", "row" => "fiddlybits-fixture",
+    "date" => TOML.Dates.Date(2026, 9, 14), "permitted_by" => "the fixture user's permission")
+
+"Writes the exceptions list under `dir` holding `entries`."
+list!(dir::AbstractString, entries) =
+    put(joinpath(dir, Oracles.EXCEPTIONS_PATH), Dict{String,Any}("exception" => entries))
+
+"A history: a branch changing the tier-1 entry's threshold together with `extra`, merged, and the merge listed for `oracle`."
+function listed_merge(dir, extra::AbstractDict, oracle::AbstractString)
+    merge_history(dir, extra)
+    list!(dir, [exception(head(dir), oracle)])
+end
+
+"""
+A history: a feature branch diverges from main; main merges a registry-only change to the
+tier-1 entry's threshold, then a change to the testset named by it; the feature branch
+merges main into itself, commits more work, and merges into main with no threshold change
+of its own.
+"""
+function sync_history(dir)
+    doc = new_history(dir, tier1())
+    fixture_git(dir, `checkout -q -b feature`)
+    commit!(dir, Dict{String,Any}("notes/feature.md" => "feature work\n"), "feature work")
+    fixture_git(dir, `checkout -q -b threshold main`)
+    edit!(dir, doc, Dict{String,Any}("threshold" => "roundoff at every level"))
+    fixture_git(dir, `checkout -q main`)
+    fixture_git(dir, `merge -q --no-ff -m "merge threshold" threshold`)
+    fixture_git(dir, `checkout -q -b testset main`)
+    commit!(dir, Dict{String,Any}("test/model/runtests.jl" => "@testset \"mesh.fixture_identity\" begin\n    @test true\nend\n"), "testset")
+    fixture_git(dir, `checkout -q main`)
+    fixture_git(dir, `merge -q --no-ff -m "merge testset" testset`)
+    fixture_git(dir, `checkout -q feature`)
+    fixture_git(dir, `merge -q --no-ff -m "merge main into feature" main`)
+    commit!(dir, Dict{String,Any}("notes/feature.md" => "feature work, continued\n"), "more feature work")
+    fixture_git(dir, `checkout -q main`)
+    fixture_git(dir, `merge -q --no-ff -m "merge feature" feature`)
+end
+
 "A history: the tier-2 reregistration refused below, made before the amendment commit."
 function before_amendment(dir)
     doc = new_history(dir, tier2(); amended = false)
@@ -271,6 +311,14 @@ const HISTORY_CONTROLS = (
      count = 1, phrase = "a merge whose branch changes the threshold together with src/Model.jl"),
     (case = "the threshold change merged alone (accepted)",
      build = dir -> merge_history(dir, Dict{String,Any}()), count = 0, phrase = ""),
+    (case = "a feature branch that merged main's threshold and testset merges into itself, merged into main with no threshold change of its own (accepted)",
+     build = sync_history, count = 0, phrase = ""),
+    (case = "a merge changing a threshold and src/, listed as an exception with permitted_by (accepted)",
+     build = dir -> listed_merge(dir, Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n"), "mesh.fixture_identity"),
+     count = 0, phrase = ""),
+    (case = "a listed exception whose merge changes the threshold alone, which is stale",
+     build = dir -> listed_merge(dir, Dict{String,Any}(), "mesh.fixture_identity"),
+     count = 1, phrase = "a stale exception of " * Oracles.EXCEPTIONS_PATH),
     (case = "a registration refused below, made before the amendment commit (accepted)",
      build = before_amendment, count = 0, phrase = ""),
     (case = "a tier-2 fail_bar entry registered with a bar below its uncertainty",
@@ -482,6 +530,16 @@ end
             @test isempty(history_failures(Oracles.history_problems, repos))
         end
 
+        @testset "positive control: a violating merge listed for another oracle is refused, and its exception is stale" begin
+            repo = joinpath(dir, "other_oracle")
+            listed_merge(repo, Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n"), "mesh.another_identity")
+            found = Oracles.history_problems(repo)
+            @test length(found) == 2
+            @test count(m -> occursin("a merge whose branch changes the threshold together with src/Model.jl", m.reason), found) == 1
+            @test count(m -> m.site == "mesh.another_identity at " * Oracles.short(head(repo)) &&
+                             occursin("a stale exception", m.reason), found) == 1
+        end
+
         @testset "a shallow clone is refused" begin
             clone = joinpath(dir, "shallow")
             fixture_git(dir, `clone -q --depth 1 file://$(repos[1]) $(clone)`)
@@ -492,6 +550,62 @@ end
             repo = joinpath(dir, "unamended")
             new_history(repo, tier1(); amended = false)
             @test_throws Verdicts.Refusal Oracles.history_problems(repo)
+        end
+    end
+end
+
+"The refusal `f()` raises, or `nothing` when it returns."
+function refusal(f)
+    try
+        f()
+        return nothing
+    catch e
+        e isa Verdicts.Refusal || rethrow()
+        return e
+    end
+end
+
+"Each exceptions list fixture: the change to a list of one filled entry, and a phrase of the refusal it raises."
+const EXCEPTION_CONTROLS = (
+    (case = "an entry with an empty permitted_by", change = d -> (only(d["exception"])["permitted_by"] = ""),
+     phrase = "permitted_by is empty"),
+    (case = "an entry with no permitted_by", change = d -> delete!(only(d["exception"]), "permitted_by"),
+     phrase = "carries no permitted_by"),
+    (case = "an entry with no reason", change = d -> delete!(only(d["exception"]), "reason"),
+     phrase = "carries no reason"),
+    (case = "an entry carrying an unknown key", change = d -> (only(d["exception"])["approved_by"] = "an agent"),
+     phrase = "carries approved_by, which is not an exception field"),
+    (case = "a merge that is not a full commit id", change = d -> (only(d["exception"])["merge"] = "0d09de52"),
+     phrase = "is not a forty-digit commit id"),
+    (case = "a date that is not a TOML date", change = d -> (only(d["exception"])["date"] = "2026-09-14"),
+     phrase = "date is not a TOML date"),
+    (case = "two entries naming one merge and oracle", change = d -> push!(d["exception"], copy(only(d["exception"]))),
+     phrase = "as an earlier entry does"),
+    (case = "a key other than exception", change = d -> (d["exceptions"] = d["exception"]; delete!(d, "exception")),
+     phrase = "carries exceptions, which is not exception"),
+    (case = "a missing file", change = d -> nothing, phrase = "does not exist"),
+)
+
+@testset "oracles.registration_rule: the exceptions list is refused before git is read" begin
+    mktempdir() do dir
+        entry = () -> Dict{String,Any}("exception" => [exception(repeat("a", 40), "mesh.fixture_identity")])
+        path = joinpath(dir, Oracles.EXCEPTIONS_PATH)
+
+        @testset "the accepted twin: a filled entry is read, and the check goes on to git outside a repository" begin
+            put(path, entry())
+            listed = Oracles.read_exceptions(path)
+            @test length(listed) == 1 && only(listed).permitted_by == "the fixture user's permission"
+            r = refusal(() -> Oracles.history_problems(dir))
+            @test r isa Verdicts.Refusal && r.quantity == "git"
+        end
+
+        @testset "positive control: $(c.case) is refused" for c in EXCEPTION_CONTROLS
+            doc = entry()
+            c.change(doc)
+            c.case == "a missing file" ? rm(path) : put(path, doc)
+            r = refusal(() -> Oracles.history_problems(dir))
+            @test r isa Verdicts.Refusal && r.quantity == "registration exceptions" && occursin(c.phrase, r.reason)
+            r isa Verdicts.Refusal && r.quantity == "registration exceptions" || @info "$(c.case) raised" r
         end
     end
 end
@@ -521,11 +635,15 @@ end
 
 @testset "oracles.registration_rule: the tree's verdicts are recorded" begin
     history = Oracles.history_problems(PROJECT)
+    listed = Oracles.read_exceptions(joinpath(PROJECT, Oracles.EXCEPTIONS_PATH))
     constructions = Oracles.fixture_constructions(joinpath(PROJECT, "src"))
     println("oracles.registration_rule on the tree: history from ", Oracles.short(Oracles.amendment_commit(PROJECT)),
-            " to HEAD, ", length(history), " problems; Fixture constructions under src/, ", length(constructions))
+            " to HEAD, ", length(history), " problems, ", length(listed), " listed exceptions (",
+            join((Oracles.short(x.merge) * " " * x.oracle for x in listed), ", "), "); Fixture constructions under src/, ",
+            length(constructions))
     isempty(history) || @info "history problems on the tree" history
     isempty(constructions) || @info "Fixture constructions under src/" constructions
+    @test [(x.merge, x.oracle) for x in listed] == [("0d09de52c917768be851e8205fcad2c5e8e30088", "system.epoch_event")]
     @test isempty(history)
     @test isempty(constructions)
 end

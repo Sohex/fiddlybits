@@ -722,22 +722,126 @@ function judge_registration!(found::Vector{Malformed}, r::Registration, row::Abs
     return nothing
 end
 
+"The reviewed exceptions list of the history check, relative to a repository root."
+const EXCEPTIONS_PATH = "docs/oracles/registration_exceptions.toml"
+
+"The keys every `[[exception]]` entry carries, and no other."
+const EXCEPTION_KEYS = ("merge", "oracle", "reason", "row", "date", "permitted_by")
+
+"""
+    ListedException
+
+An `[[exception]]` entry of `EXCEPTIONS_PATH`: the merge commit and the oracle id whose
+threshold change the history check accepts, with the reason, the tracker row, the date
+added and the user's permission the entry records.
+"""
+struct ListedException
+    merge::String
+    oracle::String
+    reason::String
+    row::String
+    date::String
+    permitted_by::String
+end
+
+"Whether `v` is a TOML local date: a value that is not a string and prints as a year, month and day."
+is_date(v) = !is_text(v) && occursin(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$", string(v))
+
+"""
+    read_exceptions(path)
+
+Every `[[exception]]` entry of the TOML file at `path`, in file order. Refuses, naming
+every problem, a missing file, a file that does not parse, a key other than `exception`,
+an entry that is not a table, missing any of `EXCEPTION_KEYS` or carrying another key, a
+`date` that is not a TOML date, any other field that is not a non-empty string (an empty
+`permitted_by` named as such), a `merge` that is not a forty-digit commit id, and two
+entries naming one merge and oracle.
+"""
+function read_exceptions(path::AbstractString)
+    isfile(path) || refuse("registration exceptions", path, "does not exist; a file with no [[exception]] entry lists none")
+    found = Malformed[]
+    doc = try
+        TOML.parsefile(path)
+    catch err
+        err isa TOML.ParserError || rethrow()
+        refuse("registration exceptions", path, "does not parse as TOML: " * sprint(showerror, err))
+    end
+    for key in sort!(collect(keys(doc)))
+        key == "exception" || push!(found, Malformed(path, "carries " * key * ", which is not exception"))
+    end
+    rows = get(doc, "exception", Any[])
+    rows isa AbstractVector || (rows = Any[]; push!(found, Malformed(path, "exception is not an array of tables")))
+    out = ListedException[]
+    for (k, row) in enumerate(rows)
+        site = path * " exception " * string(k)
+        if !(row isa AbstractDict)
+            push!(found, Malformed(site, "is not a table"))
+            continue
+        end
+        bad = length(found)
+        for key in sort!(collect(keys(row)))
+            key in EXCEPTION_KEYS || push!(found, Malformed(site, "carries " * key * ", which is not an exception field"))
+        end
+        for key in EXCEPTION_KEYS
+            if !haskey(row, key)
+                push!(found, Malformed(site, "carries no " * key))
+            elseif key == "date"
+                is_date(row[key]) || push!(found, Malformed(site, "date is not a TOML date"))
+            elseif !is_text(row[key])
+                push!(found, Malformed(site, key * " is not a string"))
+            elseif isempty(strip(row[key]))
+                push!(found, Malformed(site, key == "permitted_by" ?
+                                             "permitted_by is empty; an entry records the user's explicit permission for it" :
+                                             key * " is empty"))
+            end
+        end
+        merge = get(row, "merge", nothing)
+        is_text(merge) && !isempty(merge) && !occursin(COMMIT_ID, merge) &&
+            push!(found, Malformed(site, "merge " * repr(merge) * " is not a forty-digit commit id"))
+        length(found) == bad || continue
+        x = ListedException(row["merge"], row["oracle"], row["reason"], row["row"], string(row["date"]), row["permitted_by"])
+        if any(y -> y.merge == x.merge && y.oracle == x.oracle, out)
+            push!(found, Malformed(site, "names merge " * short(x.merge) * " and oracle " * x.oracle * ", as an earlier entry does"))
+        else
+            push!(out, x)
+        end
+    end
+    isempty(found) ||
+        refuse("registration exceptions", path, string(length(found), " problems: ", join(string.(found), "; ")))
+    return out
+end
+
 """
     history_problems(repo)
 
 Every place the history of `repo`, from `amendment_commit(repo)` to HEAD, breaks the
-registration rule, sorted. A registration is a commit at which an entry's
+registration rule and is not excepted, sorted. `read_exceptions` reads
+`EXCEPTIONS_PATH` under `repo` before git is read. A registration is a commit at which an entry's
 `registered_at` differs from its value at every parent and names an ancestor commit
 holding the entry's `REGISTERED_FIELDS` as they are at the registering commit;
 registrations are judged by `judge_registration!` against the registrations before
 them, starting from the entries carrying a registered_at at the first parent of the
 amendment commit. A `registered_at` set to a commit that is not an ancestor is a
-problem. A merge is a problem when, against its first parent, it changes an entry's
+problem. The mainline is the first-parent chain from HEAD through the commits walked. A
+merge on the mainline is a problem when, against its first parent, it changes an entry's
 threshold together with a path under `src/` or a file holding the testset named by
-that entry at the merge or at its first parent.
+that entry at the merge or at its first parent, unless an entry of the exceptions list
+names that merge and that entry's id; a merge off the mainline is not judged by this
+clause, and its changes are read in the mainline merge that brings them in. An exception
+naming no such merge and id is a problem, reported as stale.
 """
 function history_problems(repo::AbstractString)
+    exceptions = read_exceptions(joinpath(repo, EXCEPTIONS_PATH))
+    matched = falses(length(exceptions))
     anchor = amendment_commit(repo)
+    commits = commits_from(repo, anchor)
+    by_sha = Dict(c.sha => c for c in commits)
+    mainline = Set{String}()
+    tip = get(by_sha, strip(git_read(repo, `rev-parse HEAD`)), nothing)
+    while tip !== nothing
+        push!(mainline, tip.sha)
+        tip = isempty(tip.parents) ? nothing : get(by_sha, tip.parents[1], nothing)
+    end
     cache = RowCache(repo, REGISTRY_PATH)
     found = Malformed[]
     history = Dict{String,Vector{Registration}}()
@@ -752,7 +856,7 @@ function history_problems(repo::AbstractString)
         end
     end
 
-    for c in commits_from(repo, anchor)
+    for c in commits
         REGISTRY_PATH in c.touched || continue
         rows = rows_at(cache, c.sha)
         parent_rows = [rows_at(cache, p) for p in c.parents]
@@ -774,17 +878,28 @@ function history_problems(repo::AbstractString)
             push!(earlier, r)
         end
 
-        length(c.parents) >= 2 || continue
+        length(c.parents) >= 2 && c.sha in mainline || continue
         before = parent_rows[1]
         for id in sort!(collect(keys(rows)))
             haskey(before, id) || continue
             get(before[id], "threshold", nothing) == get(rows[id], "threshold", nothing) && continue
             held = union(testset_files(repo, c.sha, id), testset_files(repo, c.parents[1], id))
             with = sort!(unique(vcat(filter(p -> startswith(p, "src/"), c.touched), filter(in(held), c.touched))))
-            isempty(with) ||
+            isempty(with) && continue
+            k = findfirst(x -> x.merge == c.sha && x.oracle == id, exceptions)
+            if k === nothing
                 push!(found, Malformed(id * " at " * short(c.sha), "a merge whose branch changes the threshold together with " *
                                                                    join(with, ", ")))
+            else
+                matched[k] = true
+            end
         end
+    end
+    for (k, x) in enumerate(exceptions)
+        matched[k] ||
+            push!(found, Malformed(x.oracle * " at " * short(x.merge), "a stale exception of " * EXCEPTIONS_PATH *
+                                                                        ": no merge of the history changes this entry's threshold " *
+                                                                        "together with src/ or its testset"))
     end
     return sort(found; by = m -> (m.site, m.reason))
 end
