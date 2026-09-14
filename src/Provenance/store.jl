@@ -385,7 +385,7 @@ function values_of(site::AbstractString, record)
     refuse("values", site, "$(repr(record)) is neither amounts nor cell ids at a level")
 end
 
-"The name a refusal gives the element type of cell ids."
+"Refuses at `site` an element type `T` of cell ids that is not an integer type other than `Bool`."
 require_cell_type(site, T) = (T <: Integer && T !== Bool) ||
     refuse("values", site, "cell ids held in a $(T) array, and cell ids are integers")
 

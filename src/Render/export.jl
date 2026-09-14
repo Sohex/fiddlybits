@@ -28,9 +28,13 @@ const GEOMETRY_ATTRIBUTES = ("sphere_radius", "mesh_kind", "mesh_level", "elemen
 "The variables a file's geometry occupies; a field may not take one of these names."
 const GEOMETRY_VARIABLES = ("crs", "cell_corner", "cell_area", "lat", "lon")
 
-"The names of a file's cell, corner and Cartesian component dimensions."
+"The name of a file's cell dimension."
 const CELL_DIMENSION = "cell"
+
+"The name of a file's dimension over a cell's three corners."
 const CORNER_DIMENSION = "corner"
+
+"The name of a file's dimension over the three Cartesian components."
 const COMPONENT_DIMENSION = "component"
 
 "The float types a declared element type names."
