@@ -65,6 +65,18 @@ end
         @test occursin("test/nowhere/absent.jl", found[1].reason)
     end
 
+    @testset "positive control: a record for a package Julia ships naming an absent test is refused" begin
+        t = tree(root = joinpath(FIXTURES, "stdlib_absent_test"))
+        # Random carries no git-tree-sha1 in this fixture's manifest, so the walk
+        # that visits only dependencies() never reaches its record: with the
+        # stdlib branch removed from the walk, the control does not fire.
+        @test !("Random" in ImportHarness.dependencies(t.project, t.manifest))
+        found = ImportHarness.problems(; t...)
+        @test length(found) == 1
+        @test found[1].package == "Random"
+        @test occursin("test/nowhere/absent.jl", found[1].reason)
+    end
+
     @testset "every unresolved check is owned by a row" begin
         open = ImportHarness.unresolved(; tree()...)
         owned = owned_checks(joinpath(PROJECT, "docs", "plans", "fiddlybits-52v.1-skeleton.md"))
