@@ -141,11 +141,13 @@ declared data, not scattered `error` calls, so that the enumeration test can rea
 `coarsen(CategoricalFraction)` is the area-weighted mean of each class column, the
 legend on the data's last axis, which conserves each class's area;
 `coarsen(CategoricalLabel)` is a histogram into `CategoricalFraction` over the legend
-the call names, taken class by class from each class's indicator through the class
-shares and class-area totals the fraction coarsening uses, so the two are doors to one
-definition and the fractions of every class are never held at once. Evaluating the
-indicator per cell inside one launch, with no indicator array at all, is
-`fiddlybits-52v.7.60`.
+the call names: the class-fraction coarsening of the labels' `Reductions.ClassIndicator`,
+the one-hot of the labels over that legend, taken through the class shares and
+class-area totals the fraction coarsening uses, so the two are doors to one definition.
+The indicator is evaluated per cell inside one launch over every segment, column and
+class, and neither the one-hot nor one class's indicator is ever built; the legend
+positions a kernel compares exist only inside that type, for the length of one call
+(`docs/plans/fiddlybits-52v.7-kernels.md`, section The reductions).
 Each calls `Reductions` and names the measure it integrates over, per
 REQ-TER-011: no call here passes an unqualified "area". The naming is a type,
 `Measured{Name}`, which is a measure's values together with which measure they are,

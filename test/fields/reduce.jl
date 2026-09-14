@@ -76,6 +76,10 @@ const LEGEND = (:rock, :ice)
 "The `Reductions.error_bound` in `Float64` over `n` terms of total absolute value `M`."
 bound(n, M) = Float64(Reductions.error_bound(Float64, n, M))
 
+"The residual and tolerance of each ledger of a `Ledger` or a `ColumnLedgers`, in order."
+ledger_numbers(l::R.Ledger) = [(R.residual(l), R.tolerance(l))]
+ledger_numbers(l::R.ColumnLedgers) = [(R.residual(c), R.tolerance(c)) for c in vec(R.ledgers(l))]
+
 "The thunk's exception, or its value when it raises none."
 raised_by(thunk) = try
     thunk()
@@ -260,6 +264,39 @@ end
                     for class in LEGEND
                         @test R.residual(R.ledger_of(frac_ledgers, class)) ==
                               R.residual(R.ledger_of(hist_ledgers, class))
+                        @test R.tolerance(R.ledger_of(frac_ledgers, class)) ==
+                              R.tolerance(R.ledger_of(hist_ledgers, class))
+                    end
+
+                    @testset "and with levels, in every level of every class" begin
+                        layered = hcat(labels, reverse(labels), circshift(labels, 1))
+                        lg = reduce_field(R.CategoricalLabel{:lithology}(), layered, X.fine_support;
+                                          dimension = RD.DIMENSIONLESS)
+                        lhist, lhist_ledgers = R.coarsen(lg, cs; legend = LEGEND, measure = area,
+                                                         reservoir = false, backend = backend)
+                        lonehot = stack((Float64.(layered .=== :rock), Float64.(layered .=== :ice)))
+                        lff = reduce_field(R.CategoricalFraction{:lithology}(), dev(lonehot),
+                                           X.fine_support; dimension = RD.DIMENSIONLESS)
+                        lfrac, lfrac_ledgers = R.coarsen(lff, cs; legend = LEGEND, measure = area,
+                                                         reservoir = false, backend = backend)
+                        @test size(R.data(lhist)) == (X.ncoarse, 3, length(LEGEND))
+                        @test host(R.data(lfrac)) == host(R.data(lhist))
+                        for class in LEGEND
+                            @test ledger_numbers(R.ledger_of(lfrac_ledgers, class)) ==
+                                  ledger_numbers(R.ledger_of(lhist_ledgers, class))
+                        end
+
+                        @testset "positive control: the one-hot of labels with one cell's class changed differs" begin
+                            changed = copy(lonehot)
+                            changed[2, 2, :] = reverse(changed[2, 2, :])
+                            cf = reduce_field(R.CategoricalFraction{:lithology}(), dev(changed),
+                                              X.fine_support; dimension = RD.DIMENSIONLESS)
+                            cfrac, cfrac_ledgers = R.coarsen(cf, cs; legend = LEGEND, measure = area,
+                                                             reservoir = false, backend = backend)
+                            @test host(R.data(cfrac)) != host(R.data(lhist))
+                            @test ledger_numbers(R.ledger_of(cfrac_ledgers, :rock)) !=
+                                  ledger_numbers(R.ledger_of(lhist_ledgers, :rock))
+                        end
                     end
                 end
 
@@ -462,8 +499,10 @@ end
     end
 end
 
-@testset "the label histogram and its ledgers allocate no array of the one-hot's shape" begin
-    fine_level, coarse_level = 5, 3
+@testset "the label histogram and its ledgers allocate below one indicator of the labels, on the host and on the device" begin
+    # A coarse cell at level 2 holds more cells of level 5 than the legend has classes, so the
+    # shares a coarsening returns hold fewer bytes than one indicator of the labels.
+    fine_level, coarse_level = 5, 2
     hierarchy = Mesh.hierarchy(fine_level)
     lvl(l) = hierarchy.levels[l + 1]
     geo(l) = Mesh.geometry(lvl(l), Mesh.stencils(lvl(l)))
@@ -472,51 +511,107 @@ end
     fine_support, coarse_support = sup(fine_level), sup(coarse_level)
     nfine, ncoarse = Mesh.ncells(fine_level), Mesh.ncells(coarse_level)
     weights = geo(fine_level).cell_area
-    measure = R.Measured{:primal_cell_area}(weights)
     legend = Tuple(Symbol(:class, k) for k in 1:8)
-    cpu = Backends.CPU(8)
-    one_hot_bytes = nfine * length(legend) * sizeof(Float64)
-    allocation(f) = (f(); @allocated f())
-    one_hot(labels) = stack(map(class -> R.indicator(labels, class, Float64), legend))
+    indicator_bytes = nfine * sizeof(Float64)
+    host_allocation(f) = (f(); @allocated f())
+    device_allocation(f) = (f(); CUDA.@allocated f())
+    one_hot(labels) = stack(map(class -> Float64.(labels .== class), legend))
 
     fine_labels = [legend[mod1(i, length(legend))] for i in 1:nfine]
     f = reduce_field(R.CategoricalLabel{:lithology}(), fine_labels, fine_support;
                      dimension = RD.DIMENSIONLESS)
-    seg = R.child_segmentation(f, coarse_support, cpu)
+    coarse_labels = [legend[mod1(i, length(legend))] for i in 1:ncoarse]
+    g = reduce_field(R.CategoricalLabel{:lithology}(), coarse_labels, coarse_support;
+                     dimension = RD.DIMENSIONLESS)
+    spread = repeat(coarse_labels, inner = nfine ÷ ncoarse)
 
-    @testset "coarsen allocates below the one-hot's size in total" begin
-        used = allocation(() -> R.coarsen(f, coarse_support; legend = legend, measure = measure,
-                                          reservoir = false, backend = cpu))
-        @test used < one_hot_bytes
-
-        @testset "positive control: the coarsening of the one-hot fractions reaches its size" begin
-            before = allocation(() -> R.class_coarsening(one_hot(fine_labels), seg, legend,
-                                                         measure, false, cpu))
-            @test before >= one_hot_bytes
+    # The label coarsening of fiddlybits-52v.3.12: one class's indicator at a time in a host
+    # buffer moved to `backend`.
+    function per_class_coarsening(labels, seg, measure, backend)
+        w = R.values_of(measure)
+        T = eltype(w)
+        held = R.coarse_measure(T, measure, seg, backend)
+        magnitude_weights = abs.(w)
+        buffer = similar(labels, T)
+        parts = map(legend) do class
+            fine = Backends.on(map!(l -> l == class ? one(T) : zero(T), buffer, labels), backend)
+            shares = R.class_shares(fine, seg, measure, backend)
+            totals = R.class_area_totals(fine, fine, shares, held, w, magnitude_weights, backend)
+            shares, R.conserved_ledger(Val(:primal_cell_area), T, size(labels, 1), totals...;
+                                       reservoir = false)
         end
+        return stack(map(first, parts)), R.ClassLedgers{:primal_cell_area}(legend, map(last, parts))
     end
 
-    @testset "refine's class ledgers allocate below the one-hot's size in total" begin
-        coarse_labels = [legend[mod1(i, length(legend))] for i in 1:ncoarse]
-        g = reduce_field(R.CategoricalLabel{:lithology}(), coarse_labels, coarse_support;
-                         dimension = RD.DIMENSIONLESS)
-        spread = repeat(coarse_labels, inner = nfine ÷ ncoarse)
-        used = allocation(() -> R.refine_class_ledgers(g, fine_support, spread, legend, measure;
-                                                       reservoir = false, backend = cpu))
-        @test used < one_hot_bytes
+    # The refinement class ledgers of fiddlybits-52v.3.12: one class's indicators at a time in
+    # host buffers moved to `backend`.
+    function per_class_refine_ledgers(coarse, fine_labels, measure, backend)
+        w = R.values_of(measure)
+        held = R.coarse_measure(Float64, measure,
+                                R.block_segmentation(w, coarse_level, fine_level, "test", backend),
+                                backend)
+        magnitude_weights = abs.(w)
+        coarse_buffer, fine_buffer = similar(coarse, Float64), similar(fine_labels, Float64)
+        ledgers = map(legend) do class
+            c = Backends.on(map!(l -> l == class ? 1.0 : 0.0, coarse_buffer, coarse), backend)
+            fi = Backends.on(map!(l -> l == class ? 1.0 : 0.0, fine_buffer, fine_labels), backend)
+            R.conserved_ledger(Val(:primal_cell_area), Float64, nfine,
+                               R.weighted_total(fi, magnitude_weights, backend),
+                               R.weighted_total(c, held, backend),
+                               R.weighted_total(fi, w, backend); reservoir = false)
+        end
+        return R.ClassLedgers{:primal_cell_area}(legend, ledgers)
+    end
 
-        @testset "positive control: the ledgers of the one-hot fractions reach its size" begin
-            held = R.coarse_measure(Float64, measure,
-                                    R.block_segmentation(weights, coarse_level, fine_level,
-                                                         "test", cpu), cpu)
-            before = allocation() do
-                coarse, fine = one_hot(coarse_labels), one_hot(spread)
-                R.legend_ledgers(Val(:primal_cell_area), Float64, nfine, legend,
-                                 R.weighted_total(fine, abs.(weights), cpu),
-                                 R.weighted_total(coarse, held, cpu),
-                                 R.weighted_total(fine, weights, cpu); reservoir = false)
+    for (bname, backend, allocation, counter) in
+        (("CPU", Backends.CPU(8), host_allocation, "@allocated on the host"),
+         ("GPU", Backends.GPU(8), device_allocation, "CUDA.@allocated on the device"))
+        dev(x) = Backends.on(x, backend)
+        measure = R.Measured{:primal_cell_area}(dev(weights))
+        seg = R.child_segmentation(f, coarse_support, backend)
+
+        @testset "on $bname, by $counter" begin
+            @testset "coarsen allocates below one indicator of the labels" begin
+                @test allocation(() -> R.coarsen(f, coarse_support; legend = legend, measure = measure,
+                                                 reservoir = false, backend = backend)) < indicator_bytes
+
+                @testset "positive control: the per-class indicator path of fiddlybits-52v.3.12 reaches it" begin
+                    @test allocation(() -> per_class_coarsening(fine_labels, seg, measure, backend)) >=
+                          indicator_bytes
+                end
+
+                @testset "positive control: the coarsening of the one-hot fractions reaches it" begin
+                    @test allocation(() -> R.class_coarsening(dev(one_hot(fine_labels)), seg, legend,
+                                                              measure, false, backend)) >= indicator_bytes
+                end
             end
-            @test before >= one_hot_bytes
+
+            @testset "refine's class ledgers allocate below one indicator of the labels" begin
+                @test allocation(() -> R.refine_class_ledgers(g, fine_support, spread, legend, measure;
+                                                              reservoir = false, backend = backend)) <
+                      indicator_bytes
+
+                @testset "positive control: the per-class indicator path of fiddlybits-52v.3.12 reaches it" begin
+                    @test allocation(() -> per_class_refine_ledgers(coarse_labels, spread, measure, backend)) >=
+                          indicator_bytes
+                end
+            end
+
+            @testset "the per-class paths are the operators they stand for, bit for bit" begin
+                data, ledgers = R.coarsen(f, coarse_support; legend = legend, measure = measure,
+                                          reservoir = false, backend = backend)
+                per_data, per_ledgers = per_class_coarsening(fine_labels, seg, measure, backend)
+                @test host(R.data(data)) == host(per_data)
+                refined = R.refine_class_ledgers(g, fine_support, spread, legend, measure;
+                                                 reservoir = false, backend = backend)
+                per_refined = per_class_refine_ledgers(coarse_labels, spread, measure, backend)
+                for class in legend
+                    @test ledger_numbers(R.ledger_of(ledgers, class)) ==
+                          ledger_numbers(R.ledger_of(per_ledgers, class))
+                    @test ledger_numbers(R.ledger_of(refined, class)) ==
+                          ledger_numbers(R.ledger_of(per_refined, class))
+                end
+            end
         end
     end
 end
@@ -598,6 +693,40 @@ end
                     broken = R.refine_class_ledgers(f, fs, misplaced, LEGEND, fine_area;
                                                     reservoir = false, backend = backend)
                     @test !R.closed(broken)
+                end
+
+                @testset "its class ledgers are bitwise those of the one-hot fractions, with and without levels" begin
+                    onehot(l) = dev(stack((Float64.(l .=== :rock), Float64.(l .=== :ice))))
+                    held = R.coarse_measure(Float64, fine_area,
+                                            R.block_segmentation(dev(X.fine_area), X.coarse, X.fine,
+                                                                 "test", backend), backend)
+                    one_hot_ledgers(coarse_labels, fine_labels) = R.legend_ledgers(
+                        Val(:primal_cell_area), Float64, X.nfine, LEGEND,
+                        R.weighted_total(onehot(fine_labels), dev(abs.(X.fine_area)), backend),
+                        R.weighted_total(onehot(coarse_labels), held, backend),
+                        R.weighted_total(onehot(fine_labels), dev(X.fine_area), backend);
+                        reservoir = false)
+                    for coarse_labels in (labels, hcat(labels, reverse(labels), circshift(labels, 1)))
+                        g = reduce_field(R.CategoricalLabel{:lithology}(), coarse_labels,
+                                         X.coarse_support; dimension = RD.DIMENSIONLESS)
+                        spread = repeat(coarse_labels, inner = R.cell_blocks(coarse_labels, X.block))
+                        r, got = R.refine(g, fs; legend = LEGEND, measure = fine_area,
+                                          reservoir = false, backend = backend)
+                        @test R.data(r) == spread
+                        expected = one_hot_ledgers(coarse_labels, spread)
+                        for class in LEGEND
+                            @test ledger_numbers(R.ledger_of(got, class)) ==
+                                  ledger_numbers(R.ledger_of(expected, class))
+                        end
+
+                        @testset "positive control: the one-hot ledgers of children given the wrong parents differ" begin
+                            misplaced = repeat(coarse_labels,
+                                               outer = R.cell_blocks(coarse_labels, X.block))
+                            wrong = one_hot_ledgers(coarse_labels, misplaced)
+                            @test ledger_numbers(R.ledger_of(got, :rock)) !=
+                                  ledger_numbers(R.ledger_of(wrong, :rock))
+                        end
+                    end
                 end
             end
 

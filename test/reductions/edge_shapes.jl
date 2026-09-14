@@ -77,6 +77,12 @@ const WEIGHTED_TYPES = AREA_TYPES
 # axes; the first is the one every element and accumulator type runs.
 const EDGE_TRAILING = [(1,), (3,), (2, 3)]
 
+# The trailing shapes, legend and (weight type, accumulator type) pairs the class kernels run
+# over; the first trailing shape is the one every type pair runs.
+const CLASS_EDGE_TRAILING = [(), (1,), (3,), (2, 3)]
+const CLASS_EDGE_LEGEND = (:first, :second, :third)
+const CLASS_EDGE_TYPES = [(TW, A) for A in (Float64, Float32) for TW in (Float64, Float32)]
+
 "An array of cells by `trailing` of type `T`: the suite's fixed formula over every column."
 edge_columns(::Type{T}, n::Integer, trailing::Tuple) where {T} =
     reshape(edge_elements(T, n * prod(trailing)), n, trailing...)
@@ -332,6 +338,61 @@ const QUANTILE_SHAPES = [
                     @test findall(top(moved) .!= base) == [CartesianIndex(segment, column)]
                 end
             end
+
+            @testset "segmented class kernels: $shape, labels of trailing shape $trailing, $TW weights into $A" for
+                    (shape, starts, has_mean) in SEGMENT_SHAPES, trailing in CLASS_EDGE_TRAILING, (TW, A) in CLASS_EDGE_TYPES
+                (trailing == first(CLASS_EDGE_TRAILING) || (TW, A) == first(CLASS_EDGE_TYPES)) || continue
+                n = last(starts) - 1
+                legend = CLASS_EDGE_LEGEND
+                labels = ReductionFixtures.seeded_labels(n, trailing, legend)
+                weights, signed = edge_areas(TW, n), edge_elements(TW, n)
+                host = Reductions.ClassIndicator{A}(labels, legend, Backends.CPU())
+                indicator = Reductions.ClassIndicator{A}(labels, legend, backend)
+                segmentation = Reductions.Segmentation(indicator, Backends.on(starts, backend))
+                signed_b = Backends.on(signed, backend)
+                sums = Reductions.segmented_weighted_sum(A, indicator, signed_b, segmentation, backend)
+                @test eltype(sums) === A
+                @test size(sums) == (length(starts) - 1, trailing..., length(legend))
+                @test edge_bytes(sums) == edge_bytes(Reductions.segmented_weighted_sum_reference(A, host, signed, starts))
+                @test edge_bytes(Reductions.segmented_weighted_sum(A, indicator, Reductions.AbsoluteValues(signed_b),
+                                                                  segmentation, backend)) ==
+                      edge_bytes(Reductions.segmented_weighted_sum_reference(A, host, Reductions.AbsoluteValues(signed),
+                                                                            starts))
+                if has_mean
+                    @test edge_bytes(Reductions.segmented_mean(A, indicator, segmentation, Backends.on(weights, backend),
+                                                               backend)) ==
+                          edge_bytes(Reductions.segmented_mean_reference(A, host, starts, weights))
+                else
+                    @test_throws Verdicts.Refusal Reductions.segmented_mean(A, indicator, segmentation,
+                                                                             Backends.on(weights, backend), backend)
+                end
+            end
+
+            @testset "positive control: a label changed at the first cell of a segment or the last cell of a column moves exactly its own segment of its own column in the class it left and the class it joined" begin
+                starts = [1, 17, 33, 49, 65, 70]
+                n, nseg = last(starts) - 1, length(starts) - 1
+                legend = CLASS_EDGE_LEGEND
+                weights = edge_areas(Float64, n)
+                labels = ReductionFixtures.seeded_labels(n, (3,), legend)
+                reduce_classes(l) = begin
+                    indicator = Reductions.ClassIndicator{Float64}(l, legend, backend)
+                    w_b = Backends.on(weights, backend)
+                    seg = Reductions.Segmentation(indicator, Backends.on(starts, backend))
+                    [Backends.on(r, Backends.CPU(1)) for r in (Reductions.segmented_weighted_sum(Float64, indicator, w_b, seg, backend),
+                                                               Reductions.segmented_mean(Float64, indicator, seg, w_b, backend))]
+                end
+                base = reduce_classes(labels)
+                for (index, column, segment) in ((starts[2], 2, 2), (n, 3, nseg))
+                    left = findfirst(==(labels[index, column]), legend)
+                    joined = mod1(left + 1, length(legend))
+                    moved = copy(labels)
+                    moved[index, column] = legend[joined]
+                    for (b, m) in zip(base, reduce_classes(moved))
+                        @test findall(m .!= b) ==
+                              sort([CartesianIndex(segment, column, left), CartesianIndex(segment, column, joined)])
+                    end
+                end
+            end
         end
     end
 end
@@ -564,6 +625,67 @@ end
                         for text in expected
                             @test occursin(text, caught.reason)
                         end
+                    end
+                end
+            end
+
+            @testset "Reductions.launch_segment_classes!" begin
+                starts = [1, 17, 33, 49, 65, 70]
+                n, nseg, ncol = last(starts) - 1, length(starts) - 1, 3
+                legend = CLASS_EDGE_LEGEND
+                nclass = length(legend)
+                labels = ReductionFixtures.seeded_labels(n, (ncol,), legend)
+                weights_h = edge_areas(Float64, n)
+                indicator = Reductions.ClassIndicator{Float64}(labels, legend, backend)
+                positions, weights = indicator.positions, on_b(weights_h)
+                segmentation = Reductions.Segmentation(indicator, on_b(starts))
+                lo, hi = segmentation.lo, segmentation.hi
+                class_mean_call(out, zeroflag, positions, weights, lo, hi) =
+                    () -> Reductions.launch_segment_classes!(Reductions.segmented_class_mean_kernel!, backend, n, nseg,
+                                                             ncol, nclass, (out = out, zeroflag = zeroflag), positions,
+                                                             weights, lo, hi, false, "edge shapes")
+
+                @testset "matched arguments launch and agree with the reference" begin
+                    out = similar(positions, Float64, nseg, ncol, nclass)
+                    zeroflag = similar(positions, Bool, nseg, ncol, nclass)
+                    @test refusal_of(class_mean_call(out, zeroflag, positions, weights, lo, hi)) === nothing
+                    @test edge_bytes(out) ==
+                          edge_bytes(Reductions.segmented_mean_reference(
+                              Float64, Reductions.ClassIndicator{Float64}(labels, legend, Backends.CPU()), starts, weights_h))
+                end
+
+                out = similar(positions, Float64, nseg, ncol, nclass)
+                zeroflag = similar(positions, Bool, nseg, ncol, nclass)
+                outputs = "$nseg segments of $ncol column(s) and $nclass class(es)"
+                for (what, args, got, expected) in (
+                        ("out one row short", (similar(positions, Float64, nseg - 1, ncol, nclass), zeroflag, positions,
+                                               weights, lo, hi),
+                         "out has size ($(nseg - 1), $ncol, $nclass)", outputs),
+                        ("out one column short", (similar(positions, Float64, nseg, ncol - 1, nclass), zeroflag, positions,
+                                                  weights, lo, hi),
+                         "out has size ($nseg, $(ncol - 1), $nclass)", outputs),
+                        ("out one class short", (similar(positions, Float64, nseg, ncol, nclass - 1), zeroflag, positions,
+                                                 weights, lo, hi),
+                         "out has size ($nseg, $ncol, $(nclass - 1))", outputs),
+                        ("zeroflag one class short", (out, similar(positions, Bool, nseg, ncol, nclass - 1), positions,
+                                                      weights, lo, hi),
+                         "zeroflag has size ($nseg, $ncol, $(nclass - 1))", outputs),
+                        ("positions one row short", (out, zeroflag, positions[1:n-1, :], weights, lo, hi),
+                         "positions has size ($(n - 1), $ncol)", "$n elements of $ncol column(s)"),
+                        ("positions one column short", (out, zeroflag, positions[:, 1:ncol-1], weights, lo, hi),
+                         "positions has size ($n, $(ncol - 1))", "$n elements of $ncol column(s)"),
+                        ("weights one element short", (out, zeroflag, positions, weights[1:n-1], lo, hi),
+                         "weights has length $(n - 1)", "$n elements"),
+                        ("lo one element short", (out, zeroflag, positions, weights, lo[1:nseg-1], hi),
+                         "lo has length $(nseg - 1)", "$nseg segments"),
+                        ("hi one element short", (out, zeroflag, positions, weights, lo, hi[1:nseg-1]),
+                         "hi has length $(nseg - 1)", "$nseg segments"))
+                    @testset "$what refuses, naming the array and both extents" begin
+                        caught = refusal_of(class_mean_call(args...))
+                        @test caught isa Verdicts.Refusal
+                        @test caught.site == "edge shapes"
+                        @test occursin(got, caught.reason)
+                        @test occursin(expected, caught.reason)
                     end
                 end
             end

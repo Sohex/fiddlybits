@@ -168,6 +168,48 @@ end
     end
 end
 
+@testset "the class forms of segmented_weighted_sum and segmented_mean allocate no temporary the size of one class's indicator" begin
+    legend = (:first, :second, :third, :fourth)
+    labels = ReductionFixtures.seeded_labels(TEMP_N, (), legend)
+    weights = abs.(temp_vector(TEMP_N)) .+ 0.1
+    starts = temp_starts(TEMP_N, TEMP_NSEG)
+    cpu = Backends.CPU(8)
+    indicator = Reductions.ClassIndicator{Float64}(labels, legend, cpu)
+    segmentation = Reductions.Segmentation(indicator, starts)
+    input_bytes = TEMP_N * sizeof(Float64)
+
+    @testset "CPU, at $TEMP_N labels of $(length(legend)) classes ($input_bytes bytes in one indicator)" begin
+        @test column_allocation(() -> Reductions.segmented_weighted_sum(Float64, indicator, Reductions.AbsoluteValues(weights),
+                                                                        segmentation, cpu)) < input_bytes
+        @test column_allocation(() -> Reductions.segmented_mean(Float64, indicator, segmentation, weights, cpu)) < input_bytes
+
+        @testset "positive control: one class's indicator, or the absolute weights, materialised first reach the input's size" begin
+            @test column_allocation(() -> Float64.(labels .== first(legend))) >= input_bytes
+            @test column_allocation(() -> abs.(weights)) >= input_bytes
+        end
+    end
+
+    @testset "GPU, at $TEMP_N labels of $(length(legend)) classes ($input_bytes bytes in one indicator)" begin
+        @test CUDA.functional()
+        gpu = Backends.GPU(8)
+        indicator_gpu = Reductions.ClassIndicator{Float64}(labels, legend, gpu)
+        weights_gpu = Backends.on(weights, gpu)
+        segmentation_gpu = Reductions.Segmentation(indicator_gpu, Backends.on(starts, gpu))
+
+        @test column_device_allocation(() -> Reductions.segmented_weighted_sum(Float64, indicator_gpu,
+                                                                               Reductions.AbsoluteValues(weights_gpu),
+                                                                               segmentation_gpu, gpu)) < input_bytes
+        @test column_device_allocation(() -> Reductions.segmented_mean(Float64, indicator_gpu, segmentation_gpu,
+                                                                       weights_gpu, gpu)) < input_bytes
+
+        @testset "positive control: one class's indicator, or the absolute weights, materialised first reach the input's size" begin
+            host_indicator = Float64.(labels .== first(legend))
+            @test column_device_allocation(() -> Backends.on(host_indicator, gpu)) >= input_bytes
+            @test column_device_allocation(() -> abs.(weights_gpu)) >= input_bytes
+        end
+    end
+end
+
 @testset "the fused reductions are bitwise unchanged from materializing the temporary first" begin
     xs = temp_vector(TEMP_N)
     weights = abs.(xs) .+ 0.1
