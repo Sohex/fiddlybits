@@ -15,7 +15,7 @@ kernel; kernels see raw floats.
 | precision | quantity values are `Float64` by default | values never live inside quantities; dimensions only |
 | GPU | quantities are isbits but are not used on device | lint: no `Quantity` type in any `@kernel` |
 
-**Licence.** Apache-2.0 `to verify`. **Version.** `to pin`.
+**Licence.** Apache-2.0 `to verify`. **Version.** 1.13.0, the `Project.toml` compat entry.
 
 **Checklist items applied.** A2 (the unit registry is a constant block; none of
 it is used), C1 (dimension checks are applied at operator call sites, tested by

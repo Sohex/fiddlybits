@@ -121,7 +121,7 @@ series of known memory time; decision records A1, A3, A5, A10, B9, C2 and C6.
 
 - Courant, R., Friedrichs, K., Lewy, H. 1928. Uber die partiellen Differenzengleichungen der mathematischen Physik. Mathematische Annalen 100. DOI: 10.1007/BF01448839
 - Roache, P. J. 1998. Verification of Codes and Calculations. AIAA Journal 36(5). DOI: 10.2514/2.457
-- Roache, P. J. 1994. Perspective: A Method for Uniform Reporting of Grid Refinement Studies. Journal of Fluids Engineering 116(3). DOI: to confirm
+- Roache, P. J. 1994. Perspective: A Method for Uniform Reporting of Grid Refinement Studies. Journal of Fluids Engineering 116(3). DOI: 10.1115/1.2910291
 - Geyer, C. J. 1992. Practical Markov Chain Monte Carlo. Statistical Science 7(4). DOI: 10.1214/ss/1177011137
 - Madras, N., Sokal, A. D. 1988. The pivot algorithm: A highly efficient Monte Carlo method for the self-avoiding walk. Journal of Statistical Physics 50. DOI: 10.1007/BF01022990
 - von Storch, H., Zwiers, F. W. 1999. Statistical Analysis in Climate Research. Cambridge University Press. DOI: 10.1017/CBO9780511612336

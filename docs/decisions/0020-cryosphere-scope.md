@@ -139,3 +139,17 @@ clipped margin.
   clip the thickness that REQ-CRY-001 forbids clipping, which makes this an unpaved
   road and asks for the same discipline decision 0013 carries. From
   docs/surveys/terrain-ice-and-solvers.md.
+- 2026-09-14: the volume-area scaling exponent stays `Derived` from Bahr et al. (1997),
+  who derive it from Glen's n and four closure exponents, for width, slope, side drag
+  and mass balance (eqs. 13-14, with no side drag on an ice cap), so it is `Derived`
+  from n and the declared closures rather than from n and the mass-balance gradient
+  alone; the amendment of 2026-09-08 is corrected so. The coefficient is not `Derived`:
+  Bahr et al. (1997) derive none, and their Figure 1 states only the fitted exponent of
+  its 144 glaciers. It is `Sourced` from a published fit once one is read; none is read
+  (one open-access attempt at Bahr, Pfeffer and Kaser 2015, "A review of volume-area
+  scaling of glaciers", 10.1002/2014rg000470, returned a publisher challenge page), so
+  it is `Bracketed` between the valley-glacier and ice-cap populations, pushed down by
+  side drag and pushed up by its absence, with both ends set from a read fit. User
+  decision of 2026-09-14, raised by
+  notes/findings/2026-09-14-an-audit-of-source-fitness.md; REQ-CRY-003 and the ends are
+  carried by fiddlybits-b7w.

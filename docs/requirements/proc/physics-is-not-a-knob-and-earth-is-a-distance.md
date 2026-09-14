@@ -79,4 +79,5 @@ a non-Earth sweep worsens".
 - /home/cfutro/git/vesper/notes/audits/tuned-values.md, section 19
 - Holden et al. (2016). *PLASIM-GENIE v1.0: a new intermediate complexity AOGCM.* DOI 10.5194/gmd-9-3347-2016 (the moisture flux adjustment and the tuned wind-stress scaling)
 - Kok et al. (2014). *An improved dust emission model - Part 1: Model description and comparison against measurements.* DOI 10.5194/acp-14-13023-2014
+- Kok (2011). *A scaling theory for the size distribution of emitted dust aerosols suggests climate models underestimate the size of the global dust cycle.* DOI 10.1073/pnas.1014798108, eq. 6 (the size distribution derived from fragmentation, which Kok et al. 2014 p. 13031 takes)
 - Plan decisions C1, C2, A3.

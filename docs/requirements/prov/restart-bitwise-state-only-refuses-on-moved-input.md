@@ -91,6 +91,5 @@ defaults; decision records A5, A6 and C6.
 
 ## References
 
-- Baker, A. H., et al. 2015. A new ensemble-based consistency test for the Community Earth System Model (pyCECT v1.0). Geoscientific Model Development 8. DOI: 10.5194/gmd-8-2829-2015
 - Secure Hash Standard (SHS). FIPS PUB 180-4. DOI: 10.6028/NIST.FIPS.180-4
 - Zarr core specification, version 3. Locator: https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html

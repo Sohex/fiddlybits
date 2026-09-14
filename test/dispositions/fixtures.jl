@@ -6,7 +6,7 @@ module DispositionFixtures
 using Fiddlybits: Dispositions, Dimensions
 
 "A `Locator` that constructs without refusing."
-locator(; identifier = "10.1007/s10569-017-9805-5", table = "Table 1") =
+locator(; identifier = "fixture", table = "fixture table") =
     Dispositions.Locator(identifier = identifier, table = table)
 
 "A `Sourced` that constructs without refusing."

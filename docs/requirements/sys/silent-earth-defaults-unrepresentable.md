@@ -157,3 +157,4 @@ place the cost was measured.
 ## Amendments
 
 - 2026-09-08: the derived groups name gravity as g(r, phi), the solar day and the gas-mixture property group of REQ-ATM-017; the lint extends to dimensionless composition ratios; the M0 gate validates every Derived field on a synthetic non-Earth instance as well as Earth(), from notes/findings/2026-09-08-implicit-earth-audit.md.
+- 2026-09-14: "the Exner reference" in item 2's gas-mixture group is the Exner function's dependence on the declared composition through kappa; the reference pressure of the Exner function is `Irreducible`, not `Derived` and not `Sourced` (decision 0013, amendment of 2026-09-14). User decision of 2026-09-14, raised by notes/findings/2026-09-14-an-audit-of-source-fitness.md.
