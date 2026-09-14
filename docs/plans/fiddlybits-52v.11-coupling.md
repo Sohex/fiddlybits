@@ -144,6 +144,49 @@ assertion passes either way (`docs/imports/climacoupler-jl.md`). Here a componen
 cannot report a stock is a refusal at assembly, not a zero at runtime, which is why
 the stock declaration sits in `declare` rather than being asked for at the crossing.
 
+**A crossing's measure is declared once, on the read's operator.** The operator a read
+names declares the measure its crossing integrates under, a name from
+`Fields.MEASURE_NAMES` or `NoMeasure()`, and the `Crossing` of an `Exchange` carries
+that measure's values, refused when their name differs from the declaration. `Coarsen`
+and `Refine` name it for their reduction; `AtLevel` names it for the receipt of a move,
+because a move runs no reduction and its receipt ledger is the one integral it has.
+Every `AtLevel` names its measure, `NoMeasure()` included. `assemble` reads each
+`AtLevel` against the `Write` of the quantity it reads, and a `Write` declares the
+semantics every field placed for its quantity carries, refused at placement otherwise:
+a move of a quantity carrying a conserved quantity names a measure when the quantity is
+`FluxDensity`, `Fraction` or `Intensive`, names `NoMeasure()` when it is `Extensive`,
+and is refused for any other semantics; every other `AtLevel` read names `NoMeasure()`.
+
+The receipt of a move compares what the reader holds against the hand-over's result,
+which for a move is the source field taken to the reader's device through `Backends.on`,
+as for every other crossing: the total of each under `NoMeasure()`, and under a measure
+the integral of each weighted by the measure's values at the read's level, the
+magnitude taken over the result so weighted, in `Float64` over the cell count, on the
+reader's device. A field of cells by trailing axes closes one ledger per column, and
+its residual series are classified column by column.
+
+Alternatives to where the measure is declared:
+
+- On the `Crossing` alone. `assemble` never sees an `Exchange`, so a missing measure
+  would surface at the first `exchange!`, and the name would sit on the operator for
+  two operators and on the crossing for the third. Lost.
+- As a keyword of `Read`. A coarsening read would carry two measure slots, one on
+  `Read` and one on `Coarsen`, which is two declarations of one quantity. Lost.
+- A `Move` operator beside `AtLevel`. A move is a property of any read, a coarsening
+  one included, and a second encoding of it would have to agree with the `move` flag.
+  Lost.
+- On the `Write`. The measure of a reduction is the destination's, and a writer-side
+  name would stand beside the one `Coarsen` and `Refine` declare. Lost.
+- The semantics learned at `exchange!` rather than declared on the `Write`. `assemble`
+  could not tell an `Extensive` move, which takes no measure, from a flux density,
+  which does, so the refusal would wait for the first exchange. Lost.
+
+Alternative to what the receipt of a move compares: the writer's field on its own device
+against the reader's on its own. The receipt would then have a different reference for
+a move than for every other crossing, whose receipt is taken against the operator's
+result on the reader's device, and the ledger would hold a device copy, which changes no
+value, to a rounding tolerance. Lost.
+
 ### Loops as values
 
 ```

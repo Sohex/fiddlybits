@@ -37,11 +37,12 @@ end
 
 reading(q, level, operator; lagged = false, move = false) =
     Coupling.Read(quantity = q, level = level, operator = operator, lagged = lagged, move = move)
-at_level() = Coupling.AtLevel()
+at_level() = Coupling.AtLevel(measure = Coupling.NoMeasure())
+at_level_over_area() = Coupling.AtLevel(measure = :primal_cell_area)
 by_sum() = Coupling.Coarsen(rule = Coupling.RuleOfSemantics(), measure = Coupling.NoMeasure())
 by_area_mean() = Coupling.Coarsen(rule = Coupling.RuleOfSemantics(), measure = :primal_cell_area)
 by_area_split() = Coupling.Refine(measure = :primal_cell_area)
-water(q) = Coupling.Write(quantity = q, conserves = (:water,))
+water(q, semantics) = Coupling.Write(quantity = q, semantics = semantics, conserves = (:water,))
 water_stock(qs...) = (Coupling.Stock(conserved = :water, quantities = qs),)
 initial(q, level; backend = Backends.CPU()) =
     Coupling.InitialCondition(quantity = q, level = level, backend = backend)
@@ -60,19 +61,21 @@ land(; stocks = water_stock(:soil_water)) =
     component(:land; level = 2,
               reads = (reading(:soil_water, 2, at_level(); lagged = true),
                        reading(:precipitation, 2, by_area_split(); lagged = true)),
-              writes = (water(:runoff), water(:soil_water), water(:evaporation)), stocks = stocks)
+              writes = (water(:runoff, Fields.Extensive()), water(:soil_water, Fields.Extensive()),
+                        water(:evaporation, Fields.FluxDensity())), stocks = stocks)
 
 "Level 1: reads runoff and soil water through a sum, and its channel lagged; writes the channel."
 river() = component(:river; level = 1,
                     reads = (reading(:runoff, 1, by_sum()), reading(:soil_water, 1, by_sum()),
                              reading(:channel, 1, at_level(); lagged = true)),
-                    writes = (water(:channel),), stocks = water_stock(:channel))
+                    writes = (water(:channel, Fields.Extensive()),), stocks = water_stock(:channel))
 
 "Level 1: reads evaporation through an area mean, and its humidity lagged; writes humidity and precipitation."
 air() = component(:air; level = 1,
                   reads = (reading(:evaporation, 1, by_area_mean()),
                            reading(:humidity, 1, at_level(); lagged = true)),
-                  writes = (water(:humidity), water(:precipitation)), stocks = water_stock(:humidity))
+                  writes = (water(:humidity, Fields.Extensive()), water(:precipitation, Fields.FluxDensity())),
+                  stocks = water_stock(:humidity))
 
 assembly(components = (land(), river(), air())) =
     Coupling.assemble(components...;
@@ -125,7 +128,7 @@ end
 ledger_positions() =
     Dict((q, kind) => 2 * (i - 1) + j
          for (i, q) in enumerate((:evaporation, :melt, :precipitation, :runoff, :snow, :soil_water,
-                                  :temperature))
+                                  :temperature, :sublimation, :pool, :vapour, :vapour_columns))
          for (j, kind) in enumerate((:operator, :receipt)))
 
 """
@@ -247,24 +250,110 @@ end
 
 sensor(; conserves, stocks) =
     component(:sensor; level = 2, reads = (),
-              writes = (Coupling.Write(quantity = :temperature, conserves = conserves),), stocks = stocks)
+              writes = (Coupling.Write(quantity = :temperature, semantics = Fields.Intensive(), conserves = conserves),),
+              stocks = stocks)
 probe() = component(:probe; level = 1,
                     reads = (reading(:temperature, 1, Coupling.Coarsen(rule = Fields.ToQuantiles{(0.5,)}(),
                                                                        measure = Coupling.NoMeasure())),),
                     writes = (), stocks = ())
 
 snowpack() = component(:snowpack; level = 2, reads = (reading(:snow, 2, at_level(); lagged = true),),
-                       writes = (water(:snow), water(:melt), water(:sublimation)),
+                       writes = (water(:snow, Fields.Extensive()), water(:melt, Fields.Extensive()),
+                                 water(:sublimation, Fields.FluxDensity())),
                        stocks = water_stock(:snow))
 sea() = component(:sea; level = 1,
                   reads = (reading(:melt, 1, by_sum(); move = true),
                            reading(:sea_water, 1, at_level(); lagged = true)),
-                  writes = (water(:sea_water),), stocks = water_stock(:sea_water), backend = Backends.GPU())
+                  writes = (water(:sea_water, Fields.Extensive()),), stocks = water_stock(:sea_water),
+                  backend = Backends.GPU())
 lake() = component(:lake; level = 2,
                    reads = (reading(:snow, 2, at_level(); move = true),
-                            reading(:sublimation, 2, at_level(); move = true),
+                            reading(:sublimation, 2, at_level_over_area(); move = true),
                             reading(:lake_water, 2, at_level(); lagged = true)),
-                   writes = (water(:lake_water),), stocks = water_stock(:lake_water), backend = Backends.GPU())
+                   writes = (water(:lake_water, Fields.Extensive()),), stocks = water_stock(:lake_water),
+                   backend = Backends.GPU())
+
+"""
+    source(backend)
+
+Level 2 on `backend`: writes `pool`, an extensive amount in three columns, `vapour`, a
+flux density, and `vapour_columns`, a flux density in three columns, each carrying water.
+"""
+source(backend) = component(:source; level = 2, reads = (),
+                            writes = (water(:pool, Fields.Extensive()), water(:vapour, Fields.FluxDensity()),
+                                      water(:vapour_columns, Fields.FluxDensity())),
+                            stocks = water_stock(:pool), backend = backend)
+
+"Level 2 on `backend`: moves `pool` in with no measure, and `vapour` and `vapour_columns` over the primal cell area."
+sink(backend) = component(:sink; level = 2,
+                          reads = (reading(:pool, 2, at_level(); move = true),
+                                   reading(:vapour, 2, at_level_over_area(); move = true),
+                                   reading(:vapour_columns, 2, at_level_over_area(); move = true)),
+                          writes = (), stocks = (), backend = backend)
+
+"The exchange handing `source`'s three writes to `sink`."
+to_sink(m) = exchange(m; from = :source, to = :sink,
+                      crossings = (crossing(:pool, m.fine), crossing(:vapour, m.fine; measure = area(m)),
+                                   crossing(:vapour_columns, m.fine; measure = area(m))))
+
+"`hcat` of three `varying` columns of `n` cells at the phases `phases`."
+columns(n, phases) = reduce(hcat, (varying(n, p) for p in phases))
+
+"""
+    moved(from, to, m, window)
+
+A `WorldState` of `source` on `from` and `sink` on `to` with its first step begun over the
+interval from 0 to `window` and `source`'s writes placed on `from`, each in proportion to
+`window`. Returns `(state, interval, written)`, `written` the host arrays placed, by
+quantity.
+"""
+function moved(from, to, m, window)
+    a = Coupling.assemble(source(from), sink(to); initial_conditions = (), sequence = 1, instant = 0.0,
+                          tier = :fast)
+    interval = Time.Interval(0.0, window)
+    n = length(m.fine_area)
+    written = (pool = window .* columns(n, (0.4, 1.3, 2.2)), vapour = window .* varying(n, 3.1),
+               vapour_columns = window .* columns(n, (0.8, 1.7, 2.6)))
+    state = Coupling.WorldState(a; initial = NamedTuple())
+    Coupling.begin_step!(state)
+    place(q, semantics, time) =
+        Coupling.write_quantity!(state, :source, q,
+                                 field(m.fine, Backends.on(written[q], from), semantics, time))
+    place(:pool, Fields.Extensive(), accumulated(interval))
+    place(:vapour, Fields.FluxDensity(), mean_over(interval))
+    place(:vapour_columns, Fields.FluxDensity(), mean_over(interval))
+    return state, interval, written
+end
+
+"""
+    moved_staged(from, to, m, ex, windows, stage)
+
+At each of `windows`, `Coupling.measure_ledgers` of `ex` on a state `moved` there whose
+reader was handed `stage(h)` in place of the result of each `Coupling.HandOver` `h`.
+"""
+moved_staged(from, to, m, ex, windows, stage) = map(windows) do w
+    state, _, _ = moved(from, to, m, w)
+    handed = Coupling.hand_over(state, ex)
+    foreach(h -> Coupling.receive!(state, ex.to, h.crossing.quantity, stage(h)), values(handed))
+    Coupling.measure_ledgers(state, ex, handed)
+end
+
+"""
+    first_cell_doubled(quantities)
+
+A stage handing over the result of `h`, and for a quantity in `quantities` the result with
+the value of its first cell in its first column doubled, formed on the result's device by
+multiplying by a factor array moved there through `Backends.on`.
+"""
+first_cell_doubled(quantities) = h -> h.crossing.quantity in quantities ? doubled_first(h.result, h.backend) : h.result
+
+function doubled_first(f, backend)
+    factor = ones(size(Fields.data(f)))
+    factor[1] = 2.0
+    return Fields.Field(semantics = Fields.semantics(f), dimension = Fields.dimension(f),
+                        data = Fields.data(f) .* Backends.on(factor, backend), support = Fields.support(f),
+                        time = Fields.time_support(f), origin = Fields.origin(f))
+end
 
 end # module ExchangeFixtures
 
@@ -322,7 +411,8 @@ import .ExchangeFixtures as EF
         recording = EF.to_river(m; draw = (identity, counter) -> (push!(seen, identity); keyed(identity, counter)))
         series = EF.staged(a, m, recording, ws, EF.counted_twice(:runoff))
         first_pass = Coupling.signatures(recording, series, ws)
-        @test (from = :land, to = :river, quantity = :soil_water, ledger = :receipt, class = nothing) in seen
+        @test (from = :land, to = :river, quantity = :soil_water, ledger = :receipt, class = nothing,
+               column = nothing) in seen
         @test all(i -> i.from === :land && i.to === :river, seen)
         @test Coupling.signatures(recording, series, ws) == first_pass
     end
@@ -525,7 +615,9 @@ end
                      "balances carbon, which no quantity it hands over carries")
 
     @testset "a read that is not a crossing" begin
-        plain = Coupling.assemble(EF.component(:w; level = 2, reads = (), writes = (Coupling.Write(quantity = :x, conserves = ()),), stocks = ()),
+        plain = Coupling.assemble(EF.component(:w; level = 2, reads = (),
+                                               writes = (Coupling.Write(quantity = :x, semantics = Fields.Extensive(), conserves = ()),),
+                                               stocks = ()),
                                   EF.component(:r; level = 2, reads = (EF.reading(:x, 2, EF.at_level()),), writes = (), stocks = ());
                                   initial_conditions = (), sequence = 1, instant = 0.0, tier = :fast)
         state = Coupling.WorldState(plain; initial = NamedTuple())
@@ -597,5 +689,61 @@ end
 
     e = EF.caught(() -> Coupling.exchange!(state, handing(:sublimation, :lake, m.fine), interval;
                                            sequence = 1, tier = :fast))
-    @test EF.refused(e, "sublimation", "fiddlybits-52v.11.5 carries it")
+    @test EF.refused(e, "sublimation", "declares the primal_cell_area measure, and its crossing is given none")
+    over_area = EF.exchange(m; from = :snowpack, to = :lake,
+                            crossings = (EF.crossing(:sublimation, m.fine; measure = EF.area(m)),))
+    _, to_lake = Coupling.exchange!(state, over_area, interval; sequence = 1, tier = :fast)
+    @test to_lake.sublimation.operator === Coupling.NoOperator()
+    @test to_lake.sublimation.receipt isa Fields.Ledger{:primal_cell_area_integral}
+    @test Fields.closed(to_lake.sublimation.receipt)
+end
+
+@testset "a move alone closes its receipt ledger under the measure its read declares, between devices both ways" begin
+    @test CUDA.functional()
+    m = EF.mesh()
+    ex = EF.to_sink(m)
+    ws = EF.windows()
+    for (from, to) in ((Backends.CPU(), Backends.GPU()), (Backends.GPU(), Backends.CPU()))
+        @testset "$(nameof(typeof(from))) to $(nameof(typeof(to)))" begin
+            state, interval, written = EF.moved(from, to, m, 100.0)
+            _, ledgers = Coupling.exchange!(state, ex, interval; sequence = 1, tier = :fast)
+            @test all(q -> ledgers[q].operator === Coupling.NoOperator(), keys(ledgers))
+            @test ledgers.pool.receipt isa Fields.ColumnLedgers{:total}
+            @test ledgers.vapour.receipt isa Fields.Ledger{:primal_cell_area_integral}
+            @test ledgers.vapour_columns.receipt isa Fields.ColumnLedgers{:primal_cell_area_integral}
+            @test size(Fields.ledgers(ledgers.pool.receipt)) == size(Fields.ledgers(ledgers.vapour_columns.receipt)) == (3,)
+            @test all(q -> Fields.closed(ledgers[q].receipt), keys(ledgers))
+            @test all(l -> Fields.tolerance(l) > 0, (ledgers.vapour.receipt, Fields.ledgers(ledgers.vapour_columns.receipt)...))
+            for q in keys(written)
+                received = Fields.data(Coupling.read_quantity(state, :sink, q))
+                @test received isa Backends.array_type(to)
+                @test Backends.on(received, Backends.CPU()) == written[q]
+            end
+
+            @testset "positive control: a move that doubles one cell's value opens its receipt ledger, a Leak beside Rounding" begin
+                series = EF.moved_staged(from, to, m, ex, ws, EF.first_cell_doubled((:vapour, :vapour_columns)))
+                @test all(l -> !Fields.closed(l.vapour.receipt), series)
+                @test all(l -> !Fields.closed(Fields.ledger_of(l.vapour_columns.receipt, 1)), series)
+                @test all(l -> Fields.closed(Fields.ledger_of(l.vapour_columns.receipt, 2)), series)
+                found = Coupling.signatures(ex, series, ws)
+                @test length(found) == 1 + 3 + 3
+                receipt(q, column) = only(s.signature for s in found
+                                          if s.quantity === q && s.ledger === :receipt && s.column == column)
+                @test receipt(:vapour, nothing) === Fields.Leak()
+                @test receipt(:vapour_columns, (1,)) === Fields.Leak()
+                @test receipt(:vapour_columns, (2,)) === receipt(:vapour_columns, (3,)) === Fields.Rounding()
+                @test all(c -> receipt(:pool, (c,)) === Fields.Rounding(), 1:3)
+            end
+
+            @testset "an open move receipt is journalled by column and refused" begin
+                state, _, _ = EF.moved(from, to, m, 100.0)
+                handed = Coupling.hand_over(state, ex)
+                stage = EF.first_cell_doubled((:vapour_columns,))
+                foreach(h -> Coupling.receive!(state, :sink, h.crossing.quantity, stage(h)), values(handed))
+                e, events = EF.journal(() -> Coupling.settle(state, ex, handed; sequence = 4, instant = 100.0, tier = :fast))
+                @test EF.refused(e, "vapour_columns receipt primal_cell_area_integral column (1,)", "is open")
+                @test [event.payload.ledger for event in events] == ["vapour_columns receipt primal_cell_area_integral column (1,)"]
+            end
+        end
+    end
 end
