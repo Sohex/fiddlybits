@@ -1772,6 +1772,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Clouds and the Earth's Radiant Energy System (CERES) Energy Balanced and Filled (EBAF) Top-of-Atmosphere (TOA) Edition-4.0 Data Product", "The ERA5 global reanalysis"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.ceres_toa_balance"
@@ -1787,6 +1788,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Clouds and the Earth's Radiant Energy System (CERES) Energy Balanced and Filled (EBAF) Top-of-Atmosphere (TOA) Edition-4.0 Data Product"]
+form = "scalar"
 
 [[oracle]]
 id = "earth.ceres_global_means"
@@ -1802,6 +1804,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Clouds and the Earth's Radiant Energy System (CERES) Energy Balanced and Filled (EBAF) Top-of-Atmosphere (TOA) Edition-4.0 Data Product"]
+form = "scalar"
 
 [[oracle]]
 id = "earth.ceres_cre_zonal"
@@ -1817,6 +1820,7 @@ provisional = true
 registered_at = ""
 holdout = true
 anchors = ["Clouds and the Earth's Radiant Energy System (CERES) Energy Balanced and Filled (EBAF) Top-of-Atmosphere (TOA) Edition-4.0 Data Product"]
+form = "pattern"
 
 # ---------------------------------------------------------------- tier 2: Earth, dynamics
 
@@ -1834,6 +1838,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The ERA5 global reanalysis"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.era5_jet_latitude"
@@ -1849,6 +1854,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The ERA5 global reanalysis"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.era5_hadley_edge"
@@ -1864,6 +1870,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The ERA5 global reanalysis"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.era5_structure_report"
@@ -1879,6 +1886,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The ERA5 global reanalysis"]
+form = "pattern"
 
 # ---------------------------------------------------------------- tier 2: Earth, precipitation and water cycle
 
@@ -1896,6 +1904,8 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The Global Precipitation Climatology Project (GPCP) Monthly Analysis (New Version 2.3) and a Review of 2017 Global Precipitation"]
+form = "scalar"
+pattern_entry = "earth.gpcp_zonal_rms"
 
 [[oracle]]
 id = "earth.gpcp_zonal_rms"
@@ -1911,6 +1921,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The Global Precipitation Climatology Project (GPCP) Monthly Analysis (New Version 2.3) and a Review of 2017 Global Precipitation"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.gpcp_land_ocean_split"
@@ -1926,6 +1937,7 @@ provisional = true
 registered_at = ""
 holdout = true
 anchors = ["The Global Precipitation Climatology Project (GPCP) Monthly Analysis (New Version 2.3) and a Review of 2017 Global Precipitation"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.land_pme_vs_runoff"
@@ -1941,6 +1953,8 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["High-resolution fields of global runoff combining observed river discharge and simulated water balances"]
+form = "scalar"
+pattern_entry = "earth.grdc_basin_discharge"
 
 # ---------------------------------------------------------------- tier 2: Earth, land hydrology
 
@@ -1958,6 +1972,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Estimating the volume and age of water stored in global lakes using a geo-statistical approach", "Global river hydrography and network routing: baseline data and new approaches to study the world's large river systems", "Mapping the world's inland surface waters: an upgrade to the Global Lakes and Wetlands Database (GLWD v2)"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.fan_water_table"
@@ -1973,6 +1988,7 @@ provisional = true
 registered_at = ""
 holdout = true
 anchors = ["Incorporating water table dynamics in climate modeling: 1. Water table observations and equilibrium water table simulations"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.grdc_basin_discharge"
@@ -1988,6 +2004,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["High-resolution fields of global runoff combining observed river discharge and simulated water balances"]
+form = "pattern"
 
 # ---------------------------------------------------------------- tier 2: Earth, pedology
 
@@ -2005,6 +2022,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Mineralogy and geochemistry of clay fractions in soils developed from different parent rocks in Limpopo Province, South Africa"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.soilgrids_ph_by_zone"
@@ -2020,6 +2038,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["SoilGrids 2.0: producing soil information for the globe with quantified spatial uncertainty", "The new global lithological map database GLiM: A representation of rock properties at the Earth surface"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.hartmann_phosphorus_yield"
@@ -2035,6 +2054,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Chemical weathering rates of silicate-dominated lithological classes and associated liberation rates of phosphorus on the Japanese Archipelago - Implications for global scale analysis"]
+form = "pattern"
 
 # ---------------------------------------------------------------- tier 2: Earth, surface and vegetation
 
@@ -2052,6 +2072,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["First operational BRDF, albedo nadir reflectance products from MODIS", "MODIS/Terra+Aqua Land Cover Type Yearly L3 Global 0.05Deg CMG V061, 2001-2020, reduced to IGBP majority and per-class percents"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.modis_lai_seasonal"
@@ -2067,6 +2088,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Global products of vegetation leaf area and fraction absorbed PAR from year one of MODIS data"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.biome_kappa"
@@ -2082,6 +2104,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Revisiting land cover observation to address the needs of the climate modeling community"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.plumber2_sites"
@@ -2097,6 +2120,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["A flux tower dataset tailored for land model evaluation"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.fluxnet_gpp"
@@ -2112,6 +2136,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The FLUXNET2015 dataset and the ONEFlux processing pipeline for eddy covariance data"]
+form = "pattern"
 
 # ---------------------------------------------------------------- tier 2: Earth, cryosphere
 
@@ -2129,6 +2154,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["A long-term Northern Hemisphere snow cover extent data record for climate studies and monitoring"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.sea_ice_extent"
@@ -2144,6 +2170,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Sea Ice Index, Version 4 (supersedes the requested Version 3)"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.rgi_glacier_area"
@@ -2159,6 +2186,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Randolph Glacier Inventory - A Dataset of Global Glacier Outlines, Version 7"]
+form = "scalar"
 
 # ---------------------------------------------------------------- tier 2: Earth, ocean
 
@@ -2176,6 +2204,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["OMIP contribution to CMIP6: experimental and diagnostic protocol for the physical component of the Ocean Model Intercomparison Project"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.woa_salinity_sections"
@@ -2191,6 +2220,7 @@ provisional = true
 registered_at = ""
 holdout = true
 anchors = ["World Ocean Atlas 2023, Volume 2: Salinity"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.mld_by_basin"
@@ -2206,6 +2236,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Mixed layer depth over the global ocean: An examination of profile data and a profile-based climatology"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.meridional_heat_transport"
@@ -2221,6 +2252,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Estimates of Meridional Atmosphere and Ocean Heat Transports"]
+form = "pattern"
 
 [[oracle]]
 id = "earth.amoc_strength"
@@ -2236,6 +2268,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Pending recovery in the strength of the meridional overturning circulation at 26 deg N"]
+form = "scalar"
 
 [[oracle]]
 id = "earth.marine_npp"
@@ -2251,6 +2284,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Photosynthetic rates derived from satellite-based chlorophyll concentration"]
+form = "scalar"
 
 # ---------------------------------------------------------------- tier 2: Earth, dust
 
@@ -2268,6 +2302,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["A scaling theory for the size distribution of emitted dust aerosols suggests climate models underestimate the size of the global dust cycle"]
+form = "scalar"
 
 [[oracle]]
 id = "earth.dust_emission"
@@ -2283,6 +2318,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["An improved dust emission model - Part 1: model description and comparison against measurements"]
+form = "scalar"
 
 # ---------------------------------------------------------------- tier 2: Earth, whole system
 
@@ -2300,6 +2336,8 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["An Updated Assessment of Near-Surface Temperature Change From 1850: The HadCRUT5 Data Set"]
+form = "scalar"
+pattern_entry = "earth.era5_zonal_temperature"
 
 [[oracle]]
 id = "earth.ecs_report"
@@ -2315,6 +2353,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["An Assessment of Earth's Climate Sensitivity Using Multiple Lines of Evidence"]
+form = "scalar"
 
 # ---------------------------------------------------------------- tier 2: Earth-history statistics for terrain
 
@@ -2332,6 +2371,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The Earth Topography 2022 (ETOPO 2022) Global DEM dataset (ESSD preprint)"]
+form = "pattern"
 
 [[oracle]]
 id = "terrain.hypsometry_profile"
@@ -2347,6 +2387,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The Earth Topography 2022 (ETOPO 2022) Global DEM dataset (ESSD preprint)"]
+form = "pattern"
 
 [[oracle]]
 id = "terrain.channel_concavity"
@@ -2362,6 +2403,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Stream gradient as a function of order, magnitude, and discharge", "The Earth Topography 2022 (ETOPO 2022) Global DEM dataset (ESSD preprint)"]
+form = "scalar"
 
 [[oracle]]
 id = "terrain.drainage_density"
@@ -2377,6 +2419,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Global river hydrography and network routing: baseline data and new approaches to study the world's large river systems"]
+form = "scalar"
 
 [[oracle]]
 id = "terrain.endorheic_share"
@@ -2392,6 +2435,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Recent global decline in endorheic basin water storages", "Global river hydrography and network routing: baseline data and new approaches to study the world's large river systems"]
+form = "scalar"
 
 [[oracle]]
 id = "terrain.endorheic_share_nonzero"
@@ -2422,6 +2466,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["OCTOPUS: an open cosmogenic isotope and luminescence database", "Understanding Earth's eroding surface with 10Be"]
+form = "pattern"
 
 [[oracle]]
 id = "terrain.age_rate_identity"
@@ -2451,6 +2496,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["The Earth Topography 2022 (ETOPO 2022) Global DEM dataset (ESSD preprint)", "Global river hydrography and network routing: baseline data and new approaches to study the world's large river systems"]
+form = "pattern"
 
 [[oracle]]
 id = "terrain.drainage_isotropy"
@@ -2480,6 +2526,7 @@ provisional = true
 registered_at = ""
 holdout = false
 anchors = ["Studies of longitudinal stream profiles in Virginia and Maryland", "Global river hydrography and network routing: baseline data and new approaches to study the world's large river systems"]
+form = "scalar"
 
 # ---------------------------------------------------------------- tier 3: one-parameter-away sweeps
 
