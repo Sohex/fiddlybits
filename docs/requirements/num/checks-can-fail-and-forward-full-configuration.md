@@ -30,7 +30,7 @@ bar chosen after the run it judges was refused as not a bar.
 
 Ideas 3, 12 and 18: a finite output is not acceptance, registries are
 self-checking, and a test needs a right answer rather than a comparison that can
-only differ. C2 registers thresholds before the artifact they judge; C4 runs a
+only differ. C2 fixes a bar before the value it judges has been seen; C4 runs a
 mutation suite that fails if any deliberate break goes uncaught. A generic builder
 has a large configuration space (any star, gravity, rotation, spectrum), so a check
 that silently drops one axis of it passes forever on the axis it never saw. The
@@ -48,9 +48,10 @@ three shapes are language-independent and each has a mechanical form.
 3. A verdict is an exit. A registered bar evaluates to PASS, FAIL, REPORT or
    NotEvaluable, and FAIL fails the job; printing or writing a report is not a
    verdict.
-4. A bar is registered before the first artifact it judges, with `provisional` and
-   `registered_at` (C2); a bar changed after a result is a new bar with its own
-   registration.
+4. A bar is fixed before the value it judges has been seen, with `provisional` and
+   `registered_at` (C2; decision 0025, amendment of 2026-09-13): the oracle runner
+   refuses an unregistered entry's value on a model result, and a bar that differs
+   from its `registered_at` commit is unregistered until it is registered again.
 5. A fixture built by the code under test is admitted only in the green-first,
    break-one-thing form.
 6. A control must be able to observe: a comparison over a window with no

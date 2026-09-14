@@ -45,8 +45,8 @@ rule they mechanise, and it binds every check written by hand as well.
 
 ## What this system must do
 
-- Every oracle threshold is registered with the commit that registered it before the
-  first artifact it judges; a threshold derived from floating point or from a
+- Every oracle threshold is fixed before the value it judges has been seen and
+  registered with the commit that holds it; a threshold derived from floating point or from a
   published model's residual is preferred to a chosen one, and a chosen one carries
   the argument for its direction.
 - Identities are the first tier (area sums, a reference spectrum reproducing the
