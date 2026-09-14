@@ -443,6 +443,20 @@ holdout = false
 anchors = []
 
 [[oracle]]
+id = "kernels.body_types_concrete"
+tier = 1
+subsystem = "kernels"
+dataset_or_reference = "identity"
+source_kind = "identity"
+statistic = "every value code_warntype highlights, a type that is not a dispatch element or is Core.Box on an argument or on a statement another statement reads, in the optimised typed code of each kernel body the package defines and of every package method it invokes: on the device, read through GPUCompiler.get_interpreter of every job the test's device launches pass to GPUCompiler.compile_hook; on the CPU backend, read at every dispatch-tuple specialization of the kernel's CPU function; each kernel launched through its own door on both backends at each precision its entry in the test's table names; and that table against the device kernels test/fields/static_pass.jl enumerates"
+verdict_kind = "fail_bar"
+threshold = "exact; no highlighted value on either arm, no kernel the package defines compiled for the device at no signature, and no table entry naming no kernel (positive controls: a fixture kernel calling a six-member union that inference splits, and one holding a boxed variable no call reads that survives optimisation, shown by a call to gc_pool_alloc in its device module, each of which must be highlighted on both arms; a fixture kernel whose union call constant propagation folds, and one with a concrete call, each of which must come out empty on both arms; a fixture module holding a kernel no launch compiles for the device, which the coverage check must name; and a table entry naming no kernel, which must be named)"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
 id = "fields.semantics_closure"
 tier = 1
 subsystem = "fields"
