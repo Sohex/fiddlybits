@@ -138,22 +138,26 @@ const QUANTILE_BITONIC_NETWORK = Dict(k => bitonic_network_pow2(4^k) for k in QU
 
 # One bitonic-sort kernel per declared k, generated with its segment length
 # and its step count as literal constants so @localmem's size is fixed at
-# compile time. Each kernel sorts its own segment in workgroup shared
-# memory (one workgroup per segment) and writes back a single selected
-# element; xs itself is left unchanged. base[seg] is the segment's own
-# start minus one, computed at the host boundary, so adding the kernel's
-# own local position to it is not an offset of that position (decision
-# F7); the bitonic comparisons come from bitonic_network the same way.
+# compile time. Each kernel sorts one segment of one column of the
+# (elements, columns) array xs in workgroup shared memory (one workgroup per
+# segment and column, workgroup g being column fld1(g, nseg) and segment
+# mod1(g, nseg)) and writes back a single selected element to
+# out[seg, column]; xs itself is left unchanged. base[seg] is the segment's
+# own start minus one, computed at the host boundary, and the kernel adds
+# its own local position to it; the bitonic comparisons come from
+# bitonic_network, indexed by that local position.
 for k in QUANTILE_K_MIN:QUANTILE_K_MAX
     local seglen = 4^k
     local nsteps = size(QUANTILE_BITONIC_NETWORK[k][1], 2)
     local kernel_name = Symbol(:segmented_bitonic_kernel_, seglen, :!)
     @eval @kernel function $kernel_name(out, @Const(xs), @Const(base), rank,
-                                         @Const(partner), @Const(ascending))
-        seg = @index(Group, Linear)
+                                         @Const(partner), @Const(ascending), nseg)
+        group = @index(Group, Linear)
+        column = fld1(group, nseg)
+        seg = mod1(group, nseg)
         li = @index(Local, Linear)
         shared = @localmem eltype(xs) ($seglen,)
-        @inbounds shared[li] = xs[base[seg] + li]
+        @inbounds shared[li] = xs[base[seg] + li, column]
         @synchronize
         for step in 1:$nsteps
             @inbounds begin
@@ -171,7 +175,9 @@ for k in QUANTILE_K_MIN:QUANTILE_K_MAX
             @synchronize
         end
         if li == 1
-            @inbounds out[seg] = shared[rank]
+            selected_column = fld1(group, nseg)
+            selected_seg = mod1(group, nseg)
+            @inbounds out[selected_seg, selected_column] = shared[rank]
         end
     end
 end
@@ -261,35 +267,53 @@ copy.
 function segmented_quantile(xs::AbstractVector, segmentation::Segmentation, q::Real,
                              backend::Backend = CPU())
     require_extent(segmentation, xs, "Reductions.segmented_quantile")
+    out = similar(xs, segmentation.nseg)
+    segmentation.nseg == 0 && return out
+    queue_quantiles!(by_columns(out), by_columns(xs), segmentation, q, backend)
+    return out
+end
+
+"""
+    queue_quantiles!(out, xs, segmentation, q, backend)
+
+The launch both forms of `segmented_quantile` make, once their shapes are
+checked: `out` is `(nseg, ncol)` and `xs` is `(nelement, ncol)`, `nseg` at
+least one. Reads the segment depth from `segmentation`'s host boundaries,
+then queues `launch_quantiles!` once over every segment of every column.
+"""
+function queue_quantiles!(out::AbstractMatrix, xs::AbstractMatrix, segmentation::Segmentation,
+                          q::Real, backend::Backend)
     nseg = segmentation.nseg
-    out = similar(xs, nseg)
-    nseg == 0 && return out
     k = segment_depth_host(segmentation.starts_host, nseg)
     rank = quantile_rank(4^k, q)
     base = segmentation.lo .- 1
     partner, ascending = device_bitonic_network(backend, k)
     launch_quantiles!(backend, k, nseg, out, xs, base, rank, partner, ascending)
-    return out
+    return nothing
 end
 
 """
     launch_quantiles!(backend, k, nseg, out, xs, base, rank, partner, ascending)
 
 Queues `quantile_kernel(Val(k))` on `backend` over `nseg` segments of `4^k`
-elements, one workgroup per segment (`Backends.at_workgroup`): segment `s` sorts
-`xs[base[s] + 1:base[s] + 4^k]` by the network `partner` and `ascending` and
-writes the element at `rank` to `out[s]`.
+elements in each of the `ncol = size(xs, 2)` columns of the
+`(elements, columns)` array `xs`, one workgroup per segment and column
+(`Backends.at_workgroup`), `nseg * ncol` of them: workgroup `g` is column
+`c = fld1(g, nseg)` and segment `s = mod1(g, nseg)`, which sorts
+`xs[base[s] + 1:base[s] + 4^k, c]` by the network `partner` and `ascending`
+and writes the element at `rank` to `out[s, c]`.
 
 Before the launch, on the host, refuses through `Verdicts.refuse`, naming
-the array and both lengths, unless `k` is in
-`QUANTILE_K_MIN:QUANTILE_K_MAX`, `out` and `base` hold `nseg` elements, `xs`
-holds `nseg * 4^k`, `partner` and `ascending` are each `4^k` by the step
-count of `QUANTILE_BITONIC_NETWORK[k]`, and `rank` is in `1:4^k`: the lengths
-every index the kernel reads or writes is derived from. The values of `base`
-are `lo .- 1` of a `Segmentation` whose segments all have length `4^k`.
+the array and both shapes, unless `k` is in
+`QUANTILE_K_MIN:QUANTILE_K_MAX`, `base` holds `nseg` elements, `xs` has
+size `(nseg * 4^k, ncol)`, `out` has size `(nseg, ncol)`, `partner` and
+`ascending` are each `4^k` by the step count of
+`QUANTILE_BITONIC_NETWORK[k]`, and `rank` is in `1:4^k`: the extents every
+index the kernel reads or writes is derived from. The values of `base` are
+`lo .- 1` of a `Segmentation` whose segments all have length `4^k`.
 """
-function launch_quantiles!(backend::Backend, k::Integer, nseg::Integer, out::AbstractVector,
-                            xs::AbstractVector, base::AbstractVector{<:Integer}, rank::Integer,
+function launch_quantiles!(backend::Backend, k::Integer, nseg::Integer, out::AbstractArray,
+                            xs::AbstractArray, base::AbstractVector{<:Integer}, rank::Integer,
                             partner::AbstractMatrix, ascending::AbstractMatrix)
     site = "Reductions.launch_quantiles!"
     QUANTILE_K_MIN <= k <= QUANTILE_K_MAX ||
@@ -297,11 +321,17 @@ function launch_quantiles!(backend::Backend, k::Integer, nseg::Integer, out::Abs
                "k=$k is outside the declared range $QUANTILE_K_MIN:$QUANTILE_K_MAX")
     seglen = 4^k
     shape = (seglen, size(QUANTILE_BITONIC_NETWORK[k][1], 2))
-    for (name, array, expected) in (("out", out, nseg), ("base", base, nseg),
-                                    ("xs", xs, nseg * seglen))
-        length(array) == expected ||
+    length(base) == nseg ||
+        refuse("quantile kernel extent", site,
+               "base has length $(length(base)), $nseg segments of $seglen need $nseg")
+    ndims(xs) == 2 ||
+        refuse("quantile kernel extent", site, "xs has size $(size(xs)), not (elements, columns)")
+    ncol = size(xs, 2)
+    for (name, array, expected) in (("xs", xs, (nseg * seglen, ncol)), ("out", out, (nseg, ncol)))
+        size(array) == expected ||
             refuse("quantile kernel extent", site,
-                   "$name has length $(length(array)), $nseg segments of $seglen need $expected")
+                   "$name has size $(size(array)), $nseg segments of $seglen in $ncol " *
+                   "column(s) need $expected")
     end
     for (name, array) in (("partner", partner), ("ascending", ascending))
         size(array) == shape ||
@@ -310,12 +340,42 @@ function launch_quantiles!(backend::Backend, k::Integer, nseg::Integer, out::Abs
     end
     1 <= rank <= seglen ||
         refuse("quantile rank", site, "rank $rank is outside 1:$seglen")
-    launch!(quantile_kernel(Val(Int(k))), at_workgroup(backend, seglen), nseg * seglen,
-            out, xs, base, Int(rank), partner, ascending)
+    ncol == 0 && return nothing
+    launch!(quantile_kernel(Val(Int(k))), at_workgroup(backend, seglen), nseg * ncol * seglen,
+            out, xs, base, Int(rank), partner, ascending, Int(nseg))
     return nothing
 end
 
 function segmented_quantile(xs::AbstractVector, starts::AbstractVector{<:Integer}, q::Real,
+                             backend::Backend = CPU())
+    return segmented_quantile(xs, Segmentation(xs, starts), q, backend)
+end
+
+"""
+    segmented_quantile(xs::AbstractArray, starts, q, backend = CPU())
+    segmented_quantile(xs::AbstractArray, segmentation, q, backend = CPU())
+
+The column form of `segmented_quantile`: `xs` is an array of cells by
+trailing axes (`Backends.LAYOUT`), and the result, on `backend`, has size
+`(nseg, trailing...)` and `xs`'s element type, its column `c` the vector
+form's quantile of `xs`'s column `c`, the same element selected by the same
+network. One launch over every segment of every column, one workgroup per
+segment and column (`launch_quantiles!`); nothing is read back from the
+device. The segmentation is checked against `size(xs, 1)`. Refuses when `xs`
+has fewer than two dimensions, and as the vector form does.
+"""
+function segmented_quantile(xs::AbstractArray, segmentation::Segmentation, q::Real,
+                             backend::Backend = CPU())
+    site = "Reductions.segmented_quantile"
+    require_columns(xs, site)
+    require_extent(segmentation, xs, site)
+    out = similar(xs, segmentation.nseg, trailing_shape(xs)...)
+    (segmentation.nseg == 0 || column_extent(xs) == 0) && return out
+    queue_quantiles!(by_columns(out), by_columns(xs), segmentation, q, backend)
+    return out
+end
+
+function segmented_quantile(xs::AbstractArray, starts::AbstractVector{<:Integer}, q::Real,
                              backend::Backend = CPU())
     return segmented_quantile(xs, Segmentation(xs, starts), q, backend)
 end
@@ -341,6 +401,29 @@ function segmented_quantile_reference(xs::AbstractVector, starts::AbstractVector
 end
 
 function segmented_quantile_reference(xs::AbstractVector, segmentation::Segmentation, q::Real)
+    require_extent(segmentation, xs, "Reductions.segmented_quantile_reference")
+    return segmented_quantile_reference(xs, segmentation.starts_host, q)
+end
+
+"""
+    segmented_quantile_reference(xs::AbstractArray, starts, q)
+    segmented_quantile_reference(xs::AbstractArray, segmentation, q)
+
+The naive serial reference for the column form of `segmented_quantile`
+(decision 0027): the vector reference over each column of `xs` in turn, in
+column-major order of the trailing axes, into an array of size
+`(nseg, trailing...)` and `xs`'s element type. `xs` must be a host array.
+"""
+function segmented_quantile_reference(xs::AbstractArray, starts::AbstractVector{<:Integer}, q::Real)
+    require_columns(xs, "Reductions.segmented_quantile_reference")
+    out = Array{eltype(xs)}(undef, segment_extent(xs, starts), trailing_shape(xs)...)
+    for column in CartesianIndices(trailing_shape(xs))
+        out[:, column] = segmented_quantile_reference(view(xs, :, column), starts, q)
+    end
+    return out
+end
+
+function segmented_quantile_reference(xs::AbstractArray, segmentation::Segmentation, q::Real)
     require_extent(segmentation, xs, "Reductions.segmented_quantile_reference")
     return segmented_quantile_reference(xs, segmentation.starts_host, q)
 end

@@ -73,6 +73,14 @@ const SEGMENT_SHAPES = [
 const SUM_TYPES = [(T, A) for A in (Float64, Float32) for T in (Float64, Float32)]
 const WEIGHTED_TYPES = AREA_TYPES
 
+# The trailing shapes the column kernels run over: one column, several, and two trailing
+# axes; the first is the one every element and accumulator type runs.
+const EDGE_TRAILING = [(1,), (3,), (2, 3)]
+
+"An array of cells by `trailing` of type `T`: the suite's fixed formula over every column."
+edge_columns(::Type{T}, n::Integer, trailing::Tuple) where {T} =
+    reshape(edge_elements(T, n * prod(trailing)), n, trailing...)
+
 # (name, depth k, segment count)
 const QUANTILE_SHAPES = [
     ("one segment at the smallest depth", 1, 1),
@@ -233,6 +241,97 @@ const QUANTILE_SHAPES = [
                     @test findall(top(moved) .!= base) == [segment]
                 end
             end
+
+            @testset "segmented column kernels: $shape, trailing $trailing, $TX and $TW into $A" for
+                    (shape, starts, has_mean) in SEGMENT_SHAPES, trailing in EDGE_TRAILING, (TX, TW, A) in WEIGHTED_TYPES
+                (trailing == first(EDGE_TRAILING) || (TX, TW, A) == first(WEIGHTED_TYPES)) || continue
+                n = last(starts) - 1
+                xs, weights = edge_columns(TX, n, trailing), edge_areas(TW, n)
+                xs_b, weights_b = Backends.on(xs, backend), Backends.on(weights, backend)
+                segmentation = Reductions.Segmentation(xs_b, Backends.on(starts, backend))
+                sums = Reductions.segmented_sum(A, xs_b, segmentation, backend)
+                @test eltype(sums) === A
+                @test size(sums) == (length(starts) - 1, trailing...)
+                @test edge_bytes(sums) == edge_bytes(Reductions.segmented_sum_reference(A, xs, starts))
+                @test edge_bytes(Reductions.segmented_weighted_sum(A, xs_b, weights_b, segmentation, backend)) ==
+                      edge_bytes(Reductions.segmented_weighted_sum_reference(A, xs, weights, starts))
+                if has_mean
+                    @test edge_bytes(Reductions.segmented_mean(A, xs_b, segmentation, weights_b, backend)) ==
+                          edge_bytes(Reductions.segmented_mean_reference(A, xs, starts, weights))
+                else
+                    @test_throws Verdicts.Refusal Reductions.segmented_mean(A, xs_b, segmentation, weights_b, backend)
+                end
+            end
+
+            @testset "pairwise column block sums and pairwise_sum: $shape, trailing $trailing, $T into $A" for
+                    (shape, n, bs, every_type) in BLOCK_SHAPES, trailing in EDGE_TRAILING, (T, A) in PAIRWISE_TYPES
+                ((every_type && trailing == first(EDGE_TRAILING)) || (T, A) == first(PAIRWISE_TYPES)) || continue
+                xs = edge_columns(T, n, trailing)
+                reference = Array{A}(undef, cld(n, bs), trailing...)
+                for c in CartesianIndices(trailing)
+                    reference[:, c] = block_reference(A, xs[:, c], bs)
+                end
+                xs_b = Backends.on(xs, backend)
+                partials = Reductions.pairwise_block_sums(A, xs_b, backend; blocksize = bs)
+                @test eltype(partials) === A
+                @test edge_bytes(partials) == edge_bytes(reference)
+                @test edge_bytes(Reductions.pairwise_sum(A, xs_b, backend; blocksize = bs)) ==
+                      edge_bytes([Reductions.combine_tree(reference[:, c]) for c in CartesianIndices(trailing)])
+            end
+
+            @testset "positive control: the first element of a segment and the last cell of a column each move exactly their own segment of their own column" begin
+                starts = [1, 17, 33, 49, 65, 70]
+                n, nseg = last(starts) - 1, length(starts) - 1
+                xs, weights = edge_columns(Float64, n, (3,)), edge_areas(Float64, n)
+                reduce_columns(v) = begin
+                    v_b, w_b = Backends.on(v, backend), Backends.on(weights, backend)
+                    seg = Reductions.Segmentation(v_b, Backends.on(starts, backend))
+                    [Backends.on(r, Backends.CPU(1)) for r in (Reductions.segmented_sum(Float64, v_b, seg, backend),
+                                                               Reductions.segmented_weighted_sum(Float64, v_b, w_b, seg, backend),
+                                                               Reductions.segmented_mean(Float64, v_b, seg, w_b, backend),
+                                                               Reductions.pairwise_block_sums(Float64, v_b, backend; blocksize = 16))]
+                end
+                base = reduce_columns(xs)
+                for (index, column, segment) in ((starts[2], 2, 2), (n, 3, nseg))
+                    moved = copy(xs)
+                    moved[index, column] += 1.0
+                    for (b, m) in zip(base, reduce_columns(moved))
+                        @test findall(m .!= b) == [CartesianIndex(segment, column)]
+                    end
+                end
+            end
+
+            @testset "segmented_quantile over columns: $shape, trailing $trailing, $T" for
+                    (shape, k, nseg) in QUANTILE_SHAPES, trailing in EDGE_TRAILING[2:end], T in (Float64, Int)
+                seglen = 4^k
+                n = nseg * seglen
+                xs = T === Int ? reshape(Int[mod(i * 7919 + 13, 251) - 125 for i in 1:(n * prod(trailing))], n, trailing...) :
+                     edge_columns(T, n, trailing)
+                starts = collect(1:seglen:(n + 1))
+                xs_b = Backends.on(xs, backend)
+                segmentation = Reductions.Segmentation(xs_b, Backends.on(starts, backend))
+                result = Reductions.segmented_quantile(xs_b, segmentation, 0.5, backend)
+                @test eltype(result) === T
+                @test size(result) == (nseg, trailing...)
+                @test edge_bytes(result) == edge_bytes(Reductions.segmented_quantile_reference(xs, starts, 0.5))
+            end
+
+            @testset "positive control: the first element of a segment and the last cell of a column each move exactly their own segment's maximum in their own column" begin
+                k, nseg = 2, 4
+                seglen = 4^k
+                n = nseg * seglen
+                xs = edge_columns(Float64, n, (3,))
+                starts = collect(1:seglen:(n + 1))
+                top(v) = Backends.on(Reductions.segmented_quantile(Backends.on(v, backend),
+                                                                    Backends.on(starts, backend), 1.0, backend),
+                                     Backends.CPU(1))
+                base = top(xs)
+                for (index, column, segment) in ((seglen + 1, 2, 2), (n, 3, nseg))
+                    moved = copy(xs)
+                    moved[index, column] = 10.0
+                    @test findall(top(moved) .!= base) == [CartesianIndex(segment, column)]
+                end
+            end
         end
     end
 end
@@ -333,11 +432,94 @@ end
                 end
             end
 
+            @testset "Reductions.launch_segment_columns!" begin
+                starts = [1, 17, 33, 49, 65, 70]
+                n, nseg, ncol = last(starts) - 1, length(starts) - 1, 3
+                xs_h, weights_h = edge_columns(Float64, n, (ncol,)), edge_areas(Float64, n)
+                xs, weights = on_b(xs_h), on_b(weights_h)
+                segmentation = Reductions.Segmentation(xs, on_b(starts))
+                lo, hi = segmentation.lo, segmentation.hi
+                column_mean_call(out, zeroflag, xs, weights, lo, hi) =
+                    () -> Reductions.launch_segment_columns!(Reductions.segmented_column_mean_kernel!, backend, n, nseg,
+                                                             ncol, (out = out, zeroflag = zeroflag), (xs = xs,),
+                                                             (weights = weights,), lo, hi, "edge shapes")
+
+                @testset "matched arguments launch and agree with the reference" begin
+                    out, zeroflag = similar(xs, Float64, nseg, ncol), similar(xs, Bool, nseg, ncol)
+                    @test refusal_of(column_mean_call(out, zeroflag, xs, weights, lo, hi)) === nothing
+                    @test edge_bytes(out) ==
+                          edge_bytes(Reductions.segmented_mean_reference(Float64, xs_h, starts, weights_h))
+                end
+
+                out, zeroflag = similar(xs, Float64, nseg, ncol), similar(xs, Bool, nseg, ncol)
+                for (what, args, got, expected) in (
+                        ("out one row short", (similar(xs, Float64, nseg - 1, ncol), zeroflag, xs, weights, lo, hi),
+                         "out has size ($(nseg - 1), $ncol)", "$nseg segments of $ncol column(s)"),
+                        ("out one column short", (similar(xs, Float64, nseg, ncol - 1), zeroflag, xs, weights, lo, hi),
+                         "out has size ($nseg, $(ncol - 1))", "$nseg segments of $ncol column(s)"),
+                        ("zeroflag one row short", (out, similar(xs, Bool, nseg - 1, ncol), xs, weights, lo, hi),
+                         "zeroflag has size ($(nseg - 1), $ncol)", "$nseg segments of $ncol column(s)"),
+                        ("xs one row short", (out, zeroflag, xs[1:n-1, :], weights, lo, hi),
+                         "xs has size ($(n - 1), $ncol)", "$n elements of $ncol column(s)"),
+                        ("xs one column short", (out, zeroflag, xs[:, 1:ncol-1], weights, lo, hi),
+                         "xs has size ($n, $(ncol - 1))", "$n elements of $ncol column(s)"),
+                        ("weights one element short", (out, zeroflag, xs, weights[1:n-1], lo, hi),
+                         "weights has length $(n - 1)", "$n elements"),
+                        ("lo one element short", (out, zeroflag, xs, weights, lo[1:nseg-1], hi),
+                         "lo has length $(nseg - 1)", "$nseg segments"),
+                        ("hi one element short", (out, zeroflag, xs, weights, lo, hi[1:nseg-1]),
+                         "hi has length $(nseg - 1)", "$nseg segments"))
+                    @testset "$what refuses, naming the array and both extents" begin
+                        caught = refusal_of(column_mean_call(args...))
+                        @test caught isa Verdicts.Refusal
+                        @test caught.site == "edge shapes"
+                        @test occursin(got, caught.reason)
+                        @test occursin(expected, caught.reason)
+                    end
+                end
+            end
+
+            @testset "Reductions.launch_column_block_sums!" begin
+                n, ncol = 2 * EDGE_B + 5, 3
+                nb = cld(n, EDGE_B)
+                xs_h = edge_columns(Float64, n, (ncol,))
+                xs = on_b(xs_h)
+                column_blocks_call(partials, xs, blocksize) =
+                    () -> Reductions.launch_column_block_sums!(backend, partials, xs, blocksize)
+
+                @testset "matched arguments launch and agree with the reference" begin
+                    partials = similar(xs, Float64, nb, ncol)
+                    @test refusal_of(column_blocks_call(partials, xs, EDGE_B)) === nothing
+                    @test edge_bytes(partials) ==
+                          edge_bytes(reduce(hcat, [block_reference(Float64, xs_h[:, c], EDGE_B) for c in 1:ncol]))
+                end
+
+                for (what, args, got, expected) in (
+                        ("partials one row short", (similar(xs, Float64, nb - 1, ncol), xs, EDGE_B),
+                         "partials has size ($(nb - 1), $ncol)", "have ($nb, $ncol)"),
+                        ("partials one column short", (similar(xs, Float64, nb, ncol - 1), xs, EDGE_B),
+                         "partials has size ($nb, $(ncol - 1))", "have ($nb, $ncol)"),
+                        ("xs one column short of partials", (similar(xs, Float64, nb, ncol), xs[:, 1:ncol-1], EDGE_B),
+                         "partials has size ($nb, $ncol)", "have ($nb, $(ncol - 1))"),
+                        ("xs without a column axis", (similar(xs, Float64, nb, ncol), vec(xs), EDGE_B),
+                         "xs has size ($(n * ncol),)", "not (elements, columns)"),
+                        ("a blocksize of zero", (similar(xs, Float64, nb, ncol), xs, 0),
+                         "blocksize 0", "not positive"))
+                    @testset "$what refuses, naming the array and both extents" begin
+                        caught = refusal_of(column_blocks_call(args...))
+                        @test caught isa Verdicts.Refusal
+                        @test caught.site == "Reductions.launch_column_block_sums!"
+                        @test occursin(got, caught.reason)
+                        @test occursin(expected, caught.reason)
+                    end
+                end
+            end
+
             @testset "Reductions.launch_quantiles!" begin
-                k, nseg = 1, 3
+                k, nseg, ncol = 1, 3, 2
                 seglen = 4^k
                 n = nseg * seglen
-                xs_h = edge_elements(Float64, n)
+                xs_h = edge_columns(Float64, n, (ncol,))
                 starts = collect(1:seglen:(n + 1))
                 xs = on_b(xs_h)
                 base = Reductions.Segmentation(xs, on_b(starts)).lo .- 1
@@ -347,27 +529,32 @@ end
                     () -> Reductions.launch_quantiles!(backend, k, nseg, out, xs, base, rank, partner, ascending)
 
                 @testset "matched arguments launch and agree with the reference" begin
-                    out = similar(xs, nseg)
+                    out = similar(xs, nseg, ncol)
                     @test refusal_of(call(k, out, xs, base, rank, partner, ascending)) === nothing
                     @test edge_bytes(out) == edge_bytes(Reductions.segmented_quantile_reference(xs_h, starts, 0.5))
                 end
 
+                out = similar(xs, nseg, ncol)
                 for (what, args, expected) in (
-                        ("out one element short", (k, similar(xs, nseg - 1), xs, base, rank, partner, ascending),
-                         ["out has length $(nseg - 1)", "need $nseg"]),
-                        ("base one element short", (k, similar(xs, nseg), xs, base[1:nseg-1], rank, partner, ascending),
+                        ("out one row short", (k, similar(xs, nseg - 1, ncol), xs, base, rank, partner, ascending),
+                         ["out has size ($(nseg - 1), $ncol)", "need ($nseg, $ncol)"]),
+                        ("out one column short", (k, similar(xs, nseg, ncol - 1), xs, base, rank, partner, ascending),
+                         ["out has size ($nseg, $(ncol - 1))", "need ($nseg, $ncol)"]),
+                        ("base one element short", (k, out, xs, base[1:nseg-1], rank, partner, ascending),
                          ["base has length $(nseg - 1)", "need $nseg"]),
-                        ("xs one element short", (k, similar(xs, nseg), xs[1:n-1], base, rank, partner, ascending),
-                         ["xs has length $(n - 1)", "need $n"]),
-                        ("partner one row short", (k, similar(xs, nseg), xs, base, rank, partner[1:seglen-1, :], ascending),
+                        ("xs one row short", (k, out, xs[1:n-1, :], base, rank, partner, ascending),
+                         ["xs has size ($(n - 1), $ncol)", "need ($n, $ncol)"]),
+                        ("xs without a column axis", (k, out, vec(xs), base, rank, partner, ascending),
+                         ["xs has size ($(n * ncol),)", "not (elements, columns)"]),
+                        ("partner one row short", (k, out, xs, base, rank, partner[1:seglen-1, :], ascending),
                          ["partner has size ($(seglen - 1), ", "size ($seglen, "]),
-                        ("ascending one row short", (k, similar(xs, nseg), xs, base, rank, partner, ascending[1:seglen-1, :]),
+                        ("ascending one row short", (k, out, xs, base, rank, partner, ascending[1:seglen-1, :]),
                          ["ascending has size ($(seglen - 1), ", "size ($seglen, "]),
-                        ("rank one past the segment", (k, similar(xs, nseg), xs, base, seglen + 1, partner, ascending),
+                        ("rank one past the segment", (k, out, xs, base, seglen + 1, partner, ascending),
                          ["rank $(seglen + 1)", "1:$seglen"]),
-                        ("rank one below the segment", (k, similar(xs, nseg), xs, base, 0, partner, ascending),
+                        ("rank one below the segment", (k, out, xs, base, 0, partner, ascending),
                          ["rank 0", "1:$seglen"]),
-                        ("k above the declared range", (Reductions.QUANTILE_K_MAX + 1, similar(xs, nseg), xs, base, rank,
+                        ("k above the declared range", (Reductions.QUANTILE_K_MAX + 1, out, xs, base, rank,
                                                         partner, ascending),
                          ["k=$(Reductions.QUANTILE_K_MAX + 1)"]))
                     @testset "$what refuses, naming it and both bounds" begin
