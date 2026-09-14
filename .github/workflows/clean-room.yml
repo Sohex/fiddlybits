@@ -25,6 +25,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history, which src/Oracles/registry.jl's history check reads.
+          fetch-depth: 0
 
       - uses: julia-actions/setup-julia@v2
         with:
