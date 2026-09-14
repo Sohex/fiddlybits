@@ -8,6 +8,8 @@
 # Untracked payload: papers, external source trees, run stores
 references/pdf/
 references/trees/
+references/esmf/
+references/poseidon_surface_albedo/
 store/
 oracles/data/
 references/text/
