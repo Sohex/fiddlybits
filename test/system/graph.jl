@@ -8,7 +8,8 @@ import .SystemFixtures as SF
 
 module GraphFixtures
 
-using Fiddlybits: Dispositions
+using Fiddlybits: Dispositions, Systems, Dimensions
+import ..SystemFixtures as SF
 
 const value = Dispositions.value
 
@@ -34,6 +35,50 @@ declared() = Dict{Symbol,Any}(
     :crustal => [(:planet, :lithosphere)],
     :lunar => [(:moons, :, :mass)],
     :stochastic => [(:root_seed,)])
+
+const S = Systems
+const ONE = Dimensions.DIMENSIONLESS
+const LENGTH = Dimensions.LENGTH
+
+"A component entry named `name` with a ladder of interfaces at `positions`."
+entry(name, spacing, positions) = S.ComponentDeclaration(
+    name = name, target_spacing = SF.irreducible(spacing, LENGTH),
+    finest_spacing = SF.irreducible(spacing / 4, LENGTH),
+    ladder = S.VerticalLadder(depth_scale = :scale_height,
+                              interfaces = Tuple(SF.irreducible(v, ONE) for v in positions)))
+
+"A fixture profile on `SF.system()` holding two component entries and two exit brackets."
+profile() = S.Profile(
+    label = :graph_fixture, system = SF.system(),
+    components = (entry(:ocean, 2e6, (0.0, 0.25, 1.0)), entry(:atmosphere, 1e6, (0.0, 0.1, 0.5, 2.0))),
+    radiation = S.Absent(argument = "the graph fixture declares no radiation scheme"),
+    fast_precision = Float32,
+    slow_tier = S.Absent(argument = "the graph fixture declares no slow tier"),
+    memory_ceiling = SF.irreducible(1024, ONE),
+    daily_fallback_interval = S.Absent(argument = "the graph fixture declares no daily tier"),
+    exit_brackets = (S.ExitBracket(loop = :climate, criterion = :toa_balance,
+                                   normalisation = :absorbed_instellation,
+                                   tolerance = SF.irreducible(1e-3, ONE)),
+                     S.ExitBracket(loop = :climate, criterion = :deep_drift,
+                                   normalisation = :stock_per_relaxation_time,
+                                   tolerance = SF.irreducible(1e-2, ONE))))
+
+"Fixture profile readers: each a function of one profile, named as the fixture profile graph names it."
+profile_readers() = Dict{Symbol,Any}(
+    :surface => p -> (p.fast_precision, value(p.components.atmosphere.level),
+                      map(value, p.components.atmosphere.ladder.interfaces)),
+    :ocean => p -> (value(p.components[:ocean].finest_level), value(p.components[:ocean].target_spacing)),
+    :loops => p -> minimum(value(e.tolerance) for e in p.exit_brackets),
+    :levels => p -> sum(value(c.level) for c in p.components),
+    :budget => p -> value(p.memory_ceiling))
+
+"The profile paths the fixture profile readers declare, as plain data."
+declared_profile() = Dict{Symbol,Any}(
+    :surface => [(:fast_precision,), (:components, :atmosphere, :level), (:components, :atmosphere, :ladder)],
+    :ocean => [(:components, :ocean)],
+    :loops => [(:exit_brackets, :, :tolerance)],
+    :levels => [(:components,)],
+    :budget => [(:memory_ceiling,)])
 
 "A reader that reaches `path` by property access and indexing, and returns what it reaches."
 path_reader(path) = s -> foldl((y, step) -> step isa Symbol ? getproperty(y, step) : y[step],
@@ -175,5 +220,96 @@ moonless() = SF.system(moons = (), orbits = Systems.OrbitHierarchy(
                          "path", "not a tuple")
         @test SF.refused(SF.caught(() -> Systems.affected((:stars, 0), GF.declared())), "path", "step")
         @test SF.refused(SF.caught(() -> Systems.affected((:planet, "mass"), GF.declared())), "path", "step")
+    end
+end
+
+@testset "system.dependency_subset over a Profile" begin
+    p = GF.profile()
+
+    @testset "a tracked run is bitwise the run on the bare Profile" begin
+        for (name, reader) in GF.profile_readers()
+            @test reader(p) === reader(Systems.TrackingProfile(p))
+        end
+    end
+
+    @testset "a read of a component's own entry is recorded by its name" begin
+        t = Systems.TrackingProfile(p)
+        @test t.fast_precision === Float32
+        @test t.components.atmosphere.ladder.depth_scale === :scale_height
+        @test t.components[:ocean].level === p.components.ocean.level
+        @test t.components isa Systems.Tracked
+        @test Systems.recorded_reads(t) == Set{Tuple}([
+            (:fast_precision,), (:components, :atmosphere, :ladder, :depth_scale), (:components, :ocean, :level)])
+        t = Systems.TrackingProfile(p)
+        @test keys(t.components) === (:atmosphere, :ocean)
+        @test map(c -> c.name, t.components) === (atmosphere = :atmosphere, ocean = :ocean)
+        @test Systems.recorded_reads(t) == Set{Tuple}([
+            (:components,), (:components, :atmosphere, :name), (:components, :ocean, :name)])
+        absent = Systems.fast_profile(system = SF.system(Float32), memory_ceiling = SF.irreducible(1024, GF.ONE))
+        t = Systems.TrackingProfile(absent)
+        @test t.components === absent.components
+        @test Systems.recorded_reads(t) == Set{Tuple}([(:components,)])
+    end
+
+    @testset "recorded is a subset of declared" begin
+        r = Systems.dependency_subset(GF.profile_readers(), GF.declared_profile(), p)
+        @test r.verdict === Verdicts.PASS()
+        @test all(isempty, values(r.undeclared))
+        @test all(isempty, values(r.unread))
+        @test r.recorded[:ocean] == Set{Tuple}([(:components, :ocean, :finest_level), (:components, :ocean, :target_spacing)])
+        @test r.recorded[:loops] == Set{Tuple}([(:exit_brackets, :), (:exit_brackets, 1, :tolerance),
+                                                (:exit_brackets, 2, :tolerance)])
+        @test r.recorded[:levels] == Set{Tuple}([(:components,), (:components, :atmosphere, :level),
+                                                 (:components, :ocean, :level)])
+    end
+
+    @testset "control: a reader reading fast_precision without declaring it fails" begin
+        readers = merge(GF.profile_readers(), Dict{Symbol,Any}(
+            :precise => q -> Dispositions.value(q.memory_ceiling) * sizeof(q.fast_precision)))
+        declared = merge(GF.declared_profile(), Dict{Symbol,Any}(:precise => [(:memory_ceiling,)]))
+        r = Systems.dependency_subset(readers, declared, p)
+        @test r.verdict === Verdicts.FAIL()
+        @test (:fast_precision,) in r.undeclared[:precise]
+        @test r.undeclared[:precise] == Set{Tuple}([(:fast_precision,)])
+        @test all(isempty, (r.undeclared[n] for n in keys(GF.declared_profile())))
+    end
+
+    @testset "control: a read of every component's entry declared for one entry fails" begin
+        readers = Dict{Symbol,Any}(:levels => GF.profile_readers()[:levels])
+        declared = Dict{Symbol,Any}(:levels => [(:components, :ocean, :level)])
+        r = Systems.dependency_subset(readers, declared, p)
+        @test r.verdict === Verdicts.FAIL()
+        @test r.undeclared[:levels] == Set{Tuple}([(:components,), (:components, :atmosphere, :level)])
+    end
+
+    @testset "a declared profile path no read covers is reported in unread, not failed" begin
+        readers = Dict{Symbol,Any}(:idle => q -> nothing, :budget => GF.profile_readers()[:budget])
+        declared = Dict{Symbol,Any}(:idle => [(:components, :ocean, :ladder)],
+                                    :budget => [(:memory_ceiling,), (:exit_brackets, :, :tolerance)])
+        r = Systems.dependency_subset(readers, declared, p)
+        @test r.verdict === Verdicts.PASS()
+        @test r.unread[:idle] == Set{Tuple}([(:components, :ocean, :ladder)])
+        @test r.unread[:budget] == Set{Tuple}([(:exit_brackets, :, :tolerance)])
+    end
+
+    @testset "dependency_subset refuses a declared path that does not reach through the profile" begin
+        for bad in ((:components, :land), (:components, 1), (:components, :, :level), (:fast_precision, :x))
+            declared = merge(GF.declared_profile(), Dict{Symbol,Any}(:ocean => [bad]))
+            @test SF.refused(SF.caught(() -> Systems.dependency_subset(GF.profile_readers(), declared, p)),
+                             "path", "ocean declares $(bad), which does not reach through the profile")
+        end
+        declared = merge(GF.declared(), Dict{Symbol,Any}(:surface => [(:planet, :day)]))
+        @test SF.refused(SF.caught(() -> Systems.dependency_subset(GF.readers(), declared, SF.system())),
+                         "path", "does not reach through the system")
+    end
+
+    @testset "affected answers what a profile change reaches" begin
+        g = GF.declared_profile()
+        @test Systems.affected((:fast_precision,), g) == Set([:surface])
+        @test Systems.affected((:components, :atmosphere, :ladder, :interfaces, 2), g) == Set([:surface, :levels])
+        @test Systems.affected((:components, :ocean, :level), g) == Set([:ocean, :levels])
+        @test Systems.affected((:components,), g) == Set([:surface, :ocean, :levels])
+        @test Systems.affected((:exit_brackets, 2, :tolerance), g) == Set([:loops])
+        @test isempty(Systems.affected((:label,), g))
     end
 end

@@ -1,13 +1,17 @@
-# The measured dependency graph: TrackingSystem records the fields a reader reads,
-# dependency_subset checks the recorded reads against a declared graph, and affected
-# answers what a changed field reaches in that graph.
-# docs/plans/fiddlybits-52v.4-system.md, section "The graph"; decision 0007;
+# The measured dependency graph: TrackingSystem and TrackingProfile record the fields a
+# reader reads, dependency_subset checks the recorded reads against a declared graph, and
+# affected answers what a changed field reaches in that graph.
+# docs/plans/fiddlybits-52v.4-system.md, section "The graph";
+# docs/plans/fiddlybits-52v.6-provenance.md, section "The key"; decisions 0007 and 0010;
 # REQ-SYS-008.
 #
-# A path is a tuple of steps from a System: a field name (Symbol), a tuple position
-# (Int, from 1), or `:` (Colon). In a declaration or a change, `:` stands for every
-# position of a tuple. In a recorded read, `:` as the last step is a read of a tuple's
-# length. The field names and positions are the ones `derived_fields` reports.
+# A path is a tuple of steps from a System or a Profile: a field name (Symbol) of a
+# struct or a named tuple, a tuple position (Int, from 1), or `:` (Colon). In a
+# declaration or a change, `:` stands for every position of a tuple. In a recorded read,
+# `:` as the last step is a read of a tuple's length, and a read of a named tuple's
+# names is recorded as the named tuple's own path. The field names and positions are the
+# ones `derived_fields` reports, and a component's entry of a profile's components is the
+# step of its name.
 
 using ..Verdicts: refuse, PASS, FAIL
 using ..Dispositions: Disposition
@@ -27,8 +31,8 @@ holds_declaration(x) = parentmodule(typeof(x)) === (@__MODULE__) &&
 """
     interior(x)
 
-`true` when a path steps into `x` rather than ending at it: `x` is a tuple, or a struct
-of this module, that is not a `Disposition` and holds one.
+`true` when a path steps into `x` rather than ending at it: `x` is a tuple, a named
+tuple, or a struct of this module, that is not a `Disposition` and holds one.
 """
 interior(::Disposition) = false
 interior(x) = holds_declaration(x)
@@ -46,18 +50,22 @@ record!(log::ReadLog, path::Tuple) = @lock log.lock push!(log.paths, path)
 """
     Tracked
 
-A `System`, or an interior value within one, reached at `path` under a
-`TrackingSystem`. Built by `TrackingSystem`, never directly.
+A `System` or a `Profile`, or an interior value within one, reached at `path` under a
+`TrackingSystem` or a `TrackingProfile`. Built by those two, never directly.
 
-A reader reaches values through it by property access, by indexing, iterating and
+A reader reaches values through it by property access; by indexing, iterating and
 `map` over a tuple, and by `length`, `keys`, `eachindex`, `firstindex` and `lastindex`
-of a tuple; `map` returns a tuple, as it does over the tuple itself.
+of a tuple; and by indexing with a name, iterating and `map` over a named tuple, and
+by `length`, `keys` and `propertynames` of a named tuple. `map` returns a tuple over a
+tuple and a named tuple over a named tuple, as it does over the value itself.
 A step that reaches an interior value returns another `Tracked`; a step that reaches
 any other value records its path and returns the value itself, and a step that reaches
 the empty tuple records its path followed by `:`. `length`, `keys`,
 `eachindex`, `lastindex` and the end of an iteration record the tuple's path followed
-by `:`. Any other operation on a `Tracked`, a type test or a method typed on a block
-among them, sees the wrapper and not the block.
+by `:`; over a named tuple, `length`, `keys`, `propertynames`, iteration and `map`
+record the named tuple's own path. A named tuple is stepped by name only. Any other
+operation on a `Tracked`, a type test or a method typed on a block among them, sees
+the wrapper and not the block.
 """
 struct Tracked{T}
     target::T
@@ -72,6 +80,22 @@ end
 `recorded_reads` returns what has been recorded.
 """
 TrackingSystem(system::System) = Tracked(system, (), ReadLog())
+
+"""
+    TrackingProfile(profile)
+
+`profile` wrapped so that every read through it is recorded in a fresh log;
+`recorded_reads` returns what has been recorded.
+"""
+TrackingProfile(profile::Profile) = Tracked(profile, (), ReadLog())
+
+"The tracked root of `root`: `TrackingSystem` of a `System`, `TrackingProfile` of a `Profile`."
+tracking(root::System) = TrackingSystem(root)
+tracking(root::Profile) = TrackingProfile(root)
+
+"The text a refusal names `root` by."
+root_text(::System) = "the system"
+root_text(::Profile) = "the profile"
 
 "The paths recorded under the tracked value `t`'s log, as a new `Set`."
 recorded_reads(t::Tracked) = (log = getfield(t, :log); @lock log.lock copy(log.paths))
@@ -89,6 +113,11 @@ function record_length!(t::Tracked{<:Tuple})
     return length(getfield(t, :target))
 end
 
+function record_names!(t::Tracked{<:NamedTuple})
+    record!(getfield(t, :log), getfield(t, :path))
+    return keys(getfield(t, :target))
+end
+
 Base.getproperty(t::Tracked, name::Symbol) = reached(t, name, getfield(getfield(t, :target), name))
 Base.propertynames(t::Tracked) = propertynames(getfield(t, :target))
 Base.getindex(t::Tracked{<:Tuple}, i::Int) = reached(t, i, getfield(t, :target)[i])
@@ -99,6 +128,18 @@ Base.keys(t::Tracked{<:Tuple}) = Base.OneTo(record_length!(t))
 Base.eachindex(t::Tracked{<:Tuple}) = keys(t)
 Base.iterate(t::Tracked{<:Tuple}, i::Int = 1) = i > record_length!(t) ? nothing : (t[i], i + 1)
 Base.map(f, t::Tracked{<:Tuple}) = ntuple(i -> f(t[i]), record_length!(t))
+Base.getindex(t::Tracked{<:NamedTuple}, name::Symbol) = getproperty(t, name)
+Base.length(t::Tracked{<:NamedTuple}) = length(record_names!(t))
+Base.keys(t::Tracked{<:NamedTuple}) = record_names!(t)
+Base.propertynames(t::Tracked{<:NamedTuple}) = record_names!(t)
+function Base.iterate(t::Tracked{<:NamedTuple}, i::Int = 1)
+    names = record_names!(t)
+    return i > length(names) ? nothing : (getproperty(t, names[i]), i + 1)
+end
+function Base.map(f, t::Tracked{<:NamedTuple})
+    names = record_names!(t)
+    return NamedTuple{names}(ntuple(i -> f(getproperty(t, names[i])), length(names)))
+end
 
 "`step` when it is a field name, a position from 1, or `:`; refuses at `site` otherwise."
 function require_step(site::AbstractString, name, step)
@@ -169,8 +210,8 @@ end
     reaches(x, path)
 
 `true` when `path` steps from `x` through interior values and the empty tuple only: a
-field name of an interior struct, a position of an interior tuple, or `:` over every
-position of an interior or empty tuple.
+field name of an interior struct or named tuple, a position of an interior tuple, or `:`
+over every position of an interior or empty tuple.
 """
 function reaches(x, path::Tuple)
     isempty(path) && return true
@@ -184,11 +225,13 @@ function reaches(x, path::Tuple)
 end
 
 """
-    dependency_subset(readers, declared, system)
+    dependency_subset(readers, declared, root)
 
-Runs each reader in `readers`, a dictionary from a name to a function of one system,
-once on its own `TrackingSystem(system)`, and checks its recorded reads against the
-paths `declared` gives the same name. Returns a named tuple:
+Runs each reader in `readers`, a dictionary from a name to a function of one `root`,
+once on its own `tracking(root)`, and checks its recorded reads against the paths
+`declared` gives the same name. `root` is a `System`, whose paths are a declaration's
+`system_fields`, or a `Profile`, whose paths are its `profile_fields`. Returns a named
+tuple:
 
 - `verdict`: `PASS` when every recorded read is covered by a declared path of its
   reader, `FAIL` otherwise;
@@ -198,20 +241,20 @@ paths `declared` gives the same name. Returns a named tuple:
   failed.
 
 Refuses when the names of `readers` and `declared` differ, and a declared path that
-does not reach through `system`.
+does not reach through `root`.
 """
-function dependency_subset(readers::AbstractDict, declared, system::System)
+function dependency_subset(readers::AbstractDict, declared, root::Union{System,Profile})
     site = "Systems.dependency_subset"
     graph = require_graph(site, declared)
     Set(keys(readers)) == Set(keys(graph)) || refuse(
         "graph", site, "readers $(sort!([string(k) for k in keys(readers)])) and " *
         "declarations $(sort!([string(k) for k in keys(graph)])) name different sets")
     for (name, paths) in graph, p in paths
-        reaches(system, p) || refuse("path", site, "$(name) declares $(p), which does not reach through the system")
+        reaches(root, p) || refuse("path", site, "$(name) declares $(p), which does not reach through $(root_text(root))")
     end
     recorded = Dict{Any,Set{Tuple}}()
     for (name, reader) in readers
-        tracked = TrackingSystem(system)
+        tracked = tracking(root)
         reader(tracked)
         recorded[name] = recorded_reads(tracked)
     end

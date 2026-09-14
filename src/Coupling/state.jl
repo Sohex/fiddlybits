@@ -424,6 +424,16 @@ declared_graph(a::Assembly) =
     Dict{Symbol,Set{Tuple}}(d.name => Set{Tuple}(d.system_fields) for d in a.declarations)
 
 """
+    declared_profile_graph(a)
+
+The declared profile graph of `a` as `Systems.affected` and `Systems.dependency_subset`
+read it over a `Systems.Profile`: a `Dict` from each component's name to the `Set` of the
+profile paths it declares.
+"""
+declared_profile_graph(a::Assembly) =
+    Dict{Symbol,Set{Tuple}}(d.name => Set{Tuple}(d.profile_fields) for d in a.declarations)
+
+"""
     declaration_of(site, component)
 
 `declare(component)`; refuses at `site` when `component` has no `declare` method or
