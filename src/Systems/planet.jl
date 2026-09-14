@@ -223,7 +223,9 @@ body-fixed longitude in `(-pi, pi]` of the direction from the planet toward
 three angles place the rotation pole and the prime meridian is decision 0004's,
 section The spin axis and the rotation phase in the orbit frame; this constructor
 refuses only a value outside its own range. `figure` is an `AbsentFigure` or a
-`HydrostaticFigure`; `lithosphere` is a `Lithosphere`.
+`HydrostaticFigure` of the mass's float type, and `System` holds a `HydrostaticFigure`
+as the `HydrostaticFlattening` `hydrostatic_flattening` gives on the planet it holds;
+`lithosphere` is a `Lithosphere`.
 """
 struct Planet{FT,B,R,F,K}
     mass::Disposition{FT,typeof(MASS)}
@@ -328,8 +330,10 @@ function Planet(; kwargs...)
                             SUB_PRIMARY_LONGITUDE_DISPOSITIONS),
         -FT(pi), false, FT(pi), true)
     figure = k.figure
-    figure isa AbsentFigure{FT} || refuse(
-        "figure", site, "a $(typeof(figure)) where an AbsentFigure{$(FT)} is required")
+    (figure isa AbsentFigure{FT} || figure isa HydrostaticFigure{FT}) || refuse(
+        "figure", site,
+        "a $(typeof(figure)) where an AbsentFigure{$(FT)} or a HydrostaticFigure{$(FT)} " *
+        "is required")
     lithosphere = require_type("lithosphere", site, k.lithosphere, Lithosphere{FT})
     return Planet{FT,typeof(k.bulk),typeof(rotation),typeof(figure),
                   length(lithosphere.province_classes)}(
@@ -347,5 +351,18 @@ function with_rotation(p::Planet{FT,B,R,F,K}, rotation) where {FT,B,R,F,K}
     return Planet{FT,B,typeof(rotation),F,K}(
         Checked(), p.mass, p.bulk, p.volumetric_mean_radius, rotation, p.obliquity,
         p.equator_ascending_node_longitude, p.sub_primary_longitude_at_epoch, p.figure,
+        p.lithosphere)
+end
+
+"""
+    with_figure(planet, figure)
+
+`planet` with its figure replaced by `figure`, the step by which `System` holds a
+`HydrostaticFigure` as its `HydrostaticFlattening`.
+"""
+function with_figure(p::Planet{FT,B,R,F,K}, figure) where {FT,B,R,F,K}
+    return Planet{FT,B,R,typeof(figure),K}(
+        Checked(), p.mass, p.bulk, p.volumetric_mean_radius, p.rotation, p.obliquity,
+        p.equator_ascending_node_longitude, p.sub_primary_longitude_at_epoch, figure,
         p.lithosphere)
 end

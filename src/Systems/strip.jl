@@ -58,11 +58,30 @@ function province_value(l::StrippedLithosphere{FT,Classes}, member::Symbol,
     return getfield(l, member)[i]
 end
 
+"An `AbsentFigure`'s constant: its `Bracketed` equator-pole gravity difference's value."
+struct StrippedAbsentFigure{FT}
+    equator_pole_gravity_difference::FT
+end
+
+"A `HydrostaticFlattening`'s constants: the declared factor and the `Derived` flattening."
+struct StrippedHydrostaticFlattening{FT}
+    moment_of_inertia_factor::FT
+    flattening::FT
+end
+
+"The stripped figure of the figure a `System`'s planet holds, by its kind."
+strip_figure(f::AbsentFigure{FT}) where {FT} =
+    StrippedAbsentFigure{FT}(value(f.equator_pole_gravity_difference))
+strip_figure(f::HydrostaticFlattening{FT}) where {FT} =
+    StrippedHydrostaticFlattening{FT}(value(f.moment_of_inertia_factor), value(f.flattening))
+
 """
 The planet's constants, its `Derived` rotation sense (decision 0004) named by the
-type parameter `Sense` (`:prograde`, `:retrograde` or `Verdicts.NotEvaluable()`).
+type parameter `Sense` (`:prograde`, `:retrograde` or `Verdicts.NotEvaluable()`), and
+its figure a `StrippedAbsentFigure` or a `StrippedHydrostaticFlattening` by the kind
+the system holds.
 """
-struct StrippedPlanet{FT,Sense,Classes,K}
+struct StrippedPlanet{FT,Sense,Classes,K,F}
     mass::FT
     gravitational_parameter::FT
     volumetric_mean_radius::FT
@@ -70,7 +89,7 @@ struct StrippedPlanet{FT,Sense,Classes,K}
     obliquity::FT
     equator_ascending_node_longitude::FT
     sub_primary_longitude_at_epoch::FT
-    equator_pole_gravity_difference::FT
+    figure::F
     lithosphere::StrippedLithosphere{FT,Classes,K}
 end
 
@@ -161,12 +180,12 @@ function strip_planet(p::Planet{FT,B,R,F,K}) where {FT,B,R,F,K}
         value(l.mantle_thermal_expansivity), value(l.mantle_density),
         value(l.radiogenic_heat_production), map(value, l.crustal_density),
         map(value, l.crustal_thickness))
-    return StrippedPlanet{FT,rotation_sense(p),l.province_classes,K}(
+    figure = strip_figure(p.figure)
+    return StrippedPlanet{FT,rotation_sense(p),l.province_classes,K,typeof(figure)}(
         value(p.mass), gravitational_parameter(FT, value(p.mass)),
         value(p.volumetric_mean_radius), value(rotation_period(p.rotation)),
         value(p.obliquity), value(p.equator_ascending_node_longitude),
-        value(p.sub_primary_longitude_at_epoch),
-        value(p.figure.equator_pole_gravity_difference), lithosphere)
+        value(p.sub_primary_longitude_at_epoch), figure, lithosphere)
 end
 
 function strip_orbit(s::System{FT}, o::Orbit) where {FT}

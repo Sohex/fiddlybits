@@ -23,8 +23,9 @@ seed of the counter-based generator (`Provenance.philox_draw`), a dimensionless
 `Irreducible` over `UInt64`, the only disposition `ROOT_SEED_DISPOSITIONS` admits.
 
 A synchronous rotation is held as a `SynchronousPeriod` `Derived` from the planet's
-orbit, and a `FluxOrbit` as an `Orbit` whose semi-major axis is `Derived` from the
-star's luminosity. A caller may also pass `sidereal_rotation_period` and
+orbit, a `HydrostaticFigure` as the `HydrostaticFlattening` of `hydrostatic_flattening`
+on the planet with its rotation so resolved, and a `FluxOrbit` as an `Orbit` whose
+semi-major axis is `Derived` from the star's luminosity. A caller may also pass `sidereal_rotation_period` and
 `semi_major_axis` beside those two forms, and `equatorial_surface_gravity` and
 `polar_surface_gravity` (gravity on the volumetric mean radius at latitude zero and
 pi/2); each is refused when it disagrees with the Derived value beyond its rounding
@@ -185,6 +186,17 @@ function resolve_rotation(p::Planet{FT,B,SynchronousRotation}, stars, moons, orb
 end
 
 """
+    resolve_figure(planet)
+
+The planet as `System` holds it, after `resolve_rotation`: an `AbsentFigure` as
+declared; or a `HydrostaticFigure` replaced by the `HydrostaticFlattening`
+`hydrostatic_flattening` gives on `planet`, refused where that refuses.
+"""
+resolve_figure(p::Planet{FT,B,R,<:AbsentFigure}) where {FT,B,R} = p
+resolve_figure(p::Planet{FT,B,R,<:HydrostaticFigure}) where {FT,B,R} =
+    with_figure(p, hydrostatic_flattening(p.figure, p))
+
+"""
 The rounded operations of the subsolar latitude `asin(sin(obliquity) sin(longitude))`:
 three library transcendentals at two each, being within one ulp, and one multiply. The
 count `Reductions.error_bound(FT, DECLINATION_TERMS, 1)` takes for the vernal
@@ -224,7 +236,7 @@ function System(; kwargs...)
     orbits = OrbitHierarchy{typeof(planet_orbit),typeof(declared.moons),
                             typeof(declared.companions)}(
         Checked(), planet_orbit, declared.moons, declared.companions)
-    held = resolve_rotation(planet, stars, moons, planet_orbit, supplied, site)
+    held = resolve_figure(resolve_rotation(planet, stars, moons, planet_orbit, supplied, site))
 
     radius = value(held.volumetric_mean_radius)
     for (name, phi) in ((:equatorial_surface_gravity, zero(FT)),

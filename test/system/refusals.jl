@@ -16,6 +16,55 @@ import .SystemFixtures as SF
         @test SF.circumbinary_system() isa Systems.System
     end
 
+    @testset "a HydrostaticFigure is held as its HydrostaticFlattening on the planet the System holds" begin
+        one_ = Dimensions.DIMENSIONLESS
+        value = Dispositions.value
+        figure(T) = Systems.HydrostaticFigure(moment_of_inertia_factor = SF.irreducible(T(33) / 100, one_))
+        for T in (Float64, Float32)
+            @test SF.planet(T; figure = figure(T)).figure isa Systems.HydrostaticFigure{T}
+            @test SF.system(T).planet.figure isa Systems.AbsentFigure{T}
+            sidereal = SF.system(T; planet = SF.planet(T; figure = figure(T)))
+            synchronous = SF.system(T; planet = SF.planet(T; rotation = Systems.SynchronousRotation(),
+                                                          figure = figure(T)))
+            @test synchronous.planet.rotation isa Systems.SynchronousPeriod
+            for s in (sidereal, synchronous)
+                @test s.planet.figure isa Systems.HydrostaticFlattening{T}
+                @test value(s.planet.figure.flattening) ===
+                      value(Systems.hydrostatic_flattening(figure(T), s.planet).flattening)
+                @test value(s.planet.figure.moment_of_inertia_factor) === T(33) / 100
+            end
+            @test value(sidereal.planet.figure.flattening) != value(synchronous.planet.figure.flattening)
+        end
+
+        @testset "control: the unresolved synchronous planet refuses" begin
+            unresolved = SF.planet(rotation = Systems.SynchronousRotation(), figure = figure(Float64))
+            @test SF.refused(SF.caught(() -> Systems.hydrostatic_flattening(figure(Float64), unresolved)),
+                             "rotation", "resolved")
+        end
+
+        @testset "the System refuses what hydrostatic_flattening refuses" begin
+            spinning(period) = SF.planet(figure = figure(Float64), rotation = Systems.SiderealRotation(
+                period = SF.irreducible(period, Dimensions.TIME)))
+            @test spinning(5000.0) isa Systems.Planet
+            @test SF.refused(SF.caught(() -> SF.system(planet = spinning(5000.0))),
+                             "rotation", "not below one")
+            @test SF.system(planet = spinning(5100.0)).planet.figure isa Systems.HydrostaticFlattening
+        end
+
+        @testset "a figure of another float type, or of another kind, is refused" begin
+            absent32 = Systems.AbsentFigure(equator_pole_gravity_difference =
+                                                SF.bracket(0.02f0, 0.0f0, 0.1f0, Systems.ACCELERATION))
+            @test SF.refused(SF.caught(() -> SF.planet(figure = figure(Float32))),
+                             "figure", "HydrostaticFigure{Float64}")
+            @test SF.refused(SF.caught(() -> SF.planet(Float32; figure = figure(Float64))),
+                             "figure", "HydrostaticFigure{Float32}")
+            @test SF.refused(SF.caught(() -> SF.planet(figure = absent32)),
+                             "figure", "AbsentFigure{Float64}")
+            resolved = SF.system(planet = SF.planet(figure = figure(Float64))).planet.figure
+            @test SF.refused(SF.caught(() -> SF.planet(figure = resolved)), "figure", "is required")
+        end
+    end
+
     @testset "each block omitted in turn" begin
         full = SF.system_keywords()
         for key in keys(full)
