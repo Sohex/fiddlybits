@@ -21,6 +21,7 @@ groundwater solve is ever wanted. No CUBLAS in the physics path.
 | mutable global state | the default stream and the memory pool are process-global | one process per run; the profile records the device |
 | fail-open branches | fast-math and FMA contraction differ from CPU | production mode carries the measured envelope; debug mode disables contraction and asserts bitwise |
 | dynamic dispatch in device code | the kernel compiler refuses a call left to runtime dispatch; it does not refuse a non-concrete type that host inference resolves, and it sees only what is compiled for the device | `test/backends/dispatch_refusal.jl`; the section below |
+| page-locked memory and the queued copy | `Base.copyto!` from a `CuArray` into an `Array` synchronizes first; a pointer copy with `async=true` is queued on the calling task's stream; a copy into memory the driver has not page-locked may wait on the host; an event's host wait yields only while nonblocking synchronization is enabled | `Backends.copy_to_host!` copies through the pointer form and refuses a host that is not page-locked; `test/backends/host_copy.jl`; the section "Page-locked memory and the queued copy" |
 
 **Licence.** MIT. **Version.** CUDA 6.3.1 and CUDACore 6.3.1, with GPUCompiler
 2.6.0 beneath them, as `Manifest.toml` resolves them on Julia 1.12.7; `to verify`
@@ -140,3 +141,85 @@ known answer: a concrete call (the positive control), a split union, a folded
 union, a box with no call on its contents, and a non-concrete value at the launch.
 A device compiler that fell back to dispatch instead of refusing fails the refused
 arms.
+
+## Page-locked memory and the queued copy
+
+Read in the installed source of the versions above, CUDACore paths relative to its
+package root; Julia's base library is `/usr/share/julia/base`.
+`Backends.copy_to_host!` and `Backends.host_buffer` rest on what follows.
+
+**The copy that is queued and the copy that waits.**
+
+- CUDACore `lib/cudadrv/memory.jl`, lines 417-430: `unsafe_copyto!(dst::Ptr{T},
+  src::CuPtr{T}, N; stream = stream(), async = false)` calls `cuMemcpyDtoHAsync_v2` on
+  `stream` and then `synchronize(stream)` unless `async` is true. `copy_to_host!` calls
+  it with `async = true` and the default stream.
+- CUDACore `src/array.jl`, lines 610-627: `Base.unsafe_copyto!(dest::Array, doffs,
+  src::DenseCuArray, soffs, n)`, which `Base.copyto!` reaches at lines 557-569, calls
+  `synchronize(src)` at line 617 and copies with `async = false` at line 620, so the
+  `Base.copyto!` door waits on the host. The comments at lines 593-595 and 613-616 say
+  that a copy of unpinned memory normally blocks in the driver, not for all sizes and not
+  on all memory architectures; the driver's own documentation is not held here, and the
+  door does not rely on the unpinned case either way, because it refuses it.
+- CUDACore `lib/cudadrv/state.jl`, lines 289-298: `stream()` is the stream held in the
+  task-local state for the current device, created on first use, so the copy and the
+  handoff's event are queued on the task's own stream.
+- CUDACore `src/compiler/execution.jl`, lines 411-416: `managed_kernel_launch` launches
+  on `stream()` unless a `stream` keyword is passed and takes ownership of each argument
+  on it, and CUDACore `src/CUDAKernels.jl` lines 111-127 pass none for a
+  KernelAbstractions launch. A launch and a copy from one task are therefore on one stream
+  in the order they were called.
+- CUDACore `src/array.jl`, lines 417-426 and 467-468, and `src/memory.jl`, lines 650-660:
+  `pointer(::CuArray)` converts through the array's `Managed` memory, which calls
+  `take_ownership!`. `take_ownership!`, lines 597-648, synchronizes when the memory's
+  owning stream is another stream and its synchronization is enabled (lines 631-634),
+  then records the current stream as the owner and marks the memory dirty. From the task
+  that wrote the array the conversion does not wait; from another task it waits unless
+  `order_explicitly!` switched that off, which is why `copy_to_host!` asks for `after!`
+  on the writing task's handoff first.
+- CUDACore `src/memory.jl`, lines 770-800: `pool_free` frees through `_pool_free(mem,
+  managed.stream)`, against the stream that last owned the memory, so a device array
+  collected after its copy is queued is released behind that copy on the same stream.
+
+**The page lock.**
+
+- CUDACore `lib/cudadrv/memory.jl`, `pin(a::AbstractArray)`, lines 683-707: registers
+  `sizeof(a)` bytes from `pointer(a)` through `__pin`, lines 734-757, which calls
+  `register(HostMemory, ptr, sz)` once per context and address; `register`, lines
+  171-177, calls `cuMemHostRegister_v2` and raises an `ArgumentError` for an empty range
+  (line 172). `pin` attaches a finalizer that calls `__unpin` (lines 702-704), and
+  `__unpin`, lines 758-775, calls `unregister` (`cuMemHostUnregister`, lines 184-186)
+  when the address's count reaches zero.
+- `is_pinned(ptr::Ptr)`, lines 858-871: queries `POINTER_ATTRIBUTE_MEMORY_TYPE` and
+  returns true for `CU_MEMORYTYPE_HOST`, false where the driver reports an invalid value,
+  which is what it reports for memory it has not registered.
+- `/usr/share/julia/base/gcutils.jl`, line 102: `finalize(o)` runs the finalizers
+  registered for `o` immediately, through `jl_finalize_th`. `free_host_buffer!` runs the
+  one `pin` attached, and checks `is_pinned` afterwards rather than trusting it.
+
+**The wait on the handoff.**
+
+- CUDACore `lib/cudadrv/events.jl`, lines 45-46: `record(e, stream = stream())` records
+  an event on the task's stream, which is what `Backends.handoff(GPU())` does.
+- CUDACore `lib/cudadrv/synchronization.jl`, lines 217-229: `synchronize(event;
+  blocking = false)` first polls `isdone` through `spinning_synchronization`, lines
+  77-97, which pauses 32 times without yielding and then calls `yield()` for up to 224
+  more polls, and then hands the event to `nonblocking_synchronize`, lines 158-183, whose
+  `put!` on a `BidirectionalChannel` parks the task until a detached worker thread
+  (lines 113-156) returns from `cuEventSynchronize`. Both branches are taken only when
+  `use_nonblocking_synchronization` is true, the preference `nonblocking_synchronization`
+  read at lines 3-4 with a default of true; otherwise, or with `blocking = true`, the
+  task calls `cuEventSynchronize` and holds its thread.
+- The same event form does not call `check_exceptions` (compare the stream form at lines
+  201-215, which calls it at line 214; `check_exceptions` is `src/compiler/exceptions.jl`
+  lines 29-43), so a kernel exception queued before a handoff is not raised by
+  `after!(CPU(), point)` and is raised at the next `complete!`. Raising it at the
+  handoff's wait is `fiddlybits-52v.6.32`.
+
+**How the leak is caught.** `test/backends/host_copy.jl`. A copy that was not queued at
+its stream position holds the second kernel's values instead of the first's (check 1);
+a door that synchronizes, by `complete!` or by a bare device synchronize, leaves nothing
+queued or no event outstanding when it returns (check 2); a host wait that holds its
+thread, as a disabled nonblocking-synchronization preference would make `after!(CPU(),
+point)`, leaves a second task on that thread unfinished (check 4); and a host that is
+not page-locked is refused rather than copied into (check 5).

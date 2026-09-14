@@ -72,6 +72,9 @@ queued_launches(backend)     the same launches with their workgroup and item cou
 handoff(backend)             a point in this task's queue, for another task
 after!(backend, handoff)     queue behind that point, waiting on the device
 order_explicitly!(array)     leave the library's per-array ordering to these
+host_buffer(backend, T, n)   a Vector{T} a device copy lands in; page-locked on GPU
+copy_to_host!(host, array)   -> Handoff; the copy queued behind this task's kernels, no host wait
+free_host_buffer!(buffer)    release host_buffer's page lock
 ```
 
 **A launch queues and does not wait.** `launch!` compiles, launches and returns;
@@ -81,9 +84,13 @@ this task queued on it, and on an array, for the stream that last held that arra
 which is the kernel that wrote it even when another task queued it. `queued` is the
 task-local record of what `launch!` has queued and no `complete!` has waited for,
 bounded in length, and it is what a failed wait is named from, because an
-asynchronous launch cannot put the faulting kernel on the host stack. `on` and
-`adapt_for` call `complete!` before they read device memory on the host, so a host
-read never reaches an unfinished write through this module. A barrier after every
+asynchronous launch cannot put the faulting kernel on the host stack. There are two
+device-to-host copies. `on` and `adapt_for` call `complete!` before they read device
+memory on the host. `copy_to_host!` queues its copy into a page-locked `host_buffer` on
+the stream this task queues on, behind the kernels that wrote the array, records the
+move, and returns a `handoff` without a host wait; the host bytes are read once
+`after!(CPU(), point)` has returned, and a task waiting there yields its thread. Either
+way a host read never reaches an unfinished write through this module. A barrier after every
 launch is what decision 0038 rejects, and reintroducing one here would undo that; the
 path-by-path argument for every route from a kernel to a read, marked where it is
 checked and where it rests on the platform, is
