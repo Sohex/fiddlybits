@@ -320,8 +320,7 @@ end
 
 The record of the `Time.Interval` `interval` a key was computed over: `t0` and `t1`, each
 an `instant_record`. Held under the manifest's `key_interval`, apart from an array's own
-`placement_record` attribute, so the interval of the making and a field's own placement
-remain two records.
+`placement_record` attribute.
 """
 key_interval_record(interval::Time.Interval) =
     Dict{String,Any}("t0" => instant_record(interval.t0), "t1" => instant_record(interval.t1))
