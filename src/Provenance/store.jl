@@ -55,7 +55,7 @@ const AXES_ATTRIBUTE = "_ARRAY_DIMENSIONS"
 "The keys every artifact manifest holds; a read refuses a manifest missing any."
 const MANIFEST_KEYS = ("kind", "key", "quantity", "owner", "run", "support", "operator_version",
                        "parameter_digest", "profile_digest", "code", "inputs", "parameters", "profile",
-                       "stocks", "arrays")
+                       "stocks", "arrays", "key_interval")
 
 "The keys every array table of a manifest holds; a read refuses a table missing any."
 const ARRAY_KEYS = ("attributes", "element_type", "size", "axes", "chunk_level", "cells_per_chunk",
@@ -314,6 +314,17 @@ function placement_record(time::Time.TimeSupport)
     return Dict{String,Any}("placement" => "interval", "t0" => instant_record(span.t0),
                             "t1" => instant_record(span.t1))
 end
+
+"""
+    key_interval_record(interval)
+
+The record of the `Time.Interval` `interval` a key was computed over: `t0` and `t1`, each
+an `instant_record`. Held under the manifest's `key_interval`, apart from an array's own
+`placement_record` attribute, so the interval of the making and a field's own placement
+remain two records.
+"""
+key_interval_record(interval::Time.Interval) =
+    Dict{String,Any}("t0" => instant_record(interval.t0), "t1" => instant_record(interval.t1))
 
 """
     array_attributes(; support, semantics, time, dimension, owner)
@@ -719,39 +730,47 @@ end
 
 "The keywords `put_field!` reads besides the code version."
 const PUT_KEYWORDS = (:declaration, :system, :profile, :inputs, :quantity, :operator_version, :field,
-                      :ledgers, :chunk_level, :values)
+                      :ledgers, :chunk_level, :values, :interval)
 
 """
     put_field!(store, run::RunID; code, declaration, system, profile, inputs, quantity,
-               operator_version, field, ledgers, chunk_level, values)
+               operator_version, field, ledgers, chunk_level, values, interval)
     put_field!(store, scratch::ScratchRun; declaration, system, profile, inputs, quantity,
-               operator_version, field, ledgers, chunk_level, values)
+               operator_version, field, ledgers, chunk_level, values, interval)
 
 Writes the field `field` of `quantity` as an artifact and returns `(key, stamped)`: `key`,
 the `ArtifactKey` of `code` (the scratch run's for the second form), `declaration`,
-`system`, `profile`, `inputs`, `quantity`, `operator_version`, the field's support, and
-the `Time.Interval` the field's time support is placed over; and `stamped`,
-`field` with the origin `Fields.stamped` of its writer, the run, the key and the parameter
-digest. The first form writes under `objects/` after `admit(key)`, the second under
-`scratch/<uuid>/` after `admit(scratch)`.
+`system`, `profile`, `inputs`, `quantity`, the field's support, `interval`, and
+`operator_version`; and `stamped`, `field` with the origin `Fields.stamped` of its writer,
+the run, the key and the parameter digest. The first form writes under `objects/` after
+`admit(key)`, the second under `scratch/<uuid>/` after `admit(scratch)`.
+
+`interval`, a `Time.Interval`, is the step the caller handed the writer and is the key's
+interval for every field. For a field placed over an interval (`IntervalMean`,
+`IntervalAccumulation`, `EndpointState`) it must be identical (`===`: the same float width
+and both bounds the same IEEE bit patterns) to `Time.interval` of the field's own time
+support, or the admission refuses the quantity `interval`, naming both intervals and the
+field's time semantics. For an `Instantaneous` or `Static` field, whose time support
+carries no interval, `interval` is the key's interval and nothing is checked against it.
 
 The artifact is its manifest and one Zarr array named by `quantity`: the field's data
 moved to the host through `Backends.on`, translated by `to_disk` for `values` (an
 `Amounts` or a `CellIds`), chunked at `chunk_level` so a chunk is the descendants of one
-cell of that level, and carrying the `array_attributes` of the field. The manifest names
-`kind`, `key`, `quantity`, `owner`, `run`, `support`, `operator_version`,
-`parameter_digest`, `profile_digest`, `code`, `inputs` (each read quantity's key),
-`parameters` (`parameter_records`), `profile` (`profile_records`), `stocks` (the
-declaration's) and `arrays` (`array_table`), with the `ledger_records` of `ledgers`, a
-tuple.
+cell of that level, and carrying the `array_attributes` of the field, whose own `interval`
+attribute stays the field's placement (`placement_record`). The manifest names `kind`,
+`key`, `quantity`, `owner`, `run`, `support`, `operator_version`, `parameter_digest`,
+`profile_digest`, `code`, `inputs` (each read quantity's key), `parameters`
+(`parameter_records`), `profile` (`profile_records`), `stocks` (the declaration's),
+`arrays` (`array_table`) and `key_interval` (`key_interval_record` of `interval`, apart
+from the array's placement attribute), with the `ledger_records` of `ledgers`, a tuple.
 
-Every keyword is required. Refuses a field whose time support is not placed over an
-interval, naming its time semantics; whatever `ArtifactKey` and `admit` refuse; a field whose
-semantics is not the one the declaration writes `quantity` with, whose origin names another
-writer or run, or whose origin is stamped; what `ledger_records` refuses, an open ledger by
-its conserved quantity; a run the store does not record under the code version; a support
-the store does not hold; what `require_host_array`, `require_chunk_level` and `to_disk`
-refuse; and an artifact the store already holds.
+Every keyword is required, `interval` included, with no fallback to the field's own time
+support. Refuses whatever `ArtifactKey` and `admit` refuse; a field whose semantics is not
+the one the declaration writes `quantity` with, whose origin names another writer or run,
+or whose origin is stamped; what `ledger_records` refuses, an open ledger by its conserved
+quantity; a run the store does not record under the code version; a support the store does
+not hold; what `require_host_array`, `require_chunk_level` and `to_disk` refuse; and an
+artifact the store already holds.
 """
 function put_field!(store::Store, run::RunID; kwargs...)
     site = "Provenance.put_field!"
@@ -780,13 +799,14 @@ function write_field!(store::Store, site::AbstractString, run::RunID, code::Code
     support = Fields.support(field)
     time = Fields.time_support(field)
     placed_by = Time.time_support_kind(Time.semantics(time))
-    placed_by === :interval || refuse(
+    interval = require_type("interval", site, k.interval, Time.Interval)
+    placed_by === :interval && !(interval === Time.interval(time)) && refuse(
         "interval", site,
-        "the field of $(quantity) is $(nameof(typeof(Time.semantics(time)))), placed by $(placed_by) and " *
-        "not by the interval its key names")
+        "the field of $(quantity) is $(nameof(typeof(Time.semantics(time)))), placed over " *
+        "$(Time.interval(time)) and given $(interval) to key over; the two are not identical")
     key = ArtifactKey(code = code, declaration = declaration, system = k.system, profile = k.profile,
                       inputs = k.inputs, quantity = quantity, support = support,
-                      interval = Time.interval(time), operator_version = k.operator_version)
+                      interval = interval, operator_version = k.operator_version)
     system = k.system
     profile = k.profile
     semantics = Fields.semantics(field)
@@ -832,7 +852,8 @@ function write_field!(store::Store, site::AbstractString, run::RunID, code::Code
                      for s in declaration.stocks],
         "arrays" => Dict{String,Any}(String(quantity) => array_table(
             attributes = attributes, disk = disk, chunk_level = chunk_level, per_chunk = per_chunk,
-            values = values, ledgers = ledgers)))
+            values = values, ledgers = ledgers)),
+        "key_interval" => key_interval_record(interval))
     write_directory!(dir, site) do staging
         write_array!(joinpath(staging, String(quantity)), disk, attributes, per_chunk)
         write_toml(joinpath(staging, MANIFEST), manifest)
@@ -859,9 +880,10 @@ and `key`'s digest.
 Every keyword is required. Refuses an artifact the store does not hold; a manifest missing
 any of `MANIFEST_KEYS`, or an array table missing any of `ARRAY_KEYS`, naming what is
 absent; a manifest naming another key, kind, quantity or support; attributes in the
-manifest other than the ones `array_attributes` gives for the keywords and the owner; and
-whatever `open_array`, `read_array`, `values_of` and `from_disk` refuse, among them an array
-missing any of `REQUIRED_ATTRIBUTES`, naming it.
+manifest other than the ones `array_attributes` gives for the keywords and the owner; for a
+field placed over an interval, a `key_interval` other than the `key_interval_record` of
+`Time.interval(time)`; and whatever `open_array`, `read_array`, `values_of` and `from_disk`
+refuse, among them an array missing any of `REQUIRED_ATTRIBUTES`, naming it.
 """
 read_field(store::Store, key::ArtifactKey; kwargs...) =
     read_field_at(object_directory(store, key), key, kwargs)
@@ -897,6 +919,13 @@ function read_field_at(dir::AbstractString, key::ArtifactKey, kwargs)
                                 owner = Symbol(owner))
     table["attributes"] == expected || refuse(
         "attributes", site, "$(path) records attributes $(repr(table["attributes"])), and $(repr(expected)) are read")
+    if Time.time_support_kind(Time.semantics(time)) === :interval
+        expected_key_interval = key_interval_record(Time.interval(time))
+        manifest["key_interval"] == expected_key_interval || refuse(
+            "key_interval", site,
+            "$(path) records key_interval $(repr(manifest["key_interval"])), and " *
+            "$(repr(expected_key_interval)) is read")
+    end
     array = joinpath(dir, String(quantity))
     z = open_array(array, expected, site)
     memory = from_disk(values_of(site, table["values"]), read_array(z, table, array, site), site)
