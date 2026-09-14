@@ -84,7 +84,9 @@ this task queued on it, and on an array, for the stream that last held that arra
 which is the kernel that wrote it even when another task queued it. `queued` is the
 task-local record of what `launch!` has queued and no `complete!` has waited for,
 bounded in length, and it is what a failed wait is named from, because an
-asynchronous launch cannot put the faulting kernel on the host stack. There are two
+asynchronous launch cannot put the faulting kernel on the host stack: a device error
+the wait raises is refused naming the kernels it holds, and any other error is rethrown
+unchanged with the record kept until a wait returns. There are two
 device-to-host copies. `on` and `adapt_for` call `complete!` before they read device
 memory on the host. `copy_to_host!` queues its copy into a page-locked `host_buffer` on
 the stream this task queues on, behind the kernels that wrote the array, records the
