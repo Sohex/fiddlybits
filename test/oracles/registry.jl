@@ -724,16 +724,6 @@ end
             @test isempty(history_failures(Oracles.history_problems, repos))
         end
 
-        @testset "positive control: $(case) fails to raise its problem with form and pattern_entry left out" for case in
-                ("a merge changing form together with src/",
-                 "a branch changing form together with src/ itself, seen from its own tip",
-                 "a merge changing pattern_entry together with the testset named by it",
-                 "a branch changing pattern_entry together with its testset itself, seen from its own tip")
-            repo = repos[findfirst(c -> c.case == case, HISTORY_CONTROLS)]
-            @test !isempty(Oracles.history_problems(repo))
-            @test isempty(Oracles.history_problems(repo; fields = ("threshold",)))
-        end
-
         @testset "positive control: a violating merge listed for another oracle is refused, and its exception is stale" begin
             repo = joinpath(dir, "other_oracle")
             listed_merge(repo, Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n"), "mesh.another_identity")

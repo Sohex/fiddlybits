@@ -876,7 +876,7 @@ function field_together!(found::Vector{Malformed}, matched::BitVector, exception
 end
 
 """
-    history_problems(repo; fields = CLAUSE4_FIELDS)
+    history_problems(repo)
 
 Every place the history of `repo`, from `amendment_commit(repo)` to HEAD, breaks the
 registration rule and is not excepted, sorted. `read_exceptions` reads
@@ -887,7 +887,7 @@ registrations are judged by `judge_registration!` against the registrations befo
 them, starting from the entries carrying a registered_at at the first parent of the
 amendment commit. A `registered_at` set to a commit that is not an ancestor is a
 problem. The mainline is `mainline_commit(repo)`'s own first-parent chain: a merge on it
-is a problem when, against its first parent, it changes one of `fields` together
+is a problem when, against its first parent, it changes one of `CLAUSE4_FIELDS` together
 with a path under `src/` or a file holding the testset named by that entry at the merge
 or at its first parent, unless an entry of the exceptions list names that merge and that
 entry's id; this holds whether the mainline merge is read from the mainline itself or
@@ -899,7 +899,7 @@ mainline chain, the whole branch is judged once more, as its own merge into the 
 would be judged: by the diff from `merge-base(mainline, HEAD)` to HEAD, sited at HEAD. An
 exception naming no merge and id this walk flags is a problem, reported as stale.
 """
-function history_problems(repo::AbstractString; fields::Tuple = CLAUSE4_FIELDS)
+function history_problems(repo::AbstractString)
     exceptions = read_exceptions(joinpath(repo, EXCEPTIONS_PATH))
     matched = falses(length(exceptions))
     anchor = amendment_commit(repo)
@@ -947,7 +947,7 @@ function history_problems(repo::AbstractString; fields::Tuple = CLAUSE4_FIELDS)
 
         length(c.parents) >= 2 && c.sha in mainline || continue
         before = parent_rows[1]
-        for id in sort!(collect(keys(rows))), field in fields
+        for id in sort!(collect(keys(rows))), field in CLAUSE4_FIELDS
             field_together!(found, matched, exceptions, id, field, before, rows, c.touched,
                             testset_files(repo, c.sha, id), testset_files(repo, c.parents[1], id),
                             c.sha, "a merge whose branch")
@@ -959,7 +959,7 @@ function history_problems(repo::AbstractString; fields::Tuple = CLAUSE4_FIELDS)
         before = rows_at(cache, base_sha)
         after = rows_at(cache, head_sha)
         branch_touched = diff_paths(repo, base_sha, head_sha)
-        for id in sort!(collect(keys(after))), field in fields
+        for id in sort!(collect(keys(after))), field in CLAUSE4_FIELDS
             field_together!(found, matched, exceptions, id, field, before, after, branch_touched,
                             testset_files(repo, head_sha, id), testset_files(repo, base_sha, id),
                             head_sha, "a branch whose diff against main")
