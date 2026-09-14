@@ -171,15 +171,15 @@ function model_files(ids)
 end
 
 """
-    new_history(dir, entry; amended)
+    new_history(dir, entry; amended, branch)
 
-A repository in `dir` whose first commit holds a registry with `entry`, the model files,
-an exceptions list with no entry, and, when `amended`, the decision record carrying the
-amendment; returns the registry document.
+A repository in `dir`, its only branch named `branch`, whose first commit holds a
+registry with `entry`, the model files, an exceptions list with no entry, and, when
+`amended`, the decision record carrying the amendment; returns the registry document.
 """
-function new_history(dir::AbstractString, entry::AbstractDict; amended::Bool = true)
+function new_history(dir::AbstractString, entry::AbstractDict; amended::Bool = true, branch::AbstractString = "main")
     mkpath(dir)
-    fixture_git(dir, `init -q -b main`)
+    fixture_git(dir, `init -q -b $(branch)`)
     doc = registry_doc([entry]; protocols = Any[])
     files = merge(model_files([entry["id"]]), Dict{String,Any}(Oracles.REGISTRY_PATH => doc, Oracles.EXCEPTIONS_PATH => ""))
     amended && (files[Oracles.DECISION_PATH] = DECISION_TEXT)
@@ -269,6 +269,57 @@ function sync_history(dir)
     fixture_git(dir, `merge -q --no-ff -m "merge feature" feature`)
 end
 
+"""
+A history: a feature branch forks from main; main commits `extra` together with the
+tier-1 entry's threshold directly, not through a merge; the feature branch merges main
+into itself. Left checked out on the feature branch.
+"""
+function branch_after_plain_main_change(dir, extra::AbstractDict)
+    doc = new_history(dir, tier1())
+    fixture_git(dir, `checkout -q -b feature`)
+    commit!(dir, Dict{String,Any}("notes/feature.md" => "feature work\n"), "feature work")
+    fixture_git(dir, `checkout -q main`)
+    edit!(dir, doc, Dict{String,Any}("threshold" => "roundoff at every level"), extra)
+    fixture_git(dir, `checkout -q feature`)
+    fixture_git(dir, `merge -q --no-ff -m "merge main into feature" main`)
+end
+
+"""
+A history: a feature branch forks from main and changes the tier-1 entry's threshold
+together with `extra` itself; main commits unrelated work; the feature branch merges main
+into itself. Left checked out on the feature branch.
+"""
+function branch_own_threshold_change(dir, extra::AbstractDict)
+    doc = new_history(dir, tier1())
+    fixture_git(dir, `checkout -q -b feature`)
+    edit!(dir, doc, Dict{String,Any}("threshold" => "roundoff at every level"))
+    isempty(extra) || commit!(dir, extra, "branch work")
+    fixture_git(dir, `checkout -q main`)
+    commit!(dir, Dict{String,Any}("notes/main.md" => "main moves on\n"), "main")
+    fixture_git(dir, `checkout -q feature`)
+    fixture_git(dir, `merge -q --no-ff -m "merge main into feature" main`)
+end
+
+"""
+A history: `merge_history`'s branch changing the threshold together with `extra`, merged
+into main and listed for `oracle`; a feature branch, forked before that merge, merges main
+into itself afterward. Left checked out on the feature branch.
+"""
+function listed_merge_seen_from_branch(dir, extra::AbstractDict, oracle::AbstractString)
+    doc = new_history(dir, tier1())
+    fixture_git(dir, `checkout -q -b feature`)
+    commit!(dir, Dict{String,Any}("notes/feature.md" => "feature work\n"), "feature work")
+    fixture_git(dir, `checkout -q -b threshold main`)
+    edit!(dir, doc, Dict{String,Any}("threshold" => "roundoff at every level"))
+    isempty(extra) || commit!(dir, extra, "branch work")
+    fixture_git(dir, `checkout -q main`)
+    fixture_git(dir, `merge -q --no-ff -m merge threshold`)
+    merge_sha = head(dir)
+    fixture_git(dir, `checkout -q feature`)
+    fixture_git(dir, `merge -q --no-ff -m "merge main into feature" main`)
+    list!(dir, [exception(merge_sha, oracle)])
+end
+
 "A history: the tier-2 reregistration refused below, made before the amendment commit."
 function before_amendment(dir)
     doc = new_history(dir, tier2(); amended = false)
@@ -276,6 +327,17 @@ function before_amendment(dir)
     edit!(dir, doc, Dict{String,Any}("threshold" => "the revised published residual"))
     register!(dir, doc)
     commit!(dir, Dict{String,Any}(Oracles.DECISION_PATH => DECISION_TEXT), "amend")
+end
+
+"The refusal `f()` raises, or `nothing` when it returns."
+function refusal(f)
+    try
+        f()
+        return nothing
+    catch e
+        e isa Verdicts.Refusal || rethrow()
+        return e
+    end
 end
 
 "Each history fixture: how it is built, how many problems it raises, and the phrase each carries."
@@ -319,6 +381,16 @@ const HISTORY_CONTROLS = (
     (case = "a listed exception whose merge changes the threshold alone, which is stale",
      build = dir -> listed_merge(dir, Dict{String,Any}(), "mesh.fixture_identity"),
      count = 1, phrase = "a stale exception of " * Oracles.EXCEPTIONS_PATH),
+    (case = "a branch that merged main in, where main's own plain commit changed the threshold beside src/ (accepted)",
+     build = dir -> branch_after_plain_main_change(dir, Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n")),
+     count = 0, phrase = ""),
+    (case = "the same branch changing the threshold beside src/ itself, seen from its own tip",
+     build = dir -> branch_own_threshold_change(dir, Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n")),
+     count = 1, phrase = "a branch whose diff against main changes the threshold together with src/Model.jl"),
+    (case = "a feature branch that merged a listed mainline merge in, whose exception is not stale from the branch (accepted)",
+     build = dir -> listed_merge_seen_from_branch(dir, Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n"),
+                                                  "mesh.fixture_identity"),
+     count = 0, phrase = ""),
     (case = "a registration refused below, made before the amendment commit (accepted)",
      build = before_amendment, count = 0, phrase = ""),
     (case = "a tier-2 fail_bar entry registered with a bar below its uncertainty",
@@ -557,17 +629,14 @@ end
             new_history(repo, tier1(); amended = false)
             @test_throws Verdicts.Refusal Oracles.history_problems(repo)
         end
-    end
-end
 
-"The refusal `f()` raises, or `nothing` when it returns."
-function refusal(f)
-    try
-        f()
-        return nothing
-    catch e
-        e isa Verdicts.Refusal || rethrow()
-        return e
+        @testset "a repository with no declared mainline ref is refused by name" begin
+            repo = joinpath(dir, "no_mainline")
+            new_history(repo, tier1(); branch = "trunk")
+            r = refusal(() -> Oracles.history_problems(repo))
+            @test r isa Verdicts.Refusal && r.quantity == "registration history" &&
+                  occursin("refs/heads/main", r.reason) && occursin("refs/remotes/origin/main", r.reason)
+        end
     end
 end
 
