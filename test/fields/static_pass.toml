@@ -127,3 +127,21 @@ method = "Fiddlybits.Provenance.record_value"
 message = "no matching method found `String(::Int64)` (1/2 union split)"
 reason = "the generic record_value method converts fieldnames(T) with String, and fieldnames are integers only for a tuple type, which the tuple method receives instead"
 row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_opt"
+kind = "RuntimeDispatchReport"
+file = "src/Backends/launch.jl"
+method = "Fiddlybits.Backends.wait_queued"
+message = "runtime dispatch detected"
+reason = "fiddlybits-52v.3.21 widened the walk's operator calls to Backends.GPU, which reaches this refusal on its exception path; the refusal calls sprint(showerror, err), and err is Any from a bare catch err, so the call to showerror is a runtime dispatch, built only on the path that raises"
+row = "fiddlybits-52v.3.23"
+
+[[accepted]]
+analysis = "report_opt"
+kind = "RuntimeDispatchReport"
+file = "src/Events/Events.jl"
+method = "Fiddlybits.Events.moved"
+message = "runtime dispatch detected"
+reason = "fiddlybits-52v.3.21 widened the walk's operator calls to Backends.GPU, which reaches this event on a device move; MOVE_SINK is a Ref{Any} so move_sink! can install any callable as the run-journal sink, and MOVE_SINK[](...) dispatches on it at runtime by that design"
+row = "fiddlybits-52v.3.23"
