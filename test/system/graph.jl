@@ -55,6 +55,8 @@ profile() = S.Profile(
     fast_precision = Float32,
     slow_tier = S.Absent(argument = "the graph fixture declares no slow tier"),
     memory_ceiling = SF.irreducible(1024, ONE),
+    write_ceiling = SF.irreducible(256, ONE),
+    store_writers = SF.irreducible(4, ONE),
     daily_fallback_interval = S.Absent(argument = "the graph fixture declares no daily tier"),
     exit_brackets = (S.ExitBracket(loop = :climate, criterion = :toa_balance,
                                    normalisation = :absorbed_instellation,
