@@ -1,5 +1,7 @@
 # The five M0 test instances of decision 0034: Earth() and the four synthetic
 # constructors. docs/plans/fiddlybits-52v.4-system.md, section "The instances".
+# Each constructor's float type is its first positional argument, defaulting to
+# Float64, the convention test/system/fixtures.jl's own builders use throughout.
 
 module Planets
 

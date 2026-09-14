@@ -12,23 +12,6 @@ import .Planets as P
 
 const value = Dispositions.value
 
-"`system` with its `stars` field replaced by `new_stars`, the step by which the
-mutation control below holds a `Derived` value replaced without a second constructor
-call."
-function with_stars(s::Systems.System{FT}, new_stars) where {FT}
-    return Systems.System{FT,typeof(new_stars),typeof(s.planet),typeof(s.orbits),
-                          typeof(s.moons),typeof(s.inventories),typeof(s.numerics)}(
-        Systems.Checked(), new_stars, s.planet, s.orbits, s.moons, s.inventories,
-        s.numerics, s.root_seed)
-end
-
-"`star` with its `effective_temperature` field replaced by `mutated`, the rule name kept."
-function with_effective_temperature(star::Systems.Star{FT,S,Sp,K}, mutated) where {FT,S,Sp,K}
-    return Systems.Star{FT,S,Sp,K}(Systems.Checked(), star.mass, star.age,
-        star.metal_mass_fraction, star.structure, star.luminosity, star.radius, mutated,
-        star.spectrum, star.variability, star.ultraviolet, star.activity)
-end
-
 @testset "planets" begin
     instances = (P.Earth(), P.SyntheticNonEarth(), P.SyntheticSynchronous(),
                 P.SyntheticRetrograde(), P.SyntheticComposition2())
@@ -96,25 +79,5 @@ end
         end
     end
 
-    @testset "mutation control: a Derived rule replaced by the Earth value it happens to equal is caught on the synthetic instances" begin
-        earth_teff = value(P.Earth().stars[1].effective_temperature)
-
-        synthetic = P.SyntheticNonEarth()
-        path = (:stars, 1, :effective_temperature)
-        original = value(Systems.at_path(synthetic, path))
-        bound = Reductions.error_bound(Float64, Systems.EFFECTIVE_TEMPERATURE_TERMS,
-                                       max(abs(original), abs(earth_teff)))
-        @test abs(original - earth_teff) > bound
-
-        star = synthetic.stars[1]
-        d = star.effective_temperature
-        mutated_d = Dispositions.Derived(value = earth_teff, dim = Dimensions.TEMPERATURE,
-                                         from = d.from, rule = d.rule,
-                                         fields = Systems.STAR_FIELDS)
-        mutated_system = with_stars(synthetic, (with_effective_temperature(star, mutated_d),))
-
-        rederived = Systems.rederive(mutated_system, path)
-        @test rederived != value(Systems.at_path(mutated_system, path))
-        @test abs(rederived - earth_teff) > bound
-    end
+    include("mutation_control.jl")
 end
