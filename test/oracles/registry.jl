@@ -38,13 +38,32 @@ tier1() = Dict{String,Any}(
 system1() = merge(tier1(), Dict{String,Any}("id" => "system.fixture_identity", "subsystem" => "system",
                                             "instances" => ["Earth()", "SyntheticNonEarth()"]))
 
-"A tier-2 fail_bar entry with a bar wider than its observation's uncertainty."
+"A tier-2 fail_bar entry with a bar wider than its observation's uncertainty, carrying neither form nor pattern_entry."
 tier2() = Dict{String,Any}(
     "id" => "earth.fixture_mean", "tier" => 2, "subsystem" => "atmosphere", "dataset_or_reference" => "a fixture product",
     "source_kind" => "known quantity", "statistic" => "global-mean fixture flux against the product",
     "verdict_kind" => "fail_bar", "threshold" => "the published residual of the fixture model", "provisional" => true,
     "registered_at" => "", "holdout" => false, "anchors" => ["A read work"], "datasets" => String[],
     "bar_half_width" => 2.0, "observation_uncertainty" => 1.0)
+
+"A tier-2 fail_bar entry of form pattern, carrying no pattern_entry."
+tier2_pattern() = Dict{String,Any}(
+    "id" => "earth.fixture_pattern", "tier" => 2, "subsystem" => "atmosphere",
+    "dataset_or_reference" => "a fixture zonal product", "source_kind" => "known quantity",
+    "statistic" => "zonal-mean fixture flux against the product", "verdict_kind" => "fail_bar",
+    "threshold" => "the published zonal residual of the fixture model", "provisional" => true,
+    "registered_at" => "", "holdout" => false, "anchors" => ["A read work"], "datasets" => String[],
+    "bar_half_width" => 2.0, "observation_uncertainty" => 1.0, "form" => "pattern")
+
+"A tier-2 fail_bar entry of form scalar, naming tier2_pattern's id in pattern_entry."
+tier2_scalar() = Dict{String,Any}(
+    "id" => "earth.fixture_scalar", "tier" => 2, "subsystem" => "atmosphere",
+    "dataset_or_reference" => "a fixture global product", "source_kind" => "known quantity",
+    "statistic" => "global-mean fixture flux against the product, second", "verdict_kind" => "fail_bar",
+    "threshold" => "the published residual of the fixture model, second", "provisional" => true,
+    "registered_at" => "", "holdout" => false, "anchors" => ["A read work"], "datasets" => String[],
+    "bar_half_width" => 2.0, "observation_uncertainty" => 1.0, "form" => "scalar",
+    "pattern_entry" => "earth.fixture_pattern")
 
 "A tier-3 report entry."
 tier3() = Dict{String,Any}(
@@ -62,7 +81,7 @@ fixture_protocol() = Dict{String,Any}("id" => "fixture_protocol", "system" => "F
 registry_doc(entries; protocols = [fixture_protocol()]) = Dict{String,Any}("oracle" => entries, "protocol" => protocols)
 
 "The clean registry document."
-clean_doc() = registry_doc([tier1(), system1(), tier2(), tier3()])
+clean_doc() = registry_doc([tier1(), system1(), tier2(), tier2_scalar(), tier2_pattern(), tier3()])
 
 "Writes `content`, a document or text, to `path`, creating its directory."
 function put(path::AbstractString, content)
@@ -118,6 +137,12 @@ const LOADER_CONTROLS = (
      phrases = ("protocol carries no normalisation", "names protocol fixture_protocol, which is not declared")),
     (case = "an anchor that resolves to no index row", change = d -> set_field!(d, "sweep.fixture_rotation", "anchors", ["An unindexed work"]),
      phrases = ("anchor \"An unindexed work\" resolves to no row of the references index",)),
+    (case = "a key spelt forms, which is not a registry field", change = d -> set_field!(d, "earth.fixture_scalar", "forms", "scalar"),
+     phrases = ("carries forms, which is not a registry field",)),
+    (case = "a form that is not a string", change = d -> set_field!(d, "earth.fixture_scalar", "form", 3),
+     phrases = ("form is not a string",)),
+    (case = "a pattern_entry that is not a string", change = d -> set_field!(d, "earth.fixture_scalar", "pattern_entry", ["x"]),
+     phrases = ("pattern_entry is not a string",)),
 )
 
 """
@@ -443,7 +468,7 @@ end
             path = put(joinpath(dir, "clean.toml"), clean_doc())
             @test isempty(Oracles.problems(path, FIXTURE_INDEX))
             registry = Oracles.load(path)
-            @test length(registry.entries) == 4
+            @test length(registry.entries) == 6
             rotation = Oracles.entry(registry, "sweep.fixture_rotation")
             @test Oracles.protocol(registry, rotation).normalisation == "column mass"
             @test Oracles.protocol(registry, Oracles.entry(registry, "mesh.fixture_identity")) === nothing
@@ -451,6 +476,13 @@ end
             @test Oracles.entry(registry, "mesh.fixture_identity").instances === nothing
             @test_throws Verdicts.Refusal Oracles.entry(registry, "mesh.absent")
             @test isempty(Oracles.dependencies(registry, rotation))
+
+            @test Oracles.entry(registry, "earth.fixture_mean").form === nothing
+            @test Oracles.entry(registry, "earth.fixture_mean").pattern_entry === nothing
+            @test Oracles.entry(registry, "earth.fixture_pattern").form == "pattern"
+            @test Oracles.entry(registry, "earth.fixture_pattern").pattern_entry === nothing
+            @test Oracles.entry(registry, "earth.fixture_scalar").form == "scalar"
+            @test Oracles.entry(registry, "earth.fixture_scalar").pattern_entry == "earth.fixture_pattern"
         end
 
         @testset "positive control: $(c.case) is refused" for c in LOADER_CONTROLS

@@ -23,7 +23,7 @@ const REQUIRED_KEYS = ("id", "tier", "subsystem", "dataset_or_reference", "sourc
 
 "The keys an `[[oracle]]` entry may carry besides `REQUIRED_KEYS`."
 const OPTIONAL_KEYS = ("instances", "protocol", "datasets", "depends_on", "instrument",
-                       "bar_half_width", "observation_uncertainty")
+                       "bar_half_width", "observation_uncertainty", "form", "pattern_entry")
 
 "The keys every `[[protocol]]` entry carries, and no other."
 const PROTOCOL_KEYS = ("id", "system", "normalisation")
@@ -75,10 +75,10 @@ end
     Entry
 
 An `[[oracle]]` entry as loaded from the registry file at `registry`. `instances`,
-`protocol`, `datasets`, `depends_on`, `instrument`, `bar_half_width` and
-`observation_uncertainty` are `nothing` where the entry does not carry the key.
-`bar_half_width` and `observation_uncertainty` are the half-width of the bar and the
-observation's own uncertainty, in the unit of the statistic.
+`protocol`, `datasets`, `depends_on`, `instrument`, `bar_half_width`,
+`observation_uncertainty`, `form` and `pattern_entry` are `nothing` where the entry does
+not carry the key. `bar_half_width` and `observation_uncertainty` are the half-width of
+the bar and the observation's own uncertainty, in the unit of the statistic.
 """
 struct Entry
     id::String
@@ -100,6 +100,8 @@ struct Entry
     instrument::Union{Nothing,String}
     bar_half_width::Union{Nothing,Float64}
     observation_uncertainty::Union{Nothing,Float64}
+    form::Union{Nothing,String}
+    pattern_entry::Union{Nothing,String}
     registry::String
 end
 
@@ -238,6 +240,8 @@ function read_entry(row, k::Integer, path::AbstractString, protocols::Vector{Pro
     instrument = read_key(row, "instrument", is_text, "a string", site, found)
     bar = read_key(row, "bar_half_width", is_number, "a number", site, found)
     uncertainty = read_key(row, "observation_uncertainty", is_number, "a number", site, found)
+    form = read_key(row, "form", is_text, "a string", site, found)
+    pattern_entry = read_key(row, "pattern_entry", is_text, "a string", site, found)
 
     tier === nothing || tier in TIERS ||
         push!(found, Malformed(site, "tier " * string(tier) * " is not one of " * join(TIERS, ", ")))
@@ -284,7 +288,7 @@ function read_entry(row, k::Integer, path::AbstractString, protocols::Vector{Pro
     return Entry(id, tier, subsystem, reference, source_kind, statistic, verdict_kind, threshold, provisional,
                  registered_at, holdout, anchors, instances, protocol, datasets, depends_on, instrument,
                  bar === nothing ? nothing : Float64(bar),
-                 uncertainty === nothing ? nothing : Float64(uncertainty), String(path))
+                 uncertainty === nothing ? nothing : Float64(uncertainty), form, pattern_entry, String(path))
 end
 
 """

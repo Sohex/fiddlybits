@@ -17,6 +17,12 @@
 # protocol (required on tier 3, optional on tier 1, absent on tier 2): the id of a
 # [[protocol]] entry at the end of this file, which declares the protocol's system and
 # the normalisation it held fixed once for every row that names it.
+# form (required on every tier-2 row, absent on tier 1 and tier 3): pattern or scalar,
+# read from whether the statistic is itself spatial, seasonal or class structure (pattern)
+# or one number over the whole domain (scalar). pattern_entry (required on a tier-2
+# scalar row, absent otherwise): the id of the tier-2 pattern row the scalar's report is
+# read beside. Each row keeps one statistic, one bar and one set of anchors; the partner
+# is judged and registered on its own (docs/oracles/README.md, Registration).
 # Optional: instances (tier 1 system.* rows): the test instances the identity runs
 # on; every system.* row runs on Earth() and on a synthetic non-Earth instance.
 # datasets (required on tier 2 and tier 3, optional on tier 1): the ids of the hashed
