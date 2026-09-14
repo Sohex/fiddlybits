@@ -937,3 +937,32 @@ Cited by the same passes and still open after the user's batch of 2026-09-08. Id
 | filename | verbatim title | identifier | status | anchors |
 | --- | --- | --- | --- | --- |
 | (requested) | Biochemical Models of Leaf Photosynthesis (von Caemmerer 2000) | 10.1071/9780643103405; ISBN 978-0-643-06379-2 | requested | REQ-BIO-007, 0021 |
+
+## Held: fetched for the oracle registry anchors (fiddlybits-52v.8.7, 2026-09-14)
+
+Fetched directly on 2026-09-14 from confirmed open-access locations (Copernicus journals under CC BY,
+and a Wiley-hosted article whose Unpaywall record gives a University of East Anglia repository copy)
+to anchor tier-2 and tier-3 registry entries that carried no anchor. Identifiers confirmed against
+Crossref by title, first author and year. Nothing here is `read`.
+
+| filename | verbatim title | identifier | status | anchors |
+| --- | --- | --- | --- | --- |
+| `moat2020-pending-recovery-amoc-26n.pdf` | Pending recovery in the strength of the meridional overturning circulation at 26 deg N | 10.5194/os-16-863-2020 | held | earth.amoc_strength |
+| `morice2021-hadcrut5-near-surface-temperature.pdf` | An Updated Assessment of Near-Surface Temperature Change From 1850: The HadCRUT5 Data Set | 10.1029/2019JD032361 | held | earth.global_surface_temperature |
+| `ukkola2022-flux-tower-dataset-land-model-evaluation.pdf` | A flux tower dataset tailored for land model evaluation | 10.5194/essd-14-449-2022 | held | earth.plumber2_sites |
+| `estilow2015-nh-snow-cover-extent-data-record.pdf` | A long-term Northern Hemisphere snow cover extent data record for climate studies and monitoring | 10.5194/essd-7-137-2015 | held | earth.snow_cover_extent |
+| `bontemps2012-revisiting-land-cover-observation-climate-modeling.pdf` | Revisiting land cover observation to address the needs of the climate modeling community | 10.5194/bg-9-2145-2012 | held | earth.biome_kappa |
+
+## Requested by fiddlybits-52v.8.7 (2026-09-14)
+
+Cited by tier-2 registry entries that carried no anchor and are not held. Identifiers confirmed
+against Crossref. Repeated with authors, venues and suggested filenames in `REQUESTS.md`. Three of
+the four are reported open access by Unpaywall; each returned a bot-interstitial or a JavaScript-gated
+page on the one fetch attempt made here rather than a PDF, and none is re-tried.
+
+| filename | verbatim title | identifier | status | anchors |
+| --- | --- | --- | --- | --- |
+| (requested) | Mixed layer depth over the global ocean: An examination of profile data and a profile-based climatology | 10.1029/2004JC002378 | requested | earth.mld_by_basin |
+| (requested) | High-resolution fields of global runoff combining observed river discharge and simulated water balances | 10.1029/1999GB001254 | requested | earth.land_pme_vs_runoff, earth.grdc_basin_discharge |
+| (requested) | Mineralogy and geochemistry of clay fractions in soils developed from different parent rocks in Limpopo Province, South Africa | 10.1016/j.heliyon.2021.e07664 | requested | earth.basalt_granite_clay_divergence |
+| (requested) | Global products of vegetation leaf area and fraction absorbed PAR from year one of MODIS data | 10.1016/S0034-4257(02)00074-3 | requested | earth.modis_lai_seasonal |
