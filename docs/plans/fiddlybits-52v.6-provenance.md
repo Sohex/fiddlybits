@@ -124,6 +124,14 @@ what stops an array from being read as something it is not.
 The store also refuses a field whose ledger is open, which is the other half of the
 fields plan's ledger contract.
 
+`Provenance.record_value` holds a `UInt64` (the root seed among them) as a `UInt64`,
+never converted to `Int64`: `TOML.print` writes an unsigned integer as an unsigned
+hexadecimal literal and `TOML.parse` reads that literal back as a `UInt64`, a form no
+decimal `Int64` literal can take, so the two types never collide in one manifest or run
+record. An integer of at most 32 bits, signed or unsigned, still becomes an `Int64`,
+which holds every such value without loss; only `UInt64` needs its own form, because it
+is the one width whose range exceeds `Int64`'s.
+
 Cell indices are 0-based on disk and 1-based in memory, translated at the disk
 boundary by `CellId`. `test/io/index_roundtrip.jl` is the leak test
 `docs/imports/zarr.md` names: a known index field written and read back.

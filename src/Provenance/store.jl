@@ -171,23 +171,20 @@ const RECORD_SITE = "Provenance.record_value"
 """
     record_value(x)
 
-The TOML value a record holds for `x`: a `Bool` as itself; an integer of at most 64 bits as
-an `Int64`, refusing a `UInt64` above `typemax(Int64)`; a `Float16`, `Float32` or `Float64`
-as the `Float64` of the same value; a `Symbol` as its name; a `String` as itself, refusing
-one that is not valid UTF-8; a `VersionNumber`, a `UUID` or a type as its `string`; a
-`Tuple` as an array of its elements' values; and as a table with `type`, the `string` of
-its type, each of `nothing` (no other key), an `Array` (`size` and `values`, in
-column-major order), a `NamedTuple` and an immutable struct (`fields`, a table from each
-field name to its value). Refuses any other value.
+The TOML value a record holds for `x`: a `Bool` as itself; an integer of at most 32 bits,
+signed or unsigned, as an `Int64`, which holds every such value without loss; a `UInt64`
+as itself, which `TOML.print` writes as an unsigned hexadecimal literal and `TOML.parse`
+reads back as a `UInt64`, a form no decimal `Int64` literal can take; a `Float16`,
+`Float32` or `Float64` as the `Float64` of the same value; a `Symbol` as its name; a
+`String` as itself, refusing one that is not valid UTF-8; a `VersionNumber`, a `UUID` or a
+type as its `string`; a `Tuple` as an array of its elements' values; and as a table with
+`type`, the `string` of its type, each of `nothing` (no other key), an `Array` (`size` and
+`values`, in column-major order), a `NamedTuple` and an immutable struct (`fields`, a
+table from each field name to its value). Refuses any other value.
 """
 record_value(x::Bool) = x
 record_value(x::Union{Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32}) = Int64(x)
-
-function record_value(x::UInt64)
-    x <= typemax(Int64) || refuse("record", RECORD_SITE, "$(x) is above the integers TOML holds")
-    return Int64(x)
-end
-
+record_value(x::UInt64) = x
 record_value(x::Union{Float16,Float32,Float64}) = Float64(x)
 record_value(x::Symbol) = String(x)
 

@@ -45,6 +45,25 @@ manifest_of(store, key) = TOML.parsefile(joinpath(Provenance.object_directory(st
                   ["support_id", "semantics", "time_semantics", "dimension", "owner", "interval"]
         end
 
+        @testset "record_value writes a UInt64 as an unsigned hexadecimal literal, read back as the same UInt64" begin
+            mktempdir() do dir
+                path = joinpath(dir, "record.toml")
+                round_trip(v) = (Provenance.write_toml(path, Dict{String,Any}("seed" => Provenance.record_value(v)));
+                                  TOML.parsefile(path)["seed"])
+                for v in (typemin(UInt64), UInt64(typemax(Int64)), UInt64(typemax(Int64)) + one(UInt64), typemax(UInt64))
+                    back = round_trip(v)
+                    @test back isa UInt64
+                    @test back == v
+                end
+
+                @testset "positive control: a record whose seed word is altered reads back a different UInt64" begin
+                    a = round_trip(typemax(UInt64))
+                    b = round_trip(typemax(UInt64) - one(UInt64))
+                    @test a != b
+                end
+            end
+        end
+
         @testset "an array with $(name) dropped refuses, naming it" for name in Provenance.REQUIRED_ATTRIBUTES
             mktempdir() do dir
                 copied = store_copy(root, dir)
