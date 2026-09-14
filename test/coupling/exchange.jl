@@ -49,7 +49,8 @@ initial(q, level; backend = Backends.CPU()) =
 
 component(name; level, reads, writes, stocks, backend = Backends.CPU()) =
     Component(Coupling.Declaration(name = name, level = level, reads = reads, writes = writes,
-                                   stocks = stocks, system_fields = (), backend = backend))
+                                   stocks = stocks, system_fields = (), profile_fields = (),
+                                   backend = backend))
 
 """
     land(; stocks)

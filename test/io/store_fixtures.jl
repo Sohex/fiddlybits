@@ -6,10 +6,21 @@ isdefined(@__MODULE__, :SystemFixtures) ||
 
 module StoreFixtures
 
-using Fiddlybits: Provenance, Coupling, Backends, Mesh, Fields, Time, Dimensions, Verdicts
+using Fiddlybits: Provenance, Coupling, Backends, Mesh, Fields, Time, Dimensions, Verdicts, Systems
 using UUIDs: UUID
 import Zarr
 import ..SystemFixtures as SF
+
+"The profile every fixture field is keyed under: its fast fields in `Float64` and every other setting absent."
+profile() = Systems.Profile(
+    label = :store, system = SF.system(),
+    components = Systems.Absent(argument = "the store fixture has no component"),
+    radiation = Systems.Absent(argument = "the store fixture has no radiation"),
+    fast_precision = Float64,
+    slow_tier = Systems.Absent(argument = "the store fixture has no slow tier"),
+    memory_ceiling = SF.irreducible(1024, Dimensions.DIMENSIONLESS),
+    daily_fallback_interval = Systems.Absent(argument = "the store fixture has no vegetation tier"),
+    exit_brackets = Systems.Absent(argument = "the store fixture has no loop"))
 
 "The level every fixture field sits at."
 level() = 2
@@ -30,13 +41,14 @@ end
 code(; kw...) = Provenance.CodeVersion(; merge(
     (commit = "1"^40, tree = "2"^40, manifest = "3"^40, julia = v"1.12.7", dirty = false), values(kw))...)
 
-"A declaration named `name` writing `quantity` with `semantics` at `level()`, declaring `system_fields`."
+"A declaration named `name` writing `quantity` with `semantics` at `level()`, declaring `system_fields` and `profile_fields`."
 declaration(; name = :surface, quantity = :surface_mass, semantics = Fields.Extensive(),
-            system_fields = ((:planet, :mass), (:stars, :, :luminosity))) =
+            system_fields = ((:planet, :mass), (:stars, :, :luminosity)),
+            profile_fields = ((:fast_precision,), (:memory_ceiling,))) =
     Coupling.Declaration(
         name = name, level = level(), reads = (),
         writes = (Coupling.Write(quantity = quantity, semantics = semantics, conserves = ()),),
-        stocks = (), system_fields = system_fields, backend = Backends.CPU())
+        stocks = (), system_fields = system_fields, profile_fields = profile_fields, backend = Backends.CPU())
 
 "The interval every fixture field is placed over."
 interval() = Time.TimeSupport(Time.IntervalMean(), Time.Interval(0.0, 3600.0))
@@ -69,7 +81,8 @@ end
 
 "`Provenance.put_field!` under `run` of `f` with the fixture keywords; `kw` replaces any."
 put(store, run, f; kw...) = Provenance.put_field!(store, run; merge(
-    (code = code(), declaration = declaration(), system = SF.system(), inputs = (;), quantity = :surface_mass,
+    (code = code(), declaration = declaration(), system = SF.system(), profile = profile(), inputs = (;),
+     quantity = :surface_mass,
      operator_version = 1, field = f, ledgers = (closed_ledger(),), chunk_level = 1,
      values = Provenance.Amounts()), values(kw))...)
 

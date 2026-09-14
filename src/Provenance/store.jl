@@ -16,7 +16,7 @@ using UUIDs: UUID
 import Zarr
 using ..Verdicts: refuse
 using ..Backends: Backend, CPU, LAYOUT, on
-using ..Systems: Systems, System, Checked, read_keywords, require_type
+using ..Systems: Systems, System, Profile, Checked, read_keywords, require_type
 using ..Mesh: Mesh
 using ..Fields: Fields
 using ..Time: Time
@@ -54,7 +54,8 @@ const AXES_ATTRIBUTE = "_ARRAY_DIMENSIONS"
 
 "The keys every artifact manifest holds; a read refuses a manifest missing any."
 const MANIFEST_KEYS = ("kind", "key", "quantity", "owner", "run", "support", "operator_version",
-                       "parameter_digest", "code", "inputs", "parameters", "stocks", "arrays")
+                       "parameter_digest", "profile_digest", "code", "inputs", "parameters", "profile",
+                       "stocks", "arrays")
 
 "The keys every array table of a manifest holds; a read refuses a table missing any."
 const ARRAY_KEYS = ("attributes", "element_type", "size", "axes", "chunk_level", "cells_per_chunk",
@@ -232,18 +233,26 @@ code_record(code::CodeVersion) =
 path_record(path::Tuple) = Any[step isa Colon ? ":" : record_value(step) for step in path]
 
 """
-    parameter_records(declaration, system)
+    subset_records(root, paths)
 
-One table per path `declaration.system_fields` names, in declared order: `declared`, the
-path's record, and `values`, one table per colon-free path `expand_path` gives for it with
-`path` and `value`, the `record_value` of what the path reaches in `system`.
+One table per path of `paths`, in declared order: `declared`, the path's record, and
+`values`, one table per colon-free path `expand_path` gives for it from `root` with `path`
+and `value`, the `record_value` of what the path reaches in `root`.
 """
-parameter_records(declaration::Declaration, system::System) =
+subset_records(root, paths::Tuple) =
     [Dict{String,Any}("declared" => path_record(p),
                       "values" => [Dict{String,Any}("path" => path_record(q),
-                                                    "value" => record_value(Systems.at_path(system, q)))
-                                   for q in expand_path(system, p)])
-     for p in declaration.system_fields]
+                                                    "value" => record_value(Systems.at_path(root, q)))
+                                   for q in expand_path(root, p)])
+     for p in paths]
+
+"`subset_records` of `system` at the paths `declaration.system_fields` names."
+parameter_records(declaration::Declaration, system::System) =
+    subset_records(system, declaration.system_fields)
+
+"`subset_records` of the `Systems.Profile` `profile` at the paths `declaration.profile_fields` names."
+profile_records(declaration::Declaration, profile::Profile) =
+    subset_records(profile, declaration.profile_fields)
 
 # ---------------------------------------------------------------- runs
 
@@ -713,18 +722,19 @@ end
 # ---------------------------------------------------------------- fields
 
 "The keywords `put_field!` reads besides the code version."
-const PUT_KEYWORDS = (:declaration, :system, :inputs, :quantity, :operator_version, :field, :ledgers,
-                      :chunk_level, :values)
+const PUT_KEYWORDS = (:declaration, :system, :profile, :inputs, :quantity, :operator_version, :field,
+                      :ledgers, :chunk_level, :values)
 
 """
-    put_field!(store, run::RunID; code, declaration, system, inputs, quantity, operator_version,
-               field, ledgers, chunk_level, values)
-    put_field!(store, scratch::ScratchRun; declaration, system, inputs, quantity,
+    put_field!(store, run::RunID; code, declaration, system, profile, inputs, quantity,
+               operator_version, field, ledgers, chunk_level, values)
+    put_field!(store, scratch::ScratchRun; declaration, system, profile, inputs, quantity,
                operator_version, field, ledgers, chunk_level, values)
 
 Writes the field `field` of `quantity` as an artifact and returns `(key, stamped)`: `key`,
 the `ArtifactKey` of `code` (the scratch run's for the second form), `declaration`,
-`system`, `inputs`, `quantity`, `operator_version` and the field's support; and `stamped`,
+`system`, `profile`, `inputs`, `quantity`, `operator_version`, the field's support, and
+the `Time.Interval` the field's time support is placed over; and `stamped`,
 `field` with the origin `Fields.stamped` of its writer, the run, the key and the parameter
 digest. The first form writes under `objects/` after `admit(key)`, the second under
 `scratch/<uuid>/` after `admit(scratch)`.
@@ -734,11 +744,13 @@ moved to the host through `Backends.on`, translated by `to_disk` for `values` (a
 `Amounts` or a `CellIds`), chunked at `chunk_level` so a chunk is the descendants of one
 cell of that level, and carrying the `array_attributes` of the field. The manifest names
 `kind`, `key`, `quantity`, `owner`, `run`, `support`, `operator_version`,
-`parameter_digest`, `code`, `inputs` (each read quantity's key), `parameters`
-(`parameter_records`), `stocks` (the declaration's) and `arrays` (`array_table`), with the
-`ledger_records` of `ledgers`, a tuple.
+`parameter_digest`, `profile_digest`, `code`, `inputs` (each read quantity's key),
+`parameters` (`parameter_records`), `profile` (`profile_records`), `stocks` (the
+declaration's) and `arrays` (`array_table`), with the `ledger_records` of `ledgers`, a
+tuple.
 
-Every keyword is required. Refuses whatever `ArtifactKey` and `admit` refuse; a field whose
+Every keyword is required. Refuses a field whose time support is not placed over an
+interval, naming its time semantics; whatever `ArtifactKey` and `admit` refuse; a field whose
 semantics is not the one the declaration writes `quantity` with, whose origin names another
 writer or run, or whose origin is stamped; what `ledger_records` refuses, an open ledger by
 its conserved quantity; a run the store does not record under the code version; a support
@@ -770,9 +782,17 @@ function write_field!(store::Store, site::AbstractString, run::RunID, code::Code
     declaration = require_type("declaration", site, k.declaration, Declaration)
     quantity = require_type("quantity", site, k.quantity, Symbol)
     support = Fields.support(field)
-    key = ArtifactKey(code = code, declaration = declaration, system = k.system, inputs = k.inputs,
-                      quantity = quantity, support = support, operator_version = k.operator_version)
+    time = Fields.time_support(field)
+    placed_by = Time.time_support_kind(Time.semantics(time))
+    placed_by === :interval || refuse(
+        "interval", site,
+        "the field of $(quantity) is $(nameof(typeof(Time.semantics(time)))), placed by $(placed_by) and " *
+        "not by the interval its key names")
+    key = ArtifactKey(code = code, declaration = declaration, system = k.system, profile = k.profile,
+                      inputs = k.inputs, quantity = quantity, support = support,
+                      interval = Time.interval(time), operator_version = k.operator_version)
     system = k.system
+    profile = k.profile
     semantics = Fields.semantics(field)
     declared = Coupling.write_of(declaration, quantity).semantics
     typeof(declared) === typeof(semantics) || refuse(
@@ -799,16 +819,18 @@ function write_field!(store::Store, site::AbstractString, run::RunID, code::Code
     require_host_array(site, host, level)
     disk = to_disk(values, host, site)
     per_chunk = cells_per_chunk(level, chunk_level)
-    attributes = array_attributes(support = support, semantics = semantics, time = Fields.time_support(field),
+    attributes = array_attributes(support = support, semantics = semantics, time = time,
                                   dimension = Fields.dimension(field), owner = declaration.name)
     parameters = parameter_digest(declaration, system)
     manifest = Dict{String,Any}(
         "kind" => FIELD_KIND, "key" => hex(key.digest), "quantity" => String(quantity),
         "owner" => String(declaration.name), "run" => string(run.uuid), "support" => hex(support.digest),
         "operator_version" => record_value(k.operator_version), "parameter_digest" => hex(parameters),
+        "profile_digest" => hex(profile_digest(declaration, profile)),
         "code" => code_record(code),
         "inputs" => Dict{String,Any}(String(q) => hex(k.inputs[q].digest) for q in keys(k.inputs)),
         "parameters" => parameter_records(declaration, system),
+        "profile" => profile_records(declaration, profile),
         "stocks" => [Dict{String,Any}("conserved" => String(s.conserved),
                                       "quantities" => [String(q) for q in s.quantities])
                      for s in declaration.stocks],
