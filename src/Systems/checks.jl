@@ -13,13 +13,7 @@ const DAY_WORD = "day"
 "The dispositions a caller declares a primary quantity with."
 const DECLARED = (Sourced, Bracketed, Irreducible)
 
-"""
-    Checked()
-
-The token every inner constructor of a `System` block takes first. The keyword
-constructors pass it after their refusals have run; nothing else does.
-"""
-struct Checked end
+using ..Verdicts: Checked
 
 """
     read_keywords(site, given, required, checked)

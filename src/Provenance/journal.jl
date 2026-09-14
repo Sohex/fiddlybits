@@ -10,7 +10,7 @@ using TOML: TOML
 using ..Events: Events, Journal
 using ..Mesh: Mesh
 using ..Verdicts: Verdicts, refuse
-using ..Systems: read_keywords, require_type
+using ..Systems: Checked, read_keywords, require_type
 
 "The name of the journal file inside the directory named by a run's `RunID`."
 const JOURNAL_PATH = "journal.toml"
@@ -50,7 +50,7 @@ function install_journal!(; kwargs...)
     file = journal_file(runs, run)
     mkpath(dirname(file))
     touch(file)
-    journal = Journal(file)
+    journal = Journal(Checked(), file)
     Events.sink!(journal)
     return journal
 end

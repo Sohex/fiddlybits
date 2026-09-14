@@ -118,8 +118,12 @@ accident.
   `Ref`s to those unions, so `emit` and `moved` call their sink by union splitting
   rather than by a runtime dispatch on a value of type `Any`. A value outside the set is
   refused by name at the installer, with the installed sink left in place. The `Journal`
-  struct is declared in `Events`, since a union names its members where it is declared,
-  and its method appending an event stays in `src/Provenance/journal.jl`. The run's
+  struct is declared in `Events` behind the checked door, since a union names its
+  members where it is declared: its one constructor takes the `Checked` token first,
+  which `install_journal!` passes after its refusals, and the token's one definition
+  moves from `Systems` to `Verdicts`, which `Events` and `Systems` both load after, with
+  `Systems` importing it. Its method appending an event stays in
+  `src/Provenance/journal.jl`. The run's
   tally is the `MoveTally` `MOVE_TALLY`, which `moved` hands every record to before the
   installed sink; a `MoveTally` installed as the move sink counts a scope, which is how
   the move tests count, and `Collector{R}` is the collecting sink every other test

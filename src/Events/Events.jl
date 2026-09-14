@@ -314,18 +314,19 @@ Nothing, whatever `record` is.
 (::NoopSink)(record) = nothing
 
 """
-    Journal(file)
+    Journal(::Verdicts.Checked, file)
 
 The event sink of one run's journal: `file`, the journal file, and `lock`,
 held while one event's text is appended to it. `Provenance.install_journal!`
-makes one and installs it; the method that appends an `Event` to `file` is in
+makes one, passing `Verdicts.Checked()` after its refusals have run, and
+installs it; the method that appends an `Event` to `file` is in
 `src/Provenance/journal.jl`.
 """
 struct Journal
     file::String
     lock::ReentrantLock
 
-    Journal(file::String) = new(file, ReentrantLock())
+    Journal(::Verdicts.Checked, file::String) = new(file, ReentrantLock())
 end
 
 """

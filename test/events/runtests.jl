@@ -394,7 +394,7 @@ const VALID_PAYLOAD_ARGS = Dict(
         Events.move_sink!(moves)
         outside_event = (ev -> nothing, println, Events.MoveTally(), Events.Collector{Events.Moved}(),
                          Events.Collector{Any}())
-        outside_move = (rec -> nothing, println, Events.Journal(tempname()),
+        outside_move = (rec -> nothing, println, Events.Journal(Verdicts.Checked(), tempname()),
                         Events.Collector{Events.Event}(), Events.Collector{Any}())
         for (install, site, outside) in ((Events.sink!, "Events.sink!", outside_event),
                                          (Events.move_sink!, "Events.move_sink!", outside_move))
@@ -409,7 +409,8 @@ const VALID_PAYLOAD_ARGS = Dict(
         @test Events.MOVE_SINK[] === moves
 
         @testset "positive control: every member of each set installs" begin
-            for sink in (Events.noop_sink, Events.Journal(tempname()), Events.Collector{Events.Event}())
+            for sink in (Events.noop_sink, Events.Journal(Verdicts.Checked(), tempname()),
+                         Events.Collector{Events.Event}())
                 @test Events.sink!(sink) === nothing
                 @test Events.SINK[] === sink
             end

@@ -670,6 +670,22 @@ end
         end
         @test Events.SINK[] === Events.noop_sink
 
+        @testset "a Journal is built only behind the checked door" begin
+            @test_throws MethodError Events.Journal("x")
+            @test_throws MethodError Events.Journal(Provenance.journal_file(runs, run))
+            @test Systems.Checked === Verdicts.Checked
+
+            @testset "positive control: install_journal! still builds and installs a journal" begin
+                try
+                    journal = Provenance.install_journal!(runs = runs, run = run)
+                    @test journal isa Events.Journal
+                    @test Events.SINK[] === journal
+                finally
+                    Events.sink!(Events.noop_sink)
+                end
+            end
+        end
+
         try
             file = Provenance.journal_file(runs, run)
             @test file == joinpath(runs, string(run.uuid), Provenance.JOURNAL_PATH)
