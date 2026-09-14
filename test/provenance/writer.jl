@@ -213,11 +213,10 @@ Refuses a probe whose counter ends below that ceiling. Also launches and complet
 four work items, so no kernel a held interval launches is compiled while a gate holds the card.
 """
 function writer_warm(gpu, shape)
+    compile = writer_gate(gpu, WRITER_GATE_PROBE)
+    compile.cell[1] = 0.0
+    writer_hold(_ -> nothing, gpu, compile)
     probe = writer_gate(gpu, WRITER_GATE_PROBE)
-    probe.cell[1] = 0.0
-    writer_hold(_ -> nothing, gpu, probe)
-    probe.cell[1] = WRITER_HOLD
-    probe.counter[1] = 0.0
     seconds = @elapsed writer_hold(point -> CUDA.synchronize(point.event; blocking = true), gpu, probe)
     probe.counter[1] >= WRITER_GATE_PROBE ||
         error("the unreleased probe gate kernel counted $(probe.counter[1]) of its $(WRITER_GATE_PROBE) iterations")
@@ -229,17 +228,18 @@ function writer_warm(gpu, shape)
 end
 
 """
-    writer_await(writer, indices)
+    writer_await(writer, indices, g)
 
 The indices among `indices` that `writer`'s disk stage has not finished, waiting on the
-writer's condition until it has finished all of them or `WRITER_BOUND` seconds have passed.
+writer's condition until it has finished all of them, `WRITER_BOUND` seconds have passed, or
+the counter of the `WriterGate` `g` has reached its ceiling, checked at least once a second.
 """
-function writer_await(w, indices)
+function writer_await(w, indices, g::WriterGate)
     deadline = time() + WRITER_BOUND
-    timer = Timer(_ -> (@lock w.lock notify(w.condition)), WRITER_BOUND; interval = 1.0)
+    timer = Timer(_ -> (@lock w.lock notify(w.condition)), 1.0; interval = 1.0)
     try
         return @lock w.lock begin
-            while !all(in(w.finished), indices) && time() < deadline
+            while !all(in(w.finished), indices) && time() < deadline && g.counter[1] < g.ceiling
                 wait(w.condition)
             end
             [i for i in indices if !(i in w.finished)]
@@ -481,44 +481,53 @@ writer_key(returned) = first(returned)
     writer_require_threads()
     gpu = Backends.GPU()
     ceiling = writer_warm(gpu, (WRITER_CELLS, WRITER_BIG_COLUMNS))
+    first_failed = nothing
     for writers in (1, 2, 4)
         @testset "store_writers = $(writers): the first submission held until every later one has finished" begin
-            mktempdir() do dir
-                run = Provenance.mint_run_id()
-                reference, _, m = ST.seeded(joinpath(dir, "reference"); run = run)
-                pooled, _, _ = ST.seeded(joinpath(dir, "pooled"); run = run)
-                fields = writer_order_fields(m.support, run, Backends.CPU())
-                for (op, f) in enumerate(fields)
-                    ST.put(reference, run, f.field; operator_version = op, chunk_level = f.chunk_level)
-                end
-                w = Provenance.open_writer(pooled; run = run, profile = writer_order_profile(writers))
-                gate = writer_gate(gpu, ceiling)
-                source = Fields.data(fields[1].field)
-                big = Backends.on(zeros(size(source)...), gpu)
-                Backends.launch!(writer_copy_kernel!, gpu, length(big), big, Backends.on(source, gpu))
-                keys = []
-                missing, reached = writer_hold(gpu, gate) do point
-                    push!(keys, writer_key(ST.submit(w, run, ST.field(m.support, run, big); operator_version = 1,
-                                                     chunk_level = fields[1].chunk_level)))
-                    for op in 2:length(fields)
-                        push!(keys, writer_key(ST.submit(w, run, fields[op].field; operator_version = op,
-                                                         chunk_level = fields[op].chunk_level)))
+            if first_failed !== nothing
+                @test first_failed === nothing
+            else
+                mktempdir() do dir
+                    run = Provenance.mint_run_id()
+                    reference, _, m = ST.seeded(joinpath(dir, "reference"); run = run)
+                    pooled, _, _ = ST.seeded(joinpath(dir, "pooled"); run = run)
+                    fields = writer_order_fields(m.support, run, Backends.CPU())
+                    for (op, f) in enumerate(fields)
+                        ST.put(reference, run, f.field; operator_version = op, chunk_level = f.chunk_level)
                     end
-                    unfinished = writer_await(w, 2:length(fields))
-                    @test isempty(unfinished)
-                    @test !CUDA.isdone(point.event)
-                    @test !(1 in Provenance.finish_order(w))
-                    @test all(k -> !ispath(Provenance.object_directory(pooled, k)), keys)
-                    unfinished
-                end
-                @test !reached
-                if isempty(missing)
-                    Provenance.drain!(w)
-                    @test Provenance.outcomes(w) == fill(:committed, length(fields))
-                    @test last(Provenance.finish_order(w)) == 1
-                    @test writer_inverted(Provenance.finish_order(w))
-                    @test ST.tree(pooled.root) == ST.tree(reference.root)
-                    @test isempty(ST.staging_left(pooled.root))
+                    w = Provenance.open_writer(pooled; run = run, profile = writer_order_profile(writers))
+                    gate = writer_gate(gpu, ceiling)
+                    source = Fields.data(fields[1].field)
+                    big = Backends.on(zeros(size(source)...), gpu)
+                    Backends.launch!(writer_copy_kernel!, gpu, length(big), big, Backends.on(source, gpu))
+                    keys = []
+                    missing, reached = writer_hold(gpu, gate) do point
+                        push!(keys, writer_key(ST.submit(w, run, ST.field(m.support, run, big); operator_version = 1,
+                                                         chunk_level = fields[1].chunk_level)))
+                        for op in 2:length(fields)
+                            push!(keys, writer_key(ST.submit(w, run, fields[op].field; operator_version = op,
+                                                             chunk_level = fields[op].chunk_level)))
+                        end
+                        unfinished = writer_await(w, 2:length(fields), gate)
+                        @test isempty(unfinished)
+                        @test !CUDA.isdone(point.event)
+                        @test !(1 in Provenance.finish_order(w))
+                        @test all(k -> !ispath(Provenance.object_directory(pooled, k)), keys)
+                        unfinished
+                    end
+                    @test gate.counter[1] < gate.ceiling
+                    if isempty(missing)
+                        Provenance.drain!(w)
+                        @test Provenance.outcomes(w) == fill(:committed, length(fields))
+                        @test last(Provenance.finish_order(w)) == 1
+                        @test writer_inverted(Provenance.finish_order(w))
+                        @test ST.tree(pooled.root) == ST.tree(reference.root)
+                        @test isempty(ST.staging_left(pooled.root))
+                    end
+                    if !isempty(missing) || reached
+                        first_failed = "store_writers = $(writers): unfinished $(missing), gate counter " *
+                                       "$(gate.counter[1]) of its ceiling $(gate.ceiling)"
+                    end
                 end
             end
         end
@@ -530,54 +539,65 @@ end
     writer_require_threads()
     gpu = Backends.GPU()
     ceiling = writer_warm(gpu, (WRITER_CELLS, WRITER_BIG_COLUMNS))
+    first_failed = nothing
     for offset in (4, 0)
         @testset "the held second submission's fault kernel writing at offset $(offset)" begin
-            mktempdir() do dir
-                run = Provenance.mint_run_id()
-                store, _, m = ST.seeded(dir; run = run)
-                fields = writer_order_fields(m.support, run, Backends.CPU())
-                w = Provenance.open_writer(store; run = run, profile = writer_order_profile(2))
-                keys = [writer_key(ST.submit(w, run, fields[2].field; operator_version = 1,
-                                             chunk_level = fields[2].chunk_level))]
-                gate = writer_gate(gpu, ceiling)
-                source = Fields.data(fields[1].field)
-                big = Backends.on(zeros(size(source)...), gpu)
-                Backends.launch!(writer_copy_kernel!, gpu, length(big), big, Backends.on(source, gpu))
-                Backends.launch!(writer_fault_kernel!, gpu, 4, Backends.on(zeros(4), gpu), offset)
-                missing, reached = writer_hold(gpu, gate) do point
-                    push!(keys, writer_key(ST.submit(w, run, ST.field(m.support, run, big); operator_version = 2,
-                                                     chunk_level = fields[1].chunk_level)))
-                    for op in 3:length(fields)
-                        push!(keys, writer_key(ST.submit(w, run, fields[op].field; operator_version = op,
-                                                         chunk_level = fields[op].chunk_level)))
+            if first_failed !== nothing
+                @test first_failed === nothing
+            else
+                mktempdir() do dir
+                    run = Provenance.mint_run_id()
+                    store, _, m = ST.seeded(dir; run = run)
+                    fields = writer_order_fields(m.support, run, Backends.CPU())
+                    w = Provenance.open_writer(store; run = run, profile = writer_order_profile(2))
+                    keys = [writer_key(ST.submit(w, run, fields[2].field; operator_version = 1,
+                                                 chunk_level = fields[2].chunk_level))]
+                    gate = writer_gate(gpu, ceiling)
+                    source = Fields.data(fields[1].field)
+                    big = Backends.on(zeros(size(source)...), gpu)
+                    Backends.launch!(writer_copy_kernel!, gpu, length(big), big, Backends.on(source, gpu))
+                    Backends.launch!(writer_fault_kernel!, gpu, 4, Backends.on(zeros(4), gpu), offset)
+                    missing, reached = writer_hold(gpu, gate) do point
+                        push!(keys, writer_key(ST.submit(w, run, ST.field(m.support, run, big); operator_version = 2,
+                                                         chunk_level = fields[1].chunk_level)))
+                        for op in 3:length(fields)
+                            push!(keys, writer_key(ST.submit(w, run, fields[op].field; operator_version = op,
+                                                             chunk_level = fields[op].chunk_level)))
+                        end
+                        unfinished = writer_await(w, [1; 3:length(fields)], gate)
+                        @test isempty(unfinished)
+                        @test !CUDA.isdone(point.event)
+                        @test !(2 in Provenance.finish_order(w))
+                        @test all(k -> !ispath(Provenance.object_directory(store, k)), keys)
+                        unfinished
                     end
-                    unfinished = writer_await(w, [1; 3:length(fields)])
-                    @test isempty(unfinished)
-                    @test !CUDA.isdone(point.event)
-                    @test !(2 in Provenance.finish_order(w))
-                    @test all(k -> !ispath(Provenance.object_directory(store, k)), keys)
-                    unfinished
-                end
-                @test !reached
-                if isempty(missing)
-                    e = ST.caught(() -> Provenance.settle!(w))
-                    later = length(fields) - 2
-                    if offset > 0
-                        @test ST.refused(e, "surface_mass",
-                                         "submission 2 of surface_mass under key $(bytes2hex(collect(keys[2].digest)))")
-                        @test e isa Verdicts.Refusal && occursin("kernel completion at Backends.complete!: KernelException", e.reason)
-                        @test e isa Verdicts.Refusal && occursin("writer_fault_kernel!", e.reason)
-                        @test e isa Verdicts.Refusal && occursin("; $(later) later submissions discarded", e.reason)
-                        @test Provenance.outcomes(w) == [:committed; :refused; fill(:discarded, later)]
-                        @test isfile(writer_manifest(store, keys[1]))
-                        @test all(k -> !ispath(Provenance.object_directory(store, k)), keys[2:end])
+                    @test gate.counter[1] < gate.ceiling
+                    if isempty(missing)
+                        e = ST.caught(() -> Provenance.settle!(w))
+                        later = length(fields) - 2
+                        if offset > 0
+                            @test ST.refused(e, "surface_mass",
+                                             "submission 2 of surface_mass under key $(bytes2hex(collect(keys[2].digest)))")
+                            @test e isa Verdicts.Refusal && occursin("kernel completion at Backends.complete!: KernelException", e.reason)
+                            @test e isa Verdicts.Refusal && occursin("writer_fault_kernel!", e.reason)
+                            @test e isa Verdicts.Refusal && occursin("; $(later) later submissions discarded", e.reason)
+                            @test Provenance.outcomes(w) == [:committed; :refused; fill(:discarded, later)]
+                            @test isfile(writer_manifest(store, keys[1]))
+                            @test all(k -> !ispath(Provenance.object_directory(store, k)), keys[2:end])
+                        else
+                            @test e === nothing
+                            @test Provenance.outcomes(w) == fill(:committed, length(fields))
+                            @test all(k -> isfile(writer_manifest(store, k)), keys)
+                        end
+                        @test isempty(ST.staging_left(store.root))
+                        @test ST.caught(() -> Provenance.drain!(w)) === nothing
                     else
-                        @test e === nothing
-                        @test Provenance.outcomes(w) == fill(:committed, length(fields))
-                        @test all(k -> isfile(writer_manifest(store, k)), keys)
+                        ST.caught(() -> Backends.complete!(gpu))
                     end
-                    @test isempty(ST.staging_left(store.root))
-                    @test ST.caught(() -> Provenance.drain!(w)) === nothing
+                    if !isempty(missing) || reached
+                        first_failed = "offset $(offset): unfinished $(missing), gate counter " *
+                                       "$(gate.counter[1]) of its ceiling $(gate.ceiling)"
+                    end
                 end
             end
         end
