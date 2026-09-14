@@ -8,9 +8,10 @@ using Fiddlybits: Fiddlybits, Provenance, Fields, Mesh, Time, Dimensions, Backen
 # and provenance.write_ceiling_held, docs/plans/fiddlybits-52v.6-provenance.md, section "The
 # writer"; decisions 0027, 0029, 0038 and 0060; docs/imports/zarr.md.
 #
-# Tasks below are ordered by Channels, by fetch and by the writer's lock. The GPU order arm
-# reads how far the card has run through a handoff's event and fails when the stream has
-# already finished.
+# Tasks below are ordered by Channels, by fetch and by the writer's lock and condition. The
+# GPU order arm queues the large field's copy behind a running kernel, waits on the writer's
+# condition until every other submission has finished, and fails when the stream has
+# already finished by then; the CPU order arm has no such hold and reads no finish order.
 
 isdefined(@__MODULE__, :StoreFixtures) || include(joinpath(@__DIR__, "..", "io", "store_fixtures.jl"))
 import .StoreFixtures as ST
@@ -246,10 +247,15 @@ writer_order_profile(writers) = ST.profile(write_ceiling = 64_000_000, store_wri
                         for (op, f) in enumerate(fields)
                             ST.submit(w, run, f.field; operator_version = op, chunk_level = f.chunk_level)
                         end
-                        gpu === nothing || @test !CUDA.isdone(Backends.handoff(gpu).event)
+                        if gpu !== nothing
+                            @lock w.lock while length(w.finished) < length(fields) - 1
+                                wait(w.condition)
+                            end
+                            @test !CUDA.isdone(Backends.handoff(gpu).event)
+                        end
                         Provenance.drain!(w)
                         @test ST.tree(pooled.root) == ST.tree(reference.root)
-                        @test writer_inverted(Provenance.finish_order(w))
+                        gpu === nothing || @test writer_inverted(Provenance.finish_order(w))
                         @test sort(Provenance.finish_order(w)) == collect(1:length(fields))
                     end
                 end
@@ -335,14 +341,23 @@ end
                 mktempdir() do dir
                     run = Provenance.mint_run_id()
                     store, _, m = ST.seeded(dir; run = run)
-                    ceiling = 1_400_000
+                    ceiling = 2_000_000
+                    up = Provenance.CellIds(level = ST.level() - 1)
                     w = Provenance.open_writer(store; run = run, profile = ST.profile(write_ceiling = ceiling, store_writers = 1))
                     for op in 1:24
-                        data = Backends.on(writer_pattern(Float64, (WRITER_CELLS, 64), 200 + op), backend)
-                        ST.submit(w, run, ST.field(m.support, run, data); operator_version = op)
+                        if isodd(op)
+                            data = Backends.on(writer_pattern(UInt64, (WRITER_CELLS, 64), 200 + op), backend)
+                            ST.submit(w, run, ST.field(m.support, run, data); operator_version = op)
+                        else
+                            ids = [mod1(i + op, Mesh.ncells(ST.level() - 1)) for i in 1:WRITER_CELLS, _ in 1:64]
+                            ST.submit(w, run, nothing; operator_version = op, chunk_level = 1,
+                                      writer_cell_keywords(m.support, run, Backends.on(ids, backend), up)...)
+                        end
                     end
                     Provenance.drain!(w)
                     charges = Provenance.submitted_charges(w)
+                    parts = Provenance.charge_parts(w)
+                    peaks = Provenance.submission_peaks(w)
                     @test sum(charges) > 4 * ceiling
                     @test maximum(charges) <= ceiling
                     @test Provenance.pool_high_water(w) <= ceiling
@@ -350,6 +365,21 @@ end
                     @test Provenance.host_high_water(w) > 0
                     @test Provenance.pool_held(w) == 0
                     @test Provenance.outcomes(w) == fill(:committed, 24)
+
+                    @testset "every submission's host buffers held at once stay within its own charge" begin
+                        @test all(peaks .<= charges)
+                        @test all(p -> p.buffer > 0, parts)
+                        @test all(isodd(i) ? parts[i].translated == 0 : parts[i].translated == parts[i].host
+                                  for i in eachindex(parts))
+                    end
+
+                    # The odd submissions hold UInt64 bits of the mixing formula, whose chunks
+                    # compress to their bytes plus the Blosc header, so the chunk buffer is held
+                    # beside compressed chunks of their worst-case size.
+                    @testset "positive control: a charge leaving out the translated array or the chunk buffer is exceeded" begin
+                        @test all(peaks[i] > charges[i] - parts[i].translated for i in eachindex(parts) if iseven(i))
+                        @test all(peaks[i] > charges[i] - parts[i].buffer for i in eachindex(parts) if isodd(i))
+                    end
                 end
             end
 

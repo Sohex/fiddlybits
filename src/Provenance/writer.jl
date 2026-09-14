@@ -13,26 +13,29 @@ using ..Backends: Backends, GPU, BytePool, Handoff, after!, backend_of, charge!,
     Submission
 
 One write handed to a `Writer`: `index`, its place in submission order; `admission`;
-`host`, the host buffer its copy lands in, and `point`, the copy's `Handoff`; `host_bytes`
-and `compressed_bytes`, the two parts of its charge; `device`, whether its data lived on
-the card. The stages set `chunks`, its compressed chunks in chunk order, and `staging`, its
-staging directory; `refusal`, the late refusal it met; `landed`, once no stage holds it;
-and `outcome`, `:pending` until the commit makes it `:committed`, `:refused` or
-`:discarded`. Every field a stage or the commit sets is set under the writer's lock.
+`host`, the host buffer its copy lands in, and `point`, the copy's `Handoff`; `charge`, the
+`write_charge` it took; `device`, whether its data lived on the card. The stages set
+`chunks`, its compressed chunks in chunk order, and `staging`, its staging directory;
+`refusal`, the late refusal it met; `landed`, once no stage holds it; `outcome`, `:pending`
+until the commit makes it `:committed`, `:refused` or `:discarded`; and `holding` and
+`peak`, the host bytes the writer holds for it now and the most at once, each buffer
+counted by its own `sizeof` and each compressed chunk by its compressed length. Every field
+a stage or the commit sets is set under the writer's lock.
 """
 mutable struct Submission
     const index::Int
     const admission::Admission
     const host::Vector
     const point::Handoff
-    const host_bytes::Int
-    const compressed_bytes::Int
+    const charge::NamedTuple{(:host, :translated, :buffer, :compressed),NTuple{4,Int}}
     const device::Bool
     chunks::Vector{Vector{UInt8}}
     staging::Union{Nothing,String}
     refusal::Union{Nothing,Refusal}
     landed::Bool
     outcome::Symbol
+    holding::Int
+    peak::Int
 end
 
 """
@@ -48,8 +51,8 @@ once `drain!` began; `stopped`, once its stages stopped; `cleared`, the submissi
 settle's `Backends.complete!` has run after; `settled`, the submissions the commit has
 walked; `refused`, the index of the earliest refused submission the commit met, zero for
 none; `lowest_refusal`, the lowest index any stage recorded a refusal at; `reported`, once
-`settle!` has raised that refusal; `host_alive` and `host_high_water`, the bytes of host
-buffers allocated and not yet freed, each counted by its own `sizeof`, and the most at once.
+`settle!` has raised that refusal; `host_alive` and `host_high_water`, the sum of every
+submission's `holding` and the most at once.
 """
 mutable struct Writer
     const store::Store
@@ -134,16 +137,53 @@ const SUBMIT_SITE = "Provenance.submit!"
 """
     write_charge(admission)
 
-`(host, compressed)`, the bytes of `admission`'s charge: `host`, the bytes of its data; and
-`compressed`, over each of its chunks, the chunk's bytes plus `Zarr.Blosc.MAX_OVERHEAD`.
+`(host, translated, buffer, compressed)`, the bytes of every host buffer the writer holds
+for `admission`, the four parts of its charge: `host`, its host copy, the bytes of its
+data; `translated`, the array `to_disk` makes, the bytes of its data for `CellIds` and none
+for `Amounts`; `buffer`, the chunk-shaped array `compress_chunks` copies each chunk into,
+one chunk's bytes; and `compressed`, over each of its chunks, the chunk's bytes plus
+`Zarr.Blosc.MAX_OVERHEAD`. The encode stage releases the first three and the disk stage
+the fourth.
 """
 function write_charge(a::Admission)
     T = eltype(a.data)
     cells = size(a.data, 1)
     per_cell = div(length(a.data), cells)
+    data_bytes = sizeof(T) * length(a.data)
     chunk_bytes = sizeof(T) * a.per_chunk * per_cell
-    return (host = sizeof(T) * length(a.data),
+    return (host = data_bytes, translated = a.values isa CellIds ? data_bytes : 0, buffer = chunk_bytes,
             compressed = div(cells, a.per_chunk) * (chunk_bytes + Zarr.Blosc.MAX_OVERHEAD))
+end
+
+"The bytes of every part of `charge`, a `write_charge`."
+charge_total(charge) = charge.host + charge.translated + charge.buffer + charge.compressed
+
+"The parts of `charge`, a `write_charge`, the encode stage releases."
+encode_part(charge) = charge.host + charge.translated + charge.buffer
+
+"""
+    hold!(writer, s, bytes)
+
+Adds `bytes` to what `writer` holds for `s` under the writer's lock, raising `s.peak` and the
+writer's `host_high_water` to what is now held when it is more.
+"""
+function hold!(w::Writer, s::Submission, bytes::Int)
+    @lock w.lock begin
+        s.holding += bytes
+        s.peak = max(s.peak, s.holding)
+        w.host_alive += bytes
+        w.host_high_water = max(w.host_high_water, w.host_alive)
+    end
+    return nothing
+end
+
+"Subtracts `bytes` from what `writer` holds for `s`, under the writer's lock."
+function drop!(w::Writer, s::Submission, bytes::Int)
+    @lock w.lock begin
+        s.holding -= bytes
+        w.host_alive -= bytes
+    end
+    return nothing
 end
 
 """
@@ -164,7 +204,7 @@ function enqueue!(w::Writer, a::Admission, run::RunID)
     run == w.run || refuse(
         "run", SUBMIT_SITE, "the writer writes run $(w.run.uuid), and the submission names run $(run.uuid)")
     charge = write_charge(a)
-    charge!(w.pool, charge.host + charge.compressed)
+    charge!(w.pool, charge_total(charge))
     device = backend_of(a.data) === :gpu
     host = nothing
     point = try
@@ -172,16 +212,15 @@ function enqueue!(w::Writer, a::Admission, run::RunID)
         copy_to_host!(host, a.data)
     catch
         host === nothing || free_host_buffer!(host)
-        release!(w.pool, charge.host + charge.compressed)
+        release!(w.pool, charge_total(charge))
         rethrow()
     end
     s = @lock w.lock begin
-        s = Submission(length(w.submissions) + 1, a, host, point, charge.host, charge.compressed, device,
-                       Vector{UInt8}[], nothing, nothing, false, :pending)
+        s = Submission(length(w.submissions) + 1, a, host, point, charge, device,
+                       Vector{UInt8}[], nothing, nothing, false, :pending, 0, 0)
         push!(w.submissions, s)
         w.dirs[a.dir] = s.index
-        w.host_alive += sizeof(host)
-        w.host_high_water = max(w.host_high_water, w.host_alive)
+        hold!(w, s, sizeof(host))
         s
     end
     put!(w.encode_queue, s)
@@ -228,21 +267,25 @@ function mark_landed!(w::Writer, s::Submission, refusal)
 end
 
 """
-    compress_chunks(disk, per_chunk)
+    compress_chunks(held, disk, per_chunk)
 
 The chunks of `disk` along its cell axis, `per_chunk` cells each and whole along every other
-axis, each copied into an `Array` of the chunk's shape and compressed by
-`Zarr.zcompress` with `compressor()` under `BLOSC_LOCK`, in chunk order.
+axis, each copied into one `Array` of the chunk's shape and compressed by `Zarr.zcompress`
+with `compressor()` under `BLOSC_LOCK`, in chunk order. Calls `held(bytes)` with the
+`sizeof` of that array once it is allocated and with the length of each compressed chunk
+once it is made.
 """
-function compress_chunks(disk::AbstractArray, per_chunk::Int)
+function compress_chunks(held, disk::AbstractArray, per_chunk::Int)
     rest = size(disk)[2:end]
     buffer = Array{eltype(disk)}(undef, per_chunk, rest...)
+    held(sizeof(buffer))
     others = ntuple(_ -> Colon(), ndims(disk) - 1)
     starts = 1:per_chunk:size(disk, 1)
     chunks = Vector{Vector{UInt8}}(undef, length(starts))
     for (c, first) in enumerate(starts)
         copyto!(buffer, view(disk, first:(first + per_chunk - 1), others...))
         chunks[c] = @lock BLOSC_LOCK Zarr.zcompress(buffer, compressor())
+        held(sizeof(chunks[c]))
     end
     return chunks
 end
@@ -251,26 +294,37 @@ end
     encode_stage!(writer, s)
 
 The encode stage for `s`: reads under the writer's lock, before anything of `s`, whether an
-earlier submission is refused; unless one is, waits on its copy's handoff through `after!(CPU(), point)`, translates the host copy by `to_disk` and compresses
-it by `compress_chunks`. Then frees the host buffer and releases the copy's charge. Queues
-`s` for the disk stage when it compressed; otherwise releases the compressed charge and
-marks `s` landed with the refusal it met, if any.
+earlier submission is refused; unless one is, waits on its copy's handoff through
+`after!(CPU(), point)`, translates the host copy by `to_disk`, holding the translated array
+for `CellIds`, and compresses it by `compress_chunks`, holding its chunk buffer and each
+compressed chunk. Then frees the host buffer, drops everything it held for `s` but the
+compressed chunks, and releases the host, translated and buffer parts of the charge. Queues
+`s` for the disk stage when it compressed; otherwise drops the chunks, releases the
+compressed part and marks `s` landed with the refusal it met, if any. Waits on nothing
+between taking `s` and releasing its parts but the handoff and `BLOSC_LOCK`.
 """
 function encode_stage!(w::Writer, s::Submission)
     a = s.admission
     skip = dropped(w, s)
+    kept = 0
     refusal = skip ? nothing : stage_refusal(a) do
         after!(CPU(), s.point)
         disk = to_disk(a.values, reshape(s.host, size(a.data)), a.site)
-        chunks = compress_chunks(disk, a.per_chunk)
+        a.values isa CellIds && hold!(w, s, sizeof(disk))
+        chunks = compress_chunks(bytes -> hold!(w, s, bytes), disk, a.per_chunk)
+        kept = sum(sizeof, chunks; init = 0)
         @lock w.lock s.chunks = chunks
     end
     freed = stage_refusal(() -> free_host_buffer!(s.host), a)
     refusal = refusal === nothing ? freed : refusal
-    @lock w.lock w.host_alive -= sizeof(s.host)
-    s.host_bytes > 0 && release!(w.pool, s.host_bytes)
-    if skip || refusal !== nothing
-        release!(w.pool, s.compressed_bytes)
+    failed = skip || refusal !== nothing
+    @lock w.lock begin
+        failed && (s.chunks = Vector{UInt8}[])
+        drop!(w, s, failed ? s.holding : s.holding - kept)
+    end
+    release!(w.pool, encode_part(s.charge))
+    if failed
+        release!(w.pool, s.charge.compressed)
         mark_landed!(w, s, refusal)
     else
         put!(w.disk_queue, s)
@@ -302,8 +356,9 @@ end
 
 The disk stage for `s`: unless an earlier submission is refused, writes it by
 `write_staged!` into a `new_staging` directory beside its place, removing that directory
-when the write raises. Then releases the compressed charge, appends `s` to the finish
-record when it was staged, and marks it landed with the refusal it met, if any.
+when the write raises. Then drops the compressed chunks it held for `s`, releases the
+compressed part of the charge, appends `s` to the finish record when it was staged, and
+marks it landed with the refusal it met, if any.
 """
 function disk_stage!(w::Writer, s::Submission)
     a = s.admission
@@ -317,12 +372,13 @@ function disk_stage!(w::Writer, s::Submission)
     staged = !skip && refusal === nothing
     @lock w.lock begin
         s.chunks = Vector{UInt8}[]
+        drop!(w, s, s.holding)
         if staged
             s.staging = staging
             push!(w.finished, s.index)
         end
     end
-    release!(w.pool, s.compressed_bytes)
+    release!(w.pool, s.charge.compressed)
     mark_landed!(w, s, refusal)
     return nothing
 end
@@ -491,9 +547,15 @@ finish_order(w::Writer) = @lock w.lock copy(w.finished)
 outcomes(w::Writer) = @lock w.lock [s.outcome for s in w.submissions]
 
 "The whole charge each of `writer`'s submissions took, in submission order."
-submitted_charges(w::Writer) = @lock w.lock [s.host_bytes + s.compressed_bytes for s in w.submissions]
+submitted_charges(w::Writer) = @lock w.lock [charge_total(s.charge) for s in w.submissions]
 
-"The most bytes of host buffers `writer` has held allocated at once."
+"The `write_charge` each of `writer`'s submissions took, in submission order."
+charge_parts(w::Writer) = @lock w.lock [s.charge for s in w.submissions]
+
+"The most host bytes `writer` held at once for each of its submissions, in submission order."
+submission_peaks(w::Writer) = @lock w.lock [s.peak for s in w.submissions]
+
+"The most host bytes `writer` has held at once over all its submissions."
 host_high_water(w::Writer) = @lock w.lock w.host_high_water
 
 "The most bytes `writer`'s pool has held charged at once."
