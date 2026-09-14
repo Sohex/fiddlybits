@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-014"
 title = "A sensitivity is a chord between two converged runs that share everything but one input, carries its pair identity and regime, and is never carried across a regime boundary; a derived design quantity's thresholds are declared before it is derived"
-old_path = ["/home/cfutro/docs/world/notes/audits/design-flux-two-point-response.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/design-flux-two-point-response.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -82,8 +82,8 @@ registered before it runs (decision 0025, anti-tuning).
 
 ## Enforced by
 
-- Decision 0010 (run identity by hash), decision 0025 (thresholds registered
-  before the first artifact; `answers:` discipline), decision 0007 (`Bracketed`
+- Decision 0010 (run identity by hash), decision 0025 (a bar fixed before
+  the value it judges has been seen; `answers:` discipline), decision 0007 (`Bracketed`
   swept).
 - The `Sensitivity` type and its regime check; the M4b sweeps (decision 0034)
   that make the regime dependence of every slope a measured table.

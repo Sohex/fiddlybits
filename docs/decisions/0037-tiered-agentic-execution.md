@@ -98,3 +98,4 @@ applies (a worktree does not regenerate a linked artifact).
   wanted by. It is carried by survey and reading rows, which are timed to a milestone
   without belonging to its epic; rows that sit under a milestone epic take their
   milestone from the parent and do not repeat it.
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

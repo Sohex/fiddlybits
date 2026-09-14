@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-015"
 title = "A convergence verdict is an upper-bound statistic over an autocorrelation-corrected window sized to resolve its own threshold; the estimator is chosen by whether it can decide the criterion; memory time and relaxation time are two quantities"
-old_path = ["/home/cfutro/docs/world/notes/audits/flux-slope-bracket.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/flux-slope-bracket.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -102,8 +102,9 @@ are this record. The class is statistical, not a property of the old model.
 - A synthetic-series oracle with closed-form memory and relaxation times, run per
   commit, that fails if the corrected SE stops covering the empirical spread
   (decision 0026).
-- Decision 0025: thresholds registered before the first artifact they judge;
-  the form of a criterion may change only while nothing it judged is kept.
+- Decision 0025: a bar is fixed before the value it judges has been seen; a
+  criterion that differs from its registration is unregistered until it is
+  registered again.
 
 ## References
 

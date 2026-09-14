@@ -106,3 +106,4 @@ slow tier to the fast one, and that is the loop this machinery serves.
   which settles first whether they belong to the M0 deliverable of decision 0034,
   since that record does not name them. Found while writing
   `docs/plans/fiddlybits-52v.1-skeleton.md`.
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

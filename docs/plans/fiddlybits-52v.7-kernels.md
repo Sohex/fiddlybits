@@ -63,12 +63,18 @@ struct GPU <: Backend   ...
 
 on(array, backend)           move, recording it through Events.moved
 adapt_for(x, backend)        Adapt.adapt_structure through to the device
-launch!(kernel, backend, n)  one launch, workgroup size from the backend, queued
+launch!(kernel, backend, n)  one launch at launch_workgroup(backend, n), queued
+launch_workgroup(backend, n) the one door choosing a launch's workgroup (decision 0058)
+at_workgroup(backend, w)     the backend pinned to workgroup w, for a fixed layout
 complete!(backend | array)   the wait, and the only wait in this module
 queued(backend)              the kernels launched and not yet waited for
+queued_launches(backend)     the same launches with their workgroup and item count
 handoff(backend)             a point in this task's queue, for another task
 after!(backend, handoff)     queue behind that point, waiting on the device
 order_explicitly!(array)     leave the library's per-array ordering to these
+host_buffer(backend, T, n)   a Vector{T} a device copy lands in; page-locked on GPU
+copy_to_host!(host, array)   -> Handoff; the copy queued behind this task's kernels, no host wait
+free_host_buffer!(buffer)    release host_buffer's page lock
 ```
 
 **A launch queues and does not wait.** `launch!` compiles, launches and returns;
@@ -78,9 +84,13 @@ this task queued on it, and on an array, for the stream that last held that arra
 which is the kernel that wrote it even when another task queued it. `queued` is the
 task-local record of what `launch!` has queued and no `complete!` has waited for,
 bounded in length, and it is what a failed wait is named from, because an
-asynchronous launch cannot put the faulting kernel on the host stack. `on` and
-`adapt_for` call `complete!` before they read device memory on the host, so a host
-read never reaches an unfinished write through this module. A barrier after every
+asynchronous launch cannot put the faulting kernel on the host stack. There are two
+device-to-host copies. `on` and `adapt_for` call `complete!` before they read device
+memory on the host. `copy_to_host!` queues its copy into a page-locked `host_buffer` on
+the stream this task queues on, behind the kernels that wrote the array, records the
+move, and returns a `handoff` without a host wait; the host bytes are read once
+`after!(CPU(), point)` has returned, and a task waiting there yields its thread. Either
+way a host read never reaches an unfinished write through this module. A barrier after every
 launch is what decision 0038 rejects, and reintroducing one here would undo that; the
 path-by-path argument for every route from a kernel to a read, marked where it is
 checked and where it rests on the platform, is
@@ -165,10 +175,90 @@ pairwise_sum(::Type{A}, xs, backend; blocksize)         fixed-order, fixed block
 compensated_sum(xs)                                     Kahan, FP64 accumulator regardless of eltype
 segmented_sum(::Type{A}, xs, starts, backend)           one fixed-order tree per segment
 segmented_mean(::Type{A}, xs, starts, weights, backend)
-Segmentation(xs, starts)                                a boundary array checked once
+Segmentation(xs, starts)                                a boundary array checked once, against size(xs, 1)
 segmented_sum(::Type{A}, xs, segmentation, backend)     the same reductions, nothing re-checked
+segmented_weighted_sum(::Type{A}, xs, weights, segmentation, backend)
 segmented_mean(::Type{A}, xs, segmentation, weights, backend)
 ```
+
+Each of these, and `segmented_quantile` below, has a column form taking `xs` as an array
+of cells by trailing axes laid out per `Backends.LAYOUT`, with `weights` a vector of one
+value per cell:
+
+```
+segmented_sum(::Type{A}, xs::AbstractArray, starts | segmentation, backend)           (nseg, trailing...) on backend
+segmented_weighted_sum(::Type{A}, xs::AbstractArray, weights, segmentation, backend)  (nseg, trailing...) on backend
+segmented_mean(::Type{A}, xs::AbstractArray, starts | segmentation, weights, backend) (nseg, trailing...) on backend, one read
+segmented_quantile(xs::AbstractArray, starts | segmentation, q, backend)              (nseg, trailing...) on backend
+pairwise_block_sums(::Type{A}, xs::AbstractArray, backend; blocksize)                 (nblocks, trailing...) on backend
+pairwise_sum(::Type{A}, xs::AbstractArray, backend; blocksize)                        Array{A} of the trailing shape on the host, one read
+```
+
+Column `c` of every column form is the vector form's result on column `c` of `xs`, bit
+for bit, and each column form launches one kernel whatever the trailing extent, with one
+work item per segment (or block) and column: `launch_segment_columns!`,
+`launch_column_block_sums!` and `launch_quantiles!` are the doors. `pairwise_sum` and
+`segmented_mean`'s zero-weight refusal read the device once whatever the trailing extent.
+The weights are read by every column and never repeated to the size of `xs`. Each column
+form's reference path runs the vector form's reference over each column in turn. The
+layout measurement that chose one work item per segment and column over one per segment
+with the columns inside is in the notes of `fiddlybits-52v.7.59`.
+
+`segmented_mean` and `segmented_weighted_sum` also have a class form, taking the labels
+of a categorical field in the one form a kernel reads:
+
+```
+ClassIndicator{T}(labels, legend, backend)                                            the one-hot of labels over legend in T, never materialised
+AbsoluteValues(values)                                                                abs.(values), never materialised
+segmented_mean(::Type{A}, xs::ClassIndicator, starts | segmentation, weights, backend) (nseg, trailing..., nclass) on backend, one read
+segmented_weighted_sum(::Type{A}, xs::ClassIndicator, weights, segmentation, backend)  (nseg, trailing..., nclass) on backend
+```
+
+A `ClassIndicator` is an `AbstractArray{T}` of size `(size(labels)..., nclass)` whose entry
+`[i..., k]` is one where label `i` is class `k` of the legend and zero elsewhere. It holds
+the legend, and each label's position in the legend on the backend in the narrowest
+unsigned type that holds the legend length; its one constructor refuses an empty legend, a
+legend naming a class twice, and a label the legend does not name. The positions are read
+as the indicator and as nothing else: by `getindex` on the host and by the class kernels
+on either backend, and no function returns one. Entry `[s, c..., k]` of each class form is
+the column form's result on the materialised one-hot, bit for bit: every term is the
+indicator in `A` times the weight, the zero terms included, in the column form's order.
+Each class form launches one kernel whatever the legend length, through
+`launch_segment_classes!`, with one work item per segment, column and class. The weights
+may be `AbsoluteValues` of a vector, which the kernel reads as their absolute values, so a
+ledger's magnitude never materialises `abs.(weights)`. The reference path materialises
+the one-hot and the weights on the host and runs the column form's reference.
+
+**How a label reaches a kernel.** A label is a named class read with its legend and never
+an integer code (decision 0006, `docs/plans/fiddlybits-52v.3-fields.md` section The closed
+vocabularies), and no kernel reads a `Symbol`. A position in the legend is what a kernel
+can compare, so the question is where such a position may exist. Here it is built at the
+reduction's door from the labels and the legend the call names, lives for one call inside
+a type whose only reading is the one-hot, and is never stored in a field or returned.
+Because that type is an array of the one-hot, `Fields.class_shares` and
+`Fields.class_area_totals` take it unchanged, and the label histogram and the
+class-fraction coarsening stay one definition reached through the same functions. Four
+alternatives were weighed:
+
+- A plain integer array of positions and the legend length, passed to a reduction of its
+  own name. The same kernel, but the array is a code any holder can read apart from its
+  legend, and `Fields` would reach the label path's shares and totals through functions
+  of their own beside the fraction path's: two definitions of one quantity, held equal
+  only by a test.
+- A label field stored as positions in its legend. A code at rest, which decision 0006
+  refuses, and a change to `Field` itself.
+- A numeric identity per `Symbol` (its pointer or a hash). A code whose meaning is the
+  process rather than the legend, and a hash admits two classes one value.
+- One class's indicator at a time, built on the host and moved to the backend, the path
+  `fiddlybits-52v.3.12` left in place: a host buffer and a device copy the size of the
+  input for each class, and a launch for each class.
+
+**The layout.** One work item per segment, column and class walks its segment once and
+adds every cell's term. One work item per segment and column, adding each cell's weight to
+its own class's accumulator, walks the cells once rather than once per class, but adds
+only the terms of the matching class, which is not the one-hot's arithmetic where a weight
+is not finite, and needs its output zeroed before the launch. The legend length multiplies
+the work items of one launch and not the launches or the host reads.
 
 Every segmented reduction takes either a boundary array or a `Segmentation`. A
 boundary array is checked on every call, which on a device-resident array means it
@@ -223,8 +313,11 @@ certify_case(kernel, case, steps; roundoff)         PASS only when every arm cas
 
 `envelope` runs a CPU ensemble whose members each have one field perturbed by one ulp
 in one cell, and measures the divergence as a function of step count. A pair is not
-an ensemble: the member count is declared and the registry states the miss rate that
-count can detect, because a stochastic property tested by a pair is not tested.
+an ensemble: the member count is declared, and the registry's `ulp_ensemble`
+instrument states it with the seed and the miss rate that count can detect, as
+parameters checked against the constants that hold them
+(`docs/decisions/0057-an-instrument-rows-measure-with-is-declared-once.md`), because a
+stochastic property tested by a pair is not tested.
 
 The ulp is one ulp at `precision`, the precision whose divergence the envelope is the
 tolerance of, and it is taken at every step an error could be injected at rather than
@@ -274,9 +367,11 @@ obligation: given a case and a step count rather than a caller-built envelope, t
 run the sampled arm and the exhaustive arm of every `Obligation` the case declares,
 and the case-level verdict is `PASS` only when every arm is. The two registry rows
 this certification serves, `repro.backend_ulp_envelope` and
-`repro.fp32_kernel_certification`, now carry that requirement in their own threshold
-text (`fiddlybits-52v.7.24`): a certification of a case that declares an
-`Obligation` is not admissible from the sampled arm alone.
+`repro.fp32_kernel_certification`, name the `ulp_ensemble` instrument, whose one
+definition carries that requirement (`fiddlybits-52v.7.24`, `fiddlybits-859`): a
+certification of a case that declares an `Obligation` is not admissible from the
+sampled arm alone. Neither row states the instrument's definition or rests on the
+other's verdict.
 
 A kernel enters a production profile at FP32 only when its FP32 output stays inside
 the envelope of its FP64 self. Ledgers, accumulated reservoirs and global reductions

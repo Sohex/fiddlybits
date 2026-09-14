@@ -62,3 +62,7 @@ the hole is closed or the mutation is recorded as out of scope with the reason.
 - On mutation testing as a measure of test-suite adequacy: DeMillo, R. A., R. J.
   Lipton, and F. G. Sayward. "Hints on Test Data Selection: Help for the Practicing
   Programmer." Computer 11 (1978). DOI: 10.1109/C-M.1978.218136.
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-011"
 title = "Lake storage is integrated in closed form on the hypsometric curve per forcing interval, the year must close on itself, and the balance is published per interval"
-old_path = ["/home/cfutro/docs/world/hydrography/notes/lake-balance-integration.md"]
+old_path = ["/home/cfutro/git/vesper/hydrography/notes/lake-balance-integration.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,0 +1,19 @@
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+statistic = "sum of primal cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
+threshold = "roundoff"
+
+[[oracle]]
+id = "repro.backend_ulp_envelope"
+tier = 1
+statistic = "CPU versus GPU divergence at every step against the ensemble envelope"
+verdict_kind = "fail_bar"
+threshold = "inside the envelope at every step"
+instrument = "ulp_ensemble"
+
+[[instrument]]
+id = "ulp_ensemble"
+definition = "The ensemble holds Backends.ENSEMBLE_MEMBERS members drawn without replacement from the usable sites; the sampled arm is scored over the cells mesh.area_closure sums."
+parameters = { "Backends.ENSEMBLE_MEMBERS" = 766 }

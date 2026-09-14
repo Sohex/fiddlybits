@@ -5,24 +5,23 @@
 #   julia --project tools/nightly/run.jl <workers>
 #
 # It runs the same suites as the gate, through the same driver, with
-# `--check-bounds=yes` added. Decision 0050 keeps that flag off the gate because it
-# costs a factor of 2.2 against a wall time the remote's idle timeout bounds; nothing
-# bounds a nightly, so the coverage lands here rather than nowhere.
+# `--check-bounds=yes` added to every suite. Decision 0050 keeps that flag off the
+# gate's own pass because it costs a factor of 2.2 against a wall time the remote's idle
+# timeout bounds; nothing bounds a nightly. Before any suite runs, the bounds probe must
+# read the flag's checks inside kernels launched on the CPU backend and on the card, or
+# the night is refused (decision 0055).
 #
 # The subject is `main` with a clean tree. A nightly whose subject moves with whatever
 # was last pushed cannot be compared with the one before it, and comparison is the
 # whole of what a nightly is for, so this refuses rather than running on something
 # else.
+#
+# After the suites, the static pass of test/fields/static_pass.jl runs on the tree in an
+# environment built from the test target, and its result, with the Julia and JET versions
+# it ran on, is written into the night's record under `[static_pass]` (decision 0006,
+# docs/plans/fiddlybits-52v.3-fields.md).
 
 const NIGHTLY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
-
-"""
-What the nightly adds to the gate's `SUITE_FLAGS`. Read by the warm-up and by every
-suite from this one binding: Julia caches per configuration, so a warm-up under
-different flags warms a cache nothing reads and every worker precompiles after all.
-`nightly` asserts the two commands carry it.
-"""
-const EXTRA_FLAGS = `--check-bounds=yes`
 
 # The gate's driver, in a module of its own: it includes `test/suites.jl`, and loading
 # it into this namespace would define `suites` twice, which is the one thing the
@@ -31,22 +30,28 @@ module Gate
 include(joinpath(normpath(joinpath(@__DIR__, "..", "..")), "tools", "gate", "run.jl"))
 end
 
+using .Gate: git_at
+
+include(joinpath(NIGHTLY_ROOT, "test", "fields", "static_pass.jl"))
+
+"""
+    static_wrap(root)
+
+What every `julia` the static pass starts is passed through: `Gate.in_checkout` on `root`.
+"""
+static_wrap(root::AbstractString) = cmd -> Gate.in_checkout(cmd, root)
+
+"""
+What the nightly adds to the gate's `SUITE_FLAGS`: the gate's `BOUNDS_FLAGS`, the one
+definition the checked pass also reads. Read by the warm-up and by every suite from
+this one binding: Julia caches per configuration, so a warm-up under different flags
+warms a cache nothing reads and every worker precompiles after all. `nightly` asserts
+the two commands carry it.
+"""
+const EXTRA_FLAGS = Gate.BOUNDS_FLAGS
+
 import TOML
 using Dates: now, format
-
-"""
-    git_at(root, args)
-
-`git -C root` with `args`, in this process's environment less every variable `git
-rev-parse --local-env-vars` names (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` and the
-rest), so the repository it acts on is the one at `root` and not one the calling
-process was pointed at, as a git hook's process is.
-"""
-function git_at(root::AbstractString, args::Cmd)
-    located = Set(split(read(`git rev-parse --local-env-vars`, String)))
-    env = Dict(k => v for (k, v) in ENV if !(k in located))
-    return setenv(`git -C $(root) $(args)`, env)
-end
 
 """
     subject(root)
@@ -86,7 +91,7 @@ function record_dir()
 end
 
 """
-    write_record(dir, sha, results, wall, status)
+    write_record(dir, sha, results, wall, status; reach)
 
 One TOML record per night, named by the time it started and the commit it was about,
 so the series reads in order and says what each night was. A name already taken takes
@@ -94,11 +99,15 @@ a counter rather than the file: a rerun of one commit is a second reading of it,
 correction of the first.
 
 Holds the commit, the status, the wall time and every suite's own, which is what the
-next night is compared against.
+next night is compared against, and under `[bounds_reach]` what the bounds probe read on
+each backend before the suites ran (`Gate.bounds_reach`), when `reach` carries it. Under
+`[static_pass]` it holds the result `StaticPass.run_pass` returned, when `static` is not
+empty.
 """
 function write_record(dir::AbstractString, sha::AbstractString,
                       results::Vector{Tuple{String,Bool,Float64}}, wall::Float64,
-                      status::Int)
+                      status::Int; reach::AbstractDict = Dict{String,Any}(),
+                      static::AbstractDict = Dict{String,Any}())
     stamp = format(now(), "yyyy-mm-ddTHH-MM-SS")
     base = stamp * "-" * sha[1:min(end, 12)]
     path = joinpath(dir, base * ".toml")
@@ -114,6 +123,16 @@ function write_record(dir::AbstractString, sha::AbstractString,
         println(io, "status = ", status)
         println(io, "wall_seconds = ", round(wall; digits = 1))
         println(io, "check_bounds = true")
+        if haskey(reach, "marker_cpu") && haskey(reach, "marker_gpu")
+            println(io)
+            println(io, "[bounds_reach]")
+            println(io, "cpu = ", repr(String(reach["marker_cpu"])))
+            println(io, "gpu = ", repr(String(reach["marker_gpu"])))
+        end
+        if !isempty(static)
+            println(io)
+            TOML.print(io, Dict("static_pass" => static); sorted = true)
+        end
         for (name, ok, seconds) in results
             println(io)
             println(io, "[[suite]]")
@@ -136,9 +155,13 @@ function main(args::Vector{String})
     logdir = mktempdir(; cleanup = false)
     println("nightly: ", branch, " at ", sha[1:min(end, 12)], ", ", length(found),
             " suites, ", workers, " at once, logs in ", logdir)
-    println("nightly: --check-bounds=yes, which the gate does not carry (decision 0050)")
-    println("nightly: package warm in ",
-            round(Gate.warm_precompile(NIGHTLY_ROOT; extra = EXTRA_FLAGS); digits = 1), " s")
+    println("nightly: --check-bounds=yes on every suite (decisions 0050 and 0055)")
+    default_warm, bounds_warm = Gate.warm_both(NIGHTLY_ROOT)
+    println("nightly: package warm in ", round(default_warm; digits = 1), " s, and in ",
+            round(bounds_warm; digits = 1), " s under the flag")
+    reach = Gate.bounds_reach(NIGHTLY_ROOT, EXTRA_FLAGS)
+    println("nightly: under the flag kernels under @inbounds read ", reach["marker_cpu"],
+            " on cpu and ", reach["marker_gpu"], " on gpu")
 
     started = time()
     runner = Gate.in_process(NIGHTLY_ROOT, logdir, workers; extra = EXTRA_FLAGS)
@@ -146,7 +169,17 @@ function main(args::Vector{String})
     wall = time() - started
     status = Gate.report(results, logdir, wall)
 
-    record = write_record(record_dir(), sha, results, wall, status)
+    static = StaticPass.run_pass(NIGHTLY_ROOT, logdir; wrap = static_wrap(NIGHTLY_ROOT))
+    println()
+    println("nightly: static pass ", static["status"] == 0 ? "pass" : "FAIL", " on julia ",
+            get(static, "julia_version", "(no result)"), " with JET ",
+            get(static, "jet_version", "(no result)"), ", ", length(get(static, "new", [])),
+            " new and ", length(get(static, "stale", [])), " stale findings, output in ",
+            static["log"])
+    status = (status == 0 && static["status"] == 0) ? 0 : 1
+
+    record = write_record(record_dir(), sha, results, wall, status; reach = reach,
+                          static = static)
     println()
     println("nightly: recorded in ", record)
     return status

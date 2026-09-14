@@ -15,15 +15,21 @@ not a resolution-of-dynamics event, so the mechanism has three layers and the fi
 two carry the outsized cases without any refinement.
 
 **Layer 1: existence and topology are exact and event-driven.** The connectivity
-graph is derived from the terrain level every slow step: for every pair of adjacent
-coarse ocean cells the minimum sill depth and the width of the connection; for land,
-contiguity; for basins, the drainage terminal. A change in the graph's topology (a
-seaway closes, a land bridge floods, a basin captures its neighbour) is an *event*
-that forces a climate refresh, so a closure happens when it happens rather than being
-averaged away by the slow tier. A cell with land fraction between zero and one holds
-an island or lake tile with its own land column; an island is never rounded to ocean
-and a strait is never rounded to land. The tile's area and hypsometry come from the
-fine level exactly.
+graph is derived from the terrain level every slow step. Its nodes are bodies: an
+ocean body is a set of world-ocean terrain cells of one coarse cell joined through
+edge neighbours inside that cell, and a land body is the same for the cell's
+non-ocean terrain cells, so a coarse cell holds as many bodies of each kind as its
+terrain does. For every pair of bodies of adjacent coarse cells joined across their
+shared edge there is one gate: for ocean, the minimum sill depth and the width of that
+connection, read at its control section; for land, contiguity. For basins, the
+drainage terminal. A change in the graph's topology (a seaway closes, a land bridge
+floods, a basin captures its neighbour, a body splits, two bodies of one coarse cell
+join) is an *event* that forces a climate refresh, so a closure happens when it
+happens rather than being averaged away by the slow tier. Bodies of two derivations
+correspond through the terrain cells they share and never through their labels. A cell
+with land fraction between zero and one holds an island or lake tile with its own land
+column; an island is never rounded to ocean and a strait is never rounded to land. The
+tile's area and hypsometry come from the fine level exactly.
 
 **Layer 2: through-flow is parameterised by physics that carries the feature's
 geometry.** Strait exchange by rotating hydraulic control: sill depth, width against
@@ -37,9 +43,13 @@ floor or a fallback (REQ-OCN-002). The discharge coefficients are `Bracketed`
 (dimensionless; mechanisms: frictional and mixed overflow at the low end, inviscid
 control at the high end), and downstream overflow entrainment is a `Closure` in the
 resolved density contrast or a declared absence with its interface. That is what
-sets an inland sea's salinity and a gateway's exchange. A land bridge blocks ocean
-flow exactly and carries a land tile. Mountain passes carry their sub-grid slope
-statistics into orographic drag and precipitation.
+sets an inland sea's salinity and a gateway's exchange. Each gate's exchange is read
+from its own sill depth and width and from the state of the two bodies it names: a
+coarse ocean column holding more than one ocean body carries a water tile per body
+with its own state, and two bodies of one column exchange only through gates. A land
+bridge blocks ocean flow exactly and carries a land tile, including one that lies
+inside a single coarse cell. Mountain passes carry their sub-grid slope statistics
+into orographic drag and precipitation.
 
 **Layer 3: refinement is invoked by an instrument, not by hand.** Every feature
 record gets a sensitivity probe: the parameterised transport is run at both ends of
@@ -76,12 +86,43 @@ not accidents of the seed.
 - *A minimum feature size below which features are dropped.* Rejected: it is the
   predecessor's coastline-threshold problem restated, and it drops exactly the
   features this record exists to keep.
+- *One ocean body and one land body per coarse cell, with a gate per pair of adjacent
+  coarse cells.* Rejected: an isthmus cell with a sea on each side keeps one sea, and
+  the other sea's connection to its own neighbour has no gate, so the coarse ocean
+  blocks an exchange that exists; a second connection across the same coarse edge is
+  lost the same way.
+- *One node per coarse cell with every body in it counted as joined.* Rejected: a
+  column mixing two seas carries water across the land bridge between them, and the
+  upstream height above sill depth that sets a passage's transport (Whitehead 1998,
+  p. 427, eqs. 12-13) belongs to the basin behind that passage, which two seas do not
+  share.
+- *One gate per coarse edge carrying the deepest of several connections, or their
+  summed width.* Rejected: two passages with their own sills are two controls, and one
+  sill depth with one upstream height gives neither transport.
+- *A gate between any two bodies of adjacent coarse cells joined anywhere inside the
+  two cells.* Rejected: a chain of passages through other bodies of the pair is then
+  counted again as a passage of its own, and its exchange twice.
+- *Folding a body below a size into a neighbouring body.* Rejected as the minimum
+  feature size above.
 
 ## Consequences
 
 - The connectivity graph is a first-class artifact with its own identity and its
   own tests (a synthetic strait's sill depth and width recovered exactly from the fine
-  level; a topology change firing the refresh event).
+  level; a synthetic isthmus cell's two connections recovered each with its own; a
+  topology change firing the refresh event).
+- One gate is kept per pair of bodies, as one outlet is kept per pair of depressions
+  that meet in the depression hierarchy of Barnes, Callaghan and Wickert 2020 (section
+  3.3, p. 438), where the lowest outlet between the pair is the one recorded. A
+  passage between the same two bodies shallower than the gate's crest is not a second
+  gate; the connected components at every model-level horizon that REQ-OCN-009 asks of
+  the graph are what carry it.
+- The control forms treat one passage at a time, and boundaries with many gaps, where
+  flow leaves through one and returns through another, are outside the review they
+  come from (Whitehead 1998, p. 424). The graph gives each passage its gate; how the
+  flows through several gates of one body pair up, and how a resolved coarse column
+  and its body tiles share the column's state, are the ocean plan's
+  (`fiddlybits-ncw.1`).
 - The ocean solver's strait transport parameterisation is a named scheme with a
   bracketed coefficient and the sensitivity probe as its instrument, and it has a
   tier-1 identity: the control forms reproduce the closed-form transport of a
@@ -100,6 +141,9 @@ not accidents of the seed.
 - Pratt, L. J., and J. A. Whitehead. Rotating Hydraulics: Nonlinear Topographic
   Effects in the Ocean and Atmosphere. Springer, 2008. DOI: 10.1007/978-0-387-49572-9.
   Not held; the Whitehead 1998 review above carries the control forms the design uses.
+- Barnes, R., K. L. Callaghan, and A. D. Wickert. "Computing water flow through complex
+  landscapes - Part 2: Finding hierarchies in depressions and morphological
+  segmentations." Earth Surface Dynamics 8 (2020). DOI: 10.5194/esurf-8-431-2020.
 - Predecessor records of what a coarse coastline costs and of straits lost to
   resolution: `/home/cfutro/docs/world/notes/audits/coastline-threshold-cost.md`,
   `/home/cfutro/docs/world/notes/audits/ocean-support-nonlinear-reductions.md`.
@@ -112,3 +156,5 @@ not accidents of the seed.
 - 2026-09-08: Layer 2: reduced gravity, gravity and the Coriolis parameter named as the declared inputs of the control; the non-rotating critical-flow limit named as the physics of the f-to-zero case rather than a floor; discharge coefficients `Bracketed` with mechanisms; overflow entrainment a `Closure` or declared absence (row 22 and the rotation auditor's request), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: Layer 3: the probe's metric brackets are declared with the configuration, never an observed transport (row 22), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: Consequences: the strait-control identity named as a tier-1 oracle, from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-13: Layer 1: the graph's nodes are the ocean and land bodies of each coarse cell and its gates one per pair of bodies joined across a coarse edge, rather than one per pair of adjacent coarse ocean cells; a body splitting and two bodies of one coarse cell joining are topology changes, read through shared cells; Layer 2: a column holding several ocean bodies carries a tile per body, exchanging only through gates; four alternatives and two consequences added, with Barnes, Callaghan and Wickert 2020 section 3.3 p. 438 and Whitehead 1998 pp. 424 and 427 as anchors (row fiddlybits-52v.2.17; REQ-OCN-009, decision 0017 and the mesh plan restated in fiddlybits-52v.2.19), from the review of fiddlybits-52v.2.7
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

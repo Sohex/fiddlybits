@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-010"
 title = "One quantity has one name, a word names one concept, and prose about the simulation is written in the simulation's terms"
-old_path = ["/home/cfutro/docs/world/docs/src/reference/vocabulary.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/reference/vocabulary.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -62,6 +62,6 @@ project terms used in `docs/` appear in it; `CLAUDE.md`'s map; the A2 and A5 typ
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/reference/vocabulary.md
-- /home/cfutro/docs/world/docs/src/practice/conventions.md ("An undocumented component is not complete"; "Prose registers")
+- /home/cfutro/git/vesper/docs/src/reference/vocabulary.md
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md ("An undocumented component is not complete"; "Prose registers")
 - Plan decisions A2, A3, A5, A6.

@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-014"
 title = "A biosphere equilibrium is accepted only when an upper confidence bound on end-to-end relative drift over the whole retained record is inside a consumer-derived tolerance, with a per-cell trend refusal, memory time at the upper end of its window, an e-folding time measured without its asymptote, and a spin-up floor derived from the tolerance alone"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/equilibrium-trend-null.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/equilibrium-trend-null.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -162,10 +162,10 @@ the longest in the coupled system.
   intersection-union tests and equivalence confidence sets. Statistical
   Science 11, 283-319. DOI: 10.1214/ss/1032280304. Why a run passing only when
   every quantity passes needs no multiplicity correction.
-- /home/cfutro/docs/world/lib/lpj_output.py (`drift_bound`,
+- /home/cfutro/git/vesper/lib/lpj_output.py (`drift_bound`,
   `cycles_for_bound`, `record_cycles_for_bound`, `relaxation_time`,
   `_cell_fraction`, `_trend` docstrings; the reducer as implemented).
-- /home/cfutro/docs/world/biosphere/README.md, rows "equilibrium acceptance",
+- /home/cfutro/git/vesper/biosphere/README.md, rows "equilibrium acceptance",
   "what a consumer reads" and "run lengths".
-- /home/cfutro/docs/world/biosphere/notes/modelling-gap-audit.md finding 2
+- /home/cfutro/git/vesper/biosphere/notes/modelling-gap-audit.md finding 2
   (the last output year is not an equilibrium statistic).

@@ -180,3 +180,4 @@ Never a spectral core.
 - 2026-09-08: replaced the ten-kilometre convection-permitting figure with a declared fraction of the scale height (audit row 33), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: replaced the claim that convection is the one place the atmosphere carries Earth-fitted numbers with a pointer to the registry's list (audit pattern 5), from notes/findings/2026-09-08-implicit-earth-audit.md
 - 2026-09-08: made every standard test case a System instance plus a forcing struct owning its own literals in SI seconds, none read by the core (audit row 17), from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

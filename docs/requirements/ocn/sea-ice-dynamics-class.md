@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-011"
 title = "Sea-ice motion is a declared class on a ladder of schemes with its forcing inputs named; the ice state has one authority, no velocity clamp or Coriolis floor, and a freezing point from local salinity and pressure"
-old_path = ["/home/cfutro/docs/world/notes/external-model-survey.md"]
+old_path = ["/home/cfutro/git/vesper/notes/external-model-survey.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

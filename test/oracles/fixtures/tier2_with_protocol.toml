@@ -1,0 +1,12 @@
+[[oracle]]
+id = "terrain.drainage_density"
+tier = 2
+statistic = "drainage density at matched scale"
+verdict_kind = "fail_bar"
+threshold = "provisional: outside 0.5x to 2x fails"
+protocol = "earth"
+
+[[protocol]]
+id = "earth"
+system = "Earth()"
+normalisation = "none"

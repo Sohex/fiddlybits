@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-009"
 title = "One mutually exclusive wetness partition per cell, cut against one solve, crossing to tiles as areas that never mean depths"
-old_path = ["/home/cfutro/docs/world/notes/audits/wetness-partition-cut.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/wetness-partition-cut.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -27,7 +27,7 @@ number to watch is the share of the disagreement lying outside the depression
 footprint, zero here; non-zero would mean the two solves disagree about something
 other than a shoreline.
 
-The surrounding rules from `/home/cfutro/docs/world/hydrography/README.md`: a
+The surrounding rules from `/home/cfutro/git/vesper/hydrography/README.md`: a
 majority label discards every minority surface however much leverage it has, so a
 class crosses as an area share; the playa class is the depression floor at or below its
 spill not covered by the lake, checked as an identity against the basin's own

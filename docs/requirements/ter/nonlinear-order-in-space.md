@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-007"
 title = "A nonlinear law is evaluated on the fine support and reduced afterward; a conservation gate cannot see this loss, and refinement does not remove it"
-old_path = ["/home/cfutro/docs/world/notes/audits/nonlinear-spatial-reductions.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/nonlinear-spatial-reductions.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

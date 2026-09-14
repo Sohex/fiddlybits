@@ -11,8 +11,12 @@
 # cases on this bed: fiddlybits-zgh, fiddlybits-2tg, fiddlybits-3jt, fiddlybits-ool,
 # fiddlybits-9j7, fiddlybits-dn6.
 #
-# Every run records what else held the card while it ran, before the first case and
-# after the last. What that reading licenses is
+# Every run reads its own scheduler allocation once, at the start: a job holding all
+# four shares needs no further reading to know it is the sole holder, since no other
+# job can reach the card. A job holding fewer shares takes one occupancy reading
+# before the first case and one more between every case and the next; those readings
+# are point samples, and a neighbour that starts and ends inside one case's own
+# measurement is invisible to them. What a reading licenses is
 # notes/findings/2026-09-12-reduction-bench-occupancy.md.
 
 const LOAD_SECONDS = @elapsed using Fiddlybits
@@ -23,14 +27,6 @@ using TOML
 # The suite's synthetic inputs, read rather than restated: one definition of the
 # filling formula and of the boundary array, in test/reductions/fixtures.jl.
 include(joinpath(@__DIR__, "..", "test", "reductions", "fixtures.jl"))
-
-"""
-    WORKGROUP
-
-The workgroup size every case launches at. `segmented_quantile` replaces it with
-the segment length on its own (`Reductions.at_workgroup`) and is unaffected.
-"""
-const WORKGROUP = 256
 
 """
     FINE, COARSE
@@ -267,10 +263,6 @@ answer, the way `load1` reads `NaN`.
 
 `utilisation_pc` is what the card reported at the instant of the reading, not an
 average over the run.
-
-`sole_holder` is the one derived reading, true when this job is the only holder of
-a share. The card carries processes that never asked the scheduler for anything,
-so `processes_other` is not zero on a quiet card and is not the test.
 """
 struct Occupancy
     shards_in_use::Int
@@ -281,7 +273,15 @@ struct Occupancy
     processes_other::Int
 end
 
-sole_holder(o::Occupancy) = o.shards_in_use == 1
+"""
+    sole_holder(o, held)
+
+`true` when the shares in use at reading `o` are exactly the `held` shares this
+job was itself allocated, so no other job was sharing the card at that instant.
+The card carries processes that never asked the scheduler for anything, so
+`processes_other` is not zero on a quiet card and is not the test.
+"""
+sole_holder(o::Occupancy, held::Integer) = o.shards_in_use == held
 
 "The scheduler's allocated and total share counts, from `qrun free`."
 function shard_counts()
@@ -292,6 +292,35 @@ function shard_counts()
     end
     return (-1, -1)
 end
+
+"""
+    held_shards()
+
+The number of the card's shares this job was allocated, from `scontrol show job`
+on `\$SLURM_JOB_ID`'s `TresPerNode=gres/shard:N` field. `-1` where `SLURM_JOB_ID`
+is unset or the field does not parse, the way `shard_counts` reads `-1`.
+"""
+function held_shards()
+    id = get(ENV, "SLURM_JOB_ID", "")
+    isempty(id) && return -1
+    try
+        out = read(`scontrol show job $id`, String)
+        m = match(r"TresPerNode=gres/shard:(\d+)", out)
+        m === nothing || return parse(Int, m[1])
+    catch
+    end
+    return -1
+end
+
+"""
+    held_all_shards(held, total)
+
+`true` when `held` and `total` are both positive and equal: this job was
+allocated every share the node has. `false` when either is not positive, the
+way `held_shards` and `shard_counts` read `-1` on failure; a failed reading of
+one is not the same as a successful reading that found less than the other.
+"""
+held_all_shards(held::Integer, total::Integer) = held > 0 && held == total
 
 "The card's utilisation in per cent, its memory in use in MiB, and the compute processes it carries."
 function card_counts()
@@ -313,14 +342,14 @@ function occupancy()
     return Occupancy(in_use, total, util, mem, procs, others)
 end
 
-table(o::Occupancy) = Dict{String, Any}(
+table(o::Occupancy, held::Integer) = Dict{String, Any}(
     "shards_in_use" => o.shards_in_use,
     "shards_total" => o.shards_total,
     "utilisation_pc" => o.utilisation_pc,
     "memory_used_mib" => o.memory_used_mib,
     "processes" => o.processes,
     "processes_other" => o.processes_other,
-    "sole_holder" => sole_holder(o),
+    "sole_holder" => sole_holder(o, held),
 )
 
 host() = try chomp(read(`hostname`, String)) catch; "unknown" end
@@ -348,15 +377,25 @@ end
 function main()
     isempty(CASES) && return println("no benchmark case is registered")
 
-    backend = Backends.GPU(WORKGROUP)
+    backend = Backends.GPU()
     startup = process_age()
+    held = held_shards()
     before = occupancy()
+
+    held_all_shards(held, before.shards_total) ||
+        Verdicts.refuse("benchmark occupancy", "bench/runbench.jl",
+                        "the bed measured holding $held of $(before.shards_total) shares; " *
+                        "a counted timing holds all four")
+
+    readings = Occupancy[before]
 
     measured = Dict{String, Float64}()
     rows = Dict{String, Any}[]
     spent = 0.0
     for case in CASES
         samples = measure(case, backend)
+        occ = occupancy()
+        push!(readings, occ)
         spent += sum(samples) * case.calls
         measured[case.id] = minimum(samples)
         push!(rows, Dict{String, Any}(
@@ -368,23 +407,22 @@ function main()
             "median_us" => median(samples) * 1.0e6,
             "max_us" => maximum(samples) * 1.0e6,
             "verdict" => name(verdict(case.bar, minimum(samples))),
+            "occupancy" => table(occ, held),
         ))
     end
-
-    after = occupancy()
 
     TOML.print(stdout, Dict("bed" => Dict{String, Any}(
         "host" => host(),
         "card" => card(),
         "load" => load1(),
-        "occupancy_before" => table(before),
-        "occupancy_after" => table(after),
-        "sole_holder_throughout" => sole_holder(before) && sole_holder(after),
+        "held_shards" => held,
+        "held_all_shards" => held_all_shards(held, before.shards_total),
+        "occupancy_before" => table(before, held),
         "julia" => string(VERSION),
         "startup_s" => startup,
         "load_s" => LOAD_SECONDS,
         "measuring_s" => spent,
-        "workgroup" => WORKGROUP,
+        "workgroup" => "Backends.launch_workgroup",
     ), "case" => rows); sorted = true)
 
     for control in CONTROLS

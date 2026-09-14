@@ -76,3 +76,7 @@ this principle is that lesson made structural.
   `/home/cfutro/docs/world/docs/src/practice/failure-modes.md`, class 9.
 - The predecessor's working agreement "ask whether the thing should exist before
   building it": `/home/cfutro/docs/world/docs/src/practice/working-agreements.md`.
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

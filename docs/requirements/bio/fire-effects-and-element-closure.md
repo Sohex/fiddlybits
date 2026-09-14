@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-016"
 title = "Fire effects move every element the burned pools carry with a declared partition, survival curves are declared model forms with their sources' domains, resprouting is a trait or an absence, and fire coefficients are named conversions rather than folded literals"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/fire-nitrogen-range.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/fire-nitrogen-range.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -146,9 +146,9 @@ practice, recorded here where they were measured on a material term.
   (FireMIP), phase 1: experimental and analytical protocols with detailed model
   descriptions. Geoscientific Model Development 10, 1175-1197.
   DOI: 10.5194/gmd-10-1175-2017.
-- /home/cfutro/docs/world/biosphere/notes/fire-model-audit.md findings 6, 10,
+- /home/cfutro/git/vesper/biosphere/notes/fire-model-audit.md findings 6, 10,
   11, 14 and 15.
-- /home/cfutro/docs/world/biosphere/config/fire.yaml.
+- /home/cfutro/git/vesper/biosphere/config/fire.yaml.
 
 ## Amendments
 

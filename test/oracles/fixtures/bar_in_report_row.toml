@@ -1,0 +1,6 @@
+[[oracle]]
+id = "terrain.endorheic_share"
+tier = 2
+statistic = "share of land draining internally"
+verdict_kind = "report"
+threshold = "any share; fails only if zero on a landscape whose depression hierarchy holds pits"

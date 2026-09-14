@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-007"
 title = "The water balance decides a basin's fate: open-water evaporation is a physical scheme with no floor, evaluated at one reference height over the resolved cycle, and runoff is the closed balance"
-old_path = ["/home/cfutro/docs/world/notes/audits/carve-criterion-terms.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/carve-criterion-terms.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -49,7 +49,7 @@ baseline climatology), fixing what it found:
    basin's climate from its antipode) is a grid-convention class outside this area.
 
 The evaluation interval is a second term of the same kind
-(`/home/cfutro/docs/world/hydrography/notes/carve-verdict-interval.md`): the scheme is
+(`/home/cfutro/git/vesper/hydrography/notes/carve-verdict-interval.md`): the scheme is
 nonlinear and carries two rectifiers, `max(R_n, 0)` and `max(e_s - e_a, 0)`, so its
 per-bin mean was 1.57 times its value on annual-mean air over land; over the ocean,
 where the model computes evaporation with real heat storage, the per-bin estimate ran

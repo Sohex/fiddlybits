@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-004"
 title = "Physics is not a knob, and Earth is a distance to report, never a target to solve onto"
-old_path = ["/home/cfutro/docs/world/docs/src/practice/conventions.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/practice/conventions.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -73,10 +73,10 @@ a non-Earth sweep worsens".
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/practice/conventions.md, "No tuned values"
-- /home/cfutro/docs/world/docs/src/reference/vocabulary.md, "implicit-Earth"
-- /home/cfutro/docs/world/notes/external-model-survey.md, sections 59b, 59d, 59e
-- /home/cfutro/docs/world/notes/audits/tuned-values.md, section 19
+- /home/cfutro/git/vesper/docs/src/practice/conventions.md, "No tuned values"
+- /home/cfutro/git/vesper/docs/src/reference/vocabulary.md, "implicit-Earth"
+- /home/cfutro/git/vesper/notes/external-model-survey.md, sections 59b, 59d, 59e
+- /home/cfutro/git/vesper/notes/audits/tuned-values.md, section 19
 - Holden et al. (2016). *PLASIM-GENIE v1.0: a new intermediate complexity AOGCM.* DOI 10.5194/gmd-9-3347-2016 (the moisture flux adjustment and the tuned wind-stress scaling)
 - Kok et al. (2014). *An improved dust emission model - Part 1: Model description and comparison against measurements.* DOI 10.5194/acp-14-13023-2014
 - Plan decisions C1, C2, A3.

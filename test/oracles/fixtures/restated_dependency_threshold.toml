@@ -1,0 +1,20 @@
+[[oracle]]
+id = "physics.gravity_column_identities"
+tier = 1
+statistic = "surface pressure against column mass times gravity at each gravity of a sweep"
+verdict_kind = "fail_bar"
+threshold = "roundoff at every gravity of the sweep"
+
+[[oracle]]
+id = "sweep.gravity_jets"
+tier = 3
+depends_on = ["physics.gravity_column_identities"]
+statistic = "jet latitude against gravity swept, with the column identities of the sweep"
+verdict_kind = "fail_bar"
+threshold = "provisional: outside the published spread fails; Roundoff at every gravity of the sweep"
+protocol = "gravity_sweep"
+
+[[protocol]]
+id = "gravity_sweep"
+system = "the published sweep's base system as a Sourced constructor"
+normalisation = "column mass"

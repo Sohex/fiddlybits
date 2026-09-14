@@ -93,18 +93,15 @@ end
 VerdictPayload(; kwargs...) = build_payload(VerdictPayload, "VerdictPayload"; kwargs...)
 
 """
-    RefusalPayload(; component, refused, quantity, bound)
+    RefusalPayload(; quantity, site, reason)
 
-The payload of a `refusal` event: the component, what was refused, the
-quantity, and the bound it violated.
+The payload of a `refusal` event, which is the `Verdicts.Refusal` that was
+raised: what was refused, where it was refused, and why. `RefusalPayload` is
+`Verdicts.Refusal` under the name the other payloads follow, so a caught
+refusal is handed to `Event` as it is (decision 0042, Amendments).
 """
-struct RefusalPayload
-    component::String
-    refused::String
-    quantity::Float64
-    bound::Float64
-end
-RefusalPayload(; kwargs...) = build_payload(RefusalPayload, "RefusalPayload"; kwargs...)
+const RefusalPayload = Verdicts.Refusal
+Verdicts.Refusal(; kwargs...) = build_payload(Verdicts.Refusal, "RefusalPayload"; kwargs...)
 
 """
     LedgerOpenPayload(; ledger, imbalance, tolerance, exchange)
@@ -137,15 +134,33 @@ end
 RefreshPayload(; kwargs...) = build_payload(RefreshPayload, "RefreshPayload"; kwargs...)
 
 """
-    TopologyChangePayload(; edit, cells, quantity)
+    TopologyChangePayload(; edit, level, cells, quantity)
 
 The payload of a `topology_change` event: the connectivity-graph edit, the
-cells involved, and the quantity that crossed.
+level of the hierarchy whose numbering the cells are in, the cells involved as
+`Mesh.CellId` values at that level, and the quantity that crossed (decision
+0042, Amendments). The element type of `cells` is the type parameter `C`.
+
+Refuses, naming the field, a negative `level`, and `cells` whose element type
+is not concrete or is a `Number`.
 """
-struct TopologyChangePayload
+struct TopologyChangePayload{C}
     edit::String
-    cells::Vector{Int}
+    level::Int
+    cells::Vector{C}
     quantity::Float64
+
+    function TopologyChangePayload(edit::AbstractString, level::Integer,
+                                   cells::AbstractVector, quantity::Real)
+        site = "TopologyChangePayload"
+        level >= 0 ||
+            Verdicts.refuse("level", site, "level $(level) is not a level of the hierarchy")
+        C = eltype(cells)
+        (isconcretetype(C) && !(C <: Number)) ||
+            Verdicts.refuse("cells", site,
+                            "element type $(C) is not Mesh.CellId; a cell crosses to the journal as a CellId, never as a number")
+        return new{C}(String(edit), Int(level), Vector{C}(cells), Float64(quantity))
+    end
 end
 TopologyChangePayload(; kwargs...) = build_payload(TopologyChangePayload, "TopologyChangePayload"; kwargs...)
 

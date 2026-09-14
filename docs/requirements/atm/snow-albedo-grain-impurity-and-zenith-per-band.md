@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-011"
 title = "Snow and ice albedo carry grain size, impurity load and solar zenith angle as predictors, per band under the declared spectrum, with no coefficient imported from a solar fit"
-old_path = ["/home/cfutro/docs/world/notes/audits/snow-albedo-grain.md", "/home/cfutro/docs/world/notes/audits/snow-albedo-zenith.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/snow-albedo-grain.md", "/home/cfutro/git/vesper/notes/audits/snow-albedo-zenith.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

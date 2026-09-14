@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-004"
 title = "Closure tolerances derive from floating point and are computed on in-memory state, never on written output"
-old_path = ["/home/cfutro/docs/world/notes/audits/closure-tolerance-under-written-precision.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/closure-tolerance-under-written-precision.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -74,3 +74,7 @@ and a deliberately omitted pool; decision records A2 and C3.
 - Higham, N. J. 1993. The Accuracy of Floating Point Summation. SIAM Journal on Scientific Computing 14(4). DOI: 10.1137/0914050
 - Kahan, W. 1965. Pracniques: further remarks on reducing truncation errors. Communications of the ACM 8(1). DOI: 10.1145/363707.363723
 - Goldberg, D. 1991. What every computer scientist should know about floating-point arithmetic. ACM Computing Surveys 23(1). DOI: 10.1145/103162.103163
+
+## Amendments
+
+- 2026-09-13: item 3's classifier names a fourth signature, `Unexplained`, for a series none of the leak, stock omission and roundoff models fits; `Fields.classify` returns it when a series within its tolerance at every window fails the successive-difference test, and when a series beyond its tolerance somewhere shows no trend and then fails the successive-difference test or does not pass the offset test; the choice and its alternatives are recorded in docs/plans/fiddlybits-52v.3-fields.md, section Ledgers

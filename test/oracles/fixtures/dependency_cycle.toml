@@ -1,0 +1,15 @@
+[[oracle]]
+id = "terrain.stream_power_steady"
+tier = 1
+depends_on = ["terrain.incision_gravity_identity"]
+statistic = "concavity against m/n under uniform runoff"
+verdict_kind = "fail_bar"
+threshold = "discretisation error"
+
+[[oracle]]
+id = "terrain.incision_gravity_identity"
+tier = 1
+depends_on = ["terrain.stream_power_steady"]
+statistic = "log-log slope of steady relief against g, per declared n"
+verdict_kind = "fail_bar"
+threshold = "exponent -1/n within discretisation error"

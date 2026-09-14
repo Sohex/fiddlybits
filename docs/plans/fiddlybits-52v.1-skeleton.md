@@ -62,11 +62,11 @@ and says nothing about groups.
 | A | `Events` | the closed journal vocabulary, typed payloads, `emit` with a no-op sink, the device-move record | 52v.6.8 |
 | A | `Dimensions` | `Dim{M,L,T,Theta,N}` and its algebra over DynamicQuantities | 52v.3 |
 | A | `Time` | `SimTime`, `Interval`, `duration`, `TimeSupport`, the `TimeSemantics` types | 52v.5 |
-| A | `EarthRatios` | the quarantined unit denominators | 52v.4 |
 | B | `Dispositions` | `Sourced`, `Derived`, `Bracketed`, `Irreducible`, `Closure` | 52v.4 |
+| C | `EarthRatios` | the quarantined unit denominators, as `Sourced` values | 52v.4 |
 | B | `Backends` | the KernelAbstractions device layer, `Adapt`, `on`, the memory budget | 52v.7 |
-| C | `Systems` | `System{FT}`, `strip`, `TrackingSystem`, `affected` | 52v.4 |
-| C | `Reductions` | fixed-order pairwise and compensated sums, segmented reductions, quantiles | 52v.7 |
+| C | `Reductions` | fixed-order pairwise and compensated sums, segmented reductions, quantiles, `error_bound` | 52v.7 |
+| C | `Systems` | `System{FT}`, `strip`, `TrackingSystem`, `affected`; reads `Reductions.error_bound` | 52v.4 |
 | D | `Orbit` | the Kepler solve, true anomaly, declination, hour angle, the epoch rule | 52v.5 |
 | D | `Mesh` | `Support{L}`, bisection, numbering, geometry, stencils, local refinement | 52v.2 |
 | E | `Fields` | `Field{S,T,D,L,A}`, `Semantics`, `coarsen`, `refine`, `time_reduce`, `Ledger` | 52v.3 |
@@ -232,10 +232,11 @@ table. The named tests and their owners:
 Five entries in `docs/oracles/registry.toml` under the `build` subsystem, all tier
 1, all provisional with an empty `registered_at`. This plan's verify row runs them on
 the merged result and reports the verdicts; it does not register them. Registration is
-at the milestone that registers an entry and nowhere else (`docs/oracles/README.md`),
-and the rule that a registry edit may not share a commit with a result it judges is
-checked by `fiddlybits-52v.8.2`. A provisional entry may run and report and may not
-FAIL a milestone gate.
+at the milestone that registers an entry and nowhere else (`docs/oracles/README.md`,
+Registration), and the rule that a bar is fixed before the value it judges has been
+seen is checked by `fiddlybits-52v.8.2`. A tier-1 entry is judged by the testset named
+by its id on every commit whether or not it is registered, and a provisional entry
+blocks no milestone gate.
 
 | id | right answer | the mutation that must make it fail |
 | --- | --- | --- |

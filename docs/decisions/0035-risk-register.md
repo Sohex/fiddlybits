@@ -57,3 +57,4 @@ The register is revised when a tripwire fires or a milestone gate is passed.
   adjacent codebases clip where this project's requirements refuse to. The open
   consideration about a reporting limiter in the fast profile is recorded here and in
   decisions 0019 and 0020, to be settled when those solvers are built, never before.
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

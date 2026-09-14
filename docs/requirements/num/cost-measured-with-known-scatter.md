@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-006"
 title = "Cost is measured with an instrument whose scatter is known, and a change that moves the answer is a numerics change, not a timing one"
-old_path = ["/home/cfutro/docs/world/notes/audits/pyburn-postprocessing-cost.md", "/home/cfutro/docs/world/notes/audits/model-build-flags.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/pyburn-postprocessing-cost.md", "/home/cfutro/git/vesper/notes/audits/model-build-flags.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

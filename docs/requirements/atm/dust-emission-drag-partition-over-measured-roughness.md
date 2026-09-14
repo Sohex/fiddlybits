@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-007"
 title = "Dust emission carries a drag partition over roughness measured per surface class, with the sub-grid wind as a declared closure and the emission bracket reported with the partition's validity"
-old_path = ["/home/cfutro/docs/world/notes/audits/dust-intensity-levers.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/dust-intensity-levers.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -12,8 +12,8 @@ date = 2026-09-10
 
 This plan builds the one clock and everything that is a pure function of the system
 struct and a time: the orbit and rotation geometry, the instellation at a cell from
-every declared source, eclipse geometry, and the epoch rule that fixes where `t = 0`
-is. It also puts the calendar where it belongs, which is in `Render` and nowhere
+every declared source, eclipse geometry, and the instants of the named events, which are
+`Derived` from the elements declared at `t = 0`. It also puts the calendar where it belongs, which is in `Render` and nowhere
 else.
 
 Nothing here carries a day as a unit. The sidereal day is the declared rotation
@@ -44,7 +44,7 @@ rows follow that split rather than the area's name.
 | --- | --- | --- |
 | `src/Time/` | `SimTime`, `Interval`, `duration`, `TimeSupport`, the `TimeSemantics` types, forcing lists | 52v.5.2 |
 | `src/Orbit/kepler.jl`, `src/Orbit/Orbit.jl` | the Kepler solve and `true_anomaly`; merged and closed | 52v.10 |
-| `src/Orbit/` otherwise | distance, declination, hour angle, the day functions, the epoch rule | 52v.5.3 |
+| `src/Orbit/` otherwise | the orbit frames, distance, declination, hour angle, the day functions, the event instants | 52v.5.3 |
 | `src/Instellation/` | per-cell flux from every source, eclipse geometry, the reflected-light interface | 52v.5.4 |
 | `src/Render/calendar.jl` | calendar rendering, and nothing else that touches a date | 52v.5.5 |
 | `src/Render/Render.jl` | the module's includes; shared with the provenance plan's `export.jl`, each row adding its own line | 52v.5.5, 52v.6.3 |
@@ -126,8 +126,17 @@ rather than here.
 ```
 eccentric_anomaly(e, M)        Markley start, two Newton steps on the stable residual
 true_anomaly(e, E)
+plane_rotation(system, plane)  a plane's axes in the root frame, composed along its parents
+argument_of_periapsis(orbit)   longitude_of_periapsis - longitude_of_ascending_node
+mean_anomaly(orbit, t)         mean longitude at t minus longitude_of_periapsis
+position(system, body, t)      a body's position about its primary, in the root frame
+true_longitude(system, t)      the planet's true longitude along its orbit plane
 distance(orbit, t)             stellar distance from the declared elements
 declination(system, source, t)
+positive_pole(system)          the spin axis in the orbit frame, from the obliquity and the equator's node
+event_time(system, event, t)   the latest instant at or before t of VernalEquinox() or Periapsis(body)
+body_orientation(system, t)    Mesh.BODY_FRAME placed in the orbit frame at t
+sub_source_longitude(system, source, t)
 hour_angle(system, source, cell, t)
 sidereal_day(system)           the declared rotation period
 solar_day(system, source, t)   varies around an eccentric orbit
@@ -137,29 +146,104 @@ mean_solar_day(system, source) a second function, not an average of the first by
 For a synchronous rotator the solar day of that source is undefined and the function
 returns `NotEvaluable` by name rather than a large number. For a retrograde rotator
 the solar day is shorter than the sidereal day, which is an identity rather than a
-special case.
+special case. The sense is `Planet`'s `Derived` one, read from the obliquity, and where
+the positive pole lies in the orbit plane within rounding there is none: `solar_day`
+and `mean_solar_day` return `NotEvaluable` by name there too.
+
+**The rotation reads two declarations of `Planet` by name, and nothing else.** Decision
+0004, section The spin axis and the rotation phase in the orbit frame, defines both;
+what this module computes from them:
+
+- `positive_pole` is `cos(obliquity) n + sin(obliquity) (N x n)`, `n` the planet's orbit
+  normal and `N` the unit vector at `equator_ascending_node_longitude` (`Omega_E`) on the
+  planet's orbit plane. In that plane's frame it is
+  `(sin(Omega_E) sin(obliquity), -cos(Omega_E) sin(obliquity), cos(obliquity))`. It has
+  no branch on the sense and reads no `gamma`, which is `-N` and is read only by the
+  vernal equinox.
+- `body_orientation(system, t)` is the 3 by 3 matrix whose columns are the orbit-frame
+  images of `BODY_FRAME`'s prime meridian, ninety east and spin axis. The spin axis is
+  `positive_pole`. The prime meridian at `t = 0` is
+  `cos(lambda0) u - sin(lambda0) (p x u)`, where `lambda0` is
+  `planet.sub_primary_longitude_at_epoch`, `p` the positive pole, and `u` the unit
+  projection onto the equatorial plane of the direction from the planet toward
+  `orbits.planet.primary` at `t = 0`. The prime meridian at `t` is the prime meridian
+  at `t = 0` turned about `p` through `2 pi t / sidereal_day(system)`. Every orientation it returns passes
+  `Mesh.require_body_orientation` with the angular velocity
+  `(2 pi / sidereal_day(system)) p`. Where `u` does not exist, which is only where the
+  primary lies on the spin axis at `t = 0`, it refuses by name, and the configuration
+  declares another `equator_ascending_node_longitude`.
+- `sub_source_longitude(system, source, t)` is `Mesh.longitude(BODY_FRAME, ...)` of the
+  direction toward `source` carried into body coordinates by the transpose of
+  `body_orientation(system, t)`. At `t = 0`, for the planet orbit's primary, it is the
+  declared `lambda0`.
+- `hour_angle(system, source, cell, t)` is `Mesh.longitude` of the cell centre minus
+  `sub_source_longitude(system, source, t)`, wrapped into `(-pi, pi]`: zero when the
+  source is on the cell's meridian, and positive once the surface has carried the cell
+  east of the sub-source point. `declination(system, source, t)` is the `Mesh.latitude`
+  of the same body-coordinate direction.
+
+For a synchronous rotator on a circular orbit at zero obliquity, the direction to the
+primary turns about `p` at the body's own rate. Its sub-primary longitude is therefore
+`lambda0` at every `t`, which makes the declared value that rotator's permanent
+sub-stellar longitude by name. `fiddlybits-52v.4.13` added the longitude to `Planet` and
+gave the obliquity its range, with the sense `Derived`.
+
+**The orbit frames.** Decision 0004, section The reference directions of the orbit
+hierarchy, defines them. What this module computes from that section:
+
+- Every plane has a frame whose first axis is the plane's origin and whose third is its
+  normal. The root is the plane `orbits.planet` names, and its origin is the planet's
+  mean position at `t = 0`.
+- `plane_rotation` composes, from a plane up to the root, the rotation of each plane on
+  its parent: through the inclination `i` about the node at longitude `Omega`, which is
+  `R_z(Omega) R_x(i) R_z(-Omega)`, `R_z` and `R_x` being right-handed turns about the
+  parent frame's third and first axes. `planet_orbit` hangs on the root by the planet
+  orbit's inclination and node. `planet_equator` hangs on `planet_orbit` by the obliquity
+  and `equator_ascending_node_longitude`. Each orbit's own plane hangs on the plane it
+  names.
+- In its own plane's frame, an orbit's periapsis is at the angle `longitude_of_periapsis`
+  from the first axis, and its secondary at `t` is at `longitude_of_periapsis + nu`. The
+  distance and `nu` come from the Kepler solve on
+  `mean_anomaly(orbit, t) = mean_longitude_at_epoch + 2 pi t / P - longitude_of_periapsis`,
+  the planet's `mean_longitude_at_epoch` being zero. Carried to the parent frame, this is
+  the component form of Standish and Williams, `R_z(Omega) R_x(i) R_z(omega)` applied to
+  the in-plane position with its first axis at periapsis, `omega` being
+  `argument_of_periapsis`.
+- `true_longitude(system, t)` is the planet's `longitude_of_periapsis + nu`. The seasonal
+  angles of Berger (1978) are `Derived` from it. The primary's true longitude from the
+  vernal equinox, seen from the planet, is `true_longitude - equator_ascending_node_longitude`.
+  Berger's longitude of perihelion is `longitude_of_periapsis - equator_ascending_node_longitude`.
+- Three invariances are identities 52v.5.3 tests. For each, the same change at a nonzero
+  value is the control, and it must move the result:
+  - at zero inclination the rotation is the identity whatever the node;
+  - at zero eccentricity no position depends on `longitude_of_periapsis`;
+  - at zero obliquity `positive_pole` does not depend on
+    `equator_ascending_node_longitude`.
 
 ### The epoch
 
-The epoch is a declared pair, an event kind and a source index, plus an offset in
-seconds; `t = 0` is that event plus the offset in orbit zero. The kinds:
+`t = 0` is the instant the declared elements and the rotation phase hold (decision 0008,
+section The epoch). `System` declares no event and no offset. Each orbit's phase at
+`t = 0` is its `mean_longitude_at_epoch`, and the planet's is zero by the definition of
+the root origin. The rotation phase is `planet.sub_primary_longitude_at_epoch`, read at
+the same instant. The two are independent declarations, so the orbital phase of `t = 0`
+and the longitude facing the primary there are set apart.
 
-| kind | defined as | refuses when |
+The named events are `Derived` by `event_time(system, event, t)`, which returns the
+latest instant at or before `t` at which the event's definition holds:
+
+| event | defined as | NotEvaluable when |
 | --- | --- | --- |
-| vernal equinox | the instant the subsolar point of the named source crosses the equator in the direction putting the positive rotation-axis hemisphere toward the source | the obliquity is below a threshold derived from rounding, since the subsolar point then never leaves the equator and the instant does not exist; or when no single source is declared primary |
-| periapsis | the periapsis of the named orbit | never |
-| superior conjunction | for a synchronous rotator, of the named source | no source is named |
+| `VernalEquinox()` | the direction from the planet toward `orbits.planet.primary` crosses the equatorial plane toward the positive pole; the planet's `true_longitude` is then `equator_ascending_node_longitude` | the sine of the obliquity does not exceed `Reductions.error_bound(FT, Systems.DECLINATION_TERMS, 1)`, the rounding of the subsolar latitude |
+| `Periapsis(body)` | `mean_anomaly` of the orbit whose secondary is `body` is zero | the eccentricity does not exceed the rounding of the distance, with the term count stated beside the function |
 
-"Vernal" labels a geometric event and not a season; which hemisphere calls it spring
-is a rendering choice. The reference direction for the argument of periapsis is the
-equinox of the primary where it exists and the ascending node on the orbit's
-reference plane otherwise. The pair, the offset and that direction go into every
-run's identity.
+For a planet about a barycentre, the vernal equinox is the event of the barycentre's
+direction, and no count of stars makes it `NotEvaluable`. "Vernal" labels a geometric
+event and not a season; which hemisphere calls it spring is a rendering choice.
 
-The epoch reference is a declared field of `System`, in its `Numerics` block, and
-the system plan names it there; this module computes the instant of the declared
-event from the declared orbit and spin, and the equinox kind's two refusals fire in
-the `System` constructor, where a refusal has somewhere to go.
+A configuration whose primary lies on the spin axis at `t = 0` is refused by name by
+`body_orientation` (section The orbit), not by `System`. Detecting it needs the true
+position at `t = 0`, a Kepler solve that `Systems`, below `Orbit`, does not run.
 
 ### Instellation
 
@@ -199,7 +283,7 @@ registry skeleton carried.
 | id | what makes it non-vacuous |
 | --- | --- |
 | `system.kepler_period` | the eccentricity `1 - 1e-12` is in the statistic, and the naive residual is the declared positive control that must fail |
-| `system.epoch_event` | the two refusals are the control: a zero-obliquity instance and a two-primary instance |
+| `system.epoch_event` | `NotEvaluable` is the control: the vernal equinox on the zero-obliquity instance and the periapsis on a circular fixture; and an equinox computed with `gamma` in place of the equator's node must fail |
 | `system.solar_sidereal_relation` | it runs on a prograde, a retrograde and a synchronous instance, and the synchronous one must return `NotEvaluable` by name |
 | `system.orbit_mean_insolation` | the instantaneous geometry is checked against Berger's daily-insolation form as a second arm |
 | `system.multi_source_instellation` | every arm is a composition identity, so no external reference is needed |

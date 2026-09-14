@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-009"
 title = "Surface state derived from climate, drainage and chemistry on two independent axes, with declared precedence, a record of which rules fired, and mechanisms taken from primary sources"
-old_path = ["/home/cfutro/docs/world/pedology/README.md", "/home/cfutro/docs/world/pedology/notes/derived-surface-classes.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/README.md", "/home/cfutro/git/vesper/pedology/notes/derived-surface-classes.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-012"
 title = "Land fraction is a real quantity of every cell at every level, and no component binarises it"
-old_path = ["/home/cfutro/docs/world/notes/audits/coastline-threshold-cost.md", "/home/cfutro/docs/world/notes/audits/partial-cell-tile-state.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/coastline-threshold-cost.md", "/home/cfutro/git/vesper/notes/audits/partial-cell-tile-state.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-011"
 title = "The carbon thermostat is a closed balance: silicate weathering summed over exorheic land against an outgassing supply declared as a partitioned bracket, and a per-length fault flux cannot falsify a pCO2 on its own"
-old_path = ["/home/cfutro/docs/world/pedology/README.md", "/home/cfutro/docs/world/notes/audits/surface-hydrology-fire-carbon-followup.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/README.md", "/home/cfutro/git/vesper/notes/audits/surface-hydrology-fire-carbon-followup.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-008"
 title = "Closed-basin brine chemistry by the chemical divide, computed per basin from catchment release weighted by local runoff generation, with the evaporite mineralogy set by the catchment's rocks"
-old_path = ["/home/cfutro/docs/world/pedology/notes/derived-surface-classes.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/notes/derived-surface-classes.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

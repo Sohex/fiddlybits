@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-007"
 title = "Dead code is measured and removed; a switch that gates nothing does not exist"
-old_path = ["/home/cfutro/docs/world/notes/audits/dead-code-and-unreachable-paths.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/dead-code-and-unreachable-paths.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

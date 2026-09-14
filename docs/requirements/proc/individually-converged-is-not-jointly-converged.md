@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-007"
 title = "Individually converged is not jointly converged; a finalizer re-evaluates every loop's exit at the final state and never substitutes a coarser artifact"
-old_path = ["/home/cfutro/docs/world/docs/src/pipeline/loops.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/pipeline/loops.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -58,6 +58,6 @@ evaluable"; the oracle registry.
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/pipeline/loops.md, "The finalizer: individually converged is not jointly converged"
-- /home/cfutro/docs/world/notes/audits/loop-exit-predicates.md
+- /home/cfutro/git/vesper/docs/src/pipeline/loops.md, "The finalizer: individually converged is not jointly converged"
+- /home/cfutro/git/vesper/notes/audits/loop-exit-predicates.md
 - Plan decisions A1, A5, A10, B9.

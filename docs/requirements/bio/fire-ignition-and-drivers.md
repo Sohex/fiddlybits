@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-015"
 title = "Fire has an ignition mechanism derived from the atmosphere's convection, lightning is not ignition, fire weather is a chronological sequence, and no prescribed burned-area, population or biome field enters the operator"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/fire-model-audit.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/fire-model-audit.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -10,7 +10,7 @@ status = "carried"
 
 The predecessor audited three fire schemes and the ingredients its climate
 model could supply (measured on the old world's port at the archived commit,
-and on LPJmL's SPITFIRE in /home/cfutro/docs/world/notes/external-model-survey.md
+and on LPJmL's SPITFIRE in /home/cfutro/git/vesper/notes/external-model-survey.md
 section 51):
 
 - A burned-area regression scheme (SIMFIRE-BLAZE) has no ignition model: its
@@ -205,7 +205,7 @@ mechanistic and comparative.
 - Keetch, J. J. and Byram, G. M. (1968). A drought index for forest fire
   control. USDA Forest Service Research Paper SE-38, Southeastern Forest
   Experiment Station, Asheville. Locator: USDA FS SE-38.
-- /home/cfutro/docs/world/biosphere/config/fire.yaml (the register of fire
+- /home/cfutro/git/vesper/biosphere/config/fire.yaml (the register of fire
   operator divergences and the deleted floor's argument).
 - Albini, F. A. (1976). Estimating wildfire behavior and effects. USDA Forest
   Service General Technical Report INT-30, Intermountain Forest and Range
@@ -223,7 +223,7 @@ mechanistic and comparative.
   paleoatmospheric oxygen over the past 350 million years. Proceedings of the
   National Academy of Sciences 107, 22448-22453. DOI: 10.1073/pnas.1011974107.
   The window's measured limits.
-- /home/cfutro/docs/world/notes/external-model-survey.md section 51.
+- /home/cfutro/git/vesper/notes/external-model-survey.md section 51.
 
 ## Amendments
 

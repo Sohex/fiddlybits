@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-006"
 title = "The land column that produces runoff carries every process that moves land water, and runoff is budgeted as the residual it is"
-old_path = ["/home/cfutro/docs/world/notes/audits/missed-couplings.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/missed-couplings.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -86,7 +86,7 @@ records.
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/missed-couplings.md, findings 1 and 4
-- /home/cfutro/docs/world/docs/src/pipeline/loops.md ("That coupling is radiative and aerodynamic, and it is not hydrological")
-- Lapides et al. (2024), Biogeosciences: the bedrock vadose zone added to LPJ-GUESS raising annual transpiration by 100 to 150 mm. Verbatim title and DOI: to confirm (cited secondhand in /home/cfutro/docs/world/pedology/README.md; the number is not carried as sourced)
+- /home/cfutro/git/vesper/notes/audits/missed-couplings.md, findings 1 and 4
+- /home/cfutro/git/vesper/docs/src/pipeline/loops.md ("That coupling is radiative and aerodynamic, and it is not hydrological")
+- Lapides et al. (2024), Biogeosciences: the bedrock vadose zone added to LPJ-GUESS raising annual transpiration by 100 to 150 mm. Verbatim title and DOI: to confirm (cited secondhand in /home/cfutro/git/vesper/pedology/README.md; the number is not carried as sourced)
 - Plan decisions A5, B4, B5.

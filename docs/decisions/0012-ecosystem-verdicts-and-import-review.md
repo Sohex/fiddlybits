@@ -388,3 +388,4 @@ against, when one is written. From
 `notes/findings/2026-09-10-kepler-in-a-portable-kernel.md` and
 `notes/findings/2026-09-10-sampling-the-kepler-hard-region.md`, carried by
 `fiddlybits-52v.10`.
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

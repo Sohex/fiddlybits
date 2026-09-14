@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-006"
 title = "A finite output is not acceptance"
-old_path = ["/home/cfutro/docs/world/config/spatial_conversion.yaml"]
+old_path = ["/home/cfutro/git/vesper/config/spatial_conversion.yaml"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -55,8 +55,8 @@ top-level rule and the other seven contract records are its clauses.
 ## Enforced by
 
 - A5 store and `assemble`; A6 content-addressed store refusal.
-- C2: thresholds registered with the commit that registered them, before the
-  first artifact they judge; `provisional = true` until then.
+- C2: a threshold is fixed before the value it judges has been seen and
+  registered with the commit that holds it; `provisional = true` until then.
 - Part D gates: every gate names its right answer; a `NotEvaluable` blocks.
 - The finalizer (A5) re-evaluates every exit at the final state.
 

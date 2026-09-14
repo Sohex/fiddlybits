@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-012"
 title = "Open-water albedo is a zenith-dependent Fresnel term plus a water-leaving term owned by the marine ecosystem, computed per band under the declared spectrum; no capped literal and no switch between fits"
-old_path = ["/home/cfutro/docs/world/notes/external-model-survey.md"]
+old_path = ["/home/cfutro/git/vesper/notes/external-model-survey.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

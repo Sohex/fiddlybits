@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROV-003"
 title = "Artifacts are content-addressed, write-once and outside any checkout, so a worktree can neither strand a payload nor write through"
-old_path = ["/home/cfutro/docs/world/notes/audits/worktree-stranded-payload.md", "/home/cfutro/docs/world/notes/audits/worktree-write-through.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/worktree-stranded-payload.md", "/home/cfutro/git/vesper/notes/audits/worktree-write-through.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,0 +1,11 @@
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+statistic = "sum of primal cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
+threshold = "roundoff"
+
+[[protocol]]
+id = "ape"
+system = "APE() as a Sourced constructor"
+normalisation = "prescribed surface, equal total instellation"

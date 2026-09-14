@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-011"
 title = "A duration a component has no clock for is undefined, not unmeasured; an Earth calibration reads a population's density at matched size class, never its survivors"
-old_path = ["/home/cfutro/docs/world/docs/src/reference/no-time-axis.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/reference/no-time-axis.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -65,6 +65,6 @@ Earth population target; the M1 gate's age-times-rate identity; the oracle regis
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/reference/no-time-axis.md
-- /home/cfutro/docs/world/notes/audits/tuned-values.md, section 5 (the size floor)
+- /home/cfutro/git/vesper/docs/src/reference/no-time-axis.md
+- /home/cfutro/git/vesper/notes/audits/tuned-values.md, section 5 (the size floor)
 - Plan decisions A4, B1.

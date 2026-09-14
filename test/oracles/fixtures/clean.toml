@@ -1,0 +1,84 @@
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+statistic = "sum of primal cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
+threshold = "roundoff (positive control: a dropped cell, which must fail, and the unchanged mesh, which must pass)"
+
+[[oracle]]
+id = "core.held_suarez"
+tier = 1
+statistic = "jet latitude over the climatology; spread arms scale the relaxation rates with the rotation period"
+verdict_kind = "fail_bar"
+threshold = "provisional; published spread"
+protocol = "held_suarez"
+
+[[oracle]]
+id = "earth.ceres_global_means"
+tier = 2
+statistic = "global-mean OLR, reported beside the observation's uncertainty"
+verdict_kind = "report"
+threshold = "n/a"
+
+[[oracle]]
+id = "core.hadley_small_rossby_limit"
+tier = 1
+statistic = "Hadley cell edge against rotation rate in the small-Rossby limit"
+verdict_kind = "fail_bar"
+threshold = "provisional; the analytic form within discretisation error"
+
+[[oracle]]
+id = "physics.gravity_column_identities"
+tier = 1
+statistic = "surface pressure against column mass times gravity at each gravity of a sweep"
+verdict_kind = "fail_bar"
+threshold = "roundoff at every gravity of the sweep"
+
+[[oracle]]
+id = "sweep.rotation_rate"
+tier = 3
+depends_on = ["core.hadley_small_rossby_limit"]
+statistic = "exponent of the Hadley edge against rotation rate swept"
+verdict_kind = "fail_bar"
+threshold = "provisional: outside the published inter-model disagreement fails"
+protocol = "held_suarez"
+
+[[oracle]]
+id = "sweep.gravity"
+tier = 3
+depends_on = ["physics.gravity_column_identities"]
+statistic = "circulation response against gravity swept"
+verdict_kind = "report"
+threshold = "no bar: the published studies are the reference"
+protocol = "gravity_sweep"
+
+[[oracle]]
+id = "repro.backend_ulp_envelope"
+tier = 1
+statistic = "CPU versus GPU divergence at every step against the ensemble envelope"
+verdict_kind = "fail_bar"
+threshold = "inside the envelope at every step; bitwise in debug mode"
+instrument = "ulp_ensemble"
+
+[[oracle]]
+id = "repro.fp32_kernel_certification"
+tier = 1
+statistic = "each FP32 kernel against its FP64 self"
+verdict_kind = "fail_bar"
+threshold = "inside the envelope; reservoirs never FP32"
+instrument = "ulp_ensemble"
+
+[[instrument]]
+id = "ulp_ensemble"
+definition = "The ensemble holds Backends.ENSEMBLE_MEMBERS members drawn without replacement from the case's usable sites. A certification of a case that declares an Obligation is not admissible from the sampled arm alone."
+parameters = { "Backends.ENSEMBLE_MEMBERS" = 766 }
+
+[[protocol]]
+id = "held_suarez"
+system = "HeldSuarez() at the published radius, gravity, gas constant and surface pressure"
+normalisation = "the forcing profile and the relaxation rates in seconds"
+
+[[protocol]]
+id = "gravity_sweep"
+system = "the published sweep's base system as a Sourced constructor"
+normalisation = "column mass"

@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-017"
 title = "Wetland extent is a tile partition closing on the land column's areas, saturation is an outcome and never a source term, methane production, oxidation and transport are separate fluxes, peat integrates on the terrain's clock, and a surface flux never sets an atmospheric abundance without the lifetime loop"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/wetland-activation-contract.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/wetland-activation-contract.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -172,8 +172,8 @@ boundary condition standing where a computed outcome belongs.
 - Saunois, M. et al. (2020). The Global Methane Budget 2000-2017. Earth System
   Science Data 12, 1561-1623. DOI: 10.5194/essd-12-1561-2020. Why a surface
   flux does not determine an abundance.
-- /home/cfutro/docs/world/biosphere/notes/wetlands-peat-methane-audit.md,
-  /home/cfutro/docs/world/biosphere/notes/reduced-wetland-form.md.
+- /home/cfutro/git/vesper/biosphere/notes/wetlands-peat-methane-audit.md,
+  /home/cfutro/git/vesper/biosphere/notes/reduced-wetland-form.md.
 
 ## Amendments
 

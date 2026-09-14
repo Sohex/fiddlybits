@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-005"
 title = "An Earth-calibrated scheme is transferred by re-deriving what its calibration held fixed"
-old_path = ["/home/cfutro/docs/world/notes/audits/physics-review.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/physics-review.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -120,9 +120,9 @@ obliquity, gravity, stellar type and flux; the C1 Earth distance report.
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/physics-review.md
-- /home/cfutro/docs/world/notes/audits/missed-couplings.md, finding 2 (the reference-level pair)
-- /home/cfutro/docs/world/lib/stellar.py (module docstring: the identity and the grid defect)
+- /home/cfutro/git/vesper/notes/audits/physics-review.md
+- /home/cfutro/git/vesper/notes/audits/missed-couplings.md, finding 2 (the reference-level pair)
+- /home/cfutro/git/vesper/lib/stellar.py (module docstring: the identity and the grid defect)
 - Lacis and Hansen (1974). *A Parameterization for the Absorption of Solar Radiation in the Earth's Atmosphere.* DOI 10.1175/1520-0469(1974)031<0118:APFTAO>2.0.CO;2
 - Yamamoto (1962). *Direct Absorption of Solar Radiation by Atmospheric Water Vapor, Carbon Dioxide and Molecular Oxygen.* DOI 10.1175/1520-0469(1962)019<0182:DAOSRB>2.0.CO;2
 - Howard, Burch and Williams (1956). *Infrared Transmission of Synthetic Atmospheres. III. Absorption by Water Vapor.* DOI 10.1364/JOSA.46.000242

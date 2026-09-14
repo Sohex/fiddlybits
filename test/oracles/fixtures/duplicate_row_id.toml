@@ -1,0 +1,27 @@
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+subsystem = "mesh"
+dataset_or_reference = "identity"
+source_kind = "identity"
+statistic = "sum of primal cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
+threshold = "roundoff"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []
+
+[[oracle]]
+id = "mesh.area_closure"
+tier = 1
+subsystem = "mesh"
+dataset_or_reference = "identity"
+source_kind = "identity"
+statistic = "sum of dual cell areas against 4 pi R^2"
+verdict_kind = "fail_bar"
+threshold = "roundoff"
+provisional = true
+registered_at = ""
+holdout = false
+anchors = []

@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-002"
 title = "Reproducibility across thread counts is a design property tested with repeats; CPU/GPU agreement has a measured tolerance"
-old_path = ["/home/cfutro/docs/world/notes/audits/model-reproducibility.md", "/home/cfutro/docs/world/notes/audits/implicit-save-under-threads.md", "/home/cfutro/docs/world/notes/audits/shared-diagnostics-unit-under-threads.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/model-reproducibility.md", "/home/cfutro/git/vesper/notes/audits/implicit-save-under-threads.md", "/home/cfutro/git/vesper/notes/audits/shared-diagnostics-unit-under-threads.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -36,11 +36,11 @@ does not gain a dependency on the parallel layer to get one. The predecessor's
 stochastic streams were keyed by hashing the physical cell, the ecological
 replicate and the process name, so a stream never depended on rank or traversal
 order and draws in one process could not advance another
-(`/home/cfutro/docs/world/lib/stochastic_seeds.py`). A cold start with no declared
+(`/home/cfutro/git/vesper/lib/stochastic_seeds.py`). A cold start with no declared
 seed drew from the system clock, making two cold starts two experiments. A
 configuration scalar read by one worker and never shared with the others corrupted
 60 of 64 latitude rows in 26 output fields while every collective count still
-matched (`/home/cfutro/docs/world/notes/audits/nlowio-collective-deadlock.md`).
+matched (`/home/cfutro/git/vesper/notes/audits/nlowio-collective-deadlock.md`).
 
 ## Why it carries
 

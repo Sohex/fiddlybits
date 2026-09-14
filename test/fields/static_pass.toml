@@ -1,0 +1,147 @@
+# The findings the static pass, test/fields/static_pass.jl, accepts. Each [[accepted]] entry
+# names one finding by analysis, kind, file, method and message, as the pass prints it, and
+# carries the reason it stands and the tracker row that removes it.
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Coupling/loops.jl"
+method = "Fiddlybits.Coupling.#scatter_report#"
+message = "no matching method found `getindex(::Tuple, ::Nothing)` (1/2 union split)"
+reason = "the index is read after (i !== nothing && ...) || refuse(...), which refuses a nothing; inference does not carry the check on i through the combined condition to the index"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Coupling/state.jl"
+method = "Fiddlybits.Coupling.declaration_of"
+message = "no matching method found `declare(::Any)`"
+reason = "declare is called behind a hasmethod guard that refuses a component without a method; inference does not read the guard"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Fields/vectors.jl"
+method = "Fiddlybits.Fields.transform"
+message = "no matching method found `lift(::Tuple{Fiddlybits.Fields.Field, Fiddlybits.Fields.Field}, ::Fiddlybits.Fields.LocalFrame{Basis, 1} where Basis)`, `lift(::Tuple{Fiddlybits.Fields.Field}, ::Fiddlybits.Fields.LocalFrame{Basis, 2} where Basis)` (2/4 union split)"
+reason = "transform is written over a frame of free arity, so project's one-axis and two-axis returns are crossed with the other frame; lift has a method for each arity it is called with"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "none"
+method = "Fiddlybits.Provenance.#write_canonical!##"
+message = "no matching method found `String(::Int64)`"
+reason = "the generic write_canonical! method converts fieldnames(T) with String, and fieldnames are integers only for a tuple type, which the tuple method receives instead"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Provenance/key.jl"
+method = "Fiddlybits.Provenance.require_inputs"
+message = "no matching method found `String(::Integer)` (1/2 union split)"
+reason = "the keys of a NamedTuple are symbols, and inference over an abstract NamedTuple admits an integer key"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Systems/star.jl"
+method = "Fiddlybits.Systems.evaluate_stellar_model"
+message = "no matching method found `model_domain(::Fiddlybits.Systems.StellarModel)`"
+reason = "model_domain is an interface with no method in the package; the only stellar models are test fixtures, so a model the package does not define reaches a raw MethodError"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Systems/checks.jl"
+method = "Fiddlybits.Systems.require_disposition"
+message = "no matching method found `*(::String, ::Nothing)` (1/3 union split)"
+reason = "one of three inferred branches of the refusal message's concatenation is nothing on an abstract disposition; the message is built only on the path that refuses"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Systems/planet.jl"
+method = "Fiddlybits.Systems.resolve_radius"
+message = "no matching method found `interior_domain(::Fiddlybits.Systems.InteriorModel)`"
+reason = "interior_domain is an interface with no method in the package; the only interior models are test fixtures, so a model the package does not define reaches a raw MethodError"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Provenance/store.jl"
+method = "Fiddlybits.Provenance.#"
+message = "no matching method found `object_directory(::Any, ::Fiddlybits.Provenance.ScratchRun)` (1/2 union split)"
+reason = "the place closure of put_field! for a RunID is analysed with its key argument as Any, so admit(key) splits to admit's ScratchRun method, which object_directory has no method for; write_field! calls it with an ArtifactKey"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Provenance/store.jl"
+method = "Fiddlybits.Provenance.#"
+message = "no matching method found `write_array!(::URIs.URI, ::Any, ::Any, ::Any)` (1/2 union split)"
+reason = "the write_directory! closure is analysed with its staging argument as Any, and joinpath on it admits the URIs.URI method URIs adds; write_directory! passes a String path"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Provenance/store.jl"
+method = "Fiddlybits.Provenance.#"
+message = "no matching method found `write_toml(::URIs.URI, ::Any)` (1/2 union split)"
+reason = "the write_directory! closures are analysed with their staging argument as Any, and joinpath on it admits the URIs.URI method URIs adds; write_directory! passes a String path"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Provenance/store.jl"
+method = "Fiddlybits.Provenance.#write_field!##"
+message = "no matching method found `write_array!(::URIs.URI, ::Any, ::Any, ::Any)` (1/2 union split)"
+reason = "the write_directory! closure of write_field! is analysed with its staging argument as Any, and joinpath on it admits the URIs.URI method URIs adds; write_directory! passes a String path"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Provenance/store.jl"
+method = "Fiddlybits.Provenance.#write_field!##"
+message = "no matching method found `write_toml(::URIs.URI, ::Any)` (1/2 union split)"
+reason = "the write_directory! closure of write_field! is analysed with its staging argument as Any, and joinpath on it admits the URIs.URI method URIs adds; write_directory! passes a String path"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_call"
+kind = "MethodErrorReport"
+file = "src/Provenance/store.jl"
+method = "Fiddlybits.Provenance.record_value"
+message = "no matching method found `String(::Int64)` (1/2 union split)"
+reason = "the generic record_value method converts fieldnames(T) with String, and fieldnames are integers only for a tuple type, which the tuple method receives instead"
+row = "fiddlybits-52v.3.18"
+
+[[accepted]]
+analysis = "report_opt"
+kind = "RuntimeDispatchReport"
+file = "src/Backends/launch.jl"
+method = "Fiddlybits.Backends.wait_queued"
+message = "runtime dispatch detected"
+reason = "the refusal calls sprint(showerror, err) with err inferred Any, since what a device wait raises is not inferred, and the call to sprint is the dispatch; every form that shows any raised value keeps a dispatch in a Fiddlybits frame, moves it to a helper, or hides it in a builtin (notes/findings/2026-09-14-a-caught-exception-and-an-installed-sink-dispatch-on-a-value-of-type-any.md); removing it means refusing only named error types, which the row decides"
+row = "fiddlybits-52v.3.24"
+
+[[accepted]]
+analysis = "report_opt"
+kind = "RuntimeDispatchReport"
+file = "src/Events/Events.jl"
+method = "Fiddlybits.Events.moved"
+message = "runtime dispatch detected"
+reason = "MOVE_SINK[](Moved(array, from, to)) calls a value read from a Ref{Any}, so the callee is Any; a Ref{Function} keeps the dispatch, a nospecialize helper moves it, and invokelatest hides it in a builtin (notes/findings/2026-09-14-a-caught-exception-and-an-installed-sink-dispatch-on-a-value-of-type-any.md); removing it means a declared concrete type for the sinks decision 0046 installs, which the row decides"
+row = "fiddlybits-52v.3.25"

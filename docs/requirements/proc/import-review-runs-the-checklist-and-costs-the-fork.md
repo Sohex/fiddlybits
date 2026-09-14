@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-008"
 title = "An import review runs the external-tree checklist, records clean negatives, checks a claimed limitation against the candidate, and costs the fork before deciding on the physics"
-old_path = ["/home/cfutro/docs/world/notes/external-tree-checklist.md"]
+old_path = ["/home/cfutro/git/vesper/notes/external-tree-checklist.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -117,8 +117,8 @@ references index rule that a borrowed scheme names its primary source as `read`.
 
 ## References
 
-- /home/cfutro/docs/world/notes/external-tree-checklist.md
-- /home/cfutro/docs/world/notes/external-model-survey.md, sections 5, 55e, and the sections each checklist row cites
-- /home/cfutro/docs/world/notes/orchestration-frameworks.md, "Before recording another limitation, check it"
-- /home/cfutro/docs/world/docs/src/reference/design-intent.md ("cost the fork, then decide on the physics")
+- /home/cfutro/git/vesper/notes/external-tree-checklist.md
+- /home/cfutro/git/vesper/notes/external-model-survey.md, sections 5, 55e, and the sections each checklist row cites
+- /home/cfutro/git/vesper/notes/orchestration-frameworks.md, "Before recording another limitation, check it"
+- /home/cfutro/git/vesper/docs/src/reference/design-intent.md ("cost the fork, then decide on the physics")
 - Plan decisions A8; Part G references discipline.

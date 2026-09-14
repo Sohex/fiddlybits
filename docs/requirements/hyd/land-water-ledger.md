@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-012"
 title = "Land water is a ledger of mass with one owner per store, one debit per evaporative component, and closure at every interval down to the model step"
-old_path = ["/home/cfutro/docs/world/hydrography/notes/land-water-ledger.md"]
+old_path = ["/home/cfutro/git/vesper/hydrography/notes/land-water-ledger.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -9,7 +9,7 @@ status = "carried"
 ## What is true
 
 Recorded 2026-08-24 as a contract, resting on
-`/home/cfutro/docs/world/biosphere/notes/soil-land-surface-hydraulic-consistency-audit.md`.
+`/home/cfutro/git/vesper/biosphere/notes/soil-land-surface-hydraulic-consistency-audit.md`.
 The predecessor had a water balance and not a ledger. Its land-atmosphere surplus
 closed at equilibrium, its groundwater solver conserved its own recharge, and its
 basin code added only signed exchange, and together they let one interval's positive

@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-007"
 title = "Every step reads its most determined input, every field update belongs to a loop, and an antitone coupling is bracketed rather than converged"
-old_path = ["/home/cfutro/docs/world/docs/src/pipeline/loops.md"]
+old_path = ["/home/cfutro/git/vesper/docs/src/pipeline/loops.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -82,6 +82,6 @@ REQ-PROC-007; the `assemble` check that every read names its writer.
 
 ## References
 
-- /home/cfutro/docs/world/docs/src/pipeline/loops.md
-- /home/cfutro/docs/world/docs/src/reference/vocabulary.md (bracketed versus marginal versus disputed)
+- /home/cfutro/git/vesper/docs/src/pipeline/loops.md
+- /home/cfutro/git/vesper/docs/src/reference/vocabulary.md (bracketed versus marginal versus disputed)
 - Plan decisions A5, B5, B9.

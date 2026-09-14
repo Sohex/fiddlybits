@@ -14,7 +14,7 @@ module NightlyDriver
 include(joinpath(normpath(joinpath(@__DIR__, "..", "..")), "tools", "nightly", "run.jl"))
 end
 
-using .NightlyDriver: subject, write_record, EXTRA_FLAGS
+using .NightlyDriver: subject, write_record, EXTRA_FLAGS, static_wrap
 
 """
     run_fixture(flags)
@@ -59,6 +59,37 @@ end
         end
     end
 
+    @testset "the static pass compiles into the checkout's depot" begin
+        pass = NightlyDriver.StaticPass
+        depot = NightlyDriver.Gate.checkout_depot(NIGHTLY_ROOT)
+        dir = mktempdir()
+        commands = (pass.environment_command(NIGHTLY_ROOT, dir),
+                    pass.pass_command(NIGHTLY_ROOT, dir, "tree", pass.ACCEPTED,
+                                      joinpath(dir, "result.toml")))
+        function first_depot(cmd::Cmd)
+            cmd.env === nothing && return nothing
+            i = findfirst(startswith("JULIA_DEPOT_PATH="), cmd.env)
+            i === nothing && return nothing
+            return first(split(cmd.env[i][length("JULIA_DEPOT_PATH=")+1:end], ':'))
+        end
+        for cmd in commands
+            @test first_depot(static_wrap(NIGHTLY_ROOT)(cmd)) == depot
+        end
+
+        @testset "positive control: a command not passed through it names no depot" begin
+            for cmd in commands
+                @test first_depot(cmd) === nothing
+            end
+        end
+    end
+
+    @testset "the static pass runs on the nightly and not in the fields suite" begin
+        @test occursin("test\", \"fields\", \"static_pass.jl",
+                       read(joinpath(NIGHTLY_ROOT, "tools", "nightly", "run.jl"), String))
+        @test !occursin("static_pass",
+                        read(joinpath(NIGHTLY_ROOT, "test", "fields", "runtests.jl"), String))
+    end
+
     @testset "the flag catches a fault the gate's configuration does not" begin
         @testset "under the gate's configuration the read stands" begin
             ok, _ = run_fixture(`--check-bounds=auto`)
@@ -72,17 +103,40 @@ end
         end
     end
 
-    @testset "the tree no longer elides a check of its own" begin
-        # The seven annotations in src/Mesh bought nothing measurable
-        # (notes/findings/2026-09-12-what-seven-inbounds-annotations-buy.md), so the
-        # shipped form is checked and the flag now only reaches dependencies.
+    @testset "every elision in src/ is an @inbounds inside a @kernel body (decision 0055)" begin
+        # Gate.elision_sites reads the parsed source; a site is admitted when it is an
+        # @inbounds and sits inside a @kernel call, and refused otherwise, which
+        # includes @kernel inbounds=true and Expr(:inbounds) built in code.
+        refused(text) = [s for s in NightlyDriver.Gate.elision_sites(text)
+                         if !(s[2] == "@inbounds" && s[3])]
+        fixture(name) = read(joinpath(@__DIR__, "fixtures", name), String)
+
         sources = String[]
         for (dir, _, names) in walkdir(joinpath(NIGHTLY_ROOT, "src")), name in names
             endswith(name, ".jl") && push!(sources, joinpath(dir, name))
         end
         @test !isempty(sources)
-        elided = [f for f in sources if occursin("@inbounds", read(f, String))]
-        @test isempty(elided)
+        outside = [(relpath(f, NIGHTLY_ROOT), s) for f in sources for s in refused(read(f, String))]
+        @test isempty(outside)
+
+        @testset "positive control: an @inbounds in host code is refused" begin
+            sites = refused(fixture("inbounds_outside_kernel.jl"))
+            @test length(sites) == 1
+            @test sites[1][2] == "@inbounds"
+            @test !sites[1][3]
+        end
+
+        @testset "positive control: a @kernel given inbounds=true is refused" begin
+            sites = refused(fixture("kernel_inbounds_true.jl"))
+            @test length(sites) == 1
+            @test sites[1][2] == "@kernel inbounds=true"
+        end
+
+        @testset "clean control: an @inbounds inside a kernel body, plain and through @eval, is admitted" begin
+            text = fixture("inbounds_inside_kernel.jl")
+            @test length(NightlyDriver.Gate.elision_sites(text)) == 2
+            @test isempty(refused(text))
+        end
     end
 
     @testset "the subject is main with a clean tree, or it refuses" begin
@@ -165,7 +219,9 @@ end
     @testset "a night's record names its commit and every suite" begin
         dir = mktempdir()
         results = [("alpha", true, 1.5), ("beta", false, 2.25)]
-        path = write_record(dir, "0" ^ 40, results, 3.0, 1)
+        static = Dict{String,Any}("status" => 1, "julia_version" => string(VERSION),
+                                  "jet_version" => "0.0.0", "new" => ["a finding"])
+        path = write_record(dir, "0" ^ 40, results, 3.0, 1; static = static)
         @test isfile(path)
 
         record = NightlyDriver.TOML.parsefile(path)
@@ -174,6 +230,11 @@ end
         @test record["check_bounds"] == true
         @test [s["name"] for s in record["suite"]] == ["alpha", "beta"]
         @test [s["passed"] for s in record["suite"]] == [true, false]
+        @test record["static_pass"]["julia_version"] == string(VERSION)
+        @test record["static_pass"]["new"] == ["a finding"]
+        @test !haskey(NightlyDriver.TOML.parsefile(write_record(mktempdir(), "2" ^ 40, results,
+                                                                3.0, 0)),
+                      "static_pass")
 
         @testset "the name says which commit, and a rerun of it takes a counter" begin
             @test occursin("0" ^ 12, basename(path))

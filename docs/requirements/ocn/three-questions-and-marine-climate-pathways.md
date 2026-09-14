@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-007"
 title = "Coupling class, circulation formulation and ecosystem tier are three separable decisions, and a marine ecosystem reaches climate through a named set of pathways each with one owner"
-old_path = ["/home/cfutro/docs/world/notes/audits/ocean-and-marine-biosphere.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/ocean-and-marine-biosphere.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

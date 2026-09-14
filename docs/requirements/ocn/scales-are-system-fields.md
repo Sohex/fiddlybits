@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-001"
 title = "Every physical scale an ocean solver uses is a named field of the system struct, stated once"
-old_path = ["/home/cfutro/docs/world/notes/audits/ocean-tier-implicit-earth.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/ocean-tier-implicit-earth.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

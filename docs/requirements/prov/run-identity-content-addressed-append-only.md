@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROV-002"
 title = "Run identity is content-addressed and append-only, never rebuilt by scanning, and the code that ran is part of the key"
-old_path = ["/home/cfutro/docs/world/notes/audits/run-identity.md", "/home/cfutro/docs/world/notes/audits/executable-provenance-at-the-consumer.md", "/home/cfutro/docs/world/notes/audits/model-build-driver.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/run-identity.md", "/home/cfutro/git/vesper/notes/audits/executable-provenance-at-the-consumer.md", "/home/cfutro/git/vesper/notes/audits/model-build-driver.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -42,8 +42,8 @@ end; compare parsed values, never a file hash of a configuration; hash the deriv
 input files a generator read, because their names are stable across a change; a
 deliberate cross-identity read names the identity it means, never a flag that
 turns the check off; a hash in prose is a current value wearing the costume of an
-identity (`/home/cfutro/docs/world/lib/provenance.py`,
-`/home/cfutro/docs/world/docs/src/reference/builds.md`). Registered, present and
+identity (`/home/cfutro/git/vesper/lib/provenance.py`,
+`/home/cfutro/git/vesper/docs/src/reference/builds.md`). Registered, present and
 activatable were three states of a build, and a registry entry carried a
 machine-readable refusal where the reasons had begun as prose no gate could reach.
 

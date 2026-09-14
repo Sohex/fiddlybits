@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-003"
 title = "One photon-currency conversion from the declared spectrum, shared by radiation and photosynthesis, with the pigment window a declared trait and leaf optics carried as reflectance and transmittance per band"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/productivity-prediction.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/productivity-prediction.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -51,7 +51,7 @@ the archived commit, under a K2.5V spectrum):
   strongly in the near-infrared raises omega_NIR without raising omega_PAR.
   Under a red star the leaf-to-canopy correction is therefore not one-signed:
   for two of three CLM5 leaf classes the canopy ratio exceeded the leaf ratio
-  (measured in /home/cfutro/docs/world/notes/external-model-survey.md section
+  (measured in /home/cfutro/git/vesper/notes/external-model-survey.md section
   38), so a reflectance library cannot settle the sign.
 - A two-band surface albedo returned to the atmosphere had to be anchored on
   the radiation scheme's own band weights; anchoring on a leaf library's flux
@@ -145,9 +145,9 @@ needs regardless of star.
   Uncertainty. Journal of Advances in Modeling Earth Systems 11, 4245-4287.
   DOI: 10.1029/2018MS001583. The per-class leaf reflectance and
   transmittance table that supplied the sign test.
-- /home/cfutro/docs/world/notes/external-model-survey.md section 38 (the
+- /home/cfutro/git/vesper/notes/external-model-survey.md section 38 (the
   leaf-to-canopy bound is not one-signed).
-- /home/cfutro/docs/world/biosphere/notes/implicit-earth-assumptions.md
+- /home/cfutro/git/vesper/biosphere/notes/implicit-earth-assumptions.md
   finding 5 (the two halves of one conversion).
 
 ## Amendments

@@ -77,3 +77,7 @@ record), extracted from pinned tarballs rather than cloned, and never vendored.
   record carries: `/home/cfutro/docs/world/references/INDEX.md`.
 - Predecessor failure class "a number taken from a citation rather than from the
   paper": `/home/cfutro/docs/world/docs/src/practice/failure-modes.md`.
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

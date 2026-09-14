@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-002"
 title = "Every surface reflectance and every absorptance is integrated against the declared spectrum per band, and nothing downstream of a star-weighted endmember is spectrum-blind"
-old_path = ["/home/cfutro/docs/world/notes/audits/inherited-earth-constants.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/inherited-earth-constants.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

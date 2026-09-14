@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-008"
 title = "Surface longwave emissivity is derived per surface class from hemispherical spectra weighted by the surface's own Planck function, the reflected downwelling is debited at the surface, and a per-level energy ledger catches a partition defect the column ledger cannot"
-old_path = ["/home/cfutro/docs/world/notes/audits/surface-longwave.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/surface-longwave.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

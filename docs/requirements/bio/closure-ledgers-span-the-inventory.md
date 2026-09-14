@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-013"
 title = "A biosphere closure ledger is generated from the declared state so its stock and flux sides span the same inventory, the residual's time signature is classified, and conservation bounds derived from the input side are acceptance criteria"
-old_path = ["/home/cfutro/docs/world/notes/audits/closure-stocks-are-incomplete.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/closure-stocks-are-incomplete.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -92,8 +92,8 @@ what closure cannot.
    process: a loss in one interval cannot exceed the stock it draws on; over an
    accepted equilibrium record the mean of one loss pathway is strictly below
    mean supply when other pathways exist. They are evaluated on every tile and
-   interval, cost one pass, and are registered before the first artifact they
-   judge (C2).
+   interval, cost one pass, and are fixed before the value they judge has been
+   seen (C2).
 
 ## Enforced by
 
@@ -103,7 +103,7 @@ what closure cannot.
   the C4 mutation run omits one pool from a ledger and must be caught by the
   telescoping signature.
 - Registered thresholds: the input-side bounds in the oracle registry with
-  `provisional = true` until the first artifact.
+  `provisional = true` until the milestone that registers them.
 
 ## References
 
@@ -111,7 +111,7 @@ what closure cannot.
   external source is claimed for it. Primary sources for the conservation
   identities are the component references (REQ-BIO-010, REQ-BIO-011,
   REQ-BIO-016).
-- /home/cfutro/docs/world/biosphere/notes/fire-nitrogen-range.md (the
+- /home/cfutro/git/vesper/biosphere/notes/fire-nitrogen-range.md (the
   input-side stock and rate bounds and their first application).
-- /home/cfutro/docs/world/notes/audits/closure-stocks-are-incomplete.md (the
+- /home/cfutro/git/vesper/notes/audits/closure-stocks-are-incomplete.md (the
   measurements above).

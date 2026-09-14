@@ -79,3 +79,7 @@ per-profile fraction is a data change if the shared scheduler needs one.
   `/home/cfutro/docs/world/docs/src/reference/environment.md`.
 - Kahan, W. "Pracniques: further remarks on reducing truncation errors."
   Communications of the ACM 8 (1965). DOI: 10.1145/363707.363723
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

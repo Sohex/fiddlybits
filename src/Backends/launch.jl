@@ -17,6 +17,27 @@ growing, so a chain that never completes does not grow without bound.
 const QUEUED_KEY = :fiddlybits_backends_queued
 const QUEUED_TRACE = 32
 
+"""
+    QueuedTrace()
+
+The record `QUEUED_KEY` holds: the kernel, the workgroup size and the work item
+count of each launch, in three vectors of one length, in the order queued.
+"""
+struct QueuedTrace
+    kernels::Vector{Any}
+    workgroups::Vector{Int}
+    counts::Vector{Int}
+end
+QueuedTrace() = QueuedTrace(Any[], Int[], Int[])
+
+"Empties every vector of `trace`."
+function empty_trace!(trace::QueuedTrace)
+    empty!(trace.kernels)
+    empty!(trace.workgroups)
+    empty!(trace.counts)
+    return trace
+end
+
 "The record `queued` returns for a backend that keeps none. Never written to."
 const NO_KERNELS = Any[]
 
@@ -29,16 +50,31 @@ The kernels `launch!` has queued on `backend` from this task that no
 every work item has run, and emptied by every `complete!`.
 """
 queued(::CPU) = NO_KERNELS
-queued(::GPU) = queued_trace()
+queued(::GPU) = queued_trace().kernels
 
-queued_trace() = get!(() -> Any[], task_local_storage(), QUEUED_KEY)::Vector{Any}
+"""
+    queued_launches(backend::Backend)
+
+`queued`'s launches with their shape: one `(kernel, workgroup, n)` named
+tuple per launch, the workgroup size it launched at and its work item count,
+in the order they were queued.
+"""
+queued_launches(::CPU) = NO_KERNELS
+
+function queued_launches(::GPU)
+    trace = queued_trace()
+    return Any[(kernel = trace.kernels[i], workgroup = trace.workgroups[i], n = trace.counts[i])
+               for i in eachindex(trace.kernels)]
+end
+
+queued_trace() = get!(QueuedTrace, task_local_storage(), QUEUED_KEY)::QueuedTrace
 
 """
     launch!(kernel, backend::Backend, n::Integer, args...)
 
 Compile `kernel` (a `KernelAbstractions.@kernel` function) for `backend`'s
-device at `backend`'s workgroup size and queue it over `n` work items with
-`args`.
+device and queue it over `n` work items with `args`, at the workgroup size
+`launch_workgroup(backend, n)`, through `queue_kernel!`.
 
 On `CPU` the kernel has run over every work item by the time this returns.
 On `GPU` the kernel has been queued on the backend's stream and may still be
@@ -52,17 +88,53 @@ this one only through `handoff` and `after!`.
 """
 function launch!(kernel, backend::Backend, n::Integer, args...)
     dev = ka_backend(backend)
-    compiled = kernel(dev, workgroup(backend))
-    compiled(args...; ndrange = n)
-    record_queued!(backend, kernel)
+    size = launch_workgroup(backend, n)
+    queue_kernel!(kernel, dev, size, n, args...)
+    record_queued!(backend, kernel, size, n)
     return nothing
 end
 
-record_queued!(::CPU, kernel) = nothing
+"""
+    STATIC_WORKGROUPS
 
-function record_queued!(backend::GPU, kernel)
-    trace = queued(backend)
-    length(trace) < QUEUED_TRACE && push!(trace, kernel)
+The workgroup sizes `queue_kernel!` compiles into the kernel's type: every
+power of two from 1 to 1024, the largest number of threads a CUDA block holds
+along its first dimension (CUDACore `src/device/intrinsics/indexing.jl`,
+`max_block_size`).
+"""
+const STATIC_WORKGROUPS = ntuple(i -> 2^(i - 1), 11)
+
+"""
+    queue_kernel!(kernel, dev, size, n, args...)
+
+Launch `kernel` on the `KernelAbstractions.Backend` `dev` over `n` work items
+with `args` at the workgroup size `size`. A `size` in `STATIC_WORKGROUPS` is
+a parameter of the compiled kernel's type, one branch per size, each spelling
+that type as `KernelAbstractions.StaticSize{(size,)}`; any other `size` is an
+argument of the launch. Each branch calls a kernel whose type is written in
+this method's source. Measured in
+notes/findings/2026-09-13-the-launch-workgroup-as-a-type-parameter-or-an-argument.md.
+"""
+function queue_kernel! end
+
+@eval function queue_kernel!(kernel, dev::KernelAbstractions.Backend, size::Int, n::Integer, args...)
+    $(foldr(STATIC_WORKGROUPS; init = :(kernel(dev)(args...; ndrange = n, workgroupsize = size))) do w, rest
+        :(size == $w ?
+          kernel(dev, KernelAbstractions.StaticSize{($w,)}(), KernelAbstractions.DynamicSize())(args...; ndrange = n) :
+          $rest)
+    end)
+    return nothing
+end
+
+record_queued!(::CPU, kernel, size, n) = nothing
+
+function record_queued!(backend::GPU, kernel, size, n)
+    trace = queued_trace()
+    if length(trace.kernels) < QUEUED_TRACE
+        push!(trace.kernels, kernel)
+        push!(trace.workgroups, size)
+        push!(trace.counts, n)
+    end
     return nothing
 end
 
@@ -104,16 +176,17 @@ function wait_queued(wait)
     try
         wait()
     catch err
-        named = isempty(trace) ?
+        named = isempty(trace.kernels) ?
             "no kernel queued through Backends.launch! on this task" :
-            join(trace, ", ") *
-            (length(trace) < QUEUED_TRACE ? "" : ", and any queued after them")
-        empty!(trace)
+            join(("$(trace.kernels[i]) at workgroup $(trace.workgroups[i]) over $(trace.counts[i]) work items"
+                  for i in eachindex(trace.kernels)), ", ") *
+            (length(trace.kernels) < QUEUED_TRACE ? "" : ", and any queued after them")
+        empty_trace!(trace)
         refuse("kernel completion", "Backends.complete!",
                "$(sprint(showerror, err)); raised by one of the kernels queued " *
                "since the last completion: $named")
     end
-    empty!(trace)
+    empty_trace!(trace)
     return nothing
 end
 
@@ -162,6 +235,17 @@ queued after this call start only once the other task's work has finished.
 On `CPU`, whose launch runs the kernel before it returns, a `GPU` `point` is
 waited for on the host here instead, there being nowhere else to put the
 wait; a `CPU` `point` is already finished and returns at once.
+
+Neither form raises a device fault. `after!(CPU(), point)` waits on `point`'s
+event and `after!(GPU(), point)` makes a stream wait on it, and neither reads
+CUDA's kernel-exception flag. A kernel that faulted on the device before
+`point` is raised by `complete!`, which reads that flag after its wait. The
+flag is one per CUDA context, not per task or stream, and the first read that
+finds it set clears it, so the fault is raised by the first `complete!` in the
+process after the fault, including the one `on` and `adapt_for` call. The
+store's writer raises it by calling `complete!` on the task that submitted the
+write, in `settle!` (`fiddlybits-52v.6.26`). `docs/imports/cuda.md`, section
+"Page-locked memory and the queued copy", holds the locators.
 
 This is the only cross-task ordering this module states. Two tasks that share
 a device array and do not use it are ordered by whatever per-array stream

@@ -21,6 +21,7 @@ include("lint_front_matter.jl")
 include("lint_manifest.jl")
 include("lint_static_arrays.jl")
 include("lint_fused_multiply_add.jl")
+include("lint_sourced.jl")
 
 end # module Lints
 
@@ -40,6 +41,7 @@ const TABLE = (
     (name = "lint_manifest",         f = Lints.lint_manifest,         tree = ".",    inside = ""),
     (name = "lint_static_arrays",    f = Lints.lint_static_arrays,    tree = "src",  inside = ""),
     (name = "lint_fused_multiply_add", f = Lints.lint_fused_multiply_add, tree = "src", inside = ""),
+    (name = "lint_sourced",           f = Lints.lint_sourced,           tree = ".",    inside = ""),
 )
 
 fixture(entry, kind) = joinpath(FIXTURES, entry.name, kind, entry.inside)
@@ -115,6 +117,83 @@ fixture(entry, kind) = joinpath(FIXTURES, entry.name, kind, entry.inside)
         for e in Lints.LintSupport.list("effort.toml")["exemption"]
             @test isfile(joinpath(PROJECT, e["path"]))
             @test !isempty(e["reason"])
+        end
+    end
+
+    @testset "lint_sourced places every row of docs/references/INDEX.md" begin
+        _, unplaced = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        isempty(unplaced) || @info "lint_sourced: rows it could not place" unplaced
+        @test isempty(unplaced)
+    end
+
+    @testset "EarthRatios.rotation_rate_unit's locator resolves to a read row" begin
+        status, _ = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        @test get(status, "10.1007/s001900050278", "missing") == "read"
+    end
+
+    @testset "a fixture index row's title reads its status through read_index" begin
+        _, _, titles = Lints.read_index(joinpath(FIXTURES, "lint_sourced", "clean", "docs", "references", "INDEX.md"))
+        @test get(titles, "A read row with a bare DOI", "missing") == "read"
+        @test get(titles, "A held row with a bare DOI", "missing") == "held"
+    end
+
+    @testset "the title of EarthRatios.rotation_rate_unit's row resolves to the same status" begin
+        _, _, titles = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        @test get(titles, "Geodetic Reference System 1980", "missing") == "read"
+    end
+
+    @testset "positive control: an altered title does not resolve" begin
+        _, _, titles = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        @test haskey(titles, "Geodetic Reference System 1980")
+        @test !haskey(titles, "Geodetic Reference System 1981")
+    end
+
+    @testset "positive control: two rows sharing a title are refused" begin
+        # thum2019-quincy.pdf (held) and thum2019-quincy-supplement.pdf (read) carry this title.
+        _, _, titles = Lints.read_index(joinpath(PROJECT, "docs", "references", "INDEX.md"))
+        shared = "A new model of the coupled carbon, nitrogen, and phosphorus cycles in the terrestrial biosphere (QUINCY v1.0; revision 1996)"
+        @test !haskey(titles, shared)
+    end
+
+    @testset "positive control: the same locator against a held row is refused" begin
+        mktempdir() do dir
+            srcdir = joinpath(dir, "src", "EarthRatios")
+            mkpath(srcdir)
+            cp(joinpath(PROJECT, "src", "EarthRatios", "EarthRatios.jl"),
+               joinpath(srcdir, "EarthRatios.jl"))
+            docsdir = joinpath(dir, "docs", "references")
+            mkpath(docsdir)
+            index_text = read(joinpath(PROJECT, "docs", "references", "INDEX.md"), String)
+            held_text = replace(index_text,
+                "`10.1007/s001900050278` | read |" => "`10.1007/s001900050278` | held |")
+            @test held_text != index_text
+            write(joinpath(docsdir, "INDEX.md"), held_text)
+
+            flagged = Lints.lint_sourced(dir)
+            @test any(flagged) do s
+                s.found == "10.1007/s001900050278" &&
+                    s.file == joinpath("src", "EarthRatios", "EarthRatios.jl")
+            end
+        end
+    end
+
+    @testset "positive control: a title does not satisfy lint_sourced as a locator" begin
+        mktempdir() do dir
+            srcdir = joinpath(dir, "src", "EarthRatios")
+            mkpath(srcdir)
+            text = read(joinpath(PROJECT, "src", "EarthRatios", "EarthRatios.jl"), String)
+            titled = replace(text, "\"10.1007/s001900050278\"" => "\"Geodetic Reference System 1980\"")
+            @test titled != text
+            write(joinpath(srcdir, "EarthRatios.jl"), titled)
+            docsdir = joinpath(dir, "docs", "references")
+            mkpath(docsdir)
+            cp(joinpath(PROJECT, "docs", "references", "INDEX.md"), joinpath(docsdir, "INDEX.md"))
+
+            flagged = Lints.lint_sourced(dir)
+            @test any(flagged) do s
+                s.found == "Geodetic Reference System 1980" &&
+                    s.file == joinpath("src", "EarthRatios", "EarthRatios.jl")
+            end
         end
     end
 end

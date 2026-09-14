@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-009"
 title = "Demographic stochastic streams key on physical identity, disturbance is a process with a driver and element destinations, dispersal runs on the land connectivity graph, and patches are samples within a tile rather than places"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/demography-disturbance-dispersal-audit.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/demography-disturbance-dispersal-audit.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -9,7 +9,7 @@ status = "carried"
 ## What is true
 
 Measured on the old world's port of a cohort demography model at the archived
-commit, and on FATES in /home/cfutro/docs/world/notes/external-model-survey.md
+commit, and on FATES in /home/cfutro/git/vesper/notes/external-model-survey.md
 section 54:
 
 - Every stand initialised its random seed to the same literal; there was no
@@ -135,7 +135,7 @@ these.
   physiological and vegetation dynamics using the Functionally Assembled
   Terrestrial Ecosystem Simulator (FATES) at Barro Colorado Island, Panama.
   Biogeosciences 17, 3017-3044. DOI: 10.5194/bg-17-3017-2020.
-- /home/cfutro/docs/world/biosphere/notes/spatial-support-ecological-aggregation-audit.md
+- /home/cfutro/git/vesper/biosphere/notes/spatial-support-ecological-aggregation-audit.md
   finding 5 (one ecological column is not a spatial mosaic).
 
 ## Amendments

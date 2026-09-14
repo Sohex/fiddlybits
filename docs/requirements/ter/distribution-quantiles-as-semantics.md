@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-009"
 title = "When a consumer asks what share of a cell lies past a threshold, or the law's curvature changes sign, the crossing carries the distribution, never a corrected mean"
-old_path = ["/home/cfutro/docs/world/notes/audits/land-mosaic-support-reductions.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/land-mosaic-support-reductions.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

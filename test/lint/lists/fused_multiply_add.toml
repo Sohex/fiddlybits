@@ -88,6 +88,12 @@ function = "pairwise_block_kernel!"
 found = "blocksize * i - blocksize"
 reason = "the first index of a block, over the kernel's integer block size"
 
+[[exemption]]
+path = "Fields/vectors.jl"
+function = "round_trip_terms"
+found = "7n_axes - 1"
+reason = "the floating point operation count a round trip performs, over Integer"
+
 # A site whose unfused chain is what the site is for.
 [[exemption]]
 path = "Orbit/kepler.jl"
@@ -99,4 +105,10 @@ reason = "the positive control of system.kepler_period: it must carry the cancel
 path = "Reductions/segmented.jl"
 function = "segmented_mean_reference"
 found = "num += A(xs[j]) * A(weights[j])"
+reason = "decision 0027's naive serial reference, which decision 0044 keeps unfused and never on muladd"
+
+[[exemption]]
+path = "Reductions/segmented.jl"
+function = "segmented_weighted_sum_reference"
+found = "acc += A(xs[j]) * A(weights[j])"
 reason = "decision 0027's naive serial reference, which decision 0044 keeps unfused and never on muladd"
