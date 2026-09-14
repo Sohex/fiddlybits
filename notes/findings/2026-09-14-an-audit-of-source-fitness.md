@@ -224,8 +224,16 @@ this section holds.
 | Iversen and White 1982, "Saltation threshold on Earth, Mars and Venus", Sedimentology 29, 111-119 | decision 0018: "the Earth fit of Iversen and White (1982)" as the reported distance | FIT, with a wording fix | eqs. 5-6, p.115, "Equation (6) is a curve fit for the one-atmosphere data"; within 5 percent at one atmosphere (Table 1, p.116); no separate Earth-only fit, so the decision names eqs. 5-6 at Earth air | fiddlybits-tr8 |
 
 The four scans without a text layer (Berner 1994, Dunne 1978, Stein and Stein 1992, Mason and
-Saxena 1958) were read as page images; their per-page OCR under `references/text/` is the ingest
-step the references README names, and is not part of this audit.
+Saxena 1958) were read from their rendered page images, and each cited passage was read again
+from the page image before the rows were marked read: Mason and Saxena pp.363-366 (eqs. 16,
+20-21, the factor 1.065, the polar-gas exclusion on p.365, 3.8% and 15.1% on p.366); Stein and
+Stein pp.125-126 (the GDH1 parameters, the uncertainties and the depth and heat-flow forms);
+Berner pp.64-65 and p.69 (eqs. 17-19, eq. 24, the 0.65 power applied to silicate weathering);
+Dunne pp.244-245 (the Fig. 1 caption and Table 1). Every page was legible, so all four stay read.
+`tools/references/extract_text.py` wrote text for the
+other eleven and for Whitehead, Leetmaa and Knox 1974; the four scans extracted to almost nothing,
+and their per-page OCR, the ingest step the references README names, is carried by
+`fiddlybits-cmk`.
 
 Cases carried by rows that already existed, with a note appended to each on 2026-09-14:
 `fiddlybits-52v.2.15` (Barnes and Whitehead read status and the p.121 locator), `fiddlybits-52v.4.5`
