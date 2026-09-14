@@ -438,7 +438,7 @@ each one constructor call with every field declared:
 
 | instance | declares |
 | --- | --- |
-| `Earth()` | IAU and CODATA values with `Sourced` locators; a comparison to report the distance from, never a target |
+| `Earth()` | values with `Sourced` locators from the IAU 2015 nominal constants (Prsa et al. 2016), CODATA 2018, the IAU cartographic report (Archinal et al. 2018), GRS80 (Moritz 2000) and the JPL approximate elements (Standish and Williams); a comparison to report the distance from, never a target |
 | `SyntheticNonEarth()` | a carbon-dioxide bulk atmosphere, higher gravity, prograde, high eccentricity, non-zero obliquity, one star, one moon |
 | `SyntheticSynchronous()` | synchronous rotation, zero obliquity, an M-dwarf spectrum, no moon |
 | `SyntheticRetrograde()` | retrograde spin, two stars, `t = 0` at the planet's periapsis (its longitude of periapsis zero) |

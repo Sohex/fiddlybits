@@ -85,7 +85,7 @@ import .SystemFixtures as SF
         @test resolved == 5
     end
 
-    # The figure arm. Murray and Dermott (2000), Solar System Dynamics,
+    # The figure arm. Murray and Dermott (1999), Solar System Dynamics,
     # 10.1017/CBO9781139174817: Eqs. (4.112) and (4.114), p. 153; Eq. (4.110), p. 152,
     # with J2 = q / 2 for uniform density, p. 151.
     one_ = Dimensions.DIMENSIONLESS

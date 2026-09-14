@@ -11,7 +11,7 @@ either arrays or isbits; a field holding a `Dict` or a closure will not adapt.
 Leak caught by `test/fields/adapt_roundtrip.jl`, which adapts every registered
 struct to CPU and back and asserts equality.
 
-**Licence.** MIT. **Version.** `to pin`.
+**Licence.** MIT. **Version.** 4.7.0, the `Project.toml` compat entry.
 
 **Checklist items applied.** C3 (every struct we pass to a kernel has an adapt
 test), C5 (an adapted copy is a second copy of state; the store records which is
