@@ -22,8 +22,9 @@ end
     run_effective_temperature_mutation()
 
 `Systems.effective_temperature` redefined, for `Float64` only, to always return the
-value it gives on the Sun's declared luminosity and radius, before `test/planets/Planets.jl`
-is loaded: the constructor and `Systems.rederive` both call the mutated rule, so
+value it gives on the Sun's own declared luminosity and radius, read from a
+constructed `Earth()`, before the redefinition is used to build any instance: the
+constructor and `Systems.rederive` both call the mutated rule, so
 `derived_fields_reproduce`'s own mechanism cannot fail. Each instance's stars are then
 checked against the closed form `T = (L / (4 pi R^2 sigma))^(1/4)`, written here and
 not by calling `Systems.effective_temperature`.
@@ -32,13 +33,15 @@ run_effective_temperature_mutation() = run_mutation("""
     using Fiddlybits: Systems, Dispositions, Reductions
     value = Dispositions.value
 
-    earth_teff = Systems.effective_temperature(Float64, 3.828e26, 6.957e8)
+    include("$PLANETS_JL")
+    import .Planets as P
+
+    earth_ref = P.Earth()
+    earth_teff = Systems.effective_temperature(Float64, value(earth_ref.stars[1].luminosity),
+                                               value(earth_ref.stars[1].radius))
     function Systems.effective_temperature(::Type{Float64}, l::Float64, r::Float64)
         return earth_teff
     end
-
-    include("$PLANETS_JL")
-    import .Planets as P
 
     instances = (("Earth", P.Earth()), ("SyntheticNonEarth", P.SyntheticNonEarth()),
                  ("SyntheticSynchronous", P.SyntheticSynchronous()),
@@ -67,28 +70,31 @@ run_effective_temperature_mutation() = run_mutation("""
     run_synchronous_period_mutation()
 
 `Systems.orbital_period` redefined, for `Float64` only, to always return the period
-it gives on the Sun-Earth semi-major axis and mass sum, before `test/planets/Planets.jl`
-is loaded: `SyntheticSynchronous`'s constructor (`resolve_rotation`) and
-`Systems.rederive`'s `:synchronous_rotation_period` branch both reach it through
-`Systems.orbital_period`, the one function both call. The instance is then checked
-against the closed form `P = 2 pi sqrt(a^3 / (G M))`, written here and not by calling
-`Systems.orbital_period`; the same closed form at the Sun-Earth inputs confirms the
-mutated value is exactly what it was set to.
+it gives on Earth's own declared semi-major axis and the Sun-Earth mass sum, read
+from a constructed `Earth()`, before the redefinition is used to build any instance:
+`SyntheticSynchronous`'s constructor (`resolve_rotation`) and `Systems.rederive`'s
+`:synchronous_rotation_period` branch both reach it through `Systems.orbital_period`,
+the one function both call. The instance is then checked against the closed form
+`P = 2 pi sqrt(a^3 / (G M))`, written here and not by calling `Systems.orbital_period`;
+the same closed form at Earth's own inputs confirms the mutated value is exactly what
+it was set to.
 """
 run_synchronous_period_mutation() = run_mutation("""
     using Fiddlybits: Systems, Dispositions, Reductions
     value = Dispositions.value
 
+    include("$PLANETS_JL")
+    import .Planets as P
+
+    earth_ref = P.Earth()
     G = value(Systems.gravitational_constant(Float64))
-    earth_a = 1.00000261 * 149_597_870_700.0
-    earth_masses = (1.3271244e20 / G, 3.986004e14 / G)
+    earth_a = value(earth_ref.orbits.planet.semi_major_axis)
+    earth_masses = Systems.orbit_masses(earth_ref.stars, earth_ref.planet, earth_ref.moons,
+                                        earth_ref.orbits.planet)
     earth_period = Systems.orbital_period(Float64, earth_a, earth_masses)
     function Systems.orbital_period(::Type{Float64}, a::Float64, masses::Tuple)
         return earth_period
     end
-
-    include("$PLANETS_JL")
-    import .Planets as P
 
     s = P.SyntheticSynchronous()
     reproduces = true
@@ -118,35 +124,38 @@ run_synchronous_period_mutation() = run_mutation("""
     run_darwin_radau_mutation()
 
 `Systems.darwin_radau_flattening` redefined, for `Float64` only, to always return the
-flattening it gives on Earth's declared mass, volumetric mean radius and sidereal
-rotation period, at the moment-of-inertia factor 0.3307 commonly cited for Earth
-(Earth's own figure is `AbsentFigure`, so this is a value computed from Earth's
-declared inputs through the true rule, not a stored field of `Earth()`), before
-`test/planets/Planets.jl` is loaded: `SyntheticNonEarth`'s constructor
-(`hydrostatic_flattening`) and `Systems.rederive`'s `:darwin_radau_flattening` branch
-both call it with the rotation parameter and moment-of-inertia factor already
-computed, the one step both share. The instance is then checked against the closed
-form `f = (5q/2) / (1 + (25/4)(1 - 3C/2)^2)`, `q = omega^2 R^3 / (G M)`, from Murray
-and Dermott (2000), Eq. (4.112), p. 153 (`fiddlybits-52v.4.11`), written here and not
-by calling `Systems.darwin_radau_flattening` or `Systems.rotation_parameter`.
+flattening it gives on Earth's own declared mass, volumetric mean radius and
+sidereal rotation period, and `SyntheticNonEarth`'s own declared moment-of-inertia
+factor, all read from constructed instances (Earth's own figure is `AbsentFigure`, so
+this is a value computed from Earth's declared inputs through the true rule, not a
+stored field of `Earth()`), before the redefinition is used to build any instance:
+`SyntheticNonEarth`'s constructor (`hydrostatic_flattening`) and `Systems.rederive`'s
+`:darwin_radau_flattening` branch both call it with the rotation parameter and
+moment-of-inertia factor already computed, the one step both share. The instance is
+then checked against the closed form `f = (5q/2) / (1 + (25/4)(1 - 3C/2)^2)`,
+`q = omega^2 R^3 / (G M)`, from Murray and Dermott (2000), Eq. (4.112), p. 153
+(`fiddlybits-52v.4.11`), written here and not by calling
+`Systems.darwin_radau_flattening` or `Systems.rotation_parameter`.
 """
 run_darwin_radau_mutation() = run_mutation("""
     using Fiddlybits: Systems, Dispositions, Reductions
     value = Dispositions.value
 
+    include("$PLANETS_JL")
+    import .Planets as P
+
+    earth_ref = P.Earth()
+    non_earth_ref = P.SyntheticNonEarth()
     G = value(Systems.gravitational_constant(Float64))
-    earth_mass = 3.986004e14 / G
-    earth_radius = 6_371_008.4
-    earth_period = 2 * pi / 7.292115e-5
-    earth_c = 0.3307
+    earth_mass = value(earth_ref.planet.mass)
+    earth_radius = value(earth_ref.planet.volumetric_mean_radius)
+    earth_period = value(earth_ref.planet.rotation.period)
+    earth_c = value(non_earth_ref.planet.figure.moment_of_inertia_factor)
     earth_q = Systems.rotation_parameter(Float64, earth_mass, earth_radius, earth_period)
     earth_flattening = Systems.darwin_radau_flattening(Float64, earth_c, earth_q)
     function Systems.darwin_radau_flattening(::Type{Float64}, c::Float64, q::Float64)
         return earth_flattening
     end
-
-    include("$PLANETS_JL")
-    import .Planets as P
 
     instances = (("Earth", P.Earth()), ("SyntheticNonEarth", P.SyntheticNonEarth()),
                  ("SyntheticSynchronous", P.SyntheticSynchronous()),
@@ -187,29 +196,31 @@ run_darwin_radau_mutation() = run_mutation("""
     run_flux_semi_major_axis_mutation()
 
 `Systems.semi_major_axis_from_flux` redefined, for `Float64` only, to always return
-the semi-major axis it gives on the Sun's declared luminosity and the IAU nominal
-total solar irradiance at one astronomical unit (Earth's own orbit declares its
-semi-major axis directly, not by flux, so this is a value computed from Earth's
-declared inputs and the published solar constant through the true rule), before
-`test/planets/Planets.jl` is loaded: `SyntheticComposition2`'s constructor
+Earth's own declared orbital semi-major axis, `Sourced` from the Earth/Moon
+barycentre row of Standish and Williams and converted by the IAU 2012 astronomical
+unit, read from a constructed `Earth()`: it is literally the Earth value this rule
+would happen to equal, whatever luminosity and flux it is called with. Before the
+redefinition is used to build any instance: `SyntheticComposition2`'s constructor
 (`resolve_planet_orbit`) and `Systems.rederive`'s `:flux_semi_major_axis` branch both
 call it. The instance is then checked against the closed form
 `a = sqrt(L / (4 pi F))`, written here and not by calling
-`Systems.semi_major_axis_from_flux`.
+`Systems.semi_major_axis_from_flux`; at Earth's own declared luminosity and the flux
+its own declared axis implies (`F = L / (4 pi a^2)`, no number that is not a
+declared, sourced field of `Earth()`), the same closed form reproduces that axis
+exactly.
 """
 run_flux_semi_major_axis_mutation() = run_mutation("""
     using Fiddlybits: Systems, Dispositions, Reductions
     value = Dispositions.value
 
-    earth_l = 3.828e26
-    earth_f = 1361.0
-    earth_a = Systems.semi_major_axis_from_flux(Float64, earth_l, earth_f)
+    include("$PLANETS_JL")
+    import .Planets as P
+
+    earth_ref = P.Earth()
+    earth_a = value(earth_ref.orbits.planet.semi_major_axis)
     function Systems.semi_major_axis_from_flux(::Type{Float64}, l::Float64, f::Float64)
         return earth_a
     end
-
-    include("$PLANETS_JL")
-    import .Planets as P
 
     instances = (("Earth", P.Earth()), ("SyntheticNonEarth", P.SyntheticNonEarth()),
                  ("SyntheticSynchronous", P.SyntheticSynchronous()),
@@ -232,7 +243,9 @@ run_flux_semi_major_axis_mutation() = run_mutation("""
     agrees = abs(closed - stored) <= bound
     println("CLOSED_FORM SyntheticComposition2 ", agrees ? "AGREES" : "DISAGREES")
 
-    earth_closed = sqrt(earth_l / (4 * pi * earth_f))
+    earth_l = value(earth_ref.stars[1].luminosity)
+    earth_f_implied = earth_l / (4 * pi * earth_a^2)
+    earth_closed = sqrt(earth_l / (4 * pi * earth_f_implied))
     earth_bound = Reductions.error_bound(Float64, Systems.FLUX_SEMI_MAJOR_AXIS_TERMS,
                                          earth_closed)
     earth_agrees = abs(earth_closed - earth_a) <= earth_bound
