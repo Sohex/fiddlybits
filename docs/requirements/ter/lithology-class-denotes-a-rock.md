@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-015"
 title = "A lithology class denotes a rock with cited properties, never a position or a climate band, and a surface's albedo is computed from reflectance spectra against the declared stellar spectrum and the surface's state"
-old_path = ["/home/cfutro/docs/world/notes/audits/orogen-lithology.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/orogen-lithology.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

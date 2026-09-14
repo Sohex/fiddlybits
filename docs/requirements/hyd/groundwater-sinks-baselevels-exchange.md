@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-003"
 title = "A steady water table needs internal sinks and local baselevels, and the groundwater term enters every basin balance"
-old_path = ["/home/cfutro/docs/world/hydrography/notes/groundwater-et-sink.md"]
+old_path = ["/home/cfutro/git/vesper/hydrography/notes/groundwater-et-sink.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -17,7 +17,7 @@ across surface divides, evaporation from a shallow table in discharge zones, lak
 leakage, and baseflow timing. Two of them pull opposite ways at one basin, so the sign
 of the term on lake area is not knowable before the solve, and the term must not be
 tuned against a lake comparison. The scoping argument is in
-`/home/cfutro/docs/world/hydrography/notes/groundwater-scoping.md`.
+`/home/cfutro/git/vesper/hydrography/notes/groundwater-scoping.md`.
 
 A steady water table whose only exits are the coast and surface seepage cannot hold
 itself below the land surface across a dry continent: it pinned at the surface on 95.5%

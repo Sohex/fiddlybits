@@ -1,6 +1,6 @@
 # Rows of the old references index not carried
 
-Source: `/home/cfutro/docs/world/references/INDEX.md` at commit
+Source: `/home/cfutro/git/vesper/references/INDEX.md` at commit
 6aa93489d233d4e9d531d6479d338c643e34bc5e, 1282 lines, read in full. The parser found
 443 distinct table rows: 420 paper or data rows, 19 source-tree rows, and 4 rows of a
 silcrete-type table that are not references. Of the 420 paper rows, 284 carry into

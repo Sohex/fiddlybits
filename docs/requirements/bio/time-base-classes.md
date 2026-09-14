@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-001"
 title = "Every biological rate carries a declared time-base class, and a physical-kinetic rate is never rescaled to the planet's day or orbit"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/time-base-unit-contract.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/time-base-unit-contract.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -45,7 +45,7 @@ commit). What it recorded:
   a fire danger accumulator adds once per model day with no rate constant, so
   its magnitude scales with days per year; a one-day fire duration is anchored
   to a diurnal drying cycle rather than to a count (measured in
-  /home/cfutro/docs/world/notes/external-model-survey.md sections 51 and 54).
+  /home/cfutro/git/vesper/notes/external-model-survey.md sections 51 and 54).
 - The port chose 24-hour steps rather than the planet's solar day so that per-day
   physiological and chemical rates kept the absolute time they were calibrated
   against, confining the rotation error to daylength, where it has a known
@@ -144,9 +144,9 @@ fire and routing on the planet's own day while decomposition runs in SI time.
   and terrestrial carbon cycling in the LPJ dynamic global vegetation model.
   Global Change Biology 9, 161-185. DOI: 10.1046/j.1365-2486.2003.00569.x.
   The per-year mortality and turnover conventions the ambiguity lives in.
-- /home/cfutro/docs/world/notes/external-model-survey.md sections 51 and 54
+- /home/cfutro/git/vesper/notes/external-model-survey.md sections 51 and 54
   (the FATES two-calendar defect; the Nesterov per-day accumulator).
-- /home/cfutro/docs/world/biosphere/notes/lpj-guess-porting-audit.md (the
+- /home/cfutro/git/vesper/biosphere/notes/lpj-guess-porting-audit.md (the
   24-hour-step decision and its verification).
 
 ## Amendments

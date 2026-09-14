@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-102"
 title = "One clock in seconds; a day constant is never the model's time unit; a calendar is never fixed-length; a rate fitted per Earth day is never evaluated on another clock"
-old_path = ["/home/cfutro/docs/world/exoplasim/notes/parameter-decisions.md"]
+old_path = ["/home/cfutro/git/vesper/exoplasim/notes/parameter-decisions.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-004"
 title = "The atmosphere-ocean-ice coupling contract: one owner per flux, temperature-dependent terms against the live ocean, evaporation with one owner, sea ice with one authority"
-old_path = ["/home/cfutro/docs/world/ocean/config/transport_loop.yaml"]
+old_path = ["/home/cfutro/git/vesper/ocean/config/transport_loop.yaml"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

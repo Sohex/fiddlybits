@@ -1,7 +1,7 @@
 +++
 id = "REQ-PROC-006"
 title = "Every loop exit is declared before the loop runs, has an instrument that can evaluate it, and reports NotEvaluable as a verdict"
-old_path = ["/home/cfutro/docs/world/notes/audits/loop-exit-predicates.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/loop-exit-predicates.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -80,6 +80,6 @@ gate "every loop exit evaluable"; the risk-register tripwire.
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/loop-exit-predicates.md
-- /home/cfutro/docs/world/notes/orchestration-frameworks.md (Cylc and the AiiDA gate pattern)
+- /home/cfutro/git/vesper/notes/audits/loop-exit-predicates.md
+- /home/cfutro/git/vesper/notes/orchestration-frameworks.md (Cylc and the AiiDA gate pattern)
 - Plan decisions A5, A6; Part E risk register.

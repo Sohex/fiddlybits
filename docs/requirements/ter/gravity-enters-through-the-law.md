@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-013"
 title = "Gravity enters terrain through the erosion law, isostasy and strength, never as a scaling applied to heights at export"
-old_path = ["/home/cfutro/docs/world/notes/audits/orogen-gravity.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/orogen-gravity.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

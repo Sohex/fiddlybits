@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-020"
 title = "The managed biosphere is a first-class subsystem whose potential mode reads the strategy space, the land column, the hydrology and the marine ecosystem through declared interfaces fixed before it is built, and whose driven mode extends the same interfaces"
-old_path = ["/home/cfutro/docs/world/vendor/lpjml", "/home/cfutro/docs/world/notes/external-model-survey.md"]
+old_path = ["/home/cfutro/git/vesper/vendor/lpjml", "/home/cfutro/git/vesper/notes/external-model-survey.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -138,10 +138,10 @@ these interfaces are declared now.
 - Fischer, G. et al. (2021). Global Agro-Ecological Zones v4 - Model
   documentation. FAO, Rome. DOI: to confirm. Crop potential from climate,
   soil and water as an Earth REPORT metric.
-- /home/cfutro/docs/world/biosphere/notes/implicit-earth-assumptions.md
+- /home/cfutro/git/vesper/biosphere/notes/implicit-earth-assumptions.md
   findings 7 and 8 (the dormant crop calendar and latitude-selected crop
   types).
-- /home/cfutro/docs/world/notes/external-model-survey.md section 51 (the only
+- /home/cfutro/git/vesper/notes/external-model-survey.md section 51 (the only
   recorded reading of the vendored managed-land model).
 
 ## Amendments

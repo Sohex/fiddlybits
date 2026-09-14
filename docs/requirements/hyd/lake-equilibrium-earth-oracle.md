@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-001"
 title = "Terminal-lake equilibrium test against Earth lakes, with a pre-registered bar and a refusal on error correlation"
-old_path = ["/home/cfutro/docs/world/hydrography/notes/lake-solver-validation.md"]
+old_path = ["/home/cfutro/git/vesper/hydrography/notes/lake-solver-validation.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

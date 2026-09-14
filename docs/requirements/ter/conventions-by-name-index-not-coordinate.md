@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-010"
 title = "A convention travels by name, matching is by index never by coordinate, and there is one geometry source"
-old_path = ["/home/cfutro/docs/world/notes/audits/grid-convention-and-runoff.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/grid-convention-and-runoff.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

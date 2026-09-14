@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-003"
 title = "Soil pH is a crossing between mineral buffers with the calcite end solved from the run's pCO2 after validation at the published pressure, and lithology entering as a base-cation supply flux ratio"
-old_path = ["/home/cfutro/docs/world/pedology/notes/pedogenesis-value-provenance.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/notes/pedogenesis-value-provenance.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

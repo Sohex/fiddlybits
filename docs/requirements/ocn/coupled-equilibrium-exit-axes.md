@@ -1,7 +1,7 @@
 +++
 id = "REQ-OCN-005"
 title = "Coupled atmosphere-ocean equilibrium is declared before the run on named axes: heat transport change, ocean heat inventory, SST and ice change, atmospheric storage, freshwater and salt closure, basin-classification stability"
-old_path = ["/home/cfutro/docs/world/ocean/config/transport_loop.yaml"]
+old_path = ["/home/cfutro/git/vesper/ocean/config/transport_loop.yaml"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

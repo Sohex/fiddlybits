@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-101"
 title = "A planetary constant with no declaration cannot exist; a group that follows from the declared system is Derived; an absent input is never filled from Earth"
-old_path = ["/home/cfutro/docs/world/notes/audits/model-earth-centrism.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/model-earth-centrism.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

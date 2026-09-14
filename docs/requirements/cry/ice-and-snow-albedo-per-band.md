@@ -1,7 +1,7 @@
 +++
 id = "REQ-CRY-004"
 title = "Ice and snow surface albedo is computed per band from a reflectance spectrum under the declared stellar spectrum, with different values in each band and the bands anchored to reproduce any sourced broadband value"
-old_path = ["/home/cfutro/docs/world/notes/external-model-survey.md"]
+old_path = ["/home/cfutro/git/vesper/notes/external-model-survey.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

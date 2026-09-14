@@ -1,7 +1,7 @@
 +++
 id = "REQ-TER-006"
 title = "A finite output is not acceptance"
-old_path = ["/home/cfutro/docs/world/config/spatial_conversion.yaml"]
+old_path = ["/home/cfutro/git/vesper/config/spatial_conversion.yaml"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

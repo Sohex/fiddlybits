@@ -1,6 +1,6 @@
 # References index
 
-Triage of the predecessor index at `/home/cfutro/docs/world/references/INDEX.md`
+Triage of the predecessor index at `/home/cfutro/git/vesper/references/INDEX.md`
 (archived at commit 6aa93489d233d4e9d531d6479d338c643e34bc5e) against Parts A to C of the
 plan. A row carries only because the paper anchors a scheme, law, constant, oracle
 dataset, test case or validation method that a generic exoplanet builder uses; the
@@ -12,8 +12,8 @@ number or scheme; otherwise `held`, even if the old row said read. `requested` r
 were never held and are repeated in `REQUESTS.md`.
 
 Filenames are the old filenames so each PDF can be located under
-`/home/cfutro/docs/world/references/pdf/` (three POSEIDON rows are data directories
-under `/home/cfutro/docs/world/references/poseidon_surface_albedo/`). Identifiers are
+`/home/cfutro/git/vesper/references/pdf/` (three POSEIDON rows are data directories
+under `/home/cfutro/git/vesper/references/poseidon_surface_albedo/`). Identifiers are
 copied verbatim from the old row; a row whose old entry had no DOI says
 `identifier: unverified` with whatever locator the old row gave. No identifier here
 has been re-confirmed against Crossref in this pass.
@@ -452,7 +452,7 @@ Papers the predecessor held that a requirement record cites and the triage above
 | `yamamoto1962-direct-absorption-solar-radiation.pdf` | Direct Absorption of Solar Radiation by Atmospheric Water Vapor, Carbon Dioxide and Molecular Oxygen | 10.1175/1520-0469(1962)019<0182:DAOSRB>2.0.CO;2 | held | REQ-SYS-005 |
 | `howard1956b-synthetic-atmospheres-iii-water-vapor.pdf` | Infrared Transmission of Synthetic Atmospheres. III. Absorption by Water Vapor | 10.1364/JOSA.46.000242 | held | REQ-SYS-005 |
 | `iverson_2012_a-theory-of-glacial-quarrying-for-landscape-evolution-models.pdf` (PDF on disk; no row in the old index)` | A theory of glacial quarrying for landscape evolution models | 10.1130/G33079.1 | held | REQ-TER-013 |
-| `/home/cfutro/docs/world/references/esmf/` (source tree, not a PDF; `esmf-org/esmf` commit d8cb7c6c83b3154eeeaadede4676397904916293, old INDEX.md line 67)` | ESMF Regrid in-source documentation (conservative regridding, DSTAREA and FRACAREA normalisation, unmapped-destination policy) | no DOI. https://github.com/esmf-org/esmf at that commit; rendered manual https://earthsystemmodeling.org/docs/release/latest/ESMF_refdoc/ | held | REQ-PROC-003, REQ-SYS-009 |
+| `/home/cfutro/git/vesper/references/esmf/` (source tree, not a PDF; `esmf-org/esmf` commit d8cb7c6c83b3154eeeaadede4676397904916293, old INDEX.md line 67)` | ESMF Regrid in-source documentation (conservative regridding, DSTAREA and FRACAREA normalisation, unmapped-destination policy) | no DOI. https://github.com/esmf-org/esmf at that commit; rendered manual https://earthsystemmodeling.org/docs/release/latest/ESMF_refdoc/ | held | REQ-PROC-003, REQ-SYS-009 |
 | `kiehl1998-ccm3-description.pdf` | The National Center for Atmospheric Research Community Climate Model: CCM3 | 10.1175/1520-0442(1998)011<1131:TNCFAR>2.0.CO;2 | held | REQ-ATM-004, REQ-SYS-101 |
 | `lacis1974-solar-absorption-parameterization.pdf` | A Parameterization for the Absorption of Solar Radiation in the Earth's Atmosphere | 10.1175/1520-0469(1974)031<0118:APFTAO>2.0.CO;2 | held | REQ-ATM-002, REQ-ATM-003, REQ-SYS-005 |
 | `kiehl1996-ccm3-technical-note.pdf` | Description of the NCAR Community Climate Model (CCM3) | 10.5065/D6FF3Q99` (NCAR/TN-420+STR) | held | REQ-ATM-004 |

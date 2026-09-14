@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-006"
 title = "Aerosol tracers share one particle description between transport and radiation, remove mass by physical rates rather than per-step fractions, and carry every wind-driven species the surface can emit"
-old_path = ["/home/cfutro/docs/world/notes/audits/aerosol-particle-radius.md", "/home/cfutro/docs/world/notes/audits/unpriced-terms.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/aerosol-particle-radius.md", "/home/cfutro/git/vesper/notes/audits/unpriced-terms.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

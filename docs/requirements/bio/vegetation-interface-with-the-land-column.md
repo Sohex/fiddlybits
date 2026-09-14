@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-019"
 title = "Vegetation reads the one land column's state per tile and returns boundary controls and demand; the column computes every water and energy flux and returns fulfilled uptake by source, so no store is debited twice and no second land column exists"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/soil-land-surface-hydraulic-consistency-audit.md", "/home/cfutro/docs/world/biosphere/notes/modelling-gap-audit.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/soil-land-surface-hydraulic-consistency-audit.md", "/home/cfutro/git/vesper/biosphere/notes/modelling-gap-audit.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -135,10 +135,10 @@ nailed out of the gate (F2), so that vegetation work (M5, M9) and managed land
 - Medlyn, B. E. et al. (2011). Reconciling the optimal and empirical
   approaches to modelling stomatal conductance. Global Change Biology 17,
   2134-2144. DOI: 10.1111/j.1365-2486.2010.02375.x.
-- /home/cfutro/docs/world/notes/external-model-survey.md section 23 (the
+- /home/cfutro/git/vesper/notes/external-model-survey.md section 23 (the
   retention closure as a named property; standalone column components against
   a shared interface).
-- /home/cfutro/docs/world/biosphere/notes/plant-hydraulics-groundwater-audit.md
+- /home/cfutro/git/vesper/biosphere/notes/plant-hydraulics-groundwater-audit.md
   findings 5 and 6 (one conserved withdrawal; the two-way coupling precedent).
 
 ## Amendments

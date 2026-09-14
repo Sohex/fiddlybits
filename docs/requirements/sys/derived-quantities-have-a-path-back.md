@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-002"
 title = "Every derived quantity is read from its producer or re-derived inside a loop that refuses on disagreement"
-old_path = ["/home/cfutro/docs/world/notes/audits/frozen-derived-quantities.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/frozen-derived-quantities.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -104,8 +104,8 @@ superseded fixture; the doc lint of REQ-PROC-001.
 
 ## References
 
-- /home/cfutro/docs/world/notes/audits/frozen-derived-quantities.md
-- /home/cfutro/docs/world/docs/src/pipeline/loops.md, section "The corollary: a field update has to be able to carry"
-- /home/cfutro/docs/world/lib/sensitivity.py, /home/cfutro/docs/world/lib/lapse.py, /home/cfutro/docs/world/lib/stellar.py, /home/cfutro/docs/world/lib/orbit.py (module docstrings: the four instances of computing at call time from the artifact the config names)
+- /home/cfutro/git/vesper/notes/audits/frozen-derived-quantities.md
+- /home/cfutro/git/vesper/docs/src/pipeline/loops.md, section "The corollary: a field update has to be able to carry"
+- /home/cfutro/git/vesper/lib/sensitivity.py, /home/cfutro/git/vesper/lib/lapse.py, /home/cfutro/git/vesper/lib/stellar.py, /home/cfutro/git/vesper/lib/orbit.py (module docstrings: the four instances of computing at call time from the artifact the config names)
 - Plan decisions A3, A4, A6.
 - Related: REQ-SYS-102 (one clock; no day constant as a time unit), REQ-SYS-103 (a value's derivation is reachable from the value; nothing is retyped from an artifact).

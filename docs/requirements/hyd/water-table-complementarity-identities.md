@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-004"
 title = "The steady water table is a box-constrained complementarity problem certified by identities that can fail"
-old_path = ["/home/cfutro/docs/world/hydrography/notes/water-table-convergence.md"]
+old_path = ["/home/cfutro/git/vesper/hydrography/notes/water-table-convergence.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

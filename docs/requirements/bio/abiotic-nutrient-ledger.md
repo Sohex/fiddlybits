@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-012"
 title = "Abiotic nutrient delivery is one element-mass ledger over declared control volumes in which every flux has exactly one source and one destination, deposition mass and never optical depth is the carrier, parent material is a finite stock, and particulate material is not a nutrient until something dissolves it"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/abiotic-nutrient-ledger.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/abiotic-nutrient-ledger.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -187,12 +187,12 @@ invent availability.
   nitrogen and phosphorus cycles for the terrestrial biosphere. Biogeosciences
   7, 2261-2282. DOI: 10.5194/bg-7-2261-2010. The soil-order sorption table
   that does not transfer.
-- /home/cfutro/docs/world/biosphere/notes/abiotic-nutrient-delivery-audit.md
+- /home/cfutro/git/vesper/biosphere/notes/abiotic-nutrient-delivery-audit.md
   (the nine findings the ledger answers).
-- /home/cfutro/docs/world/biosphere/notes/soil-phosphorus-input-parameterisation.md
+- /home/cfutro/git/vesper/biosphere/notes/soil-phosphorus-input-parameterisation.md
   (the weathering input derived from the pedology law; andic fixation applied
   once).
-- /home/cfutro/docs/world/biosphere/notes/cnp-fork-scoping.md (phosphorus is
+- /home/cfutro/git/vesper/biosphere/notes/cnp-fork-scoping.md (phosphorus is
   rock-derived and its supply is weathering).
 
 ## Amendments

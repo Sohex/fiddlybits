@@ -116,3 +116,7 @@ undeclared reduction is a red build.
   `/home/cfutro/docs/world/config/spatial_conversion.yaml`.
 - Oceananigans.jl's location-typed fields, borrowed as an idea and not as code
   (decision 0012).
+
+## Amendments
+
+- 2026-09-13: the archive this record cites now resolves at /home/cfutro/git/vesper; /home/cfutro/docs/world no longer exists on disk, from notes/findings/2026-09-13-predecessor-archive-relocated-to-vesper.md.

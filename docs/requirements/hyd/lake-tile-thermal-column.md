@@ -1,7 +1,7 @@
 +++
 id = "REQ-HYD-010"
 title = "A sub-grid lake is a tile with its own thermal column, ice and salinity bracket, not a land column with a wetter bucket"
-old_path = ["/home/cfutro/docs/world/notes/audits/surface-hydrology-fire-carbon-followup.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/surface-hydrology-fire-carbon-followup.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -22,7 +22,7 @@ depth, crossing depth and ice physics with a freshwater-to-brine property bracke
 a test on basins near their overflow margin rather than an assertion from lake area.
 
 The same physics appeared from the other side in
-`/home/cfutro/docs/world/hydrography/notes/carve-verdict-interval.md`: an open-water
+`/home/cfutro/git/vesper/hydrography/notes/carve-verdict-interval.md`: an open-water
 evaporation scheme with no heat storage, evaluated on annual-mean air, is the limit for
 a lake deep enough to hold its temperature through the year; evaluated per interval
 and averaged, it is the limit for a lake with no heat capacity; the spread between

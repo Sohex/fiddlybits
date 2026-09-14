@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-007"
 title = "One derivation of the land column's hydraulic states, with gravity entering through field capacity and through the conductivity, a named retention closure, and correlated uncertainty"
-old_path = ["/home/cfutro/docs/world/pedology/notes/land-column-property-contract.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/notes/land-column-property-contract.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

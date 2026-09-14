@@ -1,7 +1,7 @@
 +++
 id = "REQ-PED-001"
 title = "Weathering and regolith carry a real clock: kinetic dissolution integrated over exposure age, not an intensity that folds time away"
-old_path = ["/home/cfutro/docs/world/pedology/README.md", "/home/cfutro/docs/world/pedology/notes/pedogenesis-value-provenance.md"]
+old_path = ["/home/cfutro/git/vesper/pedology/README.md", "/home/cfutro/git/vesper/pedology/notes/pedogenesis-value-provenance.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

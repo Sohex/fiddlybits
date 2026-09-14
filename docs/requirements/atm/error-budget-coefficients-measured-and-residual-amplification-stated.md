@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-016"
 title = "An error-budget conversion coefficient is measured on paired arms with a null pair and a declared denominator; a quantity that is a residual of two large terms carries its amplification and its propagated uncertainty, and an amplification factor is applied only to perturbations of the kind it was measured for"
-old_path = ["/home/cfutro/docs/world/notes/audits/hydrological-sensitivity.md", "/home/cfutro/docs/world/notes/audits/albedo-attenuation.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/hydrological-sensitivity.md", "/home/cfutro/git/vesper/notes/audits/albedo-attenuation.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

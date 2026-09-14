@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-003"
 title = "A declared value's label says what stands behind it, and the label is demoted when the artifact behind it goes"
-old_path = ["/home/cfutro/docs/world/config/planet.yaml"]
+old_path = ["/home/cfutro/git/vesper/config/planet.yaml"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -72,6 +72,6 @@ lint of REQ-PROC-001; the failure-modes review.
 
 ## References
 
-- /home/cfutro/docs/world/config/planet.yaml (header, lines 1-31, and the status
+- /home/cfutro/git/vesper/config/planet.yaml (header, lines 1-31, and the status
   arguments beside `star`, `ocean.salinity`, `stellar_cycle`)
 - Plan decisions A0, A3, A6, A10.

@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-015"
 title = "A convergence verdict is an upper-bound statistic over an autocorrelation-corrected window sized to resolve its own threshold; the estimator is chosen by whether it can decide the criterion; memory time and relaxation time are two quantities"
-old_path = ["/home/cfutro/docs/world/notes/audits/flux-slope-bracket.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/flux-slope-bracket.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -2,7 +2,7 @@
 
 How a session conducts itself. One line per rule, in its positive form, with a
 one-sentence argument and where the full argument lives. Old paths are cited under
-`/home/cfutro/docs/world/`; `FM n` is class `n` of
+`/home/cfutro/git/vesper/`; `FM n` is class `n` of
 `docs/src/practice/failure-modes.md` there, carried into `docs/failure-modes.md` here.
 Each rule is here on its own merits for a generic builder; the predecessor's rules
 that were about its own artifacts were left behind.

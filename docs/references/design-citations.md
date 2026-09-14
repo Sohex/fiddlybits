@@ -4,8 +4,8 @@ Every primary source the plan's design rests on, enumerated from Parts A to G of
 `/home/cfutro/.claude/plans/this-is-an-intial-melodic-stallman.md`, grouped by subsystem. A row here is a
 claim that the named decision, scheme, oracle or dataset cannot be trusted until the paper is held
 and read; it is not a claim that the paper is held. Status is measured against the predecessor's
-index at `/home/cfutro/docs/world/references/INDEX.md` and the PDFs under
-`/home/cfutro/docs/world/references/pdf/`; anything marked `to request` is listed in `REQUESTS.md`.
+index at `/home/cfutro/git/vesper/references/INDEX.md` and the PDFs under
+`/home/cfutro/git/vesper/references/pdf/`; anything marked `to request` is listed in `REQUESTS.md`.
 
 Counts: 219 citations; 203 DOIs confirmed against Crossref by title, first author and year; 7 dataset DOIs
 confirmed against DataCite; 9 pre-DOI or report works carrying a stable locator (`no DOI`), of which

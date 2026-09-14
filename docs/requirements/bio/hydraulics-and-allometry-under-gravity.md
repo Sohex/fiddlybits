@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-008"
 title = "Plant water potentials are stored as pressures and converted to head only with the system's gravity; hydraulic and mechanical height ceilings are derived from traits and gravity as a coupled prior; root depth, regolith depth and groundwater access are three quantities with one water debit"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/plant-hydraulics-groundwater-audit.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/plant-hydraulics-groundwater-audit.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -11,7 +11,7 @@ status = "carried"
 Gravity enters plant water relations twice and Earth models hide both entries
 (measured on the old world's port at 1.306 Earth gravity, on ClimaLand and on
 FATES, at the archived commit and in
-/home/cfutro/docs/world/notes/external-model-survey.md sections 41 and 54):
+/home/cfutro/git/vesper/notes/external-model-survey.md sections 41 and 54):
 
 - A published xylem vulnerability parameter of -4 MPa was stored as
   -408.16 m of head, computed as -4 / 0.0098, which is rho g / 1e6 at EARTH
@@ -146,7 +146,7 @@ design (A2) is what turns the head-versus-pressure trap into a type error.
 - Jackson, R. B. et al. (1996). A global analysis of root distributions for
   terrestrial biomes. Oecologia 108, 389-411. DOI: 10.1007/BF00333714. The
   Earth root profile that is a `Sourced` envelope, not a planetary constant.
-- /home/cfutro/docs/world/notes/external-model-survey.md sections 41 and 54.
+- /home/cfutro/git/vesper/notes/external-model-survey.md sections 41 and 54.
 
 ## Amendments
 

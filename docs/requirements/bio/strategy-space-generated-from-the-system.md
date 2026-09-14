@@ -1,7 +1,7 @@
 +++
 id = "REQ-BIO-006"
 title = "The vegetation strategy space is generated from declared trait ranges with costs, filtered by the declared system under competition; no fixed plant functional type table, and Earth's trait covariance is a distance to report"
-old_path = ["/home/cfutro/docs/world/biosphere/notes/vesperian-polar-type.md"]
+old_path = ["/home/cfutro/git/vesper/biosphere/notes/vesperian-polar-type.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -49,7 +49,7 @@ twelve-type Earth table at the archived commit:
 - The registry shape that worked elsewhere: a list naming every parameter a
   strategy must define to be valid, each value carrying its source inline,
   the sources listed at the top of the file (measured in
-  /home/cfutro/docs/world/notes/external-model-survey.md section 38a on
+  /home/cfutro/git/vesper/notes/external-model-survey.md section 38a on
   ClimaLand's PFT registry).
 
 ## Why it carries
@@ -154,11 +154,11 @@ space must be able to express and how a strategy-space result is judged.
   model of photosynthesis: a reanalysis of data from 36 species. Plant, Cell
   and Environment 30, 1176-1190. DOI: 10.1111/j.1365-3040.2007.01690.x.
   Acclimation as physiology replacing fixed thermal optima.
-- /home/cfutro/docs/world/notes/audits/lpj-pft-set-implicit-earth.md (the
+- /home/cfutro/git/vesper/notes/audits/lpj-pft-set-implicit-earth.md (the
   anticorrelated table).
-- /home/cfutro/docs/world/biosphere/notes/polar-cover-cold-filter-and-capture.md
+- /home/cfutro/git/vesper/biosphere/notes/polar-cover-cold-filter-and-capture.md
   (capture against supply; the storage-organ diagnosis).
-- /home/cfutro/docs/world/biosphere/notes/underoccupied-niches.md (the
+- /home/cfutro/git/vesper/biosphere/notes/underoccupied-niches.md (the
   planet-wide diagnostic).
 
 ## Amendments

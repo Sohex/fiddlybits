@@ -1,7 +1,7 @@
 +++
 id = "REQ-ATM-005"
 title = "Aerosol activation closes the aerosol-to-cloud-albedo chain, with hygroscopicity per species, a sub-grid updraught from the turbulence scheme, and the droplet radius handed to both radiation bands"
-old_path = ["/home/cfutro/docs/world/notes/audits/aerosol-indirect-effect-cost.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/aerosol-indirect-effect-cost.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

@@ -1,7 +1,7 @@
 +++
 id = "REQ-SYS-009"
 title = "An exchange between components has one owner per flux, recomputes state-dependent terms against live state, and carries its coverage fraction and ledger"
-old_path = ["/home/cfutro/docs/world/notes/external-model-survey.md"]
+old_path = ["/home/cfutro/git/vesper/notes/external-model-survey.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -81,7 +81,7 @@ preservation); C6 benchmarks with A/A scatter.
 
 ## References
 
-- /home/cfutro/docs/world/notes/external-model-survey.md, sections 1, 2, 5, 55, 59
+- /home/cfutro/git/vesper/notes/external-model-survey.md, sections 1, 2, 5, 55, 59
 - Holden et al. (2016). *PLASIM-GENIE v1.0: a new intermediate complexity AOGCM.* DOI 10.5194/gmd-9-3347-2016 (the flux hand-over rule, section 59f)
 - ESMF Regrid source documentation blocks, `references/esmf/` in the old tree (the conservation identity and the DSTAREA/FRACAREA normalisations, section 55); pinned identifier: to confirm
 - Plan decisions A1, A2, A5, A10, B3, B9.

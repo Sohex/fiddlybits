@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-005"
 title = "A ladder's timestep is three quantities, and what changes with level is declared as a function of level, never a branch"
-old_path = ["/home/cfutro/docs/world/notes/audits/resolution-ladder.md", "/home/cfutro/docs/world/notes/audits/resolution-ladder-wall-clock.md", "/home/cfutro/docs/world/notes/audits/resolution-divergence.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/resolution-ladder.md", "/home/cfutro/git/vesper/notes/audits/resolution-ladder-wall-clock.md", "/home/cfutro/git/vesper/notes/audits/resolution-divergence.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
@@ -42,8 +42,8 @@ integrated autocorrelation time measured on one settled run grew with the window
 it was measured on (1.0 at 20 orbits, 6.3 at 140). Two timescales, the memory time
 of stationary variability and the relaxation time of an approach, were both called
 tau and are not interchangeable; a run length was a floor decided before the run,
-not a stopping rule (`/home/cfutro/docs/world/lib/run_lengths.py`,
-`/home/cfutro/docs/world/lib/autocorrelation.py`).
+not a stopping rule (`/home/cfutro/git/vesper/lib/run_lengths.py`,
+`/home/cfutro/git/vesper/lib/autocorrelation.py`).
 
 Silent resolution dependence was everywhere the code did not know it had it: a
 filter's critical wavenumber was absolute, confining the spectral tail at the

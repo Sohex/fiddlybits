@@ -1,7 +1,7 @@
 +++
 id = "REQ-CRY-002"
 title = "Gravity enters ice flow, sliding, strain heating and pressure melting at four different powers; every occurrence is explicit in the system's g, no per-metre constant hides one, and no dimensional limiter truncates the effect"
-old_path = ["/home/cfutro/docs/world/notes/external-model-survey.md"]
+old_path = ["/home/cfutro/git/vesper/notes/external-model-survey.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++

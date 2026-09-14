@@ -6,7 +6,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 |---|---|---|---|
 | 3D mixing in hot Jupiter atmospheres I: application to the day/night cold trap in HD 209458b | 10.1051/0004-6361/201321132 | REQ-ATM-006 | known |
 | 3D simulations of photochemical hazes in the atmosphere of hot Jupiter HD 189733b | 10.1093/mnras/stab1053 | REQ-ATM-006 | gap |
-| 4. Why this is not a straight line (the loops chapter) | /home/cfutro/docs/world/docs/src/pipeline/loops.md | REQ-PROC-007, REQ-SYS-002, REQ-SYS-006, REQ-SYS-007 | gap |
+| 4. Why this is not a straight line (the loops chapter) | /home/cfutro/git/vesper/docs/src/pipeline/loops.md | REQ-PROC-007, REQ-SYS-002, REQ-SYS-006, REQ-SYS-007 | gap |
 | A biochemical model of photosynthetic CO2 assimilation in leaves of C3 species | 10.1007/BF00386231 | REQ-BIO-007 | known |
 | A Closed-form Equation for Predicting the Hydraulic Conductivity of Unsaturated Soils | 10.2136/sssaj1980.03615995004400050002x | REQ-PED-007 | known |
 | A comparison of the two one-sided tests procedure and the power approach for assessing the equivalence of average bioavailability | 10.1007/BF01068419 | REQ-BIO-014 | gap |
@@ -65,7 +65,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Absorption spectrum (380-700 nm) of pure water. II. Integrating cavity measurements | 10.1364/AO.36.008710 | REQ-OCN-012 | gap |
 | Accelerating the Convergence to Equilibrium of Ocean-Climate Models | to confirm | REQ-OCN-005 | known |
 | Accurate polynomial expressions for the density and specific volume of seawater using the TEOS-10 standard | 10.1016/j.ocemod.2015.04.002 | REQ-OCN-003 | known |
-| Adopting an external orchestration or provenance framework | /home/cfutro/docs/world/notes/orchestration-frameworks.md | REQ-PROC-006, REQ-PROC-008 | gap |
+| Adopting an external orchestration or provenance framework | /home/cfutro/git/vesper/notes/orchestration-frameworks.md | REQ-PROC-006, REQ-PROC-008 | gap |
 | Albedo of the Sea Surface | to confirm | REQ-OCN-012 | gap |
 | Allophane and imogolite: role in soil biogeochemical processes | 10.1180/claymin.2009.044.1.135 | REQ-PED-006 | gap |
 | An Analysis and Survey of the Development of Mutation Testing | 10.1109/TSE.2010.62 | REQ-NUM-007, REQ-NUM-008 | gap |
@@ -81,7 +81,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Arbitrary-Order Conservative and Consistent Remapping and a Theory of Linear Maps: Part I | 10.1175/MWR-D-14-00343.1 | REQ-OCN-010 | gap |
 | Are catchments leaky? | 10.1002/wat2.1386 | REQ-HYD-003 | known |
 | Atmospheric and Oceanic Fluid Dynamics: Fundamentals and Large-Scale Circulation | 10.1017/9781107588417 | REQ-OCN-001, REQ-OCN-002 | gap |
-| Audit: couplings nobody priced, and quantities read at the wrong level | /home/cfutro/docs/world/notes/audits/missed-couplings.md | REQ-PROC-001, REQ-PROC-005, REQ-SYS-005, REQ-SYS-006 | gap |
+| Audit: couplings nobody priced, and quantities read at the wrong level | /home/cfutro/git/vesper/notes/audits/missed-couplings.md | REQ-PROC-001, REQ-PROC-005, REQ-SYS-005, REQ-SYS-006 | gap |
 | Basic laws of turbulent mixing in the surface layer of the atmosphere | to confirm (Monin and Obukhov 1954, Trudy Geofiz. Inst. AN SSSR 24(151), 163-187; pre-DOI, locator needed) | REQ-SYS-005 | known |
 | Behavior of major solutes during closed-basin brine evolution | 10.2475/ajs.279.6.609 | REQ-PED-008 | known |
 | Benchmarking and parameter sensitivity of physiological and vegetation dynamics using the Functionally Assembled Terrestrial Ecosystem Simulator (FATES) at Barro Colorado Island, Panama | 10.5194/bg-17-3017-2020 | REQ-BIO-005, REQ-BIO-009 | gap |
@@ -89,7 +89,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Bioequivalence trials, intersection-union tests and equivalence confidence sets | 10.1214/ss/1032280304 | REQ-BIO-014 | gap |
 | Borate deposits: an overview and future forecast with regard to mineral deposits (Helvaci 2019; title to confirm against the old index) | to confirm | REQ-PED-003 | gap |
 | C:N:P stoichiometry in soil: is there a "Redfield ratio" for the microbial biomass? | 10.1007/s10533-007-9132-0 | REQ-BIO-010 | known |
-| Canonical parameters (config/planet.yaml), the status vocabulary only | /home/cfutro/docs/world/config/planet.yaml | REQ-SYS-003 | gap |
+| Canonical parameters (config/planet.yaml), the status vocabulary only | /home/cfutro/git/vesper/config/planet.yaml | REQ-SYS-003 | gap |
 | Canopy reflectance, photosynthesis and transpiration | 10.1080/01431168508948283 | REQ-BIO-003 | known |
 | Carbon Fluxes and Primary Magma CO2 Contents Along the Global Mid-Ocean Ridge System | 10.1029/2018GC007630 | REQ-PED-011 | known |
 | Changing sources of nutrients during four million years of ecosystem development | 10.1038/17276 | REQ-BIO-012 | known |
@@ -109,7 +109,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Constraining global methane emissions and uptake by ecosystems | 10.5194/bg-8-1643-2011 | REQ-BIO-017 | known |
 | Constraints on dynamical transports of energy on a spherical planet | 10.1016/0377-0265(78)90006-4 | REQ-OCN-006 | gap |
 | Contribution of organic matter and clay to soil cation-exchange capacity as affected by the pH of the saturating solution | 10.2136/sssaj1964.03615995002800040020x | REQ-PED-006 | gap |
-| Conventions this project holds to | /home/cfutro/docs/world/docs/src/practice/conventions.md | REQ-PROC-001, REQ-PROC-002, REQ-PROC-003, REQ-PROC-004, REQ-PROC-010, REQ-SYS-001, REQ-SYS-004 | gap |
+| Conventions this project holds to | /home/cfutro/git/vesper/docs/src/practice/conventions.md | REQ-PROC-001, REQ-PROC-002, REQ-PROC-003, REQ-PROC-004, REQ-PROC-010, REQ-SYS-001, REQ-SYS-004 | gap |
 | Copernicus DEM - Global and European Digital Elevation Model | to confirm | REQ-TER-016 | gap |
 | Copernicus DEM GLO-90 | to confirm (ESA record 10.5270/ESA-c5d3d65 believed) | REQ-HYD-001 | gap |
 | Cosmogenic 3He surface-exposure dating of stone pavements: Implications for landscape evolution in deserts | to confirm | REQ-PED-009 | gap |
@@ -117,7 +117,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Density of rocks (Handbook of Physical Constants, GSA Memoir 97) | to confirm | REQ-TER-015 | gap |
 | Description of the NCAR Community Climate Model (CCM3) | 10.5065/D6FF3Q99 | REQ-ATM-004 | gap |
 | Desert Ecosystems: Environment and Producers | 10.1146/annurev.es.04.110173.000325 | REQ-BIO-006 | known |
-| Design intent | /home/cfutro/docs/world/docs/src/reference/design-intent.md | REQ-PROC-003, REQ-PROC-005, REQ-PROC-008 | gap |
+| Design intent | /home/cfutro/git/vesper/docs/src/reference/design-intent.md | REQ-PROC-003, REQ-PROC-005, REQ-PROC-008 | gap |
 | Designing Bit-Reproducible Portable High-Performance Applications | to confirm | REQ-NUM-002 | gap |
 | Determinants of maximum tree height in Eucalyptus species along a rainfall gradient in Victoria, Australia | to confirm | REQ-BIO-008 | known |
 | Determination of biomass burning emission factors: Methods and results | to confirm | REQ-BIO-016 | gap |
@@ -149,7 +149,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Evaporation into the Atmosphere: Theory, History, and Applications | 10.1007/978-94-017-1497-6 | REQ-HYD-007 | gap |
 | Exact solutions and verification of numerical models for isothermal ice sheets | 10.3189/172756505781829449 | REQ-CRY-001 | known |
 | Explicit Representation of Subgrid Heterogeneity in a GCM Land Surface Scheme | to confirm | REQ-BIO-019 | known |
-| External model survey, sections 1, 2, 5, 55, 59 | /home/cfutro/docs/world/notes/external-model-survey.md | REQ-PROC-003, REQ-PROC-004, REQ-PROC-005, REQ-PROC-008, REQ-SYS-009 | gap |
+| External model survey, sections 1, 2, 5, 55, 59 | /home/cfutro/git/vesper/notes/external-model-survey.md | REQ-PROC-003, REQ-PROC-004, REQ-PROC-005, REQ-PROC-008, REQ-SYS-009 | gap |
 | Extinction Depth and Evapotranspiration from Ground Water under Selected Land Covers | 10.1111/j.1745-6584.2007.00302.x | REQ-HYD-003 | known |
 | Fast Reproducible Floating-Point Summation | to confirm | REQ-NUM-002 | gap |
 | Fenske et al. (2025), duricrust formation as a water-table fluctuation model (title to confirm) | to confirm | REQ-PED-009 | gap |
@@ -158,7 +158,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | First- and Second-Order Conservative Remapping Schemes for Grids in Spherical Coordinates | 10.1175/1520-0493(1999)127<2204:FASOCR>2.0.CO;2 | REQ-OCN-010, REQ-TER-001, REQ-TER-003, REQ-TER-005 | gap |
 | Forest models defined by field measurements: I. The design of a northeastern forest simulator | to confirm | REQ-BIO-009 | gap |
 | Frost Survival of Plants: Responses and Adaptation to Freezing Stress | to confirm | REQ-BIO-004 | gap |
-| Frozen derived quantities across the tree | /home/cfutro/docs/world/notes/audits/frozen-derived-quantities.md | REQ-PROC-001, REQ-SYS-002 | gap |
+| Frozen derived quantities across the tree | /home/cfutro/git/vesper/notes/audits/frozen-derived-quantities.md | REQ-PROC-001, REQ-SYS-002 | gap |
 | General circulation experiments with the primitive equations: I. The basic experiment | to confirm (candidate 10.1175/1520-0493(1963)091<0099:GCEWTP>2.3.CO;2) | REQ-SYS-104 | gap |
 | Geochemistry of Saline Lakes | to confirm (10.1016/B978-0-08-095975-7.00515-5 believed) | REQ-PED-008 | known |
 | Geodynamics (third edition) | 10.1017/CBO9780511843877 | REQ-TER-013 | gap |
@@ -203,12 +203,12 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Infrared Transmission of Synthetic Atmospheres. III. Absorption by Water Vapor | 10.1364/JOSA.46.000242 | REQ-SYS-005 | gap |
 | Integrating peatlands and permafrost into a dynamic global vegetation model: 1. Evaluation and sensitivity of physical land surface processes | 10.1029/2008GB003412 | REQ-BIO-017 | known |
 | Ion-induced nucleation of pure biogenic particles | 10.1038/nature17953 | REQ-BIO-018 | gap |
-| Lapides et al. (2024), Biogeosciences, the bedrock vadose zone added to LPJ-GUESS: verbatim title to confirm | to confirm (cited secondhand in /home/cfutro/docs/world/pedology/README.md; number not carried as sourced) | REQ-SYS-006 | gap |
+| Lapides et al. (2024), Biogeosciences, the bedrock vadose zone added to LPJ-GUESS: verbatim title to confirm | to confirm (cited secondhand in /home/cfutro/git/vesper/pedology/README.md; number not carried as sourced) | REQ-SYS-006 | gap |
 | Large contribution of natural aerosols to uncertainty in indirect forcing | 10.1038/nature12674 | REQ-BIO-018 | gap |
 | Large-scale redistribution of maximum fisheries catch potential in the global ocean under climate change | 10.1111/j.1365-2486.2009.01995.x | REQ-BIO-020 | gap |
 | Large-scale simulations of snow albedo masking by forests | 10.1002/grl.51008 | REQ-HYD-010 | known |
 | Leaf Life-Span in Relation to Leaf, Plant, and Stand Characteristics among Diverse Ecosystems | 10.2307/2937116 | REQ-BIO-006 | known |
-| lib/sensitivity.py, lib/lapse.py, lib/stellar.py, lib/orbit.py module docstrings | /home/cfutro/docs/world/lib/ | REQ-PROC-003, REQ-PROC-005, REQ-SYS-002, REQ-SYS-005 | gap |
+| lib/sensitivity.py, lib/lapse.py, lib/stellar.py, lib/orbit.py module docstrings | /home/cfutro/git/vesper/lib/ | REQ-PROC-003, REQ-PROC-005, REQ-SYS-002, REQ-SYS-005 | gap |
 | Lightning chemistry on Earth-like exoplanets | to confirm | REQ-BIO-012 | gap |
 | Limits to Relief | 10.1126/science.270.5236.617 | REQ-TER-013, REQ-TER-014 | known |
 | Linking hydraulic traits to tropical forest function in a size-structured and trait-driven model (TFS v.1-Hydro) | 10.5194/gmd-9-4227-2016 | REQ-BIO-008 | gap |
@@ -260,7 +260,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Optical Constants of Water in the 200-nm to 200-um Wavelength Region | 10.1364/AO.12.000555 | REQ-ATM-002 | known |
 | Optical properties of snow | 10.1029/RG020i001p00067 | REQ-CRY-004 | gap |
 | Optimising CH4 simulations from the LPJ-GUESS model v4.1 using an adaptive Markov chain Monte Carlo algorithm | 10.5194/gmd-17-2299-2024 | REQ-BIO-017 | gap |
-| Orogen has no time axis, and what to do about it | /home/cfutro/docs/world/docs/src/reference/no-time-axis.md | REQ-PROC-011 | gap |
+| Orogen has no time axis, and what to do about it | /home/cfutro/git/vesper/docs/src/reference/no-time-axis.md | REQ-PROC-011 | gap |
 | Ozone Concentrations and Ultraviolet Fluxes on Earth-Like Planets Around Other Stars | to confirm (Segura et al. 2003, Astrobiology 3(4), 689-708) | REQ-SYS-005 | known |
 | PALADYN v1.0, a comprehensive land surface-vegetation-carbon cycle model of intermediate complexity | 10.5194/gmd-9-3817-2016 | REQ-ATM-010 | known |
 | Palaeoenvironmental significance of palustrine carbonates and calcretes in the geological record | 10.1016/S0012-8252(02)00106-X | REQ-PED-009 | gap |
@@ -271,7 +271,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Phosphorus transformations as a function of pedogenesis: A synthesis of soil phosphorus data using Hedley fractionation method | 10.5194/bg-8-2907-2011 | REQ-BIO-010 | known |
 | Photochemistry beyond the red limit in chlorophyll f-containing photosystems | 10.1126/science.aar8313 | REQ-BIO-003 | known |
 | Photosynthesis and Fish Production in the Sea | 10.1126/science.166.3901.72 | REQ-BIO-020 | gap |
-| Physics review: what is calibrated for the wrong world, and what is absent | /home/cfutro/docs/world/notes/audits/physics-review.md | REQ-SYS-005 | gap |
+| Physics review: what is calibrated for the wrong world, and what is absent | /home/cfutro/git/vesper/notes/audits/physics-review.md | REQ-SYS-005 | gap |
 | Plant respiration in productivity models: conceptualisation, representation and issues for global terrestrial carbon-cycle research | 10.1071/FP02083 | REQ-BIO-007 | known |
 | PLASIM-GENIE v1.0: a new intermediate complexity AOGCM | 10.5194/gmd-9-3347-2016 | REQ-OCN-004, REQ-OCN-006, REQ-PROC-004, REQ-SYS-009 | gap |
 | POSEIDON surface albedo database, slab/crushed/powder reflectance of the same rocks (Paragas et al. 2025; verbatim title to confirm) | to confirm | REQ-TER-015 | gap |
@@ -347,8 +347,8 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | The Community Land Model Version 5: Description of New Features, Benchmarking, and Impact of Forcing Uncertainty | 10.1029/2018MS001583 | REQ-ATM-009, REQ-BIO-003, REQ-BIO-019, REQ-TER-009, REQ-TER-012 | known |
 | The contentious nature of soil organic matter | 10.1038/nature16069 | REQ-BIO-010 | known |
 | The creep of polycrystalline ice | 10.1098/rspa.1955.0066 | REQ-CRY-001, REQ-CRY-002, REQ-TER-013, REQ-TER-017 | known |
-| The derived-structure prose audit | /home/cfutro/docs/world/notes/audits/derived-structure-audit.md | REQ-PROC-001 | gap |
-| The docs-book restructure audit | /home/cfutro/docs/world/notes/audits/docs-restructure-audit.md | REQ-PROC-002 | gap |
+| The derived-structure prose audit | /home/cfutro/git/vesper/notes/audits/derived-structure-audit.md | REQ-PROC-001 | gap |
+| The docs-book restructure audit | /home/cfutro/git/vesper/notes/audits/docs-restructure-audit.md | REQ-PROC-002 | gap |
 | The ECOSTRESS spectral library version 1.0 | 10.1016/j.rse.2019.05.015 | REQ-ATM-002, REQ-ATM-008, REQ-TER-015 | known |
 | The effect of solar radiation variations on the climate of the Earth | to confirm (candidate 10.1111/j.2153-3490.1969.tb00466.x) | REQ-ATM-014 | gap |
 | The effect of time on the weathering of silicate minerals: why do weathering rates differ in the laboratory and field? | 10.1016/j.chemgeo.2003.03.001 | REQ-PED-001 | known |
@@ -357,7 +357,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | The fate of phosphorus during pedogenesis | 10.1016/0016-7061(76)90066-5 | REQ-BIO-010, REQ-BIO-012 | gap |
 | The Fire Modeling Intercomparison Project (FireMIP), phase 1: experimental and analytical protocols with detailed model descriptions | 10.5194/gmd-10-1175-2017 | REQ-BIO-015, REQ-BIO-016 | known |
 | The formation of areally-averaged roughness lengths | 10.1002/qj.49711448007 | REQ-TER-007 | known |
-| The four loop exit predicates, read against what the pipeline does | /home/cfutro/docs/world/notes/audits/loop-exit-predicates.md | REQ-PROC-006, REQ-PROC-007 | gap |
+| The four loop exit predicates, read against what the pipeline does | /home/cfutro/git/vesper/notes/audits/loop-exit-predicates.md | REQ-PROC-006, REQ-PROC-007 | gap |
 | The generalization of "Student's" problem when several different population variances are involved | 10.1093/biomet/34.1-2.28 | REQ-BIO-014 | gap |
 | The geologic records of dust in the Quaternary | 10.1016/j.aeolia.2012.08.001 | REQ-PED-009 | gap |
 | The global climatology of an interannually varying air-sea flux data set | 10.1007/s00382-008-0441-3 | REQ-OCN-004 | gap |
@@ -405,7 +405,7 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Trait-Based Community Ecology of Phytoplankton | 10.1146/annurev.ecolsys.39.110707.173549 | REQ-OCN-008 | gap |
 | Tree mortality patterns following prescribed fires in a mixed conifer forest | to confirm | REQ-BIO-016 | gap |
 | Tree mortality submodels drive simulated long-term forest dynamics: assessing 15 models from the stand to global scale | 10.1002/ecs2.2616 | REQ-BIO-009 | known |
-| Tuned values across the tree | /home/cfutro/docs/world/notes/audits/tuned-values.md | REQ-PROC-004, REQ-PROC-011, REQ-SYS-001, REQ-SYS-004 | gap |
+| Tuned values across the tree | /home/cfutro/git/vesper/notes/audits/tuned-values.md | REQ-PROC-004, REQ-PROC-011, REQ-SYS-001, REQ-SYS-004 | gap |
 | Uber die partiellen Differenzengleichungen der mathematischen Physik | 10.1007/BF01448839 | REQ-NUM-005 | gap |
 | Uncertainties due to transport-parameter sensitivity in an efficient 3-D ocean-climate model | 10.1007/s00382-004-0508-8 | REQ-OCN-001, REQ-OCN-006 | gap |
 | Understanding Earth's eroding surface with 10Be | 10.1130/G111A.1 | REQ-PED-001, REQ-TER-015 | known |
@@ -417,13 +417,13 @@ Merged from the per-area refs lists written during the M-1 pass. `status` is `kn
 | Vegetation demographics in Earth System Models: A review of progress and priorities | 10.1111/gcb.13910 | REQ-BIO-009 | known |
 | Verification and Validation in Scientific Computing | 10.1017/CBO9780511760396 | REQ-TER-004, REQ-TER-006 | gap |
 | Verification of Codes and Calculations | 10.2514/2.457 | REQ-NUM-005, REQ-TER-004 | gap |
-| Vocabulary | /home/cfutro/docs/world/docs/src/reference/vocabulary.md | REQ-PROC-004, REQ-PROC-010, REQ-SYS-001, REQ-SYS-007 | gap |
+| Vocabulary | /home/cfutro/git/vesper/docs/src/reference/vocabulary.md | REQ-PROC-004, REQ-PROC-010, REQ-SYS-001, REQ-SYS-007 | gap |
 | Water balance creates a threshold in soil pH at the global scale | 10.1038/nature20139 | REQ-PED-003 | known |
 | Weathering sequence of soils from volcanic ash involving allophane and halloysite, New Zealand | 10.1016/0016-7061(83)90029-0 | REQ-PED-006 | gap |
 | What every computer scientist should know about floating-point arithmetic | 10.1145/103162.103163 | REQ-NUM-001, REQ-NUM-003, REQ-NUM-004 | gap |
-| What the pipeline's own bookkeeping gets wrong | /home/cfutro/docs/world/notes/audits/pipeline-bookkeeping.md | REQ-SYS-008 | gap |
-| What to check first in an external model tree | /home/cfutro/docs/world/notes/external-tree-checklist.md | REQ-PROC-008 | gap |
+| What the pipeline's own bookkeeping gets wrong | /home/cfutro/git/vesper/notes/audits/pipeline-bookkeeping.md | REQ-SYS-008 | gap |
+| What to check first in an external model tree | /home/cfutro/git/vesper/notes/external-tree-checklist.md | REQ-PROC-008 | gap |
 | Wind stress on a water surface | to confirm (candidate 10.1002/qj.49708135027) | REQ-SYS-101 | gap |
-| Working agreements | /home/cfutro/docs/world/docs/src/practice/working-agreements.md | REQ-PROC-009 | gap |
+| Working agreements | /home/cfutro/git/vesper/docs/src/practice/working-agreements.md | REQ-PROC-009 | gap |
 | Worldwide distribution of continental rock lithology: Implications for the atmospheric/soil CO2 uptake by continental weathering and alkalinity river transport to the oceans | 10.1029/2002GB001891 | REQ-PED-003, REQ-PED-011 | gap |
 | Zarr core specification, version 3 | https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html | REQ-PROV-001, REQ-PROV-002, REQ-PROV-003 | gap |

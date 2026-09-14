@@ -1,7 +1,7 @@
 +++
 id = "REQ-NUM-003"
 title = "Arithmetic at a physical boundary is guarded at the definition, and a kernel reads only what it wrote"
-old_path = ["/home/cfutro/docs/world/notes/audits/masked-where-blocks.md", "/home/cfutro/docs/world/notes/audits/uninitialised-reads-and-implicit-save.md"]
+old_path = ["/home/cfutro/git/vesper/notes/audits/masked-where-blocks.md", "/home/cfutro/git/vesper/notes/audits/uninitialised-reads-and-implicit-save.md"]
 old_commit = "6aa93489d233d4e9d531d6479d338c643e34bc5e"
 status = "carried"
 +++
