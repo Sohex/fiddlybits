@@ -48,9 +48,12 @@ statistic from any other run is REPORT by this rule, and no threshold restates i
 | REPORT | no bar exists that is not a preference; the distance is recorded | none; the number is a property of the model |
 | PASS | inside the bar | recorded; evidence of indistinguishability, not correctness |
 
-A bar narrower than the observation's own uncertainty is refused by the registry
-check. Where no published model of comparable class has a residual to quote, the
-metric is REPORT.
+A row's bar is stated by two keys, in the unit of the statistic: `bar_half_width`, the
+half-width of the bar, and `observation_uncertainty`, the uncertainty of the observation
+the bar is drawn from. The registry check refuses one stated without the other, either
+not positive, and a `bar_half_width` narrower than `observation_uncertainty`: a bar
+narrower than the observation's own uncertainty. Where no published model of comparable
+class has a residual to quote, the metric is REPORT.
 
 ## Registration
 

@@ -1,6 +1,7 @@
 module Wellformed
 
 using TOML
+using Fiddlybits: Oracles
 
 "A place the registry's verdict shape is wrong: the row, protocol or instrument it is on, and what is wrong."
 struct Problem
@@ -10,8 +11,34 @@ end
 
 Base.show(io::IO, p::Problem) = print(io, p.site, ": ", p.reason)
 
-"The verdict kinds a row may carry."
-const VERDICT_KINDS = ("fail_bar", "report")
+"""
+    shares_loader_clause(reason)
+
+Whether `reason` is one of the clauses `src/Oracles/registry.jl`'s loader already
+decides: verdict_kind membership, a tier 3 row naming no protocol, a protocol named but
+not declared, a row id used more than once, or a `[[protocol]]` entry's own shape (an id
+present and used once, a system and a normalisation, no other key).
+"""
+function shares_loader_clause(reason::AbstractString)
+    occursin(r"^verdict_kind .* is not one of ", reason) && return true
+    reason == "a tier 3 entry names no protocol" && return true
+    occursin(r"^names protocol .*, which is not declared$", reason) && return true
+    reason == "entry id is used more than once" && return true
+    startswith(reason, "protocol ") && return true
+    return false
+end
+
+"""
+    loader_problems(registry)
+
+Every problem `Oracles.problems` finds in the registry file at `registry`, restricted
+to `shares_loader_clause`. No references index is passed: none of the shared clauses
+resolve an anchor, and the anchor clauses stay the loader's own test suite's alone.
+"""
+function loader_problems(registry::AbstractString)
+    found = Oracles.problems(registry, Dict{String,String}())
+    return Problem[Problem(m.site, m.reason) for m in found if shares_loader_clause(m.reason)]
+end
 
 "A verdict named in capitals."
 const VERDICT_NAME = r"\b(?:FAIL|PASS|REPORT)(?:S|ES|ED|ING)?\b"
@@ -156,30 +183,18 @@ function restatements(row::AbstractDict, id::AbstractString, edges::AbstractDict
 end
 
 """
-    protocol_table(doc, registry, found)
+    protocol_ids(doc)
 
-The protocol ids declared in `doc`, each mapped to `false` (named by no row yet). A
-protocol with no id, an id used twice, or a missing or empty `system` or
-`normalisation` adds a problem to `found`.
+The ids `doc`'s `[[protocol]]` entries declare, each mapped to `false` (named by no row
+yet), one entry per distinct id. A protocol with no id, or shaped wrongly, is not this
+module's clause: `Oracles.problems`, read through `loader_problems`, decides that shape.
 """
-function protocol_table(doc::AbstractDict, registry::AbstractString, found::Vector{Problem})
+function protocol_ids(doc::AbstractDict)
     named = Dict{String,Bool}()
     for p in get(doc, "protocol", Any[])
         id = get(p, "id", nothing)
-        if !(id isa AbstractString)
-            push!(found, Problem(registry, "a protocol with no id"))
-            continue
-        end
-        if haskey(named, id)
-            push!(found, Problem(id, "protocol id is used more than once"))
-            continue
-        end
-        named[id] = false
-        for key in ("system", "normalisation")
-            value = get(p, key, nothing)
-            (value isa AbstractString && !isempty(strip(value))) ||
-                push!(found, Problem(id, "a protocol with no " * key))
-        end
+        id isa AbstractString || continue
+        haskey(named, id) || (named[id] = false)
     end
     return named
 end
@@ -302,19 +317,19 @@ end
 
 Every place the registry file at `registry` breaks the verdict shape of decision 0053,
 the dependency shape of decision 0054 or the instrument shape of decision 0057, sorted.
-These are the clauses of oracles.registry_wellformed that read the registry alone:
+Five clauses are `src/Oracles/registry.jl`'s loader's own, read here through
+`loader_problems` so each is decided in one place: a row's `verdict_kind` is one of
+`fail_bar` or `report`; a tier 3 row names a protocol; a protocol a row names is
+declared; a row id is used once; and a `[[protocol]]` entry's own shape (an id present
+and used once, a system and a normalisation). The rest are this module's own:
 
-- a row id is used once;
-- every row carries a `verdict_kind` from `VERDICT_KINDS`, a statistic and a threshold;
 - no statistic or threshold names a verdict in capitals;
 - no statistic or threshold of a fail_bar row calls a constituent a report, gives it no
   bar or marks it n/a;
 - no statistic or threshold of a report row gives a constituent a failing or passing edge;
 - no row carries `protocol_system`;
-- every tier 3 row names a protocol, no tier 2 row names one, and every protocol a row
-  names is declared;
-- a protocol id is used once, every protocol carries a `system` and a `normalisation`,
-  and every protocol is named by at least one row;
+- no tier 2 row names a protocol, since a tier 2 bar applies to `Earth()`;
+- every protocol is named by at least one row;
 - `depends_on`, where present, is a list of row ids, each named once, each a row of the
   registry, and each on the depending row's tier or a lower one;
 - no row depends on itself, directly or through the rows it depends on;
@@ -339,7 +354,7 @@ function problems(registry::AbstractString)
         push!(found, Problem(registry, "no [[oracle]] rows"))
         return found
     end
-    named = protocol_table(doc, registry, found)
+    named = protocol_ids(doc)
 
     by_id = Dict{String,Any}()
     for row in rows
@@ -358,13 +373,9 @@ function problems(registry::AbstractString)
             continue
         end
         repeated = id in seen
-        repeated && push!(found, Problem(id, "row id is used more than once"))
         push!(seen, id)
 
         kind = get(row, "verdict_kind", nothing)
-        kind in VERDICT_KINDS ||
-            push!(found, Problem(id, "verdict_kind " * repr(kind) * " is not one of " *
-                                     join(VERDICT_KINDS, ", ")))
         prose(row, id, kind, found)
         named_rows(row, id, ids, found)
         repeated || restatements(row, id, edges, by_id, found)
@@ -375,18 +386,11 @@ function problems(registry::AbstractString)
         tier = get(row, "tier", nothing)
         if haskey(row, "protocol")
             p = row["protocol"]
-            if !(p isa AbstractString)
-                push!(found, Problem(id, "protocol is not a protocol id"))
-            elseif tier == 2
-                push!(found, Problem(id, "a tier 2 row names protocol " * p * "; a tier 2 bar applies to Earth()"))
+            if p isa AbstractString
+                tier == 2 &&
+                    push!(found, Problem(id, "a tier 2 row names protocol " * p * "; a tier 2 bar applies to Earth()"))
                 haskey(named, p) && (named[p] = true)
-            elseif !haskey(named, p)
-                push!(found, Problem(id, "names protocol " * p * ", which is not declared"))
-            else
-                named[p] = true
             end
-        elseif tier == 3
-            push!(found, Problem(id, "a tier 3 row with no protocol"))
         end
 
         if haskey(row, "instrument")
@@ -407,6 +411,7 @@ function problems(registry::AbstractString)
     for (i, used) in instruments
         used || push!(found, Problem(i, "an instrument no row names"))
     end
+    append!(found, loader_problems(registry))
     return sort(found, by = q -> (q.site, q.reason))
 end
 
