@@ -312,6 +312,13 @@ import .KeyFixtures as KF
         @test KF.refused(KF.caught(() -> k(profile = system)), "profile", "Profile")
         unreachable = KF.declaration(:reader, ((:stars, 2, :mass),); reads = (:surface_out,))
         @test KF.refused(KF.caught(() -> k(declaration = unreachable)), "system_fields", "does not reach")
+        @test system.stars[1].spectrum isa Systems.BracketedSpectrum
+        for path in ((:stars, 1, :spectrum, :surface_flux_density, :size),
+                     (:stars, 1, :spectrum, :surface_flux_density, :ref))
+            beyond = KF.declaration(:reader, (path,); reads = (:surface_out,))
+            @test KF.refused(KF.caught(() -> k(declaration = beyond)), "system_fields",
+                             "reader declares $(path), which does not reach through the system")
+        end
 
         @testset "the profile subset refuses the label, a path through no entry, and a profile in another float type" begin
             @test KF.refused(KF.caught(() -> KF.declaration(:reader, (); profile_fields = ((:label,),))),
