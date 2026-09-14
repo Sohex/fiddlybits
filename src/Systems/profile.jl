@@ -519,8 +519,10 @@ has no defaults:
 
 `label` is a `Symbol`; `system` the `System{FT}` the profile is resolved on, read and
 not held; `components` a tuple of `ComponentDeclaration{FT}` with distinct names, or an
-`Absent`, held as `Component`s; `radiation` a `RadiationDeclaration{FT}` or an
-`Absent`, held as a `RadiationCadence`; `fast_precision` one of `FAST_PRECISIONS`;
+`Absent`, held as a `NamedTuple` from each component's name, in sorted name order, to its
+`Component`, so a path reaches a component's entry as `(:components, name, ...)` and the
+order the declarations are given in reaches no profile; `radiation` a
+`RadiationDeclaration{FT}` or an `Absent`, held as a `RadiationCadence`; `fast_precision` one of `FAST_PRECISIONS`;
 `slow_tier` a `SlowTier{FT}` or an `Absent`; `memory_ceiling` a declared count of
 bytes above zero, an `Int`; `daily_fallback_interval` a `Bracketed` duration above
 zero whose every declared value is at most the orbital period of the planet's orbit,
@@ -563,7 +565,9 @@ function Profile(; kwargs...)
         names = map(c -> c.name, components)
         length(unique(names)) == length(names) || refuse(
             "components", site, "$(names) names one component twice")
-        components = map(c -> resolve_component(site, system, c), components)
+        order = sortperm(collect(names))
+        components = NamedTuple{Tuple(names[order])}(
+            Tuple(resolve_component(site, system, components[i]) for i in order))
     end
 
     radiation = k.radiation isa Absent ? k.radiation :
@@ -730,7 +734,8 @@ strip_setting(t::SlowTier{FT}) where {FT} =
     StrippedSlowTier{FT}(value(t.acceleration), value(t.refresh_interval))
 strip_setting(e::ExitBracket{FT}) where {FT} =
     StrippedExit{e.loop,e.criterion,e.normalisation,FT}(value(e.tolerance))
-strip_setting(members::Tuple{Vararg{Union{Component,ExitBracket}}}) = map(strip_setting, members)
+strip_setting(members::Tuple{Vararg{ExitBracket}}) = map(strip_setting, members)
+strip_setting(components::NamedTuple{<:Any,<:Tuple{Vararg{Component}}}) = map(strip_setting, components)
 
 """
     strip(profile)

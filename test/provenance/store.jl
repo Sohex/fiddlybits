@@ -15,8 +15,9 @@ store_ledger(Q, after) = Fields.Ledger{Q}(Float64, Mesh.ncells(ST.level()), 1.0,
 
 "The key the fixture `put` computes at `operator_version` under `code`."
 fixture_key(m; operator_version, code = ST.code()) =
-    Provenance.ArtifactKey(code = code, declaration = ST.declaration(), system = SF.system(), inputs = (;),
-                           quantity = :surface_mass, support = m.support, operator_version = operator_version)
+    Provenance.ArtifactKey(code = code, declaration = ST.declaration(), system = SF.system(), profile = ST.profile(),
+                           inputs = (;), quantity = :surface_mass, support = m.support,
+                           interval = Time.interval(ST.interval()), operator_version = operator_version)
 
 "A copy of the store at `root` under `dir`."
 store_copy(root, dir) = (cp(root, joinpath(dir, "store")); Provenance.Store(root = joinpath(dir, "store")))
@@ -169,7 +170,7 @@ manifest_of(store, key) = TOML.parsefile(joinpath(Provenance.object_directory(st
 
             scratch = Provenance.ScratchRun(run = drun, code = dirty)
             skey, sfield = Provenance.put_field!(store, scratch; declaration = ST.declaration(), system = SF.system(),
-                                                 inputs = (;), quantity = :surface_mass, operator_version = 1,
+                                                 profile = ST.profile(), inputs = (;), quantity = :surface_mass, operator_version = 1,
                                                  field = fd, ledgers = (ST.closed_ledger(),), chunk_level = 1,
                                                  values = Provenance.Amounts())
             @test skey == dkey
@@ -227,6 +228,11 @@ manifest_of(store, key) = TOML.parsefile(joinpath(Provenance.object_directory(st
                   string(typeof(SF.system().planet.mass))
             @test manifest["parameter_digest"] ==
                   bytes2hex(collect(Provenance.parameter_digest(ST.declaration(), SF.system())))
+            @test [p["declared"] for p in manifest["profile"]] == [["fast_precision"], ["memory_ceiling"]]
+            @test only(manifest["profile"][1]["values"])["value"] == "Float64"
+            @test manifest["profile_digest"] ==
+                  bytes2hex(collect(Provenance.profile_digest(ST.declaration(), ST.profile())))
+            @test manifest["profile_digest"] != manifest["parameter_digest"]
             table = manifest["arrays"]["surface_mass"]
             @test table["attributes"]["semantics"] == "Extensive"
             @test table["attributes"]["interval"]["t1"]["whole"] == 3600
@@ -266,6 +272,24 @@ manifest_of(store, key) = TOML.parsefile(joinpath(Provenance.object_directory(st
                              "ledgers", "tuple")
             @test ST.refused(ST.caught(() -> ST.read_back(store, fixture_key(m; operator_version = 42), m.support)),
                              "artifact", "holds no artifact")
+            still = ST.field(m.support, run, data; time = Time.TimeSupport(Time.Static()))
+            @test ST.refused(ST.caught(() -> ST.put(store, run, still; operator_version = 43)), "interval",
+                             "Static, placed by none")
+            at = ST.field(m.support, run, data; time = Time.TimeSupport(Time.Instantaneous(), Time.SimTime(3600.0)))
+            @test ST.refused(ST.caught(() -> ST.put(store, run, at; operator_version = 43)), "interval",
+                             "Instantaneous, placed by instant")
+            given = (code = ST.code(), declaration = ST.declaration(), system = SF.system(), profile = ST.profile(),
+                     inputs = (;), quantity = :surface_mass, operator_version = 44, field = f,
+                     ledgers = (ST.closed_ledger(),), chunk_level = 1, values = Provenance.Amounts())
+            @test ST.refused(ST.caught(() -> Provenance.put_field!(store, run; Base.structdiff(given, NamedTuple{(:profile,)})...)),
+                             "profile", "missing")
+
+            @testset "positive control: the same field over a later interval is another artifact" begin
+                later = ST.field(m.support, run, data; time = Time.TimeSupport(Time.IntervalMean(), Time.Interval(3600.0, 7200.0)))
+                klater, _ = ST.put(store, run, later)
+                @test klater != key
+                @test isdir(Provenance.object_directory(store, klater))
+            end
             @test ST.refused(ST.caught(() -> Provenance.Store(root = "relative")), "root", "not an absolute path")
             @test ST.refused(ST.caught(() -> Provenance.record_value(sin)), "record", "has no record")
         end

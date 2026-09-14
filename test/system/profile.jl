@@ -106,9 +106,9 @@ import .ProfileFixtures as PF
             st = Systems.strip(p)
             @test st isa Systems.StrippedProfile{T,:fixture,T}
             @test st.memory_ceiling === 1024
-            @test st.components[1] isa Systems.StrippedComponent{:atmosphere}
-            @test st.components[1].level === value(p.components[1].level)
-            @test st.components[1].ladder === map(value, p.components[1].ladder.interfaces)
+            @test st.components.atmosphere isa Systems.StrippedComponent{:atmosphere}
+            @test st.components.atmosphere.level === value(p.components.atmosphere.level)
+            @test st.components.atmosphere.ladder === map(value, p.components.atmosphere.ladder.interfaces)
             @test st.radiation.ceiling === value(p.radiation.ceiling)
             @test st.radiation.g_points === (16, 8)
             @test st.exit_brackets[1] isa
@@ -236,7 +236,7 @@ import .ProfileFixtures as PF
                 p = PF.profile(T; system = s, components = (PF.component(T;
                     target_spacing = SF.irreducible(target, LENGTH),
                     finest_spacing = SF.irreducible(target / 8, LENGTH)),))
-                c = p.components[1]
+                c = p.components.atmosphere
                 @test c.level isa Dispositions.Derived{Int}
                 @test c.level.rule === :level_for_spacing
                 @test value(c.finest_level) >= value(c.level)
@@ -255,7 +255,7 @@ import .ProfileFixtures as PF
         end
 
         @test value(PF.profile(components = (PF.component(target_spacing =
-                  SF.irreducible(1e9, LENGTH)),)).components[1].level) == 0
+                  SF.irreducible(1e9, LENGTH)),)).components.atmosphere.level) == 0
 
         finest = Systems.FINEST_INDEXABLE_LEVEL
         @test 30 * big(4)^finest <= typemax(Int) < 30 * big(4)^(finest + 1)
@@ -264,7 +264,7 @@ import .ProfileFixtures as PF
         deepest = PF.profile(components = (PF.component(
             target_spacing = SF.irreducible(at_finest, LENGTH),
             finest_spacing = SF.irreducible(at_finest, LENGTH)),))
-        @test value(deepest.components[1].level) == finest
+        @test value(deepest.components.atmosphere.level) == finest
         @test SF.refused(SF.caught(() -> PF.profile(components = (PF.component(
                   target_spacing = SF.irreducible(prevfloat(at_finest), LENGTH),
                   finest_spacing = SF.irreducible(prevfloat(at_finest), LENGTH)),))),
@@ -299,7 +299,32 @@ import .ProfileFixtures as PF
                          "interfaces", "outside")
         absent = PF.profile(components = (PF.component(ladder =
             Systems.Absent(argument = "a single-layer fixture")),))
-        @test Systems.strip(absent).components[1].ladder === nothing
+        @test Systems.strip(absent).components.atmosphere.ladder === nothing
+    end
+
+    @testset "components are held by name, in sorted name order" begin
+        ocean = PF.component(name = :ocean, target_spacing = SF.irreducible(2e5, LENGTH))
+        atmosphere = PF.component()
+        forward = PF.profile(components = (atmosphere, ocean))
+        backward = PF.profile(components = (ocean, atmosphere))
+        @test forward.components isa NamedTuple{(:atmosphere, :ocean)}
+        @test backward.components isa NamedTuple{(:atmosphere, :ocean)}
+        @test value(backward.components.ocean.target_spacing) == 2e5
+        @test value(backward.components.atmosphere.target_spacing) == 1e5
+        st = Systems.strip(backward)
+        @test isbits(st)
+        @test st.components isa NamedTuple{(:atmosphere, :ocean)}
+        @test st.components.ocean isa Systems.StrippedComponent{:ocean}
+        @test Systems.strip(forward) === st
+        @test Systems.holds_declaration(forward.components)
+        @test Systems.reaches(forward, (:components, :ocean, :ladder))
+
+        @testset "positive control: a name the profile does not hold, and a position, reach nothing" begin
+            @test !Systems.reaches(forward, (:components, :land))
+            @test !Systems.reaches(forward, (:components, 1))
+            @test !Systems.reaches(forward, (:components, :, :ladder))
+            @test !Systems.holds_declaration((a = 1.0, b = :x))
+        end
     end
 
     @testset "every exit bracket is stored dimensionless and an absolute tolerance is refused" begin

@@ -55,7 +55,8 @@ initial(q, level) = Coupling.InitialCondition(quantity = q, level = level, backe
 
 component(name; level, reads, writes, stocks) =
     Component(Coupling.Declaration(name = name, level = level, reads = reads, writes = writes,
-                                   stocks = stocks, system_fields = (), backend = Backends.CPU()))
+                                   stocks = stocks, system_fields = (), profile_fields = (),
+                                   backend = Backends.CPU()))
 
 land() = component(:land; level = 2,
                    reads = (reading(:soil_water, 2, at_level(); lagged = true),
@@ -186,24 +187,25 @@ catch err
 end
 
 """
-    content_keys(a, m, system; operator_version)
+    content_keys(a, m, system; interval, operator_version)
 
-`(component, quantity, digest)` of the `ArtifactKey` of every write of `a` in evaluation
-order, each read's input the key of its writer's write when read in the step and of its
-initial condition when lagged; an initial condition's key is that of a declaration of
-its own name writing it with no reads.
+`(component, quantity, digest)` of the `ArtifactKey` of every write of `a` over `interval`
+under `profile()` in evaluation order, each read's input the key of its writer's write
+when read in the step and of its initial condition when lagged; an initial condition's
+key is that of a declaration of its own name writing it with no reads.
 """
-function content_keys(a, m, system; operator_version)
+function content_keys(a, m, system; interval, operator_version)
     support(level) = level == m.fine.level ? m.fine : m.coarse
     key(d, q, inputs) = Provenance.ArtifactKey(code = code(), declaration = d, system = system,
-                                               inputs = inputs, quantity = q, support = support(d.level),
+                                               profile = profile(), inputs = inputs, quantity = q,
+                                               support = support(d.level), interval = interval,
                                                operator_version = operator_version)
     initial_keys = Dict{Symbol,Provenance.ArtifactKey}()
     for ic in initial_conditions()
         d = Coupling.Declaration(name = Symbol(:initial_, ic.quantity), level = ic.level, reads = (),
                                  writes = (Coupling.Write(quantity = ic.quantity, semantics = Fields.Intensive(),
                                                           conserves = ()),),
-                                 stocks = (), system_fields = (), backend = Backends.CPU())
+                                 stocks = (), system_fields = (), profile_fields = (), backend = Backends.CPU())
         initial_keys[ic.quantity] = key(d, ic.quantity, NamedTuple())
     end
     written = Dict{Symbol,Provenance.ArtifactKey}()
@@ -276,7 +278,7 @@ function run_case(install, g; operator_version = 1)
     edits = Connectivity.emit_topology_changes(g.open, g.closed; sequence = 100, instant = 3.5e9,
                                                tier = :slow)
 
-    found = content_keys(a, m, SF.system(Float64); operator_version = operator_version)
+    found = content_keys(a, m, SF.system(Float64); interval = interval, operator_version = operator_version)
     hex(digest) = bytes2hex(collect(digest))
     emitted(kind, sequence, payload) =
         Events.emit(Events.Event(kind, sequence, 3.6e9, :slow, "JournalCase", payload))
@@ -453,9 +455,11 @@ const JOURNAL_CASE_RECORDS = Dict{String,Any}[]
             writer = Coupling.Declaration(name = :writer, level = m.fine.level, reads = (),
                                           writes = (Coupling.Write(quantity = :x, semantics = Fields.Intensive(),
                                                                    conserves = ()),),
-                                          stocks = (), system_fields = (), backend = Backends.CPU())
+                                          stocks = (), system_fields = (), profile_fields = (),
+                                          backend = Backends.CPU())
             given = (code = JNL.code(), declaration = writer, system = SystemFixtures.system(Float64),
-                     inputs = NamedTuple(), quantity = :x, support = m.fine, operator_version = 1)
+                     profile = JNL.profile(), inputs = NamedTuple(), quantity = :x, support = m.fine,
+                     interval = Time.Interval(0.0, 100.0), operator_version = 1)
             e = JNL.raised(() -> Provenance.ArtifactKey(; given..., journal = journal))
             @test e isa Verdicts.Refusal && e.quantity == "journal"
 
@@ -479,7 +483,7 @@ const JOURNAL_CASE_RECORDS = Dict{String,Any}[]
         end
         @test JNL.first_difference(perturbed.artifacts, off.artifacts) == "field channel"
         @test JNL.content_keys(JNL.assembly(), JNL.mesh(), SystemFixtures.system(Float64);
-                               operator_version = 2) != off.keys
+                               interval = Time.Interval(0.0, 100.0), operator_version = 2) != off.keys
     end
 end
 
