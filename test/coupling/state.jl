@@ -10,20 +10,9 @@ isdefined(@__MODULE__, :SystemFixtures) ||
     include(joinpath(@__DIR__, "..", "system", "fixtures.jl"))
 import .SystemFixtures as SF
 
-module KeyStabilityFixtures
-
-import ..SystemFixtures
-
-"The file whose `KeyFixtures` module this module evaluates."
-const SOURCE = joinpath(@__DIR__, "..", "provenance", "key_stability.jl")
-
-for ex in Meta.parseall(read(SOURCE, String); filename = SOURCE).args
-    ex isa Expr && ex.head === :module && ex.args[2] === :KeyFixtures && Core.eval(@__MODULE__, ex)
-end
-
-end # module KeyStabilityFixtures
-
-import .KeyStabilityFixtures.KeyFixtures as KF
+isdefined(@__MODULE__, :KeyFixtures) ||
+    include(joinpath(@__DIR__, "..", "provenance", "fixtures.jl"))
+import .KeyFixtures as KF
 
 module CouplingFixtures
 
