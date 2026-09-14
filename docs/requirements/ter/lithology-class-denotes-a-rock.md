@@ -27,7 +27,8 @@ labelled a bootstrap and a test asserted the label still described the
 classifier. Twenty classes carried sixty numbers with no reference. The
 erodibility ORDERING was supported and its SPREAD was about four times too wide
 (14x from quartzite to salt against a published global index of 3.2x and a
-fluvially expressed contrast within one mountain belt of about 4x, because
+fluvially expressed contrast within one mountain belt of four to fifteen times
+by the slope exponent, Zondervan et al. 2020 Fig. 4d, because
 channels adjust width and slope to the rock); one pair was inverted (andesite
 above basalt), which a strength slider that compresses toward the mean cannot
 catch; the "mean-normalised to 1" property was no longer true of the shipped
