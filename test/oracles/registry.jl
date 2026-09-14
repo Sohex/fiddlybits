@@ -65,6 +65,13 @@ tier2_scalar() = Dict{String,Any}(
     "bar_half_width" => 2.0, "observation_uncertainty" => 1.0, "form" => "scalar",
     "pattern_entry" => "earth.fixture_pattern")
 
+"A tier-2 fail_bar entry of form pattern, for the history fixtures' merge and branch controls."
+form_history_entry() = merge(tier2(), Dict{String,Any}("id" => "earth.fixture_form_history", "form" => "pattern"))
+
+"A tier-2 fail_bar entry of form scalar naming a pattern partner, for the history fixtures' merge and branch controls."
+partner_history_entry() = merge(tier2(), Dict{String,Any}(
+    "id" => "earth.fixture_partner_history", "form" => "scalar", "pattern_entry" => "earth.fixture_pattern_other"))
+
 "A tier-3 report entry."
 tier3() = Dict{String,Any}(
     "id" => "sweep.fixture_rotation", "tier" => 3, "subsystem" => "dynamics", "dataset_or_reference" => "a fixture sweep",
@@ -254,6 +261,36 @@ function merge_history(dir, extra::AbstractDict)
     fixture_git(dir, `merge -q --no-ff -m merge branch`)
 end
 
+"""
+A history: a branch changing `entry`'s `field` to `value`, then committing `extra` on the
+branch, merged into main with a merge commit.
+"""
+function merge_field_history(dir, entry::AbstractDict, field::AbstractString, value, extra::AbstractDict)
+    doc = new_history(dir, entry)
+    fixture_git(dir, `checkout -q -b branch`)
+    edit!(dir, doc, Dict{String,Any}(field => value))
+    isempty(extra) || commit!(dir, extra, "branch work")
+    fixture_git(dir, `checkout -q main`)
+    commit!(dir, Dict{String,Any}("notes/main.md" => "main moves on\n"), "main")
+    fixture_git(dir, `merge -q --no-ff -m merge branch`)
+end
+
+"""
+A history: a feature branch forks from main and changes `entry`'s `field` to `value`
+together with `extra` itself; main commits unrelated work; the feature branch merges main
+into itself. Left checked out on the feature branch.
+"""
+function branch_own_field_change(dir, entry::AbstractDict, field::AbstractString, value, extra::AbstractDict)
+    doc = new_history(dir, entry)
+    fixture_git(dir, `checkout -q -b feature`)
+    edit!(dir, doc, Dict{String,Any}(field => value))
+    isempty(extra) || commit!(dir, extra, "branch work")
+    fixture_git(dir, `checkout -q main`)
+    commit!(dir, Dict{String,Any}("notes/main.md" => "main moves on\n"), "main")
+    fixture_git(dir, `checkout -q feature`)
+    fixture_git(dir, `merge -q --no-ff -m "merge main into feature" main`)
+end
+
 "An exceptions list entry naming `merge` and `oracle`, with every field filled."
 exception(merge::AbstractString, oracle::AbstractString) = Dict{String,Any}(
     "merge" => merge, "oracle" => oracle, "reason" => "a fixture merge", "row" => "fiddlybits-fixture",
@@ -266,6 +303,12 @@ list!(dir::AbstractString, entries) =
 "A history: a branch changing the tier-1 entry's threshold together with `extra`, merged, and the merge listed for `oracle`."
 function listed_merge(dir, extra::AbstractDict, oracle::AbstractString)
     merge_history(dir, extra)
+    list!(dir, [exception(head(dir), oracle)])
+end
+
+"A history: `merge_field_history`'s merge of `entry`'s `field` to `value` with `extra`, merged, and the merge listed for `oracle`."
+function listed_field_merge(dir, entry::AbstractDict, field::AbstractString, value, extra::AbstractDict, oracle::AbstractString)
+    merge_field_history(dir, entry, field, value, extra)
     list!(dir, [exception(head(dir), oracle)])
 end
 
@@ -398,6 +441,46 @@ const HISTORY_CONTROLS = (
      count = 1, phrase = "a merge whose branch changes the threshold together with src/Model.jl"),
     (case = "the threshold change merged alone (accepted)",
      build = dir -> merge_history(dir, Dict{String,Any}()), count = 0, phrase = ""),
+    (case = "a merge changing form together with src/",
+     build = dir -> merge_field_history(dir, form_history_entry(), "form", "scalar",
+                                        Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n")),
+     count = 1, phrase = "a merge whose branch changes form together with src/Model.jl"),
+    (case = "the form change merged alone, registry-only (accepted)",
+     build = dir -> merge_field_history(dir, form_history_entry(), "form", "scalar", Dict{String,Any}()),
+     count = 0, phrase = ""),
+    (case = "a merge adding form to an entry that had none, together with src/ (accepted)",
+     build = dir -> merge_field_history(dir, tier2(), "form", "pattern",
+                                        Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n")),
+     count = 0, phrase = ""),
+    (case = "a branch changing form together with src/ itself, seen from its own tip",
+     build = dir -> branch_own_field_change(dir, form_history_entry(), "form", "scalar",
+                                            Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n")),
+     count = 1, phrase = "a branch whose diff against main changes form together with src/Model.jl"),
+    (case = "a merge changing form together with src/, listed as an exception with permitted_by (accepted)",
+     build = dir -> listed_field_merge(dir, form_history_entry(), "form", "scalar",
+                                       Dict{String,Any}("src/Model.jl" => "module Model\ng() = 1\nend\n"), "earth.fixture_form_history"),
+     count = 0, phrase = ""),
+    (case = "a merge changing pattern_entry together with the testset named by it",
+     build = dir -> merge_field_history(dir, partner_history_entry(), "pattern_entry", "earth.fixture_pattern_third",
+                                        Dict{String,Any}("test/model/runtests.jl" => "@testset \"earth.fixture_partner_history\" begin\n    @test true\nend\n")),
+     count = 1, phrase = "a merge whose branch changes pattern_entry together with test/model/runtests.jl"),
+    (case = "the pattern_entry change merged alone, registry-only (accepted)",
+     build = dir -> merge_field_history(dir, partner_history_entry(), "pattern_entry", "earth.fixture_pattern_third",
+                                        Dict{String,Any}()),
+     count = 0, phrase = ""),
+    (case = "a merge adding pattern_entry to an entry that had none, together with its testset (accepted)",
+     build = dir -> merge_field_history(dir, tier2(), "pattern_entry", "earth.fixture_pattern_other",
+                                        Dict{String,Any}("test/model/runtests.jl" => "@testset \"earth.fixture_mean\" begin\n    @test true\nend\n")),
+     count = 0, phrase = ""),
+    (case = "a branch changing pattern_entry together with its testset itself, seen from its own tip",
+     build = dir -> branch_own_field_change(dir, partner_history_entry(), "pattern_entry", "earth.fixture_pattern_third",
+                                            Dict{String,Any}("test/model/runtests.jl" => "@testset \"earth.fixture_partner_history\" begin\n    @test true\nend\n")),
+     count = 1, phrase = "a branch whose diff against main changes pattern_entry together with test/model/runtests.jl"),
+    (case = "a merge changing pattern_entry together with its testset, listed as an exception with permitted_by (accepted)",
+     build = dir -> listed_field_merge(dir, partner_history_entry(), "pattern_entry", "earth.fixture_pattern_third",
+                                       Dict{String,Any}("test/model/runtests.jl" => "@testset \"earth.fixture_partner_history\" begin\n    @test true\nend\n"),
+                                       "earth.fixture_partner_history"),
+     count = 0, phrase = ""),
     (case = "a feature branch that merged main's threshold and testset merges into itself, merged into main with no threshold change of its own (accepted)",
      build = sync_history, count = 0, phrase = ""),
     (case = "a merge changing a threshold and src/, listed as an exception with permitted_by (accepted)",
@@ -578,7 +661,8 @@ end
 
         @testset "positive control: an entry whose $(key) differs from its registered_at commit is unregistered" for
                 (key, value) in (("threshold", "a threshold chosen later"), ("statistic", "a statistic chosen later"),
-                                 ("verdict_kind", "report"), ("holdout", true))
+                                 ("verdict_kind", "report"), ("holdout", true), ("form", "pattern"),
+                                 ("pattern_entry", "some.other.entry"))
             edited = deepcopy(doc)
             only(edited["oracle"])[key] = value
             put(path, edited)
