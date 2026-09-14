@@ -1,10 +1,11 @@
 # Profile: each component's level, refinement reach and vertical ladder; the radiation
 # cadence with its Derived ceiling; the precision of the fast fields; the slow tier; the
-# memory ceiling; the write ceiling and store-writer count of the provenance store's
-# writer; the daily-tier fallback interval; every loop's exit bracket.
+# memory ceiling; the write ceiling, store-writer count and settle interval of the
+# provenance store's writer; the daily-tier fallback interval; every loop's exit
+# bracket.
 # docs/plans/fiddlybits-52v.4-system.md, section "Scope";
 # docs/plans/fiddlybits-52v.6-provenance.md, section "The writer"; decisions 0005, 0008,
-# 0011, 0014, 0023 and 0038.
+# 0011, 0014, 0023, 0038 and 0060.
 
 using ..Verdicts: refuse
 using ..Dimensions: TIME, LENGTH, DIMENSIONLESS, signature
@@ -504,7 +505,7 @@ end
 "The keywords of `Profile`, the set a `Derived` value of a profile names its inputs in."
 const PROFILE_KEYWORDS = (:label, :system, :components, :radiation, :fast_precision,
                           :slow_tier, :memory_ceiling, :write_ceiling, :store_writers,
-                          :daily_fallback_interval, :exit_brackets)
+                          :settle_interval, :daily_fallback_interval, :exit_brackets)
 
 "The floating-point types the fast prognostic fields may be held in."
 const FAST_PRECISIONS = (Float32, Float64)
@@ -517,8 +518,8 @@ run of one system uses (decision 0014). Build it with the keyword constructor, w
 has no defaults:
 
     Profile(; label, system, components, radiation, fast_precision, slow_tier,
-              memory_ceiling, write_ceiling, store_writers, daily_fallback_interval,
-              exit_brackets)
+              memory_ceiling, write_ceiling, store_writers, settle_interval,
+              daily_fallback_interval, exit_brackets)
 
 `label` is a `Symbol`; `system` the `System{FT}` the profile is resolved on, read and
 not held; `components` a tuple of `ComponentDeclaration{FT}` with distinct names, or an
@@ -531,7 +532,9 @@ bytes above zero, an `Int`; `write_ceiling` a declared count of bytes above zero
 `Int`, the ceiling of the store's writer byte pool (decision 0038,
 docs/plans/fiddlybits-52v.6-provenance.md, section "The writer"); `store_writers` a
 declared count above zero, an `Int`, the disk-stage tasks the writer runs at once;
-`daily_fallback_interval` a `Bracketed` duration above
+`settle_interval` a declared duration above zero, the simulated seconds between the
+store's writer settling (decision 0060, docs/plans/fiddlybits-52v.6-provenance.md,
+section "The writer"); `daily_fallback_interval` a `Bracketed` duration above
 zero whose every declared value is at most the orbital period of the planet's orbit,
 or an `Absent`; `exit_brackets` a tuple of `ExitBracket{FT}` naming each loop and
 criterion once, or an `Absent`.
@@ -545,6 +548,7 @@ struct Profile{FT,C,R,P,S,D,E}
     memory_ceiling::Disposition{Int,typeof(DIMENSIONLESS)}
     write_ceiling::Disposition{Int,typeof(DIMENSIONLESS)}
     store_writers::Disposition{Int,typeof(DIMENSIONLESS)}
+    settle_interval::Disposition{FT,typeof(TIME)}
     daily_fallback_interval::D
     exit_brackets::E
 
@@ -601,6 +605,9 @@ function Profile(; kwargs...)
         require_disposition("store_writers", site, k.store_writers, Int, DIMENSIONLESS,
                             DECLARED))
 
+    settle_interval = require_positive("settle_interval", site,
+        require_disposition("settle_interval", site, k.settle_interval, FT, TIME, DECLARED))
+
     fallback = k.daily_fallback_interval
     if !(fallback isa Absent)
         require_positive("daily_fallback_interval", site,
@@ -632,7 +639,7 @@ function Profile(; kwargs...)
     return Profile{FT,typeof(components),typeof(radiation),k.fast_precision,
                    typeof(slow_tier),typeof(fallback),typeof(exits)}(
         Checked(), label, components, radiation, k.fast_precision, slow_tier,
-        memory_ceiling, write_ceiling, store_writers, fallback, exits)
+        memory_ceiling, write_ceiling, store_writers, settle_interval, fallback, exits)
 end
 
 """
@@ -670,35 +677,41 @@ founding_absences() = (
         "evaluated on the coupled case at milestone M7, fiddlybits-caz"))
 
 """
-    fast_profile(; system, memory_ceiling, write_ceiling, store_writers)
+    fast_profile(; system, memory_ceiling, write_ceiling, store_writers, settle_interval)
 
 The fast profile of decision 0014 on `system`: labelled `:fast`, its fast prognostic
 fields in `Float32`, `memory_ceiling` the declared bytes of the card it runs on,
-`write_ceiling` and `store_writers` the declared settings of the store's writer
-(decision 0038), and every other setting from `founding_absences`.
+`write_ceiling`, `store_writers` and `settle_interval` the declared settings of the
+store's writer (decisions 0038 and 0060), and every other setting from
+`founding_absences`.
 """
 function fast_profile(; kwargs...)
     k, _ = read_keywords("Systems.fast_profile", values(kwargs),
-                         (:system, :memory_ceiling, :write_ceiling, :store_writers), ())
+                         (:system, :memory_ceiling, :write_ceiling, :store_writers,
+                          :settle_interval), ())
     return Profile(; label = :fast, system = k.system, fast_precision = Float32,
                    memory_ceiling = k.memory_ceiling, write_ceiling = k.write_ceiling,
-                   store_writers = k.store_writers, founding_absences()...)
+                   store_writers = k.store_writers, settle_interval = k.settle_interval,
+                   founding_absences()...)
 end
 
 """
-    full_profile(; system, memory_ceiling, write_ceiling, store_writers)
+    full_profile(; system, memory_ceiling, write_ceiling, store_writers, settle_interval)
 
 The full profile of decision 0014 on `system`: labelled `:full`, its fast prognostic
 fields in `Float64`, `memory_ceiling` the declared bytes of the card it runs on,
-`write_ceiling` and `store_writers` the declared settings of the store's writer
-(decision 0038), and every other setting from `founding_absences`.
+`write_ceiling`, `store_writers` and `settle_interval` the declared settings of the
+store's writer (decisions 0038 and 0060), and every other setting from
+`founding_absences`.
 """
 function full_profile(; kwargs...)
     k, _ = read_keywords("Systems.full_profile", values(kwargs),
-                         (:system, :memory_ceiling, :write_ceiling, :store_writers), ())
+                         (:system, :memory_ceiling, :write_ceiling, :store_writers,
+                          :settle_interval), ())
     return Profile(; label = :full, system = k.system, fast_precision = Float64,
                    memory_ceiling = k.memory_ceiling, write_ceiling = k.write_ceiling,
-                   store_writers = k.store_writers, founding_absences()...)
+                   store_writers = k.store_writers, settle_interval = k.settle_interval,
+                   founding_absences()...)
 end
 
 # ---------------------------------------------------------------- strip
@@ -739,6 +752,7 @@ struct StrippedProfile{FT,Label,Precision,C,R,S,D,E}
     memory_ceiling::Int
     write_ceiling::Int
     store_writers::Int
+    settle_interval::FT
     daily_fallback_interval::D
     exit_brackets::E
 end
@@ -774,5 +788,6 @@ function strip(p::Profile{FT,C,R,P}) where {FT,C,R,P}
     d = strip_setting(p.daily_fallback_interval)
     e = strip_setting(p.exit_brackets)
     return StrippedProfile{FT,p.label,P,typeof(c),typeof(r),typeof(s),typeof(d),typeof(e)}(
-        c, r, s, value(p.memory_ceiling), value(p.write_ceiling), value(p.store_writers), d, e)
+        c, r, s, value(p.memory_ceiling), value(p.write_ceiling), value(p.store_writers),
+        value(p.settle_interval), d, e)
 end

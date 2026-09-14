@@ -21,6 +21,7 @@ profile() = Systems.Profile(
     memory_ceiling = SF.irreducible(1024, Dimensions.DIMENSIONLESS),
     write_ceiling = SF.irreducible(256, Dimensions.DIMENSIONLESS),
     store_writers = SF.irreducible(4, Dimensions.DIMENSIONLESS),
+    settle_interval = SF.irreducible(3600.0, Dimensions.TIME),
     daily_fallback_interval = Systems.Absent(argument = "the store fixture has no vegetation tier"),
     exit_brackets = Systems.Absent(argument = "the store fixture has no loop"))
 

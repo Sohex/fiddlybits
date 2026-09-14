@@ -39,6 +39,7 @@ declared() = Dict{Symbol,Any}(
 const S = Systems
 const ONE = Dimensions.DIMENSIONLESS
 const LENGTH = Dimensions.LENGTH
+const TIME = Dimensions.TIME
 
 "A component entry named `name` with a ladder of interfaces at `positions`."
 entry(name, spacing, positions) = S.ComponentDeclaration(
@@ -57,6 +58,7 @@ profile() = S.Profile(
     memory_ceiling = SF.irreducible(1024, ONE),
     write_ceiling = SF.irreducible(256, ONE),
     store_writers = SF.irreducible(4, ONE),
+    settle_interval = SF.irreducible(3600.0, TIME),
     daily_fallback_interval = S.Absent(argument = "the graph fixture declares no daily tier"),
     exit_brackets = (S.ExitBracket(loop = :climate, criterion = :toa_balance,
                                    normalisation = :absorbed_instellation,
@@ -249,7 +251,8 @@ end
             (:components,), (:components, :atmosphere, :name), (:components, :ocean, :name)])
         absent = Systems.fast_profile(system = SF.system(Float32), memory_ceiling = SF.irreducible(1024, GF.ONE),
                                       write_ceiling = SF.irreducible(256, GF.ONE),
-                                      store_writers = SF.irreducible(4, GF.ONE))
+                                      store_writers = SF.irreducible(4, GF.ONE),
+                                      settle_interval = SF.irreducible(3600.0f0, GF.TIME))
         t = Systems.TrackingProfile(absent)
         @test t.components === absent.components
         @test Systems.recorded_reads(t) == Set{Tuple}([(:components,)])

@@ -75,6 +75,7 @@ profile(T = Float64; kw...) = Systems.Profile(; merge(
      memory_ceiling = SF.irreducible(1024, ONE),
      write_ceiling = SF.irreducible(256, ONE),
      store_writers = SF.irreducible(4, ONE),
+     settle_interval = SF.irreducible(T(3600), TIME),
      daily_fallback_interval = SF.bracket(T(1e5), T(600), T(1e6), TIME),
      exit_brackets = (Systems.ExitBracket(loop = :climate, criterion = :toa_balance,
                                           normalisation = :absorbed_instellation,

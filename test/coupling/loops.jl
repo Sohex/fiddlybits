@@ -15,6 +15,7 @@ using SHA: sha256
 import ..SystemFixtures as SF
 
 const ONE = Dimensions.DIMENSIONLESS
+const TIME = Dimensions.TIME
 
 "An `ExitBracket` of `loop` and `criterion` in `normalisation` with `tolerance`."
 exit_bracket(loop, criterion, normalisation, tolerance) = Systems.ExitBracket(
@@ -31,6 +32,7 @@ profile(system, brackets) = Systems.Profile(
     memory_ceiling = SF.irreducible(1024, ONE),
     write_ceiling = SF.irreducible(256, ONE),
     store_writers = SF.irreducible(4, ONE),
+    settle_interval = SF.irreducible(3600.0, TIME),
     daily_fallback_interval = absent("the loop fixture has no vegetation tier"),
     exit_brackets = brackets)
 
