@@ -322,13 +322,16 @@ end
 
 # ---------------------------------------------------------------- journals under a temporary directory
 
-"`f(journal, file)` with a journal installed for a new run under a new temporary directory; the no-op sink is installed again on return."
+"`f(journal, file)` with a journal installed for a new run, opened through the door
+`Provenance.start_run!` under a new temporary store; the no-op sink is installed again
+on return."
 function with_journal(f)
-    mktempdir() do runs
+    mktempdir() do root
+        store = Provenance.Store(root = root)
         run = Provenance.mint_run_id()
-        journal = Provenance.install_journal!(runs = runs, run = run)
+        ctx = Provenance.start_run!(store; run = run, code = code(), system = SF.system(Float64))
         try
-            return f(journal, Provenance.journal_file(runs, run))
+            return f(ctx.journal, joinpath(Provenance.run_directory(store, run), Provenance.JOURNAL_PATH))
         finally
             Events.sink!(Events.noop_sink)
         end
@@ -349,6 +352,20 @@ function sink_installers(root::AbstractString)
         endswith(f, ".jl") || continue
         path = relpath(joinpath(dir, f), root)
         path == joinpath("Events", "Events.jl") && continue
+        occursin(pattern, read(joinpath(dir, f), String)) && push!(found, path)
+    end
+    return sort!(found)
+end
+
+"The `.jl` files under `root` naming `install_journal!(`, relative to `root`, other than
+`Provenance/journal.jl`, where it is declared, sorted."
+function install_journal_callers(root::AbstractString)
+    found = String[]
+    pattern = r"(?<![A-Za-z0-9_])install_journal!\("
+    for (dir, _, files) in walkdir(root), f in files
+        endswith(f, ".jl") || continue
+        path = relpath(joinpath(dir, f), root)
+        path == joinpath("Provenance", "journal.jl") && continue
         occursin(pattern, read(joinpath(dir, f), String)) && push!(found, path)
     end
     return sort!(found)
@@ -689,9 +706,10 @@ end
     end
 end
 
-@testset "the journal is the only sink src installs, and its path constant is declared in the emitter the lint names" begin
+@testset "the journal is the only sink src installs, install_journal! has one caller, and the path constant is declared in the emitter the lint names" begin
     src = joinpath(pkgdir(Fiddlybits), "src")
     @test JNL.sink_installers(src) == [joinpath("Provenance", "journal.jl")]
+    @test JNL.install_journal_callers(src) == [joinpath("Provenance", "run.jl")]
 
     list = TOML.parsefile(joinpath(@__DIR__, "..", "lint", "lists", "journal.toml"))
     @test isdefined(Provenance, Symbol(list["path_constant"]))
@@ -709,6 +727,19 @@ end
             end
             @test JNL.sink_installers(root) ==
                   sort([joinpath("Coupling", "tap.jl"), joinpath("Fields", "tap.jl"), joinpath("Provenance", "journal.jl")])
+        end
+    end
+
+    @testset "positive control: a second caller of install_journal!, beside the door, is reported" begin
+        mktempdir() do root
+            for (path, text) in ((joinpath("Provenance", "journal.jl"), read(joinpath(src, "Provenance", "journal.jl"), String)),
+                                 (joinpath("Provenance", "run.jl"), read(joinpath(src, "Provenance", "run.jl"), String)),
+                                 (joinpath("Coupling", "tap.jl"), "tap!(runs, run) = Provenance.install_journal!(runs = runs, run = run)\n"))
+                mkpath(dirname(joinpath(root, path)))
+                write(joinpath(root, path), text)
+            end
+            @test JNL.install_journal_callers(root) ==
+                  sort([joinpath("Coupling", "tap.jl"), joinpath("Provenance", "run.jl")])
         end
     end
 end
