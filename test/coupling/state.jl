@@ -10,6 +10,21 @@ isdefined(@__MODULE__, :SystemFixtures) ||
     include(joinpath(@__DIR__, "..", "system", "fixtures.jl"))
 import .SystemFixtures as SF
 
+module KeyStabilityFixtures
+
+import ..SystemFixtures
+
+"The file whose `KeyFixtures` module this module evaluates."
+const SOURCE = joinpath(@__DIR__, "..", "provenance", "key_stability.jl")
+
+for ex in Meta.parseall(read(SOURCE, String); filename = SOURCE).args
+    ex isa Expr && ex.head === :module && ex.args[2] === :KeyFixtures && Core.eval(@__MODULE__, ex)
+end
+
+end # module KeyStabilityFixtures
+
+import .KeyStabilityFixtures.KeyFixtures as KF
+
 module CouplingFixtures
 
 using Fiddlybits: Coupling, Backends, Fields, Mesh, Time, Dimensions, Verdicts
@@ -344,6 +359,63 @@ end
         r = Systems.dependency_subset(readers, graph, SF.system())
         @test r.verdict === Verdicts.FAIL()
         @test r.undeclared[:surface] == Set{Tuple}([(:planet, :obliquity)])
+    end
+end
+
+@testset "coupling.declared_profile_graph" begin
+    value = Dispositions.value
+    surface = CF.component(:surface; reads = (CF.reading(:x; lagged = true),), writes = (CF.writing(:x),),
+                           system_fields = ((:planet, :mass),),
+                           profile_fields = ((:fast_precision,), (:components, :atmosphere, :ladder)))
+    stellar = CF.component(:stellar; reads = (CF.reading(:x),), profile_fields = ((:radiation, :g_points),))
+    assembly = CF.assemble(surface, stellar; initial_conditions = (CF.initial(:x),))
+    graph = Coupling.declared_profile_graph(assembly)
+    profile = KF.fixture_profile(Float64)
+
+    @testset "the graph is each component's declared profile paths" begin
+        @test graph == Dict(:surface => Set{Tuple}([(:fast_precision,), (:components, :atmosphere, :ladder)]),
+                            :stellar => Set{Tuple}([(:radiation, :g_points)]))
+        @test Coupling.declared_graph(assembly) == Dict(:surface => Set{Tuple}([(:planet, :mass)]),
+                                                        :stellar => Set{Tuple}())
+    end
+
+    @testset "Systems.affected reads it" begin
+        @test Systems.affected((:fast_precision,), graph) == Set([:surface])
+        @test Systems.affected((:radiation, :g_points, 2), graph) == Set([:stellar])
+        @test isempty(Systems.affected((:components, :ocean, :ladder), graph))
+    end
+
+    @testset "Systems.dependency_subset reads it over a Profile, and fails a reader outside it" begin
+        readers = Dict{Symbol,Any}(
+            :surface => p -> (p.fast_precision, map(value, p.components.atmosphere.ladder.interfaces)),
+            :stellar => p -> sum(value, p.radiation.g_points))
+        @test Systems.dependency_subset(readers, graph, profile).verdict === Verdicts.PASS()
+        readers[:stellar] = p -> sum(value, p.radiation.g_points) * sizeof(p.fast_precision)
+        r = Systems.dependency_subset(readers, graph, profile)
+        @test r.verdict === Verdicts.FAIL()
+        @test r.undeclared[:stellar] == Set{Tuple}([(:fast_precision,)])
+    end
+
+    @testset "affected over the profile graph equals the moved set of the key's profile reflection arm" begin
+        a = KF.assembly()
+        key_graph = Coupling.declared_profile_graph(a)
+        system = SF.system()
+        s1 = KF.support(1.0)
+        writers = Set(KF.writers())
+        base = Dict(n => KF.key(a, n, system, s1) for n in writers)
+        moved_any, moved_none = false, false
+        for (path, x) in KF.leaves(profile)
+            flipped = KF.replace_at(profile, path, KF.flip)
+            moved = Set(n for n in writers if KF.key(a, n, system, s1; profile = flipped) != base[n])
+            @test moved == Systems.affected(path, key_graph)
+            moved_any |= !isempty(moved)
+            moved_none |= isempty(moved)
+        end
+
+        @testset "positive control: some flip moves a key and some flip moves none" begin
+            @test moved_any
+            @test moved_none
+        end
     end
 end
 
