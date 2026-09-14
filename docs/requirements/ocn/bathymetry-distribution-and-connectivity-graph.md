@@ -56,11 +56,13 @@ instrument.
   (A1). The cell-mean depth is one diagnostic of that distribution, never the
   support.
 - The connectivity graph is derived from the terrain level at every slow
-  step: for every pair of adjacent coarse ocean cells the minimum sill depth
-  and the width of the connection; the connected components at every model
-  level horizon; for land, contiguity; for basins, the drainage terminal. The
-  graph is state, versioned with the support, and a topology change is an
-  event that forces a climate refresh (F1).
+  step: its nodes are the ocean and land bodies of each coarse cell, joined
+  through edge neighbours inside it (decision 0031); for every pair of bodies
+  joined across a coarse edge there is one gate, for ocean the minimum sill
+  depth and the width of the connection and for land contiguity; the
+  connected components at every model level horizon; for basins, the drainage
+  terminal. The graph is state, versioned with the support, and a topology
+  change is an event that forces a climate refresh (F1).
 - The ocean solver reads strait and sill transports from the graph through
   rotating hydraulic control (sill depth, width against the Rossby radius, the
   density contrast across the sill), with the reduced gravity from the equation
@@ -127,3 +129,7 @@ instrument.
 ## Amendments
 
 - 2026-09-08: strait control: reduced gravity, gravity and the Coriolis parameter named as declared inputs; the non-rotating limit as the f-to-zero physics; discharge coefficients `Bracketed` with mechanisms; entrainment a `Closure` or absence; probe brackets declared with the configuration; strait-control identity as a tier-1 oracle (row 22), from notes/findings/2026-09-08-implicit-earth-audit.md
+- 2026-09-13: connectivity graph bullet restated over the ocean and land bodies
+  of a coarse cell and one gate per pair of bodies joined across a coarse
+  edge, rather than one gate per pair of adjacent coarse ocean cells, per
+  decision 0031's amendment of 2026-09-13 (row fiddlybits-52v.2.19)
