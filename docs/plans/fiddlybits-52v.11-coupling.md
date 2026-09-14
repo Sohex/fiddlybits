@@ -152,10 +152,17 @@ and `Refine` name it for their reduction; `AtLevel` names it for the receipt of 
 because a move runs no reduction and its receipt ledger is the one integral it has.
 Every `AtLevel` names its measure, `NoMeasure()` included. `assemble` reads each
 `AtLevel` against the `Write` of the quantity it reads, and a `Write` declares the
-semantics every field placed for its quantity carries, refused at placement otherwise:
-a move of a quantity carrying a conserved quantity names a measure when the quantity is
-`FluxDensity`, `Fraction` or `Intensive`, names `NoMeasure()` when it is `Extensive`,
-and is refused for any other semantics; every other `AtLevel` read names `NoMeasure()`.
+semantics and the location (a `Mesh.Location`) every field placed for its quantity
+carries, each refused at placement otherwise: a move of a quantity carrying a conserved
+quantity names a measure when the quantity is `FluxDensity`, `Fraction` or `Intensive`,
+names `NoMeasure()` when it is `Extensive`, and is refused for any other semantics; every
+other `AtLevel` read names `NoMeasure()`. `assemble` refuses a `Coarsen` or `Refine` read
+of a quantity whose write declares a location other than `Cells`, which the fields
+plan's refusal table would otherwise first raise at an exchange. The key hashes the
+write whole, so the location reaches it with no part of its own (the provenance plan,
+section The key). A location learned from the field at placement was weighed and lost
+for the reason the semantics was: `assemble` could not refuse a coarsening read of an
+edge quantity before the first exchange.
 
 The receipt of a move compares what the reader holds against the hand-over's result,
 which for a move is the source field taken to the reader's device through `Backends.on`,
@@ -249,7 +256,11 @@ is a dependency between two M0 areas rather than a convenience.
 | 52v.11.2 | sonnet | `src/Coupling/exchange.jl`, `test/coupling/exchange.jl` | `ledger.closure` passes on the exchange arm with the double-count control classified a leak; a component that cannot report a stock refuses at assembly rather than being credited zero |
 | 52v.11.3 | frontier | `src/Coupling/loops.jl`, `test/coupling/loops.jl` | `coupling.loop_finalizer`, `loop.exit_criteria_on_a_known_surrogate` and `loop.drift_against_its_own_scatter` all run; an absolute tolerance is refused at construction |
 | 52v.11.4 | sonnet | none; reports only | all five oracles ran; verdicts by name; the arm each ran on recorded, since the fixture arm decides the machinery and the coupled arm at M7 decides the physics |
+| 52v.11.7 | sonnet | `src/Coupling/state.jl`, `src/Coupling/exchange.jl`, `test/coupling/state.jl`, `test/coupling/exchange.jl`, the `Write` constructions in `test/provenance/fixtures.jl`, `test/provenance/journal.jl` and `test/io/store_fixtures.jl`, `test/provenance/key_stability.jl` | `coupling.assembly_refusals` passes with a `Coarsen` and a `Refine` read of an edge quantity refused naming the location and the same reads of a cell quantity assembling; a field placed at another location than its write's refuses naming both, the matching field placing; a `Write` without `location` refuses; `provenance.key_stability` gives two keys for writes differing only in location, the arm failing with the location left out of the canonical bytes |
 
 52v.11.2 and 52v.11.3 depend on 52v.11.1; 52v.11.3 depends on the counter-based
-generator; 52v.11.1 depends on `fiddlybits-52v.6.8` for `Events.emit`. The area depends on the fields plan for the ledger and on the system plan
+generator; 52v.11.1 depends on `fiddlybits-52v.6.8` for `Events.emit`. 52v.11.7 depends
+on `fiddlybits-52v.2.20` for `Mesh.Location`, on `fiddlybits-52v.3.26` for
+`Fields.location`, and on `fiddlybits-52v.6.26`, which edits `test/io/store_fixtures.jl`;
+it blocks `fiddlybits-52v.6.35`, whose store checks a field's location against its write. The area depends on the fields plan for the ledger and on the system plan
 for `Profile`, which holds the exit brackets.

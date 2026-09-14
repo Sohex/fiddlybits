@@ -243,7 +243,7 @@ kind no component in `src` emits, through `Events.emit`. Returns `(artifacts, ke
 `artifacts` a vector of `(name, bytes)`, the bytes by `canonical_bytes`; `keys` from
 `content_keys`.
 """
-function run_case(install, g; operator_version = 1)
+function run_case(install, g; operator_version = 1, perturb = live -> nothing)
     live = Ref{Any}(nothing)
     install(live)
     m = mesh()
@@ -297,6 +297,7 @@ function run_case(install, g; operator_version = 1)
                                                        verdict = Verdicts.REPORT(), statistic = 0.5,
                                                        threshold = NaN))
 
+    perturb(live)
     for q in sort(collect(keys(state.current)))
         record!("field $(q)", Fields.data(state.current[q]))
     end
@@ -489,17 +490,10 @@ const JOURNAL_CASE_RECORDS = Dict{String,Any}[]
         end
     end
 
-    @testset "positive control: a sink with an effect on the state, and keys over another operator version, are reported" begin
+    @testset "positive control: an effect on the state while the journal is installed, and keys over another operator version, are reported" begin
+        nudge(live) = (d = Fields.data(live[].current[:channel]); d[1] = nextfloat(d[1]); nothing)
         perturbed = JNL.with_journal() do journal, file
-            JNL.run_case(g) do live
-                Events.sink!(event -> begin
-                    journal(event)
-                    live[] === nothing && return nothing
-                    d = Fields.data(live[].current[:channel])
-                    d[1] = nextfloat(d[1])
-                    return nothing
-                end)
-            end
+            JNL.run_case(live -> Events.sink!(journal), g; perturb = nudge)
         end
         @test JNL.first_difference(perturbed.artifacts, off.artifacts) == "field channel"
         @test JNL.content_keys(JNL.assembly(), JNL.mesh(), SystemFixtures.system(Float64);
@@ -675,6 +669,22 @@ end
             @test e isa Verdicts.Refusal && e.quantity == quantity
         end
         @test Events.SINK[] === Events.noop_sink
+
+        @testset "a Journal is built only behind the checked door" begin
+            @test_throws MethodError Events.Journal("x")
+            @test_throws MethodError Events.Journal(Provenance.journal_file(runs, run))
+            @test Systems.Checked === Verdicts.Checked
+
+            @testset "positive control: install_journal! still builds and installs a journal" begin
+                try
+                    journal = Provenance.install_journal!(runs = runs, run = run)
+                    @test journal isa Events.Journal
+                    @test Events.SINK[] === journal
+                finally
+                    Events.sink!(Events.noop_sink)
+                end
+            end
+        end
 
         try
             file = Provenance.journal_file(runs, run)

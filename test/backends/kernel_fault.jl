@@ -112,7 +112,7 @@ end
 
     faulted = run_fault(4)
     @test occursin("LAUNCH RETURNED", faulted)
-    @test occursin("REFUSED AT Backends.complete!", faulted)
+    @test occursin("REFUSED AT Backends.complete! :: KernelException", faulted)
     @test occursin("out_of_range_kernel!", faulted)
 
     @testset "positive control: the same kernel in range completes" begin

@@ -22,14 +22,14 @@ ct_area(cells) = Reductions.compensated_sum(
 
 "The events `f()` hands the emitter, collected by a fixture sink and then uninstalled."
 function ct_collect(f)
-    log = Events.Event[]
-    Events.sink!(ev -> push!(log, ev))
+    sink = Events.Collector{Events.Event}()
+    Events.sink!(sink)
     try
         f()
     finally
         Events.sink!(Events.noop_sink)
     end
-    return log
+    return Events.collected(sink)
 end
 
 @testset "mesh.connectivity_topology_event" begin

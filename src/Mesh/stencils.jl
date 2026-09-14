@@ -195,3 +195,27 @@ function stencils(level::Level)::Stencils
     vertex_neighbour, vertex_weight = build_vertex_neighbour(level.cells, size(level.vertices, 2))
     return Stencils(cell_edge, edge_cell, edge_neighbour, vertex_neighbour, vertex_weight)
 end
+
+"""
+    edge_vertices(level, st)
+
+A 2 by `nedges` `Int32` matrix whose column `e` is the pair
+`edge_local_vertices(level.cells, i, k)` for `i = st.edge_cell[1, e]` and the
+local edge `k` with `st.cell_edge[k, i] == e`.
+"""
+function edge_vertices(level::Level, st::Stencils)
+    cells = level.cells
+    nc = size(cells, 2)
+    ne = size(st.edge_cell, 2)
+    result = Matrix{Int32}(undef, 2, ne)
+    recorded = falses(ne)
+    for i in 1:nc, k in 1:3
+        e = st.cell_edge[k, i]
+        recorded[e] && continue
+        recorded[e] = true
+        a, b = edge_local_vertices(cells, i, k)
+        result[1, e] = a
+        result[2, e] = b
+    end
+    return result
+end

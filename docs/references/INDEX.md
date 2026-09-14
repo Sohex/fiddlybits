@@ -709,6 +709,7 @@ Papers fetched by the user and filed under `references/pdf/`. Status `held` unti
 | `oracles/data/copernicus-dem-90m (dataset; manifest docs/oracles/data/copernicus-dem-90m.toml)` | Copernicus DEM GLO-90, four declared regions (81 tiles); global coverage deferred | 10.5270/ESA-c5d3d65 | held | REQ-HYD-001; REQ-TER-016 |
 | `oracles/data/etopo2022 (dataset; manifest docs/oracles/data/etopo2022.toml)` | ETOPO 2022 15 Arc-Second Global Relief Model, ice-surface (288 tiles) and bedrock (62 tiles, the complete bedrock product) | 10.25921/fd45-gt74 | held | M1 terrain statistics; M7 bathymetry; B1 sub-grid relief |
 | `oracles/data/mcd12c1 (dataset; manifest docs/oracles/data/mcd12c1.toml)` | MODIS/Terra+Aqua Land Cover Type Yearly L3 Global 0.05Deg CMG V061, 2001-2020, reduced to IGBP majority and per-class percents | 10.5067/MODIS/MCD12C1.061 | held | earth.modis_albedo_by_class per-class key; M5; M7 |
+| `oracles/data/mcd43c3 (dataset; manifest docs/oracles/data/mcd43c3.toml)` | MODIS/Terra+Aqua BRDF/Albedo Model Parameters Daily L3 Global 0.05Deg CMG V061 (MCD43C3), 2001-2020, reduced to a monthly black-sky and white-sky albedo climatology, all-valid and snow-free | 10.5067/MODIS/MCD43C3.061 | held | earth.modis_albedo_by_class; M7 |
 | `oracles/data/nwis-gw (dataset; manifest docs/oracles/data/nwis-gw.toml)` | USGS Water Data for the Nation: groundwater sites and depth-to-water measurements, conterminous US, 882640 sites with levels | 10.5066/F7P55KJN | held | REQ-HYD-002; M2 |
 | `oracles/data/rgi-v7 (dataset; manifest docs/oracles/data/rgi-v7.toml)` | Randolph Glacier Inventory - A Dataset of Global Glacier Outlines, Version 7 | 10.5067/f6jmovy5navz | held | M5/M10 RGI 7.0 glacier outlines, the current inventory release |
 | `oracles/data/seaice-index-v4 (dataset; manifest docs/oracles/data/seaice-index-v4.toml)` | Sea Ice Index, Version 4 (supersedes the requested Version 3) | 10.7265/a98x-0f50 | held | earth.sea_ice_extent (M6) |
@@ -937,3 +938,25 @@ Cited by the same passes and still open after the user's batch of 2026-09-08. Id
 | filename | verbatim title | identifier | status | anchors |
 | --- | --- | --- | --- | --- |
 | (requested) | Biochemical Models of Leaf Photosynthesis (von Caemmerer 2000) | 10.1071/9780643103405; ISBN 978-0-643-06379-2 | requested | REQ-BIO-007, 0021 |
+
+## Held: fetched for the oracle registry anchors (fiddlybits-52v.8.7, 2026-09-14)
+
+Fetched directly on 2026-09-14 from confirmed open-access locations (Copernicus journals under CC BY,
+and a Wiley-hosted article whose Unpaywall record gives a University of East Anglia repository copy)
+to anchor tier-2 and tier-3 registry entries that carried no anchor. Identifiers confirmed against
+Crossref by title, first author and year. Four more rows, supplied by the user into
+`/home/cfutro/requests` after this row's own fetch attempt failed on each, are added below them,
+identified by their own first pages against the title and identifier this table already named for
+them. Nothing here is `read`.
+
+| filename | verbatim title | identifier | status | anchors |
+| --- | --- | --- | --- | --- |
+| `moat2020-pending-recovery-amoc-26n.pdf` | Pending recovery in the strength of the meridional overturning circulation at 26 deg N | 10.5194/os-16-863-2020 | held | earth.amoc_strength |
+| `morice2021-hadcrut5-near-surface-temperature.pdf` | An Updated Assessment of Near-Surface Temperature Change From 1850: The HadCRUT5 Data Set | 10.1029/2019JD032361 | held | earth.global_surface_temperature |
+| `ukkola2022-flux-tower-dataset-land-model-evaluation.pdf` | A flux tower dataset tailored for land model evaluation | 10.5194/essd-14-449-2022 | held | earth.plumber2_sites |
+| `estilow2015-nh-snow-cover-extent-data-record.pdf` | A long-term Northern Hemisphere snow cover extent data record for climate studies and monitoring | 10.5194/essd-7-137-2015 | held | earth.snow_cover_extent |
+| `bontemps2012-revisiting-land-cover-observation-climate-modeling.pdf` | Revisiting land cover observation to address the needs of the climate modeling community | 10.5194/bg-9-2145-2012 | held | earth.biome_kappa |
+| `deboyermontegut2004-mixed-layer-depth-global-ocean.pdf` | Mixed layer depth over the global ocean: An examination of profile data and a profile-based climatology | 10.1029/2004JC002378 | held | earth.mld_by_basin |
+| `fekete2002-high-resolution-fields-global-runoff.pdf` | High-resolution fields of global runoff combining observed river discharge and simulated water balances | 10.1029/1999GB001254 | held | earth.land_pme_vs_runoff, earth.grdc_basin_discharge |
+| `oyebanjo2021-clay-fractions-parent-rocks-limpopo.pdf` | Mineralogy and geochemistry of clay fractions in soils developed from different parent rocks in Limpopo Province, South Africa | 10.1016/j.heliyon.2021.e07664 | held | earth.basalt_granite_clay_divergence |
+| `myneni2002-global-products-leaf-area-fpar-modis.pdf` | Global products of vegetation leaf area and fraction absorbed PAR from year one of MODIS data | 10.1016/S0034-4257(02)00074-3 | held | earth.modis_lai_seasonal |

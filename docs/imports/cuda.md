@@ -123,14 +123,44 @@ generation: `check_invocation`, `src/validation.jl` lines 75-115, throws a
   its dispatch: `docs/imports/kernelabstractions.md`, section "Dynamic dispatch".
 
 **Against the argument that relies on it.** `docs/plans/fiddlybits-52v.3-fields.md`,
-section "Inference, and what it costs", says a drop to a non-concrete type
-degrades loudly on the device, so the device needs no instrument. That holds for a
-call left to dispatch inside device-compiled kernel code, and it is narrower than
-the paragraph in four ways: resolved non-concrete types compile quietly as
-branches; a box with no call on its contents compiles; host-side non-concreteness,
-including a `Field` operator's return, never reaches the device compiler; and a
-kernel run only on the CPU backend, or at a signature never compiled for the
-device, is never checked. `fiddlybits-52v.3.17` carries the change to the argument.
+section "Inference, and what it costs", states the refusal at this width and names,
+for each case above that compiles, what catches it or why nothing need:
+`kernels.body_types_concrete` for a split union, a box that survives optimisation,
+and a kernel run only on the CPU backend or never compiled for the device;
+`fields.inference_tight` for host-side non-concreteness; and nothing for a folded
+call, which leaves a constant of a concrete type.
+
+**The reflection `kernels.body_types_concrete` reads.**
+
+- GPUCompiler `src/GPUCompiler.jl`, lines 49-66: `compile_hook` is a `ScopedValue`
+  (line 66) called with the `CompilerJob` of each compilation in the task that sets it.
+  `compile(target, job)` in `src/driver.jl` calls it at lines 57-60, and CUDACore
+  `src/compiler/compilation.jl` line 574, in `compile_or_lookup`, takes the compile
+  path whenever the hook is set, so a launch whose kernel is already cached still
+  passes its job to the hook.
+- GPUCompiler `src/interface.jl`, `get_interpreter(job)` at lines 380-387: the
+  `GPUInterpreter` at the job's world, with its method table view, its
+  `cache_owner(job)` (line 438), its inference and optimisation parameters and its
+  `always_inline`. `code_typed(job)` in `src/reflection.jl`, lines 199-212, is
+  `Base.code_typed_by_type(job.source.specTypes; interp = get_interpreter(job))`, and
+  `Base.code_typed_by_type` (`/usr/share/julia/base/reflection.jl` lines 293-325)
+  runs `typeinf_code` through that interpreter, optimised by default.
+- GPUCompiler `src/reflection.jl`, `code_llvm(io, job; dump_module)` at lines 263-280:
+  the device module of the job, in which a surviving `Core.Box` is a call to
+  `gc_pool_alloc` (`src/optim.jl` line 556).
+- What counts as a value whose type is not concrete is what `code_warntype` highlights.
+  `warntype_type_printer`, `/usr/share/julia/stdlib/v1.12/InteractiveUtils/src/codeview.jl`
+  lines 30-43, highlights a type that is not `Base.isdispatchelem` or is `Core.Box`
+  (line 37), and prints a type only for a used statement. `stmts_used`,
+  `Compiler/src/ssair/show.jl` lines 896-903, is the set of statements another
+  statement reads, and `should_print_ssa_type`, lines 164-171, leaves out
+  `gc_preserve_begin`, `gc_preserve_end`, `meta` and `leave` expressions, `PiNode`,
+  branches, returns, `QuoteNode` and `EnterNode`. `isdispatchelem`,
+  `/usr/share/julia/base/runtime_internals.jl` lines 918-921.
+- The CPU backend has no compile hook. `Base.specializations`,
+  `/usr/share/julia/base/runtime_internals.jl` line 1661, lists every method instance
+  of the CPU function, and those at a dispatch tuple hold every signature a CPU launch
+  in the process compiled.
 
 **How the leak is caught.** `test/backends/dispatch_refusal.jl` launches one kernel
 through `Backends.launch!` with a call that differs per arm. The arms that must be
@@ -141,6 +171,15 @@ known answer: a concrete call (the positive control), a split union, a folded
 union, a box with no call on its contents, and a non-concrete value at the launch.
 A device compiler that fell back to dispatch instead of refusing fails the refused
 arms.
+
+`test/kernels/body_types.jl` (`kernels.body_types_concrete`) covers what compiles.
+It launches every kernel the package defines through its own door on both backends,
+reads the typed code of each device job through the reflection above and of each CPU
+specialization, and fails on a highlighted value in a kernel body or a package method
+it invokes, on a kernel compiled for the device at no signature, and on a table entry
+naming no kernel. A split union and a box that survives optimisation fail on both
+arms, a folded union and a concrete call come out empty, and a fixture kernel no
+launch compiles is named by the coverage check.
 
 ## Page-locked memory and the queued copy
 
@@ -230,6 +269,21 @@ package root; Julia's base library is `/usr/share/julia/base`.
   reads every context's record, and on the first it finds set restores it to zero (line
   34) and throws `KernelException` (line 38). The first check anywhere in the process
   after a fault takes it, on whichever task makes that check.
+- The API errors of the same wait. CUDACore `lib/cudadrv/libcuda.jl`: `cuStreamSynchronize`,
+  lines 5463-5466, is defined through `@checked`, which GPUToolbox 3.0.0 `src/ccalls.jl`,
+  lines 19-45, expands to a body wrapped in `check`; `check`, lines 34-40, calls
+  `throw_api_error` when the call's result is not `SUCCESS`; `throw_api_error`, lines
+  26-32, throws `OutOfGPUMemoryError` (`src/memory.jl` line 413) for
+  `ERROR_OUT_OF_MEMORY` and `CuError` (`lib/cudadrv/error.jl` line 32) for any other
+  result. The nonblocking branch of the stream form, `nonblocking_synchronize` in
+  `lib/cudadrv/synchronization.jl` lines 158-183, calls `throw_api_error` on the worker's
+  result at line 179. A kernel that reads outside its allocation on the card is raised
+  there as a `CuError` with `ERROR_ILLEGAL_ADDRESS`
+  (`notes/findings/2026-09-13-check-bounds-reaches-kernels-on-the-card.md`). So the stream
+  form raises three error types of its own: `CuError` and `OutOfGPUMemoryError` from the
+  synchronize call, and `KernelException` from `check_exceptions` at line 214. Each has
+  its own `showerror`: `src/compiler/exceptions.jl` lines 9-11, `lib/cudadrv/error.jl`
+  lines 74-81, and `src/memory.jl` from line 442.
 - The rule `Backends` states. `after!(CPU(), point)` and `after!(GPU(), point)` raise no
   device fault, and a host copy behind a faulted kernel lands what the kernel left in the
   array. The fault is raised by the first `Backends.complete!` after it, which includes
@@ -237,6 +291,11 @@ package root; Julia's base library is `/usr/share/julia/base`.
   carrying the `KernelException`. The store's writer raises a fault behind its host
   copies by calling `complete!` on the task that submitted the write, in `settle!`, at the
   settle point of decision 0060 (`fiddlybits-52v.6.26`).
+- What `Backends.wait_queued` refuses. It refuses a `KernelException`, a `CuError` or an
+  `OutOfGPUMemoryError` raised by the wait, each shown through its own `showerror`, naming
+  the kernels queued since the last completion and emptying that record. Any other error
+  the wait raises is rethrown unchanged, and the record keeps every kernel queued since
+  the last completion until a wait returns.
 
 **A kernel the host releases with a write to host memory.** `test/provenance/writer.jl` holds
 a submission's host copy behind a kernel that loops while a gate cell holds a sentinel and its
@@ -271,3 +330,6 @@ queues an out-of-range kernel and a host copy from one task and waits on the cop
 handoff from a second: an `after!` that read the exception flag would raise on the
 waiting task and leave the submitting task's `complete!` without a refusal, which is
 what its positive control, a waiter that calls `check_exceptions` after `after!`, shows.
+`test/backends/launch_completion.jl` raises each of the three device error types from a
+wait and reads a refusal naming the queued kernels, and raises an `ErrorException` and
+reads that same error back with the queued record intact until a wait returns.

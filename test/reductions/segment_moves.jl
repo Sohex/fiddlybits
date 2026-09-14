@@ -15,14 +15,14 @@ using Fiddlybits: Reductions, Backends, Events, Verdicts
 
 "The Events.Moved records `f` produces."
 function move_log(f)
-    log = Events.Moved[]
-    Events.move_sink!(rec -> push!(log, rec))
+    sink = Events.Collector{Events.Moved}()
+    Events.move_sink!(sink)
     try
         f()
     finally
         Events.move_sink!(Events.noop_sink)
     end
-    return log
+    return Events.collected(sink)
 end
 
 "The number of Events.Moved records `f` produces."

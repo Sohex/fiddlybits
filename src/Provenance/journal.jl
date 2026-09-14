@@ -7,7 +7,7 @@
 # never the position it was appended at.
 
 using TOML: TOML
-using ..Events: Events
+using ..Events: Events, Journal
 using ..Mesh: Mesh
 using ..Verdicts: Verdicts, refuse
 using ..Systems: Checked, read_keywords, require_type
@@ -23,20 +23,6 @@ const PAYLOAD_KEY = "payload"
 
 "The key of the array of event tables in a journal file."
 const EVENT_KEY = "event"
-
-"""
-    Journal
-
-The sink of one run's journal: `file`, the journal file, and `lock`, held while one
-event's text is appended to it. Called with an `Events.Event`, it appends that event;
-`install_journal!` makes one and installs it.
-"""
-struct Journal
-    file::String
-    lock::ReentrantLock
-
-    Journal(::Checked, file::String) = new(file, ReentrantLock())
-end
 
 """
     journal_file(runs, run)
@@ -121,13 +107,13 @@ function record_text(event::Events.Event)
 end
 
 """
-    (journal::Journal)(event::Events.Event)
+    (journal::Events.Journal)(event::Events.Event)
 
 Appends `record_text(event)` to `journal.file` in one write, the file opened for
 appending and closed again while `journal.lock` is held. The text is built before the
 lock is taken, so a refused event appends nothing.
 """
-function (journal::Journal)(event::Events.Event)
+function (journal::Events.Journal)(event::Events.Event)
     text = record_text(event)
     lock(journal.lock) do
         open(io -> write(io, text), journal.file, "a")

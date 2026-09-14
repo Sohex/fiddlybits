@@ -1,5 +1,6 @@
 include("frame.jl")
 include("hierarchy.jl")
+include("location.jl")
 include("stencil_valence.jl")
 include("area_closure.jl")
 include("nesting_identity.jl")

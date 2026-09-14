@@ -81,10 +81,16 @@ class has a residual to quote, the metric is REPORT.
   states, fixed by the plan row before the implementation row, and no merge changes an
   entry's threshold together with `src/` or a testset named by that entry.
 - `oracles.registration_rule` decides each clause above (`test/oracles/`), reading
-  git from the commit that carries decision 0025's amendment of 2026-09-13 and a
-  merge on the first-parent chain from HEAD over its whole branch; a merge off that
-  chain, such as a merge of main into a feature branch, is read in the merge that
-  brings it onto the chain. A value read outside the runner and the testsets, and
+  git from the commit that carries decision 0025's amendment of 2026-09-13. The
+  mainline is a declared ref, `refs/heads/main` or, when that does not resolve,
+  `refs/remotes/origin/main`; refused by name when neither does. A merge on the
+  mainline's own first-parent chain is judged over its whole branch against its
+  first parent, whether it is read from the mainline itself or from a branch that
+  carries it, so a listed exception for it stays matched from either; a merge of
+  the mainline into a branch, sitting off that chain, is not itself judged. When
+  HEAD is not on the mainline chain, the branch is judged once more as its own
+  merge into the mainline would be: by the diff from the merge base of the
+  mainline and HEAD to HEAD. A value read outside the runner and the testsets, and
   a bar chosen knowing another model's value of its statistic, are outside what it
   decides; the basis each bar states names any such value it knew.
 - The history check accepts a merge that `registration_exceptions.toml` lists by its

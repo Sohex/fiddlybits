@@ -130,6 +130,35 @@ moonless() = SF.system(moons = (), orbits = Systems.OrbitHierarchy(
         @test Systems.recorded_reads(t) == Set{Tuple}([(:moons, :)])
     end
 
+    @testset "a read ends at an array holding declarations, recorded by its own path and returned itself" begin
+        s = SF.system()
+        @test s.stars[1].spectrum isa Systems.BracketedSpectrum
+        spectral = q -> sum(Dispositions.value, q.stars[1].spectrum.surface_flux_density)
+        t = Systems.TrackingSystem(s)
+        @test t.stars[1].spectrum isa Systems.Tracked
+        @test t.stars[1].spectrum.surface_flux_density === s.stars[1].spectrum.surface_flux_density
+        t = Systems.TrackingSystem(s)
+        @test spectral(t) === spectral(s)
+        @test Systems.recorded_reads(t) == Set{Tuple}([(:stars, 1, :spectrum, :surface_flux_density)])
+        r = Systems.dependency_subset(Dict{Symbol,Any}(:spectral => spectral),
+                                      Dict{Symbol,Any}(:spectral => [(:stars, :, :spectrum)]), s)
+        @test r.verdict === Verdicts.PASS()
+        @test r.recorded[:spectral] == Set{Tuple}([(:stars, 1, :spectrum, :surface_flux_density)])
+        @test Systems.reaches(s, (:stars, :, :spectrum, :surface_flux_density))
+    end
+
+    @testset "a declared path stepping past an array does not reach, and dependency_subset refuses it by name" begin
+        s = SF.system()
+        spectral = Dict{Symbol,Any}(:spectral => q -> sum(Dispositions.value, q.stars[1].spectrum.surface_flux_density))
+        for bad in ((:stars, 1, :spectrum, :surface_flux_density, :size),
+                    (:stars, 1, :spectrum, :surface_flux_density, :ref),
+                    (:stars, :, :spectrum, :surface_flux_density, 1))
+            @test !Systems.reaches(s, bad)
+            @test SF.refused(SF.caught(() -> Systems.dependency_subset(spectral, Dict{Symbol,Any}(:spectral => [bad]), s)),
+                             "path", "spectral declares $(bad), which does not reach through the system")
+        end
+    end
+
     @testset "recorded is a subset of declared on every instance" begin
         for s in instances
             r = Systems.dependency_subset(GF.readers(), GF.declared(), s)

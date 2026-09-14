@@ -32,6 +32,16 @@ loop_verdicts() = (Converged(), Bracketed(), Refused(), NotEvaluable(), BudgetEx
 oracle_verdicts() = (FAIL(), REPORT(), PASS())
 
 """
+    Checked()
+
+The token every checked inner constructor takes first: the blocks of a `System`,
+the coupling and provenance records built behind a keyword door, and
+`Events.Journal`. The door passes it after its refusals have run; nothing else
+does. `Systems` imports it, so `Systems.Checked` is this type.
+"""
+struct Checked end
+
+"""
     Refusal(quantity, site, reason)
 
 A read that could not be answered. Carries what was read, where it was read and

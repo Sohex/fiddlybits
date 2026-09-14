@@ -222,10 +222,10 @@ refused(e, quantity, text) =
 
 "`(caught(f), events)`: what `f` raises and every event `Events.emit` was handed meanwhile."
 function journal(f)
-    events = Any[]
-    Events.sink!(e -> push!(events, e))
+    sink = Events.Collector{Events.Event}()
+    Events.sink!(sink)
     try
-        return caught(f), events
+        return caught(f), Events.collected(sink)
     finally
         Events.sink!(Events.noop_sink)
     end
