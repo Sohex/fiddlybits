@@ -56,10 +56,7 @@ end
 
 The names from `named(project)` that need an import record: a `[deps]` name
 from `dependencies(project, manifest)`, union a `[extras]` name absent from
-`stdlib_names()`. Pkg resolves `[deps]` into the manifest and never `[extras]`,
-so an extra has no manifest entry to read either way; `[deps]` is still
-decided from what the manifest actually resolved, and `[extras]` from the
-stdlib set, because that is the only record of the two that exists for it.
+`stdlib_names()`.
 """
 function registered(project::AbstractString, manifest::AbstractString)
     p = TOML.parsefile(project)
