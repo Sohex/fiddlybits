@@ -310,12 +310,23 @@ otherwise. Compares `kind`, `radius`, `element_type`, `refinement_digest` and
 `lineage_digest` (REQ-TER-002).
 """
 function require_ancestor(from::Support, to::Support, site::AbstractString)
-    for name in (:kind, :radius, :element_type, :refinement_digest, :lineage_digest)
-        a, b = getproperty(from, name), getproperty(to, name)
-        a == b || refuse("support ancestry", site,
-                         "the supports differ in $(name): $(repr(a)) and $(repr(b))")
-    end
+    require_same_member(from.kind, to.kind, :kind, site)
+    require_same_member(from.radius, to.radius, :radius, site)
+    require_same_member(from.element_type, to.element_type, :element_type, site)
+    require_same_member(from.refinement_digest, to.refinement_digest, :refinement_digest, site)
+    require_same_member(from.lineage_digest, to.lineage_digest, :lineage_digest, site)
     return nothing
+end
+
+"""
+    require_same_member(a, b, name, site)
+
+Returns `nothing` when `a == b`, the member `name` of two supports, and
+refuses at `site` naming `name` and both values otherwise.
+"""
+function require_same_member(a::T, b::T, name::Symbol, site::AbstractString) where {T}
+    a == b && return nothing
+    refuse("support ancestry", site, "the supports differ in $(name): $(repr(a)) and $(repr(b))")
 end
 
 """

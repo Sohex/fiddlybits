@@ -73,8 +73,8 @@ queued_trace() = get!(QueuedTrace, task_local_storage(), QUEUED_KEY)::QueuedTrac
     launch!(kernel, backend::Backend, n::Integer, args...)
 
 Compile `kernel` (a `KernelAbstractions.@kernel` function) for `backend`'s
-device at the workgroup size `launch_workgroup(backend, n)` and queue it over
-`n` work items with `args`.
+device and queue it over `n` work items with `args`, at the workgroup size
+`launch_workgroup(backend, n)`, through `queue_kernel!`.
 
 On `CPU` the kernel has run over every work item by the time this returns.
 On `GPU` the kernel has been queued on the backend's stream and may still be
@@ -89,9 +89,40 @@ this one only through `handoff` and `after!`.
 function launch!(kernel, backend::Backend, n::Integer, args...)
     dev = ka_backend(backend)
     size = launch_workgroup(backend, n)
-    compiled = kernel(dev, size)
-    compiled(args...; ndrange = n)
+    queue_kernel!(kernel, dev, size, n, args...)
     record_queued!(backend, kernel, size, n)
+    return nothing
+end
+
+"""
+    STATIC_WORKGROUPS
+
+The workgroup sizes `queue_kernel!` compiles into the kernel's type: every
+power of two from 1 to 1024, the largest number of threads a CUDA block holds
+along its first dimension (CUDACore `src/device/intrinsics/indexing.jl`,
+`max_block_size`).
+"""
+const STATIC_WORKGROUPS = ntuple(i -> 2^(i - 1), 11)
+
+"""
+    queue_kernel!(kernel, dev, size, n, args...)
+
+Launch `kernel` on the `KernelAbstractions.Backend` `dev` over `n` work items
+with `args` at the workgroup size `size`. A `size` in `STATIC_WORKGROUPS` is
+a parameter of the compiled kernel's type, one branch per size, each spelling
+that type as `KernelAbstractions.StaticSize{(size,)}`; any other `size` is an
+argument of the launch. Each branch calls a kernel whose type is written in
+this method's source. Measured in
+notes/findings/2026-09-13-the-launch-workgroup-as-a-type-parameter-or-an-argument.md.
+"""
+function queue_kernel! end
+
+@eval function queue_kernel!(kernel, dev::KernelAbstractions.Backend, size::Int, n::Integer, args...)
+    $(foldr(STATIC_WORKGROUPS; init = :(kernel(dev)(args...; ndrange = n, workgroupsize = size))) do w, rest
+        :(size == $w ?
+          kernel(dev, KernelAbstractions.StaticSize{($w,)}(), KernelAbstractions.DynamicSize())(args...; ndrange = n) :
+          $rest)
+    end)
     return nothing
 end
 
