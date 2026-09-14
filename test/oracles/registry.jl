@@ -424,9 +424,6 @@ function history_failures(check, repos)
     return failures
 end
 
-"The problems of the tree's loader and anchor clauses that open rows carry, by phrase: fiddlybits-52v.8.7 each."
-const CARRIED_BY_OPEN_ROWS = ("carries no source_kind", "entry with no anchors", "resolves to no row of the references index")
-
 "The references index of the tree, each row's title keyed to its status, read by test/lint's reader."
 tree_index() = last(IndexReading.read_index(INDEX))
 
@@ -498,9 +495,18 @@ end
     for (clause, n) in by_clause(found)
         println("    ", lpad(n, 4), "  ", clause)
     end
-    outside = filter(m -> !any(p -> occursin(p, m.reason), CARRIED_BY_OPEN_ROWS), found)
-    isempty(outside) || @info "problems on the tree no open row carries" outside
-    @test isempty(outside)
+    isempty(found) || @info "problems on the tree" found
+    @test isempty(found)
+
+    @testset "positive control: a scratch copy of the tree missing one entry's source_kind is not empty" begin
+        mktempdir() do dir
+            doc = TOML.parsefile(TREE)
+            delete!(first(doc["oracle"]), "source_kind")
+            path = put(joinpath(dir, "dirty_tree.toml"), doc)
+            dirty = Oracles.problems(path, index)
+            @test any(m -> occursin("carries no source_kind", m.reason), dirty)
+        end
+    end
 end
 
 @testset "oracles.registration_rule: admits" begin
