@@ -46,8 +46,11 @@ standing lakes) measured how recently a rift floor last dropped, not how slowly 
 cuts, and was refused; the size class decided the density by a factor of 300 (495
 lakes above 10 km2 against 15 above 1,000), and the size floor was a larger lever on
 `C` (factor 8.2) than the Poisson error of the count (1.8). The expressed erodibility
-contrast across a mountain belt (about a factor of 4, Zondervan et al.) is the one to
-apply, not the intact-rock range (five orders, Stock and Montgomery). The outlet
+contrast across a mountain belt (a factor of four to fifteen by the slope exponent,
+Zondervan et al. Fig. 4d) is the one to
+apply, not the intact-rock strength range (two orders by unconfined compressive
+strength, Zondervan et al.) or the range of stream-power K across lithologies (five
+orders, Stock and Montgomery). The outlet
 channel's gradient correlates with the basin's depth (r = 0.735, exponent 1.04), so at
 `n = 1` the depth cancels; a gravity factor on `C` and the slope exponent are one
 question (`g^(1-n)`) and cannot be settled separately. The model carved the rift lakes

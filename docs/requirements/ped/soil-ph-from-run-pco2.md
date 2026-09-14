@@ -122,8 +122,6 @@ the sump area.
   (2001) chapter 1 and Millero (1995), both held. Stumm and Morgan, Aquatic
   Chemistry (3rd edition, Wiley 1996, ISBN 978-0-471-51185-4), is the textbook
   background and is not held; nothing here is taken from it.
-- Turkish Borate Deposits: Geological Setting, Genesis and Overview of the Deposits.
-  Helvaci (2019). Identifier confirmed in the references index (INDEX.md, held).
 
 ## Amendments
 

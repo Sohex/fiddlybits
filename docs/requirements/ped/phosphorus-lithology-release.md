@@ -65,7 +65,7 @@ registry entries above.
 - Chemical weathering rates of silicate-dominated lithological classes and associated
   liberation rates of phosphorus on the Japanese Archipelago - Implications for global
   scale analysis. Hartmann, Moosdorf (2011), Chemical Geology 287, 125-157.
-  DOI: 10.1016/j.chemgeo.2011.05.005
+  DOI: 10.1016/j.chemgeo.2010.12.004
 - Global chemical weathering of surficial rocks estimated from river dissolved loads.
   Meybeck (1987), American Journal of Science 287, 401-428. DOI: 10.2475/ajs.287.5.401
 - Solid-phase phosphorus speciation in Saharan Bodele Depression dusts and source

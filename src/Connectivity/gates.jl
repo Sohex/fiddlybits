@@ -1,10 +1,13 @@
 # The bodies of each coarse cell and the connections between bodies of adjacent coarse
-# cells. The ocean gate is read at the control section of the connection: Whitehead
-# 1998, Reviews of Geophysics 36, 423-440, DOI 10.1029/98RG01014, p. 423 (flow between
-# neighbouring deep basins over the saddle point), p. 424 (the sill depth of the deepest
-# passage draining a basin), p. 426 (the lip of a rectangular exit channel, eqs. 7-11)
-# and p. 427 (the flux through a rectangular opening of width L with upstream height
-# above sill depth, eqs. 12-13). The sill is found by the flood of Barnes, Lehman and
+# cells. The ocean gate is read at the control section of the connection, the sill of a
+# passage between two basins with the upstream interface height above sill depth in the
+# basin behind it: Whitehead, Leetmaa and Knox 1974, Geophysical Fluid Dynamics 6,
+# 101-125, DOI 10.1080/03091927409365790, p. 106 (upstream height h_u in the large
+# basin, eqs. 3.1-3.6), p. 107 (transport integral eq. 3.7; wide-channel transport eq.
+# 3.8), p. 108 (deformation radius eq. 3.12; narrow-channel transport eq. 3.15) and
+# p. 109 (the f = 0 weir limit, eqs. 3.19); the deepest passage draining a basin is
+# Whitehead 1998, Reviews of Geophysics 36, 423-440, DOI 10.1029/98RG01014, p. 424.
+# The sill is found by the flood of Barnes, Lehman and
 # Mulla 2014, Algorithm 1 (p. 119). One gate is kept per pair of bodies meeting across a
 # coarse edge, as one outlet is kept per pair of depressions that meet in Barnes,
 # Callaghan and Wickert 2020, Earth Surface Dynamics 8, 431-445, DOI

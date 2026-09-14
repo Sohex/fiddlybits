@@ -34,8 +34,8 @@ const ERROR_BOUND_ULP_MARGIN = 1
     validity_limit(::Type{T}) where {T<:AbstractFloat}
 
 `2 / eps(T)`, i.e. `1 / u` for `T`'s unit roundoff `u = eps(T) / 2`: the
-term count above which Higham's `n * u <= 1` (1993, discussion following
-eq. 3.11) fails and `gamma_{n-1}` (eq. 2.6) is no longer a finite, positive
+term count at which `n * u < 1`, the condition of Higham's
+`gamma_n = n u / (1 - n u)` (1993, p. 784), fails and `gamma_{n-1}` (eq. 2.6) is no longer a finite, positive
 bound. `error_bound` refuses at and above this count rather than return a
 number that is not a bound (derivation and the mesh levels that reach it
 at `Float32` in

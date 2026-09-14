@@ -30,7 +30,7 @@ using Fiddlybits: Reductions, Verdicts
         end
     end
 
-    @testset "validity_limit is 2/eps(T), Higham's n*u <= 1 (eq. 2.6, discussion after eq. 3.11)" begin
+    @testset "validity_limit is 2/eps(T), Higham's n*u < 1 (gamma_n, p. 784; eq. 2.6)" begin
         @test Reductions.validity_limit(Float32) == 2.0^24
         @test Reductions.validity_limit(Float64) == 2.0^53
     end

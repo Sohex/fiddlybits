@@ -212,7 +212,11 @@ hierarchy, defines them. What this module computes from that section:
 - `true_longitude(system, t)` is the planet's `longitude_of_periapsis + nu`. The seasonal
   angles of Berger (1978) are `Derived` from it. The primary's true longitude from the
   vernal equinox, seen from the planet, is `true_longitude - equator_ascending_node_longitude`.
-  Berger's longitude of perihelion is `longitude_of_periapsis - equator_ascending_node_longitude`.
+  The orbit declares the heliocentric longitude of periapsis as its catalogue gives it, and
+  `longitude_of_periapsis - equator_ascending_node_longitude` is the longitude of perihelion
+  in Berger's `lambda = nu + varpi-tilde`, which is his tabulated value with 180 degrees
+  added (Berger 1978, Appendix, p. 2366); a comparison with a value Berger tabulates adds
+  180 degrees to the tabulated value.
 - Three invariances are identities 52v.5.3 tests. For each, the same change at a nonzero
   value is the control, and it must move the result:
   - at zero inclination the rotation is the identity whatever the node;

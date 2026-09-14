@@ -200,7 +200,7 @@ below. What fixes each root plane's normal is `fiddlybits-52v.4.18`.
 `Numerics` and `Profile` both describe a run, and the plan has to say where the line
 is or they become two homes for one quantity. `Numerics` holds declared conventions
 that are facts about how this system is represented and that no profile may vary:
-the reference pressure of the Exner function (decision 0013), and the precision the
+the reference pressure of the Exner function, `Irreducible` (decision 0013), and the precision the
 geometry is formed in, which the mesh finding fixes at double. Where `t = 0` is falls to
 the orbital elements and the rotation phase, not to `Numerics` (decision 0008, section
 The epoch). Everything a profile
@@ -427,7 +427,9 @@ Alternatives weighed:
 `EarthRatios` holds Earth's numbers as unit-conversion denominators whose names
 forbid physical use: a name says what it is a unit of and that it is a unit, so that
 a physical use reads wrongly at the call site before any lint sees it. Each member is
-`Sourced` with its locator. The module is read by `Render` and by nothing else, and
+`Sourced` with its locator, or `Derived` by a named rule from `Sourced` members: the
+Earth radius is the volume-equivalent radius of the equatorial and polar radii of
+Archinal et al. (2018) Table 4, whose mean radius is not volumetric. The module is read by `Render` and by nothing else, and
 `lint_earth` decides that; the lint and its fixtures already exist, so this row adds
 the members and the suite asserts the lint still passes with them present.
 
@@ -438,7 +440,7 @@ each one constructor call with every field declared:
 
 | instance | declares |
 | --- | --- |
-| `Earth()` | IAU and CODATA values with `Sourced` locators; a comparison to report the distance from, never a target |
+| `Earth()` | values with `Sourced` locators from the IAU 2015 nominal constants (Prsa et al. 2016), CODATA 2018, the IAU cartographic report (Archinal et al. 2018), GRS80 (Moritz 2000) and the JPL approximate elements (Standish and Williams); a comparison to report the distance from, never a target |
 | `SyntheticNonEarth()` | a carbon-dioxide bulk atmosphere, higher gravity, prograde, high eccentricity, non-zero obliquity, one star, one moon |
 | `SyntheticSynchronous()` | synchronous rotation, zero obliquity, an M-dwarf spectrum, no moon |
 | `SyntheticRetrograde()` | retrograde spin, two stars, `t = 0` at the planet's periapsis (its longitude of periapsis zero) |
