@@ -136,12 +136,3 @@ method = "Fiddlybits.Backends.wait_queued"
 message = "runtime dispatch detected"
 reason = "the refusal calls sprint(showerror, err) with err inferred Any, since what a device wait raises is not inferred, and the call to sprint is the dispatch; every form that shows any raised value keeps a dispatch in a Fiddlybits frame, moves it to a helper, or hides it in a builtin (notes/findings/2026-09-14-a-caught-exception-and-an-installed-sink-dispatch-on-a-value-of-type-any.md); removing it means refusing only named error types, which the row decides"
 row = "fiddlybits-52v.3.24"
-
-[[accepted]]
-analysis = "report_opt"
-kind = "RuntimeDispatchReport"
-file = "src/Events/Events.jl"
-method = "Fiddlybits.Events.moved"
-message = "runtime dispatch detected"
-reason = "MOVE_SINK[](Moved(array, from, to)) calls a value read from a Ref{Any}, so the callee is Any; a Ref{Function} keeps the dispatch, a nospecialize helper moves it, and invokelatest hides it in a builtin (notes/findings/2026-09-14-a-caught-exception-and-an-installed-sink-dispatch-on-a-value-of-type-any.md); removing it means a declared concrete type for the sinks decision 0046 installs, which the row decides"
-row = "fiddlybits-52v.3.25"

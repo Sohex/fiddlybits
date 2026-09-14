@@ -417,21 +417,22 @@ end
         xs_gpu = Backends.on(xs, gpu)
         starts_gpu = Backends.on(starts, gpu)
 
-        log = Events.Moved[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         Reductions.segmented_quantile(xs_gpu, starts_gpu, 0.5, gpu)
         Events.move_sink!(Events.noop_sink)
 
+        log = Events.collected(sink)
         @test length(log) == 1
         @test log[1].from == :gpu
         @test log[1].to == :cpu
 
         @testset "positive control: a host-resident boundary array records no move" begin
-            log2 = Events.Moved[]
-            Events.move_sink!(rec -> push!(log2, rec))
+            sink2 = Events.Collector{Events.Moved}()
+            Events.move_sink!(sink2)
             Reductions.segmented_quantile(xs, starts, 0.5, Backends.CPU(8))
             Events.move_sink!(Events.noop_sink)
-            @test isempty(log2)
+            @test isempty(Events.collected(sink2))
         end
     end
 end

@@ -228,26 +228,27 @@ const VALID_PAYLOAD_ARGS = Dict(
     end
 
     @testset "emit with no sink installed is a no-op, asserted by counting" begin
-        count = Ref(0)
-        Events.sink!(ev -> (count[] += 1; nothing))
+        replaced = Events.Collector{Events.Event}()
+        Events.sink!(replaced)
         Events.sink!(Events.noop_sink)
         for i in 1:5
             Events.emit(Events.Event(Events.Verdict(), i, Float64(i), :fast, "Test",
                                       Events.VerdictPayload(; VALID_PAYLOAD_ARGS[Events.VerdictPayload]...)))
         end
-        @test count[] == 0
+        @test isempty(Events.collected(replaced))
         Events.moved([1, 2, 3], :cpu, :gpu)
-        @test count[] == 0
+        @test isempty(Events.collected(replaced))
     end
 
     @testset "emit with a fixture sink delivers one event per call" begin
-        log = Events.Event[]
-        Events.sink!(ev -> push!(log, ev))
+        sink = Events.Collector{Events.Event}()
+        Events.sink!(sink)
         n = 4
         for i in 1:n
             Events.emit(Events.Event(Events.Oracle(), i, i * 0.5, :slow, "Oracles",
                                       Events.OraclePayload(; VALID_PAYLOAD_ARGS[Events.OraclePayload]...)))
         end
+        log = Events.collected(sink)
         @test length(log) == n
         for (i, ev) in enumerate(log)
             @test ev.header.sequence == i
@@ -260,9 +261,10 @@ const VALID_PAYLOAD_ARGS = Dict(
     end
 
     @testset "moved records through the move sink, which is not the event sink" begin
-        log = Any[]
-        Events.move_sink!(rec -> push!(log, rec))
+        sink = Events.Collector{Events.Moved}()
+        Events.move_sink!(sink)
         Events.moved([1.0, 2.0], :cpu, :gpu)
+        log = Events.collected(sink)
         @test length(log) == 1
         @test log[1] isa Events.Moved
         @test log[1].from == :cpu
@@ -275,20 +277,20 @@ const VALID_PAYLOAD_ARGS = Dict(
 
     @testset "a move is counted and never reaches the event sink" begin
         Events.reset_move_counts!()
-        seen = Any[]
-        Events.sink!(rec -> push!(seen, rec))
+        seen = Events.Collector{Events.Event}()
+        Events.sink!(seen)
         n = 7
         for i in 1:n
             Events.moved([Float64(i)], :gpu, :cpu)
         end
-        @test isempty(seen)
+        @test isempty(Events.collected(seen))
         @test Events.move_counts() == Dict((:gpu, :cpu) => n)
         @test Events.move_total() == n
 
         @testset "positive control: the same installed sink does receive an event" begin
             Events.emit(Events.Event(Events.Budget(), 1, 0.0, :fast, "Test",
                                       Events.BudgetPayload(; VALID_PAYLOAD_ARGS[Events.BudgetPayload]...)))
-            @test length(seen) == 1
+            @test length(Events.collected(seen)) == 1
         end
 
         Events.sink!(Events.noop_sink)
@@ -296,21 +298,21 @@ const VALID_PAYLOAD_ARGS = Dict(
     end
 
     @testset "an event never reaches the move sink" begin
-        moves = Any[]
-        events = Any[]
-        Events.move_sink!(rec -> push!(moves, rec))
-        Events.sink!(ev -> push!(events, ev))
+        moves = Events.Collector{Events.Moved}()
+        events = Events.Collector{Events.Event}()
+        Events.move_sink!(moves)
+        Events.sink!(events)
         for i in 1:3
             Events.emit(Events.Event(Events.Oracle(), i, 0.0, :fast, "Test",
                                       Events.OraclePayload(; VALID_PAYLOAD_ARGS[Events.OraclePayload]...)))
         end
-        @test isempty(moves)
-        @test length(events) == 3
+        @test isempty(Events.collected(moves))
+        @test length(Events.collected(events)) == 3
 
         @testset "positive control: the same installed move sink does receive a move" begin
             Events.moved([1.0], :cpu, :gpu)
-            @test length(moves) == 1
-            @test length(events) == 3
+            @test length(Events.collected(moves)) == 1
+            @test length(Events.collected(events)) == 3
         end
 
         Events.sink!(Events.noop_sink)
@@ -319,9 +321,6 @@ const VALID_PAYLOAD_ARGS = Dict(
     end
 
     @testset "a run's journal length is its event count, whatever its move count" begin
-        journal = Events.Event[]
-        Events.sink!(ev -> push!(journal, ev))
-
         "One fixture run: two events, and `reductions` device reads between them."
         function fixture_run(reductions)
             Events.emit(Events.Event(Events.LedgerOpen(), 1, 0.0, :fast, "Test",
@@ -334,10 +333,11 @@ const VALID_PAYLOAD_ARGS = Dict(
         end
 
         for reductions in (0, 1, 10, 100)
-            empty!(journal)
+            journal = Events.Collector{Events.Event}()
+            Events.sink!(journal)
             Events.reset_move_counts!()
             fixture_run(reductions)
-            @test length(journal) == 2
+            @test length(Events.collected(journal)) == 2
             @test Events.move_total() == reductions
         end
 
@@ -346,14 +346,81 @@ const VALID_PAYLOAD_ARGS = Dict(
     end
 
     @testset "moved with no move sink installed counts the move all the same" begin
-        count = Ref(0)
-        Events.move_sink!(rec -> (count[] += 1; nothing))
+        replaced = Events.MoveTally()
+        Events.move_sink!(replaced)
         Events.move_sink!(Events.noop_sink)
         Events.reset_move_counts!()
         Events.moved([1.0], :cpu, :gpu)
-        @test count[] == 0
+        @test Events.move_total(replaced) == 0
         @test Events.move_total() == 1
         Events.reset_move_counts!()
+    end
+
+    @testset "an installed MoveTally counts the moves made while it is installed, beside the run's tally" begin
+        Events.reset_move_counts!()
+        Events.moved([1.0], :cpu, :gpu)
+        scoped = Events.MoveTally()
+        Events.move_sink!(scoped)
+        Events.moved([2.0], :cpu, :gpu)
+        Events.moved([3.0], :gpu, :cpu)
+        Events.move_sink!(Events.noop_sink)
+        Events.moved([4.0], :gpu, :cpu)
+        @test Events.move_counts(scoped) == Dict((:cpu, :gpu) => 1, (:gpu, :cpu) => 1)
+        @test Events.move_total(scoped) == 2
+        @test Events.move_counts() == Dict((:cpu, :gpu) => 2, (:gpu, :cpu) => 2)
+        @test Events.reset_move_counts!(scoped) == Dict((:cpu, :gpu) => 1, (:gpu, :cpu) => 1)
+        @test Events.move_total(scoped) == 0
+        @test Events.move_total() == 4
+        Events.reset_move_counts!()
+    end
+
+    # Decision 0046, Amendments: the sinks are a closed set of concrete types.
+
+    @testset "the installed sinks have a declared concrete type, and each member of its set is concrete" begin
+        @test fieldtype(typeof(Events.SINK), :x) === Events.EventSink
+        @test fieldtype(typeof(Events.MOVE_SINK), :x) === Events.MoveSink
+        @test Set(Base.uniontypes(Events.EventSink)) ==
+              Set([Events.NoopSink, Events.Journal, Events.Collector{Events.Event}])
+        @test Set(Base.uniontypes(Events.MoveSink)) ==
+              Set([Events.NoopSink, Events.MoveTally, Events.Collector{Events.Moved}])
+        @test all(isconcretetype, Base.uniontypes(Events.EventSink))
+        @test all(isconcretetype, Base.uniontypes(Events.MoveSink))
+    end
+
+    @testset "a sink outside the closed set is refused by name, and the installed sink stays" begin
+        events = Events.Collector{Events.Event}()
+        moves = Events.Collector{Events.Moved}()
+        Events.sink!(events)
+        Events.move_sink!(moves)
+        outside_event = (ev -> nothing, println, Events.MoveTally(), Events.Collector{Events.Moved}(),
+                         Events.Collector{Any}())
+        outside_move = (rec -> nothing, println, Events.Journal(tempname()),
+                        Events.Collector{Events.Event}(), Events.Collector{Any}())
+        for (install, site, outside) in ((Events.sink!, "Events.sink!", outside_event),
+                                         (Events.move_sink!, "Events.move_sink!", outside_move))
+            for sink in outside
+                e = raised_refusal(() -> install(sink))
+                @test e.quantity == "sink"
+                @test e.site == site
+                @test occursin(string(typeof(sink)), e.reason)
+            end
+        end
+        @test Events.SINK[] === events
+        @test Events.MOVE_SINK[] === moves
+
+        @testset "positive control: every member of each set installs" begin
+            for sink in (Events.noop_sink, Events.Journal(tempname()), Events.Collector{Events.Event}())
+                @test Events.sink!(sink) === nothing
+                @test Events.SINK[] === sink
+            end
+            for sink in (Events.noop_sink, Events.MoveTally(), Events.Collector{Events.Moved}())
+                @test Events.move_sink!(sink) === nothing
+                @test Events.MOVE_SINK[] === sink
+            end
+        end
+
+        Events.sink!(Events.noop_sink)
+        Events.move_sink!(Events.noop_sink)
     end
 
     @testset "the tally counts each direction on its own and resets to empty" begin

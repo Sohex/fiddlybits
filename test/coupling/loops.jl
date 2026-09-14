@@ -76,10 +76,10 @@ refused(e, quantity, text) =
 
 "`(f(), events)`, `events` every event emitted while `f` ran."
 function recording(f)
-    events = Events.Event[]
-    Events.sink!(e -> push!(events, e))
+    sink = Events.Collector{Events.Event}()
+    Events.sink!(sink)
     try
-        return f(), events
+        return f(), Events.collected(sink)
     finally
         Events.sink!(Events.noop_sink)
     end

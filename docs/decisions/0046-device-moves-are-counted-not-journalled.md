@@ -108,6 +108,28 @@ accident.
   count reports a large number in one field of its run record, which is the signal
   `fiddlybits-52v.7.47` is about and the reason the tally is not a single total.
 
+## Amendments
+
+- 2026-09-14: the sinks `sink!` and `move_sink!` install are a closed set of concrete
+  types, never any callable (user decision 2026-09-14, option C). `sink!` installs an
+  `Events.EventSink`, one of `NoopSink`, `Journal` and `Collector{Event}`; `move_sink!`
+  installs an `Events.MoveSink`, one of `NoopSink`, `MoveTally` and `Collector{Moved}`.
+  Each is called through a method on its concrete type, and `SINK` and `MOVE_SINK` are
+  `Ref`s to those unions, so `emit` and `moved` call their sink by union splitting
+  rather than by a runtime dispatch on a value of type `Any`. A value outside the set is
+  refused by name at the installer, with the installed sink left in place. The `Journal`
+  struct is declared in `Events`, since a union names its members where it is declared,
+  and its method appending an event stays in `src/Provenance/journal.jl`. The run's
+  tally is the `MoveTally` `MOVE_TALLY`, which `moved` hands every record to before the
+  installed sink; a `MoveTally` installed as the move sink counts a scope, which is how
+  the move tests count, and `Collector{R}` is the collecting sink every other test
+  installs. A `Moved` names its backends as `Symbol` fields. The installers
+  (`src/Provenance/journal.jl` and every test under `test/` that installed a closure)
+  are written against the set, and the accepted `report_opt` entry for `Events.moved`
+  leaves `test/fields/static_pass.toml`. From
+  `notes/findings/2026-09-14-a-caught-exception-and-an-installed-sink-dispatch-on-a-value-of-type-any.md`,
+  carried by `fiddlybits-52v.3.25`.
+
 ## References
 
 - Decision 0042 (the closed vocabulary, the bound that keeps the journal from becoming a

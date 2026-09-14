@@ -260,11 +260,12 @@ import .CouplingFixtures as CF
     end
 
     @testset "every refusal past the keywords is emitted as a refusal event" begin
-        events = Any[]
-        Events.sink!(e -> push!(events, e))
+        sink = Events.Collector{Events.Event}()
+        Events.sink!(sink)
         try
             cyclic, _ = CF.triad(lagged = nothing)
             e = CF.caught(() -> CF.assemble(cyclic...))
+            events = Events.collected(sink)
             @test length(events) == 1
             event = only(events)
             @test event.header.kind === Events.Refusal()
@@ -272,10 +273,11 @@ import .CouplingFixtures as CF
             @test event.header.sequence == 7
             @test event.header.tier === :fast
             @test event.payload === e
-            empty!(events)
+            quiet = Events.Collector{Events.Event}()
+            Events.sink!(quiet)
             lagged, initial_conditions = CF.triad(lagged = :z)
             CF.assemble(lagged...; initial_conditions = initial_conditions)
-            @test isempty(events)
+            @test isempty(Events.collected(quiet))
         finally
             Events.sink!(Events.noop_sink)
         end

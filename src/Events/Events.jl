@@ -279,20 +279,154 @@ Event(kind::Kind, sequence::Integer, instant::Real, tier::Symbol,
       component::AbstractString, payload) =
     Event(Header(Int(sequence), Float64(instant), tier, String(component), kind), payload)
 
-"A sink that does nothing with the record it is handed."
-noop_sink(record) = nothing
+"""
+    Moved(array, from, to)
 
-const SINK = Ref{Any}(noop_sink)
+The device-move record of decision 0010: `array` moved from backend `from`
+to backend `to`. `from` and `to` are backend names, each a `Symbol`, never a
+type this module would have to depend on the backend layer for.
+"""
+struct Moved
+    array::Any
+    from::Symbol
+    to::Symbol
+end
+
+# The sinks: a closed set of concrete types, one method each (decision 0046,
+# Amendments).
 
 """
-    sink!(f)
+    NoopSink
 
-Install `f` as the callback `emit` hands every event to, replacing whatever
-was installed before. The default sink is `noop_sink`. A `Moved` record never
+The sink that does nothing with the record it is handed. `noop_sink` is its
+one value, and the default of both `sink!` and `move_sink!`.
+"""
+struct NoopSink end
+
+"The one `NoopSink`."
+const noop_sink = NoopSink()
+
+"""
+    (sink::NoopSink)(record)
+
+Nothing, whatever `record` is.
+"""
+(::NoopSink)(record) = nothing
+
+"""
+    Journal(file)
+
+The event sink of one run's journal: `file`, the journal file, and `lock`,
+held while one event's text is appended to it. `Provenance.install_journal!`
+makes one and installs it; the method that appends an `Event` to `file` is in
+`src/Provenance/journal.jl`.
+"""
+struct Journal
+    file::String
+    lock::ReentrantLock
+
+    Journal(file::String) = new(file, ReentrantLock())
+end
+
+"""
+    Collector{R}()
+
+A sink that keeps every record of type `R` it is handed, in the order it was
+handed them, under a lock. `collected` reads what it holds.
+"""
+struct Collector{R}
+    records::Vector{R}
+    lock::ReentrantLock
+end
+
+Collector{R}() where {R} = Collector{R}(R[], ReentrantLock())
+
+"""
+    (sink::Collector{R})(record::R)
+
+Append `record` to `sink`'s records under its lock.
+"""
+function (sink::Collector{R})(record::R) where {R}
+    lock(() -> push!(sink.records, record), sink.lock)
+    return nothing
+end
+
+"""
+    collected(sink::Collector)
+
+A copy of the records `sink` holds, in the order it was handed them.
+"""
+collected(sink::Collector) = lock(() -> copy(sink.records), sink.lock)
+
+"""
+    MoveTally()
+
+A device-move tally: one count per ordered pair of backend names, under a
+lock. Handed a `Moved`, it adds one under `(from, to)`. `MOVE_TALLY` is the
+run's tally, which `moved` adds to whatever move sink is installed; a
+`MoveTally` installed through `move_sink!` counts the moves made while it is
+installed.
+"""
+struct MoveTally
+    counts::Dict{Tuple{Symbol,Symbol},Int}
+    lock::ReentrantLock
+end
+
+MoveTally() = MoveTally(Dict{Tuple{Symbol,Symbol},Int}(), ReentrantLock())
+
+"""
+    (tally::MoveTally)(record::Moved)
+
+Add one to `tally` under `(record.from, record.to)`.
+"""
+function (tally::MoveTally)(record::Moved)
+    pair = (record.from, record.to)
+    lock(tally.lock) do
+        tally.counts[pair] = get(tally.counts, pair, 0) + 1
+    end
+    return nothing
+end
+
+"""
+    EventSink
+
+The sinks `sink!` installs and `emit` hands an `Event` to: `NoopSink`,
+`Journal` and `Collector{Event}`.
+"""
+const EventSink = Union{NoopSink, Journal, Collector{Event}}
+
+"""
+    MoveSink
+
+The sinks `move_sink!` installs and `moved` hands a `Moved` to: `NoopSink`,
+`MoveTally` and `Collector{Moved}`.
+"""
+const MoveSink = Union{NoopSink, MoveTally, Collector{Moved}}
+
+"""
+    refuse_sink(sink, site, set)
+
+Refuse, at `site`, naming the quantity `sink`, a `sink` whose type is not a
+member of the `Union` `set`, listing the members.
+"""
+refuse_sink(sink, site::String, set::Type) =
+    Verdicts.refuse("sink", site,
+                    "a $(typeof(sink)) is not a sink $(site) installs; the sinks it installs are " *
+                    join(string.(Base.uniontypes(set)), ", "))
+
+const SINK = Ref{EventSink}(noop_sink)
+
+"""
+    sink!(sink)
+
+Install `sink` as the sink `emit` hands every event to, replacing whatever was
+installed before. The default sink is `noop_sink`. A `Moved` record never
 reaches this sink; `move_sink!` installs the one it does reach (decision
-0046).
+0046). Refuses, naming `sink`, a value that is not an `EventSink`, leaving the
+installed sink in place.
 """
-sink!(f) = (SINK[] = f; nothing)
+sink!(sink::EventSink) = (SINK[] = sink; nothing)
+sink!(sink) = refuse_sink(sink, "Events.sink!", EventSink)
 
 """
     emit(event::Event)
@@ -302,33 +436,22 @@ sink is a no-op and `event` has no effect.
 """
 emit(event::Event) = (SINK[](event); nothing)
 
-"""
-    Moved(array, from, to)
-
-The device-move record of decision 0010: `array` moved from backend `from`
-to backend `to`. `from` and `to` are read by name, never by a type this
-module would have to depend on the backend layer for.
-"""
-struct Moved
-    array::Any
-    from::Any
-    to::Any
-end
-
-const MOVE_SINK = Ref{Any}(noop_sink)
+const MOVE_SINK = Ref{MoveSink}(noop_sink)
 
 """
-    move_sink!(f)
+    move_sink!(sink)
 
-Install `f` as the callback `moved` hands every `Moved` record to, replacing
+Install `sink` as the sink `moved` hands every `Moved` record to, replacing
 whatever was installed before. The default sink is `noop_sink`. An `Event`
 never reaches this sink; `sink!` installs the one it does reach (decision
-0046).
+0046). Refuses, naming `sink`, a value that is not a `MoveSink`, leaving the
+installed sink in place.
 """
-move_sink!(f) = (MOVE_SINK[] = f; nothing)
+move_sink!(sink::MoveSink) = (MOVE_SINK[] = sink; nothing)
+move_sink!(sink) = refuse_sink(sink, "Events.move_sink!", MoveSink)
 
-const MOVE_COUNTS = Dict{Tuple{Symbol,Symbol},Int}()
-const MOVE_COUNTS_LOCK = ReentrantLock()
+"The run's device-move tally, which `move_counts` reads."
+const MOVE_TALLY = MoveTally()
 
 """
     backend_name(name, argument)
@@ -344,46 +467,45 @@ backend_name(name, argument) =
 """
     moved(array, from, to)
 
-Record that `array` moved from backend `from` to backend `to`: add one to the
-tally `move_counts` reads, under the pair `(from, to)`, then hand a `Moved`
-record to the installed move sink. With no move sink installed, the default
-sink is a no-op and the tally is the whole record. Refuses, naming the
-argument, a `from` or a `to` that is not a `Symbol`, before counting anything.
+Record that `array` moved from backend `from` to backend `to`: hand a `Moved`
+record to `MOVE_TALLY`, which adds one under the pair `(from, to)`, then to the
+installed move sink. With no move sink installed, the default sink is a no-op
+and the tally is the whole record. Refuses, naming the argument, a `from` or a
+`to` that is not a `Symbol`, before counting anything.
 """
 function moved(array, from, to)
-    pair = (backend_name(from, "from"), backend_name(to, "to"))
-    lock(MOVE_COUNTS_LOCK) do
-        MOVE_COUNTS[pair] = get(MOVE_COUNTS, pair, 0) + 1
-    end
-    MOVE_SINK[](Moved(array, from, to))
+    record = Moved(array, backend_name(from, "from"), backend_name(to, "to"))
+    MOVE_TALLY(record)
+    MOVE_SINK[](record)
     return nothing
 end
 
 """
-    move_counts()
+    move_counts(tally = MOVE_TALLY)
 
-A copy of the device-move tally: how many moves have been recorded between
-each ordered pair of backend names since the last `reset_move_counts!`.
+A copy of `tally`: how many moves it has counted between each ordered pair of
+backend names since it was made or last emptied by `reset_move_counts!`.
 """
-move_counts() = lock(() -> copy(MOVE_COUNTS), MOVE_COUNTS_LOCK)
+move_counts(tally::MoveTally = MOVE_TALLY) = lock(() -> copy(tally.counts), tally.lock)
 
 """
-    move_total()
+    move_total(tally = MOVE_TALLY)
 
-How many device moves have been recorded since the last
+How many moves `tally` has counted since it was made or last emptied by
 `reset_move_counts!`, over every pair of backend names.
 """
-move_total() = lock(() -> sum(values(MOVE_COUNTS); init = 0), MOVE_COUNTS_LOCK)
+move_total(tally::MoveTally = MOVE_TALLY) =
+    lock(() -> sum(values(tally.counts); init = 0), tally.lock)
 
 """
-    reset_move_counts!()
+    reset_move_counts!(tally = MOVE_TALLY)
 
-Empty the device-move tally and return what it held.
+Empty `tally` and return what it held.
 """
-function reset_move_counts!()
-    lock(MOVE_COUNTS_LOCK) do
-        held = copy(MOVE_COUNTS)
-        empty!(MOVE_COUNTS)
+function reset_move_counts!(tally::MoveTally = MOVE_TALLY)
+    lock(tally.lock) do
+        held = copy(tally.counts)
+        empty!(tally.counts)
         return held
     end
 end
