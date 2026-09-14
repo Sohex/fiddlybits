@@ -36,6 +36,7 @@ fi
 # The whole suite before anything leaves this machine. Decision 0043.
 # A backstop, not the gate: the gate is the executor running the suite before the
 # commit, which the reviewer's checklist verifies.
+# gate.sh starts every julia in this checkout's own depot (tools/gate/depot.jl).
 _fb_root=$(git rev-parse --show-toplevel)
 if [ -f "$_fb_root/Project.toml" ] && command -v julia >/dev/null 2>&1; then
   if ! "$_fb_root/tools/gate/gate.sh"; then

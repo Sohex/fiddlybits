@@ -27,6 +27,9 @@
 # When the working tree changes a .jl file that elides a bounds check against its merge
 # base with main, every suite also runs under --check-bounds=yes in the same pool, and
 # the run prints which files did it (decision 0055).
+#
+# Every julia the driver starts compiles into this checkout's own depot, ahead of the
+# shared one (tools/gate/depot.jl).
 set -eu
 root=$(git rev-parse --show-toplevel)
 cd "$root"

@@ -12,6 +12,9 @@
 #
 # Walltime is generous rather than tight: this is not the pre-push path, and a nightly
 # killed at its limit tells you nothing about the night.
+#
+# Every julia the driver starts compiles into this checkout's own depot, ahead of the
+# shared one, through the gate's command builders (tools/gate/depot.jl).
 set -eu
 root=$(git rev-parse --show-toplevel)
 cd "$root"
